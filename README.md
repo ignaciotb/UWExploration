@@ -36,8 +36,8 @@ For now, it only visualizes the input dataset bathymetry as a point cloud in PCL
 After running it, press `r` to center the view on the map, and `q` to stop the visualizer.
 
 ### auv_pf
-The particle filter implementation.
+Package containing the particle filter implementation.
 Feel free to start to work on this one and try simple things.
 
 ### mbes_model
-This will host the measurement model used in the PF. For now this will be an MBES simulator based on PCL. Coming soon!
+This package will host the measurement model used in the PF. For now this will be an MBES simulator based on PCL. Coming soon!

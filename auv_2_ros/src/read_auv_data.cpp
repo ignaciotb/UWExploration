@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
 //    std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(pings_path);
 
     // Divides the tracks into roughly square pieces
-//    divide_on_tracks(std_pings);
+    divide_on_tracks(std_pings);
 //    navi_data::divide_tracks_equal(std_pings);
 
     // Save maps as .xyz pointclouds to use with external tools

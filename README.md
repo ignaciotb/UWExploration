@@ -4,7 +4,7 @@ Particle filter for AUV localization based on MBES measurements.
 
 ## Dependencies (tested on Ubuntu 16.04 and 18.04)
 * AUVLIB [here](https://github.com/nilsbore/auvlib) 
-* Bathymetric SLAM 
+* Bathymetric SLAM [in the private gitr] (https://gitr.sys.kth.se/torroba/bathymetric_slam)
 
 ## Building
 
@@ -17,13 +17,14 @@ If you've managed to install the dependencies, this part should be pretty easy.
 ## ROS Packages
 
 ### auv_2_ros
-It contains all the utilities to interface the AUV with the ROS environment.
+It will contain all the utilities to interface the AUV with the ROS environment.
 For now we'll be doing this via parsing of `.all` files from Hugin which contain, among other things, the MBES pings and AUV trajectories we need.
+There are two "nodes" for now:
 
 #### read_auv_data
 This is not a node and doesn't need to be. It's just an app for you to parse `.all` files into `.cereal` files, which are lighter and faster to read, use:
 ```
-rosrun auv_2_ros read_auv_data **** --simulation yes --slam_cereal ../sim_data/map_small/
+rosrun auv_2_ros read_auv_data --folder /path/to/folder/with.allFiles --type all
 ```
 
 #### auv_2_ros

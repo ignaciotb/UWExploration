@@ -4,9 +4,6 @@ project(mbes_model)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/auvlib/install/share)
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/bathymetric_slam/install/share)
-
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -162,8 +159,8 @@ add_library(multibeam_model
 # as an example, code may need to be generated before libraries
 # either from message generation or dynamic reconfigure
 add_dependencies(multibeam_model 
-	${${PROJECT_NAME}_EXPORTED_TARGETS} 
-	${catkin_EXPORTED_TARGETS}
+  ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+  ${catkin_EXPORTED_TARGETS}
 )
 
 ## Declare a C++ executable

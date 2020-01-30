@@ -4,9 +4,6 @@ project(auv_2_ros)
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/auvlib/install/share)
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/bathymetric_slam/install/share)
-
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -181,7 +178,9 @@ add_executable(read_auv_data
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(auv2ros_parser 
+  ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+  ${catkin_EXPORTED_TARGETS})
 
 # Specify libraries to link a library or executable target against
 target_link_libraries(auv2ros_parser

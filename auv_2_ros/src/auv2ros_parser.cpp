@@ -40,6 +40,7 @@ int main(int argc, char** argv){
     // Parse input data from cereal files
     SubmapsVec maps_gt;
     MapObj map_loc;
+    Eigen::Isometry3d map_tf;
     boost::filesystem::path submaps_path(path_str);
     std::cout << "Input data " << boost::filesystem::basename(submaps_path) << std::endl;
     if(simulation == "yes"){
@@ -48,7 +49,7 @@ int main(int argc, char** argv){
     else{
         if(original == "yes"){
             std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(submaps_path);
-            map_loc = parseMapAUVlib(ss);
+            std::tie(map_loc, map_tf)= parseMapAUVlib(ss);
             maps_gt.push_back(map_loc);
         }
         else{

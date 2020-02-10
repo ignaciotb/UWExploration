@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(auv_2_ros)
 
-## Compile as C++11, supported in ROS Kinetic and newer
+## Compile as C++11, supported in ROS Kinetic and newer o
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries

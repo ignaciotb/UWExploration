@@ -190,6 +190,7 @@ target_link_libraries(auv2ros_parser
     std_data
     #multibeam_model
     ${PCL_LIBRARIES}
+    ${catkin_LIBRARIES}
 )
 
 target_link_libraries(read_auv_data

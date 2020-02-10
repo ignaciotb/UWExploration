@@ -9,7 +9,7 @@ project(auv_2_ros)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  mbes_model
+  #mbes_model
 )
 
 find_package(Ceres REQUIRED)
@@ -188,7 +188,7 @@ target_link_libraries(auv2ros_parser
     submaps_tools
     data_transforms
     std_data
-    multibeam_model
+    #multibeam_model
     ${PCL_LIBRARIES}
 )
 

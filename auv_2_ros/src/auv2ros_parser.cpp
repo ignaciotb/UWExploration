@@ -38,15 +38,15 @@ int main(int argc, char** argv){
     sensor_msgs::PointCloud2 outcloud;
 
     // Inputs
-    std::string folder_str, path_str, output_str, original, simulation;
+    std::string track_str, map_str, output_str, original, simulation;
     cxxopts::Options options("MyProgram", "One line description of MyProgram");
     options.add_options()
         ("help", "Print help")
-        ("covs_folder", "Input covs folder", cxxopts::value(folder_str))
         ("output_cereal", "Output graph cereal", cxxopts::value(output_str))
         ("original", "Disturb original trajectory", cxxopts::value(original))
         ("simulation", "Simulation data from Gazebo", cxxopts::value(simulation))
-        ("slam_cereal", "Input ceres file", cxxopts::value(path_str));
+        ("trajectory", "Input AUV GT data", cxxopts::value(track_str))
+        ("map", "Localization map", cxxopts::value(map_str));
 
     auto result = options.parse(argc, argv);
     if (result.count("help")) {
@@ -58,22 +58,29 @@ int main(int argc, char** argv){
     }
 
     // Parse input data from cereal files
-    SubmapsVec maps_gt;
+    SubmapsVec maps_gt, traj_pings;
     MapObj map_loc;
     Eigen::Isometry3d map_tf;
-    boost::filesystem::path submaps_path(path_str);
-    std::cout << "Input data " << boost::filesystem::basename(submaps_path) << std::endl;
+    boost::filesystem::path map_path(map_str);
+    boost::filesystem::path auv_path(track_str);
+    std::cout << "Map path " << boost::filesystem::basename(map_path) << std::endl;
+    std::cout << "AUV path " << boost::filesystem::basename(auv_path) << std::endl;
+
     if(simulation == "yes"){
-        maps_gt = readSubmapsInDir(submaps_path.string());
+        maps_gt = readSubmapsInDir(map_path.string());
     }
     else{
         if(original == "yes"){
-            std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(submaps_path);
+            std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
             std::tie(map_loc, map_tf)= parseMapAUVlib(ss);
             maps_gt.push_back(map_loc);
+
+            std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
+            std::cout << "Number of pings " << std_pings.size() << std::endl;
+            traj_pings = parsePingsAUVlib(std_pings, map_tf);
         }
         else{
-            std::ifstream is(boost::filesystem::basename(submaps_path) + ".cereal", std::ifstream::binary);
+            std::ifstream is(boost::filesystem::basename(map_path) + ".cereal", std::ifstream::binary);
             {
               cereal::BinaryInputArchive iarchive(is);
               iarchive(maps_gt);

@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(auv_2_ros)
 
-## Compile as C++11, supported in ROS Kinetic and newer
+## Compile as C++11, supported in ROS Kinetic and newer o
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
@@ -9,7 +9,7 @@ project(auv_2_ros)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  mbes_model
+  #mbes_model
 )
 
 find_package(Ceres REQUIRED)
@@ -188,8 +188,9 @@ target_link_libraries(auv2ros_parser
     submaps_tools
     data_transforms
     std_data
-    multibeam_model
+    #multibeam_model
     ${PCL_LIBRARIES}
+    ${catkin_LIBRARIES}
 )
 
 target_link_libraries(read_auv_data

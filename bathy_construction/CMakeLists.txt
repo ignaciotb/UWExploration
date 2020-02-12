@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(auv_pf)
+project(bathy_construction)
 
-## Compile as C++11, supported in ROS Kinetic and newer
+## Compile as C++11, supported in ROS Kinetic and newer o
 # add_compile_options(-std=c++11)
-
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/auvlib/install/share)
-set(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} /home/torroba18/workspace/bathymetric_slam/install/share)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
+  tf2
+  tf2_ros
+  #mbes_model
 )
 
 find_package(Ceres REQUIRED)
@@ -125,7 +125,7 @@ find_package(SubmapRegistration REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES auv_pf
+#  LIBRARIES mbes_model
 #  CATKIN_DEPENDS roscpp
 #  	DEPENDS LibXTF
 #     INCLUDE_DIRS 
@@ -139,7 +139,7 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+include
   	${catkin_INCLUDE_DIRS}
 	${CERES_INCLUDE_DIRS}
 	${EIGEN_INCLUDE_DIRS} 
@@ -153,20 +153,21 @@ include_directories(
 #   	${BathyMaps_INCLUDE_DIRS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/auv_pf.cpp
+# Add cmake target dependencies of the library
+# as an example, code may need to be generated before libraries
+# either from message generation or dynamic reconfigure
+# add_dependencies(meas_model 
+# 	${${PROJECT_NAME}_EXPORTED_TARGETS} 
+# 	${catkin_EXPORTED_TARGETS}
 # )
-
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/auv_pf_node.cpp)
+add_executable(bathymap_constructor
+       src/bathymap_constructor.cpp
+)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -176,12 +177,20 @@ include_directories(
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(bathymap_constructor 
+  ${${PROJECT_NAME}_EXPORTED_TARGETS} 
+  ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
+# Specify libraries to link a library or executable target against
+target_link_libraries(bathymap_constructor
+    utils_visualization
+    submaps_tools
+    data_transforms
+    std_data
+    #multibeam_model
+    ${PCL_LIBRARIES}
+    ${catkin_LIBRARIES}
+)
 
 #############
 ## Install ##

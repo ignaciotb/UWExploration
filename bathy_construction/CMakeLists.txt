@@ -12,6 +12,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   pcl_ros
+  eigen_conversions
 )
 
 find_package(Ceres REQUIRED)

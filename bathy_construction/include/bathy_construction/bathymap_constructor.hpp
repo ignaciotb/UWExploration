@@ -26,6 +26,7 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <eigen_conversions/eigen_msg.h>
 
 using namespace Eigen;
 using namespace std;
@@ -49,6 +50,7 @@ private:
     ros::Publisher ping_pub_;
     ros::Publisher map_pub_;
     ros::Publisher test_pub_;
+    ros::Publisher sim_ping_pub_;
 //    ros::Subscriber mbes_laser_sub_;
 
     tf2_ros::Buffer tfBuffer_;
@@ -64,6 +66,7 @@ private:
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
 
+    MultibeamSensor<PointT> vox_oc_;
 
     int ping_num_;
 };

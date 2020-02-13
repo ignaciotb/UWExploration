@@ -7,6 +7,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("mbes_pings", 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("debug", 10);
     map_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("map", 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("mbes_sim", 10);
 
     tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
     ping_num_ = 0;
@@ -35,20 +36,25 @@ void BathymapConstructor::init(const boost::filesystem::path map_path, const boo
     PointCloudT::Ptr cloud_ptr (new PointCloudT);
     pcl::UniformSampling<PointT> us_filter;
     us_filter.setInputCloud (cloud_ptr);
-    us_filter.setRadiusSearch(2);   // Tune for speed/map resolution
-    for(SubmapObj& submap_i: maps_gt_){
-        *cloud_ptr = submap_i.submap_pcl_;
-        us_filter.setInputCloud(cloud_ptr);
-        us_filter.filter(*cloud_ptr);
-        submap_i.submap_pcl_ = *cloud_ptr;
-    }
+//    us_filter.setRadiusSearch(1);   // Tune for speed/map resolution
+//    for(SubmapObj& submap_i: maps_gt_){
+//        *cloud_ptr = submap_i.submap_pcl_;
+//        us_filter.setInputCloud(cloud_ptr);
+//        us_filter.filter(*cloud_ptr);
+//        submap_i.submap_pcl_ = *cloud_ptr;
+//    }
 
     map_tf_ = map_loc.submap_tf_;
     odom_tf_ = traj_pings_.at(0).submap_tf_;
 
-    // Publish map once
+    // Create voxel grid
+    vox_oc_.setLeafSize(10,10,10);
+    vox_oc_.initializeVoxelGrid(maps_gt_.at(0));
+
+    // Publish voxelized map once
     sensor_msgs::PointCloud2 map;
-    pcl::toROSMsg(maps_gt_.at(0).submap_pcl_, map);
+    PointCloudT pcl_filtered = vox_oc_.getFilteredPointCloud();
+    pcl::toROSMsg(pcl_filtered, map);
     map.header.frame_id = "map";
     map_pub_.publish(map);
 
@@ -118,8 +124,9 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
 void BathymapConstructor::run(){
 
     // Publish MBES pings
-    sensor_msgs::PointCloud2 mbes_i, mbes_i_map, map;
+    sensor_msgs::PointCloud2 mbes_i, mbes_i_map, map, sim_ping;
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
+    PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
 
     try{
@@ -131,7 +138,24 @@ void BathymapConstructor::run(){
             mbes_i.header.frame_id = "ping_" + std::to_string(ping_num_);
             mbes_i.header.stamp = ros::Time::now();
             ping_pub_.publish(mbes_i);
+
+            // Create simulated ping
+            Eigen::Isometry3d sensor_tf;
+            tf::transformMsgToEigen(transformStamped.transform, sensor_tf);
+            Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
+            vox_oc_.createMBES(2.094, 254, tf);
+            PointCloudT ping_i;
+            vox_oc_.pingComputation(ping_i);
+
+            std::cout << "Sim mbes hits " << ping_i.points.size() << std::endl;
+
+            pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, transformStamped.transform);
+            pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
+            sim_ping.header.frame_id = "ping_"+std::to_string(ping_num_);
+            sim_ping.header.stamp = ros::Time::now();
+            sim_ping_pub_.publish(sim_ping);
         }
+
 
         // Original ping (for debugging)
         *mbes_i_pcl_map = traj_pings_.at(ping_num_).submap_pcl_;
@@ -143,5 +167,5 @@ void BathymapConstructor::run(){
     catch (tf2::TransformException &ex) {
       ROS_WARN("%s",ex.what());
     }
-    ping_num_ += 5;
+    ping_num_ += 2;
 }

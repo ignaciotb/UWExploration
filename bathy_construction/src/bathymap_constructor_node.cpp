@@ -28,7 +28,7 @@ int main(int argc, char** argv){
 
     BathymapConstructor* map_constructor = new BathymapConstructor(ros::this_node::getName(), nh);
     map_constructor->init(map_path, auv_path);
-    ros::Timer timer1 = nh.createTimer(ros::Duration(2), &BathymapConstructor::broadcastTf, map_constructor);
+    ros::Timer timer1 = nh.createTimer(ros::Duration(0.5), &BathymapConstructor::broadcastTf, map_constructor);
 //    ros::Timer timer2 = nh.createTimer(ros::Duration(5), &BathymapConstructor::run, map_constructor);
     ros::spin();
 

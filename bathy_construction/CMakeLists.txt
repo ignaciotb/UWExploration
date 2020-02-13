@@ -12,7 +12,6 @@ find_package(catkin REQUIRED COMPONENTS
   tf2
   tf2_ros
   pcl_ros
-  #mbes_model
 )
 
 find_package(Ceres REQUIRED)
@@ -34,6 +33,7 @@ find_package(BathyMaps REQUIRED)
 find_package(SubmapsTools REQUIRED)
 find_package(GraphOptimization REQUIRED)
 find_package(SubmapRegistration REQUIRED)
+find_package(MeasModels REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -147,6 +147,7 @@ include
 	${G2O_INCLUDE_DIRS} 
 	${PCL_INCLUDE_DIRS}
   	${OpenCV_INCLUDE_DIRS}
+#        ${mbes_model_INCLUDE_DIRS}
 #   	${LibXTF_INCLUDE_DIRS}
 #   	${LibGSF_INCLUDE_DIRS}
 #   	${EigenCereal_INCLUDE_DIRS}
@@ -189,6 +190,7 @@ target_link_libraries(bathymap_constructor
     submaps_tools
     data_transforms
     std_data
+    multibeam_simple
     #multibeam_model
     ${PCL_LIBRARIES}
     ${catkin_LIBRARIES}

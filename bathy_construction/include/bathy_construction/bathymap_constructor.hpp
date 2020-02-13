@@ -14,16 +14,17 @@
 #include "submaps_tools/cxxopts.hpp"
 #include "submaps_tools/submaps.hpp"
 #include "registration/utils_visualization.hpp"
+#include "meas_models/multibeam_simple.hpp"
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
-#include <sensor_msgs/PointCloud2.h>
 #include <pcl_conversions/pcl_conversions.h>
 
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
+#include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/TransformStamped.h>
 
 using namespace Eigen;
@@ -53,6 +54,9 @@ private:
     tf2_ros::Buffer tfBuffer_;
     tf2_ros::TransformListener* tfListener_;
     tf::TransformListener tflistener_;
+    tf2_ros::StaticTransformBroadcaster static_broadcaster_;
+    tf2_ros::TransformBroadcaster br_;
+    std::vector<geometry_msgs::TransformStamped> pings_tf_;
 
     Eigen::Isometry3f map_tf_;
     Eigen::Isometry3f odom_tf_;
@@ -60,7 +64,6 @@ private:
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
 
-    std::vector<geometry_msgs::TransformStamped> pings_tf_;
 
     int ping_num_;
 };

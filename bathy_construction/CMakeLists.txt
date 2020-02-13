@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   tf2
   tf2_ros
+  pcl_ros
   #mbes_model
 )
 
@@ -165,6 +166,7 @@ include
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(bathymap_constructor
+       src/bathymap_constructor_node.cpp
        src/bathymap_constructor.cpp
 )
 

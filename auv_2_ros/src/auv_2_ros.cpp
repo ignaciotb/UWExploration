@@ -175,6 +175,8 @@ void BathymapConstructor::run(){
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
+    double mbes_opening = 1.745; // In radians
+    double n_beams = 254; // Number of beams -1 in the MBES simulation
 
     try{
         // Transform points from map to ping i
@@ -190,7 +192,7 @@ void BathymapConstructor::run(){
             Eigen::Isometry3d sensor_tf;
             tf::transformMsgToEigen(transformStamped.transform, sensor_tf);
             Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
-            vox_oc_.createMBES(1.745, 254, tf);
+            vox_oc_.createMBES(mbes_opening, n_beams, tf);
             PointCloudT ping_i;
             vox_oc_.pingComputation(ping_i);
             pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, transformStamped.transform);
@@ -212,5 +214,5 @@ void BathymapConstructor::run(){
     catch (tf2::TransformException &ex) {
       ROS_WARN("%s",ex.what());
     }
-    ping_num_ += 2;
+    ping_num_ += 1;
 }

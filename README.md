@@ -38,5 +38,19 @@ Topics and such so far:
 * `/gt/mbes_pings`: ground truth MBES ping at current AUV pose
 * `/map`: ground truth bathymetry from the AUV survey
 * `/sim/mbes`: simulated MBES ping at current AUV pose
+It also broadcasts the tf tree
+* `world` -> `map` -> `odom` -> `base_link`
+
+If you want to run the node faster/slower, go to `auv_2_ros_node.cpp` and modify the `rate` variable.
+If you want to try different configurations of the MBES simulation model, check the variables `mbes_opening` and `n_beams` in `auv_2_ros.cpp`.
+
+I've also added an RVIZ config file which you can use to setup the visualization easily
+
+#### mbes_sim
+Soon to come!
+
+
+## TODO:
+- [ ] Create mbes simulation node. Inputs: particle m pose. Outputs: MBES simulation for that particle. 
 
 

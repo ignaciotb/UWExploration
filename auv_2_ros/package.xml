@@ -26,6 +26,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>pcl_ros</exec_depend>
   <exec_depend>eigen_conversions</exec_depend>
+  <exec_depend>tf_conversions</exec_depend>
 
 
   <!-- The export tag contains other, unspecified, tags -->

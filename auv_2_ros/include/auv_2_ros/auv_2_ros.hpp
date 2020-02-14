@@ -25,8 +25,10 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <eigen_conversions/eigen_msg.h>
+#include <tf_conversions/tf_eigen.h>
 
 using namespace Eigen;
 using namespace std;
@@ -43,6 +45,8 @@ public:
 
     void broadcastTf(const ros::TimerEvent &event);
 
+    void publishOdom(Vector3d odom_ping_i, Vector3d euler);
+
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -51,6 +55,7 @@ private:
     ros::Publisher map_pub_;
     ros::Publisher test_pub_;
     ros::Publisher sim_ping_pub_;
+    ros::Publisher odom_pub_;
 //    ros::Subscriber mbes_laser_sub_;
 
     tf2_ros::Buffer tfBuffer_;
@@ -67,6 +72,10 @@ private:
     SubmapsVec traj_pings_;
 
     MultibeamSensor<PointT> vox_oc_;
+
+    ros::Time time_now_, time_prev_;
+    geometry_msgs::TransformStamped prev_base_link_;
+    geometry_msgs::TransformStamped new_base_link_;
 
     int ping_num_;
 

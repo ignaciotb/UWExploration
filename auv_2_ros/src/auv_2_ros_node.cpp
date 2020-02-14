@@ -26,9 +26,10 @@ int main(int argc, char** argv){
     std::cout << "Map path " << boost::filesystem::basename(map_path) << std::endl;
     std::cout << "AUV path " << boost::filesystem::basename(auv_path) << std::endl;
 
+    double rate = 1.0;
     BathymapConstructor* map_constructor = new BathymapConstructor(ros::this_node::getName(), nh);
     map_constructor->init(map_path, auv_path);
-    ros::Timer timer1 = nh.createTimer(ros::Duration(1), &BathymapConstructor::broadcastTf, map_constructor);
+    ros::Timer timer1 = nh.createTimer(ros::Duration(rate), &BathymapConstructor::broadcastTf, map_constructor);
 //    ros::Timer timer2 = nh.createTimer(ros::Duration(5), &BathymapConstructor::run, map_constructor);
     ros::spin();
 

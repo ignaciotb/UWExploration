@@ -30,14 +30,7 @@ rosrun auv_2_ros read_auv_data --folder /path/to/folder/with.allFiles --type all
 #### auv_2_ros
 It will provide the functionality to parse the cereal files and publish into the ROS environment the information we need from them (map, control input, ground truth vehicle estimate...).
 ```
-rosrun auv_2_ros auv2ros_parser --simulation no --map /your/path/to/map.cereal --trajectory /your/path/to/trajectory.cereal --original yes
+rosrun auv_2_ros auv2ros_parser --map /your/path/to/map.cereal --trajectory /your/path/to/trajectory.cereal
 ```
 For now, it only visualizes the input dataset bathymetry as a point cloud in PCL visualizer.
 After running it, press `r` to center the view on the map, and `q` to stop the visualizer.
-
-### auv_pf
-Package containing the particle filter implementation.
-Feel free to start to work on this one and try simple things.
-
-### mbes_model
-This package will host the measurement model used in the PF. For now this will be an MBES simulator based on PCL. Coming soon!

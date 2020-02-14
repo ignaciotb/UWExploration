@@ -32,22 +32,11 @@ void BathymapConstructor::init(const boost::filesystem::path map_path, const boo
     std::cout << "Number of pings " << std_pings.size() << std::endl;
     traj_pings_ = parsePingsAUVlib(std_pings, map_tf);
 
-    // Filtering of maps
-    PointCloudT::Ptr cloud_ptr (new PointCloudT);
-    pcl::UniformSampling<PointT> us_filter;
-    us_filter.setInputCloud (cloud_ptr);
-//    us_filter.setRadiusSearch(1);   // Tune for speed/map resolution
-//    for(SubmapObj& submap_i: maps_gt_){
-//        *cloud_ptr = submap_i.submap_pcl_;
-//        us_filter.setInputCloud(cloud_ptr);
-//        us_filter.filter(*cloud_ptr);
-//        submap_i.submap_pcl_ = *cloud_ptr;
-//    }
+    // Store map and odom tf frames
+    map_tf_ = map_loc.submap_tf_.cast<double>();
+    odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
-    map_tf_ = map_loc.submap_tf_;
-    odom_tf_ = traj_pings_.at(0).submap_tf_;
-
-    // Create voxel grid
+    // Create voxel grid with the bathymetric map
     vox_oc_.setLeafSize(10,10,10);
     vox_oc_.initializeVoxelGrid(maps_gt_.at(0));
 
@@ -66,6 +55,14 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     // Publish world-->map-->odom frames
     geometry_msgs::TransformStamped w2m_static_tfStamped, m2o_static_tfStamped;
 
+//    Eigen::Isometry3d odom_tf_d = odom_tf_.cast<double>();
+//    tf::transformEigenToMsg(odom_tf_d, m2o_static_tf);
+//    m2o_static_tfStamped.header.frame_id = "map";
+//    m2o_static_tfStamped.header.stamp = ros::Time::now();
+//    m2o_static_tfStamped.child_frame_id = "odom";
+//    m2o_static_tfStamped.transform = m2o_static_tf;
+//    static_broadcaster_.sendTransform(m2o_static_tfStamped);
+
     w2m_static_tfStamped.header.stamp = ros::Time::now();
     w2m_static_tfStamped.header.frame_id = "world";
     w2m_static_tfStamped.child_frame_id = "map";
@@ -73,7 +70,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     w2m_static_tfStamped.transform.translation.y = map_tf_.translation()[1];
     w2m_static_tfStamped.transform.translation.z = map_tf_.translation()[2];
     tf2::Quaternion quatw2m;
-    Eigen::Vector3d euler = map_tf_.linear().matrix().eulerAngles(0, 1, 2).cast<double>();
+    Eigen::Vector3d euler = map_tf_.linear().matrix().eulerAngles(0, 1, 2);
     quatw2m.setRPY(euler[0], euler[1], euler[2]);
     w2m_static_tfStamped.transform.rotation.x = quatw2m.x();
     w2m_static_tfStamped.transform.rotation.y = quatw2m.y();
@@ -87,7 +84,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     m2o_static_tfStamped.transform.translation.x = odom_tf_.translation()[0];
     m2o_static_tfStamped.transform.translation.y = odom_tf_.translation()[1];
     m2o_static_tfStamped.transform.translation.z = odom_tf_.translation()[2];
-    euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2).cast<double>();
+    euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
     tf2::Quaternion quatm2o;
     quatm2o.setRPY(euler[0], euler[1], euler[2]);
     m2o_static_tfStamped.transform.rotation.x = quatm2o.x();
@@ -98,25 +95,23 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
 
     geometry_msgs::TransformStamped new_pings_tf;
     ROS_INFO("Running %d", ping_num_);
-    new_pings_tf.header.frame_id = "map";
-    new_pings_tf.child_frame_id = "ping_" + std::to_string(ping_num_);
-    Eigen::Vector3f odom_ping_i = traj_pings_.at(ping_num_).submap_tf_.translation();
+    new_pings_tf.header.frame_id = "odom";
+    new_pings_tf.child_frame_id = "base_link";
+    new_pings_tf.header.stamp = ros::Time::now();
+    Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
+                                   traj_pings_.at(ping_num_).submap_tf_.translation().cast<double>());
     new_pings_tf.transform.translation.x = odom_ping_i[0];
     new_pings_tf.transform.translation.y = odom_ping_i[1];
     new_pings_tf.transform.translation.z = odom_ping_i[2];
     tf2::Quaternion quato2p;
-    euler = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix()).eulerAngles(0, 1, 2).cast<double>();
+    euler = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix().cast<double>() *
+             odom_tf_.linear().matrix().inverse()).eulerAngles(0, 1, 2);
     quato2p.setRPY(euler[0], euler[1], euler[2]);
     new_pings_tf.transform.rotation.x = quato2p.x();
     new_pings_tf.transform.rotation.y = quato2p.y();
     new_pings_tf.transform.rotation.z = quato2p.z();
     new_pings_tf.transform.rotation.w = quato2p.w();
-    pings_tf_.push_back(new_pings_tf);
-
-    for(geometry_msgs::TransformStamped& tf_ping_i: pings_tf_){
-        tf_ping_i.header.stamp = ros::Time::now();
-        br_.sendTransform(tf_ping_i);
-    }
+    br_.sendTransform(new_pings_tf);
 
     this->run();
 }
@@ -131,11 +126,11 @@ void BathymapConstructor::run(){
 
     try{
         // Transform points from map to ping i
-        if(tfBuffer_.canTransform("ping_"+std::to_string(ping_num_), "map", ros::Time(0), ros::Duration(1))){
-            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform("ping_"+std::to_string(ping_num_), "map", ros::Time(0));
+        if(tfBuffer_.canTransform("base_link", "map", ros::Time(0), ros::Duration(1))){
+            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform("base_link", "map", ros::Time(0));
             pcl_ros::transformPointCloud(traj_pings_.at(ping_num_).submap_pcl_, *mbes_i_pcl, transformStamped.transform);
             pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-            mbes_i.header.frame_id = "ping_" + std::to_string(ping_num_);
+            mbes_i.header.frame_id = "base_link";
             mbes_i.header.stamp = ros::Time::now();
             ping_pub_.publish(mbes_i);
 
@@ -143,19 +138,17 @@ void BathymapConstructor::run(){
             Eigen::Isometry3d sensor_tf;
             tf::transformMsgToEigen(transformStamped.transform, sensor_tf);
             Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
-            vox_oc_.createMBES(2.094, 254, tf);
+            vox_oc_.createMBES(1.745, 254, tf);
             PointCloudT ping_i;
             vox_oc_.pingComputation(ping_i);
-
-            std::cout << "Sim mbes hits " << ping_i.points.size() << std::endl;
-
             pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, transformStamped.transform);
+            std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
+
             pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
-            sim_ping.header.frame_id = "ping_"+std::to_string(ping_num_);
+            sim_ping.header.frame_id = "base_link";
             sim_ping.header.stamp = ros::Time::now();
             sim_ping_pub_.publish(sim_ping);
         }
-
 
         // Original ping (for debugging)
         *mbes_i_pcl_map = traj_pings_.at(ping_num_).submap_pcl_;

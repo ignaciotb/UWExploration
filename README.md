@@ -46,7 +46,7 @@ If you want to try different configurations of the MBES simulation model, check 
 
 I've also added an RVIZ config file which you can use to setup the visualization easily
 
-#### mbes_sim
+### mbes_sim
 Soon to come!
 
 

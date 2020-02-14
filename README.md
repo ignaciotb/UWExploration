@@ -38,6 +38,7 @@ Topics and such so far:
 * `/gt/mbes_pings`: ground truth MBES ping at current AUV pose
 * `/map`: ground truth bathymetry from the AUV survey
 * `/sim/mbes`: simulated MBES ping at current AUV pose
+
 It also broadcasts the tf tree
 * `world` -> `map` -> `odom` -> `base_link`
 

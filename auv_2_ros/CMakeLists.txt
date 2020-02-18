@@ -9,7 +9,11 @@ project(auv_2_ros)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  #mbes_model
+  tf2
+  tf2_ros
+  pcl_ros
+  eigen_conversions
+  tf_conversions
 )
 
 find_package(Ceres REQUIRED)
@@ -31,6 +35,7 @@ find_package(BathyMaps REQUIRED)
 find_package(SubmapsTools REQUIRED)
 find_package(GraphOptimization REQUIRED)
 find_package(SubmapRegistration REQUIRED)
+find_package(MeasModels REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -144,6 +149,7 @@ include
 	${G2O_INCLUDE_DIRS} 
 	${PCL_INCLUDE_DIRS}
   	${OpenCV_INCLUDE_DIRS}
+#        ${mbes_model_INCLUDE_DIRS}
 #   	${LibXTF_INCLUDE_DIRS}
 #   	${LibGSF_INCLUDE_DIRS}
 #   	${EigenCereal_INCLUDE_DIRS}
@@ -162,13 +168,11 @@ include
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(auv2ros_parser
-       src/auv2ros_parser.cpp
+add_executable(auv_2_ros 
+       src/auv_2_ros_node.cpp
+       src/auv_2_ros.cpp
 )
 
-add_executable(read_auv_data
-       src/read_auv_data.cpp
-)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -178,34 +182,21 @@ add_executable(read_auv_data
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(auv2ros_parser 
+add_dependencies(auv_2_ros 
   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
   ${catkin_EXPORTED_TARGETS})
 
 # Specify libraries to link a library or executable target against
-target_link_libraries(auv2ros_parser
+target_link_libraries(auv_2_ros 
     utils_visualization
     submaps_tools
     data_transforms
     std_data
+    multibeam_simple
     #multibeam_model
     ${PCL_LIBRARIES}
     ${catkin_LIBRARIES}
 )
-
-target_link_libraries(read_auv_data
-    std_data
-    navi_data
-    gsf_data
-    all_data
-    xtf_data
-    csv_data
-    data_transforms
-    benchmark
-    submaps_tools
-    utils_visualization
-)
-
 
 #############
 ## Install ##

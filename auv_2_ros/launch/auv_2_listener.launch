@@ -1,0 +1,57 @@
+<launch>
+
+
+
+
+  <!-- Launch necessary background processes -->
+  <!-- <include file="$(find svea)/launch/filtering_project_background.launch" /> -->
+  <!-- Launch necessary background processes -->
+  <!-- <include file="$(find svea_sensors)/launch/lli_ctrl_to_twist.launch" /> -->
+  <!--include file="$(find svea_sensors)/launch/aruco_robot_localization_ekf_external.launch" /-->
+  <!--include file="$(find svea)/launch/aruco_tf.launch" /-->
+  <!-- <include file="$(find svea_sensors)/launch/ctrl_bicycle.launch" /> -->
+  
+  <!-- Launch fiducial slam -->
+  <include file="$(find fiducial_slam)/launch/fiducial_slam.launch" />
+  <!-- static tf for fiducial slam -->
+  <node pkg="tf2_ros"     type="static_transform_publisher"   name="arducam_to_base_link_fid"   args="0.14 0 -0.015 -1.57 1.57 -1.57 base_link_fid arducam" />
+  <!-- Launch RVIZ for project -->
+  <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d $(find svea)/src/rviz/stupid_robot.rviz"/>
+  
+  <!-- Define PF args -->
+  <!-- <arg name="pose_observation_topic"          default="/base_link"/> -->
+  <arg name="pose_observation_frame"          default="base_link_fid"/>
+  <arg name="map_frame"                       default="map"/>
+  <arg name="filtered_pose_frame"             default="pf_pose"/>
+  <arg name="prediction_update_topic"         default="/odometry/filtered"/>
+  <arg name="particle_filtered_pose_topic"    default="/pf_pose"/>
+  <arg name="point_cloud_topic"               default="/pf_point_cloud"/>
+  
+  <arg name="particle_count"                  default="500"/>
+  <arg name="initial_estimate_covariance"     default="1.5"/>
+  <arg name="linear_observation_covariance"   default=".05"/>
+  <arg name="angular_observation_covariance"  default=".02"/>
+  <!-- Should process covariances be omitted and use values from message ??? -->
+  <arg name="linear_process_covariance"       default=".00025"/>
+  <arg name="angular_process_covariance"      default=".0002"/>  
+  <arg name="output"                          default="screen"/>
+
+
+  <node type="pf_aruco_slam.py" pkg="svea" name="pf_aruco_slam" output="$(arg output)">
+    <!-- <param name="pose_observation_topic"                          value="$(arg pose_observation_topic)" /> -->
+    <param name="pose_observation_frame"                          value="$(arg pose_observation_frame)" />
+    <param name="map_frame"                                       value="$(arg map_frame)" />
+    <param name="filtered_pose_frame"                             value="$(arg filtered_pose_frame)" />
+    <param name="prediction_update_topic"                         value="$(arg prediction_update_topic)" />
+    <param name="particle_filtered_pose_topic"                    value="$(arg particle_filtered_pose_topic)" />
+    <param name="point_cloud_topic"                               value="$(arg point_cloud_topic)" />
+    <param name="particle_count"                  type= "int"     value="$(arg particle_count)" />
+    <param name="initial_estimate_covariance"     type= "double"  value="$(arg initial_estimate_covariance)" />
+    <param name="linear_process_covariance"       type= "double"  value="$(arg linear_process_covariance)" />
+    <param name="angular_process_covariance"      type= "double"  value="$(arg angular_process_covariance)" />
+    <param name="linear_observation_covariance"   type= "double"  value="$(arg linear_observation_covariance)" />
+    <param name="angular_observation_covariance"  type= "double"  value="$(arg angular_observation_covariance)" />    
+
+  </node>
+  
+</launch>

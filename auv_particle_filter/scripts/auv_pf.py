@@ -18,7 +18,7 @@ from geometry_msgs.msg import Pose, PoseArray, Quaternion
 class auv_pf():
     def __init__(self):
         # Read map frame id
-        self.map_frame = "base_link"
+        self.map_frame = "odom"
         # Read odometry
         self.odom = "/gt/odom"
         # Initialize callback variables
@@ -60,13 +60,13 @@ class auv_pf():
         pf_noice =  self.gaussian_noise()
         # Unpack odometry message
         xv = self.pred_odom.twist.twist.linear.x
-        yv = self.pred_odom.twist.twist.linear.y
+        # yv = self.pred_odom.twist.twist.linear.y
         yaw_v = self.pred_odom.twist.twist.angular.z
         # Update particles pose estimate
         dt = self.time - self.old_time
         # print('dt = ' , dt)
         self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) 
-        self.particles[:,1] += pf_noice[:,1] + yv*dt*np.sin(self.particles[:,2])
+        self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2])# + yv*dt*np.sin(self.particles[:,2])
         self.particles[:,2] += pf_noice[:,2] + yaw_v*dt
         # Force angles to be on range [-pi, pi]
         self.particles[:,2] = np.remainder(self.particles[:,2]+np.pi,2*np.pi)-np.pi

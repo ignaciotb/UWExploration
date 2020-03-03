@@ -176,7 +176,7 @@ void BathymapConstructor::run(){
     PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
     double mbes_opening = 1.745; // In radians
-    double n_beams = 254; // Number of beams -1 in the MBES simulation
+    double n_beams = 10; //254; // Number of beams -1 in the MBES simulation
 
     try{
         // Transform points from map to ping i

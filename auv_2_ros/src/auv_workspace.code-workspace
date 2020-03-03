@@ -1,0 +1,15 @@
+{
+	"folders": [
+		{
+			"path": "/home/stine/Desktop/SMaRC"
+		},
+		{
+			"path": "/home/stine/catkin_ws"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"core": "cpp"
+		}
+	}
+}

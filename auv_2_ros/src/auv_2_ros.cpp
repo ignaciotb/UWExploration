@@ -4,11 +4,23 @@
 BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/gt/mbes_pings", 10);
-    test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("debug", 10);
-    map_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("map", 10);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/sim/mbes", 10);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>("/gt/odom", 50);
+    std::string gt_pings_top, debug_pings_top, map_top, sim_pings_top, gt_odom_top;
+    nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
+    nh_->param<std::string>("debug_pings", debug_pings_top, "/debug_pings");
+    nh_->param<std::string>("map_pcl", map_top, "/map");
+    nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
+    nh_->param<std::string>("odom_gt", gt_odom_top, "/gt/odom");
+    nh_->param<std::string>("world_frame", world_frame_, "world");
+    nh_->param<std::string>("map_frame", map_frame_, "map");
+    nh_->param<std::string>("odom_frame", odom_frame_, "odom");
+    nh_->param<std::string>("base_link", base_frame_, "base_link");
+    nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
+
+    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
+    test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
+    map_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(map_top, 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
 
     tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
     ping_num_ = 0;
@@ -48,7 +60,7 @@ void BathymapConstructor::init(const boost::filesystem::path map_path, const boo
     sensor_msgs::PointCloud2 map;
     PointCloudT pcl_filtered = vox_oc_.getFilteredPointCloud();
     pcl::toROSMsg(pcl_filtered, map);
-    map.header.frame_id = "map";
+    map.header.frame_id = map_frame_;
     map_pub_.publish(map);
 
     ROS_INFO("Initialized bathymap constructor");
@@ -60,15 +72,15 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     geometry_msgs::TransformStamped w2m_static_tfStamped, m2o_static_tfStamped;
 //    Eigen::Isometry3d odom_tf_d = odom_tf_.cast<double>();
 //    tf::transformEigenToMsg(odom_tf_d, m2o_static_tf);
-//    m2o_static_tfStamped.header.frame_id = "map";
+//    m2o_static_tfStamped.header.frame_id = map_frame_;
 //    m2o_static_tfStamped.header.stamp = ros::Time::now();
-//    m2o_static_tfStamped.child_frame_id = "odom";
+//    m2o_static_tfStamped.child_frame_id = odom_frame_;
 //    m2o_static_tfStamped.transform = m2o_static_tf;
 //    static_broadcaster_.sendTransform(m2o_static_tfStamped);
 
     w2m_static_tfStamped.header.stamp = ros::Time::now();
-    w2m_static_tfStamped.header.frame_id = "world";
-    w2m_static_tfStamped.child_frame_id = "map";
+    w2m_static_tfStamped.header.frame_id = world_frame_;
+    w2m_static_tfStamped.child_frame_id = map_frame_;
     w2m_static_tfStamped.transform.translation.x = map_tf_.translation()[0];
     w2m_static_tfStamped.transform.translation.y = map_tf_.translation()[1];
     w2m_static_tfStamped.transform.translation.z = map_tf_.translation()[2];
@@ -82,8 +94,8 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     static_broadcaster_.sendTransform(w2m_static_tfStamped);
 
     m2o_static_tfStamped.header.stamp = ros::Time::now();
-    m2o_static_tfStamped.header.frame_id = "map";
-    m2o_static_tfStamped.child_frame_id = "odom";
+    m2o_static_tfStamped.header.frame_id = map_frame_;
+    m2o_static_tfStamped.child_frame_id = odom_frame_;
     m2o_static_tfStamped.transform.translation.x = odom_tf_.translation()[0];
     m2o_static_tfStamped.transform.translation.y = odom_tf_.translation()[1];
     m2o_static_tfStamped.transform.translation.z = odom_tf_.translation()[2];
@@ -97,8 +109,8 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
     static_broadcaster_.sendTransform(m2o_static_tfStamped);
 
     ROS_INFO("Running %d", ping_num_);
-    new_base_link_.header.frame_id = "odom";
-    new_base_link_.child_frame_id = "base_link";
+    new_base_link_.header.frame_id = odom_frame_;
+    new_base_link_.child_frame_id = base_frame_;
     new_base_link_.header.stamp = ros::Time::now();
     Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
                                    traj_pings_.at(ping_num_).submap_tf_.translation().cast<double>());
@@ -126,13 +138,13 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     time_now_ = ros::Time::now();
     nav_msgs::Odometry odom;
     odom.header.stamp = time_now_;
-    odom.header.frame_id = "odom";
+    odom.header.frame_id = odom_frame_;
 
     odom.pose.pose.position.x = odom_ping_i[0];
     odom.pose.pose.position.y = odom_ping_i[1];
     odom.pose.pose.position.z = odom_ping_i[2];
     odom.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(euler[0], euler[1], euler[2]);
-    odom.child_frame_id = "base_link";
+    odom.child_frame_id = base_frame_;
 
     // Compute linear velocities
     double dt = (time_now_ - time_prev_).toSec();
@@ -180,11 +192,11 @@ void BathymapConstructor::run(){
 
     try{
         // Transform points from map to ping i
-        if(tfBuffer_.canTransform("base_link", "map", ros::Time(0), ros::Duration(1))){
-            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform("base_link", "map", ros::Time(0));
+        if(tfBuffer_.canTransform(mbes_frame_, map_frame_, ros::Time(0), ros::Duration(1))){
+            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform(mbes_frame_, map_frame_, ros::Time(0));
             pcl_ros::transformPointCloud(traj_pings_.at(ping_num_).submap_pcl_, *mbes_i_pcl, transformStamped.transform);
             pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-            mbes_i.header.frame_id = "base_link";
+            mbes_i.header.frame_id = mbes_frame_;
             mbes_i.header.stamp = ros::Time::now();
             ping_pub_.publish(mbes_i);
 
@@ -199,7 +211,7 @@ void BathymapConstructor::run(){
             std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
 
             pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
-            sim_ping.header.frame_id = "base_link";
+            sim_ping.header.frame_id = mbes_frame_;
             sim_ping.header.stamp = ros::Time::now();
             sim_ping_pub_.publish(sim_ping);
         }
@@ -207,7 +219,7 @@ void BathymapConstructor::run(){
         // Original ping (for debugging)
         *mbes_i_pcl_map = traj_pings_.at(ping_num_).submap_pcl_;
         pcl::toROSMsg(*mbes_i_pcl_map.get(), mbes_i_map);
-        mbes_i_map.header.frame_id = "map";
+        mbes_i_map.header.frame_id = map_frame_;
         mbes_i_map.header.stamp = ros::Time::now();
         test_pub_.publish (mbes_i_map);
     }

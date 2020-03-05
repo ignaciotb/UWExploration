@@ -77,6 +77,8 @@ private:
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
 
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
+
     int ping_num_;
 
 };

@@ -27,6 +27,18 @@
 		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 			<param name="map_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/map.cereal"/>
 			<param name="trajectory_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/trajectory.cereal"/>
+
+			<param name="mbes_pings" value="/gt/mbes_pings" />
+			<param name="map_pcl" value="/gt/map" />
+			<param name="debug_pings" value="debug/mbes_pings" />
+			<param name="sim_pings" value="/sim/mbes_pings" />
+			<param name="world_frame" value="world" />
+			<param name="map_frame" value="map" />
+			<param name="odom_frame" value="odom" />
+			<param name="base_link" value="$(arg namespace)/base_link" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+
+
 		</node>
 
 	</group>

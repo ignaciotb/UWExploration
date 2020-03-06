@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   eigen_conversions
   tf_conversions
+  genmsg
+  actionlib_msgs
 )
 
 find_package(Ceres REQUIRED)
@@ -84,18 +86,20 @@ find_package(MeasModels REQUIRED)
 #   Service2.srv
 # )
 
-## Generate actions in the 'action' folder
-# add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
-# )
+# Generate actions in the 'action' folder
+ add_action_files(
+   FILES
+   MbesSim.action
+ )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+ generate_messages(
+   DEPENDENCIES
+   std_msgs
+   actionlib_msgs
+   geometry_msgs
+   sensor_msgs
+ )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -173,6 +177,11 @@ add_executable(auv_2_ros
        src/auv_2_ros.cpp
 )
 
+add_executable(mbes_meas_node
+       src/mbes_meas_node.cpp
+       src/mbes_meas.cpp
+)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -186,6 +195,10 @@ add_dependencies(auv_2_ros
   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
   ${catkin_EXPORTED_TARGETS})
 
+add_dependencies(mbes_meas_node
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS})
+
 # Specify libraries to link a library or executable target against
 target_link_libraries(auv_2_ros 
     utils_visualization
@@ -193,7 +206,16 @@ target_link_libraries(auv_2_ros
     data_transforms
     std_data
     multibeam_simple
-    #multibeam_model
+    ${PCL_LIBRARIES}
+    ${catkin_LIBRARIES}
+)
+
+target_link_libraries(mbes_meas_node
+    utils_visualization
+    submaps_tools
+    data_transforms
+    std_data
+    multibeam_simple
     ${PCL_LIBRARIES}
     ${catkin_LIBRARIES}
 )

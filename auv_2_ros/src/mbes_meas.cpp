@@ -28,14 +28,9 @@ void MbesMeas::init(const boost::filesystem::path map_path){
 
     // Read map
     MapObj map_loc;
-    Eigen::Isometry3d map_tf;
     std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
-    std::tie(map_loc, map_tf)= parseMapAUVlib(ss);
+    std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
     maps_gt_.push_back(map_loc);
-
-    // Store map and odom tf frames
-    map_tf_ = map_loc.submap_tf_.cast<double>();
-    std::cout << map_tf_ << std::endl;
 
     // Create voxel grid with the bathymetric map
     vox_oc_.setLeafSize(10,10,10);
@@ -83,7 +78,6 @@ void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
             pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
             sim_ping.header.frame_id = mbes_frame_;
             sim_ping.header.stamp = ros::Time::now();
-//            sim_ping_pub_.publish(sim_ping);
 
             result_.sim_mbes = sim_ping;
             ROS_INFO("%s: Succeeded", action_name_.c_str());

@@ -30,6 +30,10 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 
+#include <actionlib/client/simple_action_client.h>
+#include <auv_2_ros/MbesSimAction.h>
+
+
 using namespace Eigen;
 using namespace std;
 
@@ -52,11 +56,12 @@ private:
     ros::NodeHandle* nh_;
 
     ros::Publisher ping_pub_;
+    ros::Publisher sim_ping_pub_;
     ros::Publisher map_pub_;
     ros::Publisher test_pub_;
-    ros::Publisher sim_ping_pub_;
     ros::Publisher odom_pub_;
-//    ros::Subscriber mbes_laser_sub_;
+
+    actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
 
     tf2_ros::Buffer tfBuffer_;
     tf2_ros::TransformListener* tfListener_;

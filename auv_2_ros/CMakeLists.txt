@@ -16,6 +16,7 @@ find_package(catkin REQUIRED COMPONENTS
   tf_conversions
   genmsg
   actionlib_msgs
+  geometry_msgs
 )
 
 find_package(Ceres REQUIRED)

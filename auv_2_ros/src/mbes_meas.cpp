@@ -51,28 +51,24 @@ void MbesMeas::init(const boost::filesystem::path map_path){
 void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
 
     // Publish MBES pings
-    sensor_msgs::PointCloud2 mbes_i, mbes_i_map, map, sim_ping;
-    PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
-    PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
 
     // Create simulated ping
     Eigen::Isometry3d sensor_tf;
     tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
     Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
     vox_oc_.createMBES(mbes_opening_, n_beams_, tf);
-    PointCloudT ping_i;
-    vox_oc_.pingComputation(ping_i);
-    pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, mbes_goal->mbes_pose.transform);
+    vox_oc_.pingComputation(*sim_mbes_i_pcl);
+    pcl_ros::transformPointCloud(*sim_mbes_i_pcl, *sim_mbes_i_pcl, mbes_goal->mbes_pose.transform);
     std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
 
+    sensor_msgs::PointCloud2 sim_ping;
     pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
-    sim_ping.header.frame_id = mbes_frame_;
-    sim_ping.header.stamp = ros::Time::now();
+    sim_ping.header.frame_id = mbes_goal->mbes_pose.header.frame_id;
+    sim_ping.header.stamp = mbes_goal->mbes_pose.header.stamp;
 
     result_.sim_mbes = sim_ping;
     as_->setSucceeded(result_);
-
 }
 
 

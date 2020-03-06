@@ -8,6 +8,8 @@ MbesMeas::MbesMeas(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
     nh_->param<std::string>("map_pcl", map_top, "/map");
+    nh_->param<double>("mbes_open_angle", mbes_opening_, 1.5708);
+    nh_->param<double>("num_beams_sim", n_beams_, 100);
 
     map_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(map_top, 10);
 
@@ -24,8 +26,6 @@ MbesMeas::~MbesMeas(){
 }
 
 void MbesMeas::init(const boost::filesystem::path map_path){
-
-     tfBuffer_.setUsingDedicatedThread(true);
 
      // Read map
     MapObj map_loc;
@@ -55,14 +55,12 @@ void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
-    double mbes_opening = 1.5708; // In radians
-    double n_beams = 254; // Number of beams +1 in the MBES simulation
 
     // Create simulated ping
     Eigen::Isometry3d sensor_tf;
     tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
     Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
-    vox_oc_.createMBES(mbes_opening, n_beams, tf);
+    vox_oc_.createMBES(mbes_opening_, n_beams_, tf);
     PointCloudT ping_i;
     vox_oc_.pingComputation(ping_i);
     pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, mbes_goal->mbes_pose.transform);
@@ -78,7 +76,7 @@ void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
 }
 
 
-void MbesMeas::broadcastW2MTf(const ros::TimerEvent& event){
+void MbesMeas::broadcastW2MTf(const ros::TimerEvent&){
 
     // Publish world-->map frames
     geometry_msgs::TransformStamped w2m_static_tfStamped;

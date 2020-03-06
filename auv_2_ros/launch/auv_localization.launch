@@ -6,16 +6,13 @@
 	<group ns="$(arg namespace)">
 
 		<!-- Octomap server -->
-		<node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
+<!-- 		<node pkg="octomap_server" type="octomap_server_node" name="octomap_server">
 			<param name="resolution" value="0.5" />
-			<!-- fixed map frame (set to 'map' if SLAM or localization running!) -->
 			<param name="frame_id" type="string" value="odom" />
-			<!-- maximum range to integrate (speedup!) -->
 			<param name="sensor_model/max_range" value="50.0" />
-			<!-- data source to integrate (PointCloud2) -->
 			<remap from="cloud_in" to="/gt/mbes_pings" />
 		</node>
-
+ -->
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_$(arg mode).urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 
@@ -24,8 +21,21 @@
 		</node>
 
 		<!-- Hugin simulation -->
-		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
+		<node pkg="auv_2_ros" type="mbes_meas_node" name="mbes_meas_node" output="screen">
 			<param name="map_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/map.cereal"/>
+
+			<param name="mbes_pings" value="/gt/mbes_pings" />
+			<param name="map_pcl" value="/gt/map" />
+			<param name="debug_pings" value="debug/mbes_pings" />
+			<param name="sim_pings" value="/sim/mbes_pings" />
+			<param name="world_frame" value="world" />
+			<param name="map_frame" value="map" />
+			<param name="odom_frame" value="odom" />
+			<param name="base_link" value="$(arg namespace)/base_link" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+		</node>
+		
+		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 			<param name="trajectory_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/trajectory.cereal"/>
 
 			<param name="mbes_pings" value="/gt/mbes_pings" />
@@ -37,8 +47,6 @@
 			<param name="odom_frame" value="odom" />
 			<param name="base_link" value="$(arg namespace)/base_link" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-
-
 		</node>
 
 	</group>

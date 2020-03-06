@@ -43,11 +43,11 @@ public:
     BathymapConstructor(std::string node_name, ros::NodeHandle &nh);
     ~BathymapConstructor();
 
-    void init(/*const boost::filesystem::path map_path,*/ const boost::filesystem::path auv_path);
+    void init(const boost::filesystem::path auv_path);
 
     void run();
 
-    void broadcastTf(const ros::TimerEvent &event);
+    void broadcastTf(const ros::TimerEvent &);
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
 

@@ -9,7 +9,9 @@ int main(int argc, char** argv){
     ros::NodeHandle nh_nav("~");
 
     std::string map_str;
+    double rate;
     nh_nav.param<std::string>("map_cereal", map_str, "map.cereal");
+    nh_nav.param<double>("sim_freq", rate, 1);
 
     boost::filesystem::path map_path(map_str);
     std::cout << "Map path " << boost::filesystem::basename(map_path) << std::endl;
@@ -17,7 +19,6 @@ int main(int argc, char** argv){
     ros::CallbackQueue nav_queue;
     nh_nav.setCallbackQueue(&nav_queue);
 
-    double rate = 0.1;  // TODO: add as rosparam
     MbesMeas *mbes_meas = new MbesMeas(ros::this_node::getName(), nh_nav);
     mbes_meas->init(map_path);
     ros::Timer timer1 = nh_nav.createTimer(ros::Duration(rate), &MbesMeas::broadcastW2MTf, mbes_meas);

@@ -16,9 +16,9 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
 
@@ -34,7 +34,7 @@ BathymapConstructor::~BathymapConstructor(){
 }
 
 
-void BathymapConstructor::init(/*const boost::filesystem::path map_path,*/ const boost::filesystem::path auv_path){
+void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
@@ -63,7 +63,7 @@ void BathymapConstructor::init(/*const boost::filesystem::path map_path,*/ const
     ROS_INFO("Initialized bathymap constructor");
 }
 
-void BathymapConstructor::broadcastTf(const ros::TimerEvent& event){
+void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     // Publish map-->odom frames
     geometry_msgs::TransformStamped m2o_static_tfStamped;

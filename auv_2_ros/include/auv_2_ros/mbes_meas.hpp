@@ -42,43 +42,31 @@ public:
     ~MbesMeas();
 
     void init(const boost::filesystem::path map_path);
+
     void measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal);
-    void broadcastW2MTf(const ros::TimerEvent& event);
+
+    void broadcastW2MTf(const ros::TimerEvent&);
 
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
+
+    double mbes_opening_; // In radians
+    double n_beams_; // Number of beams +1 in the MBES simulation
 
     actionlib::SimpleActionServer<auv_2_ros::MbesSimAction>* as_;
     std::string action_name_;
     auv_2_ros::MbesSimFeedback feedback_;
     auv_2_ros::MbesSimResult result_;
 
-    ros::Publisher ping_pub_;
     ros::Publisher map_pub_;
-    ros::Publisher test_pub_;
-    ros::Publisher sim_ping_pub_;
-    ros::Publisher odom_pub_;
-    ros::Subscriber mbes_subs_;
 
-    tf2_ros::Buffer tfBuffer_;
-    tf2_ros::TransformListener* tfListener_;
-    tf::TransformListener tflistener_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
-    tf2_ros::TransformBroadcaster br_;
-    std::vector<geometry_msgs::TransformStamped> pings_tf_;
-
     Eigen::Isometry3d map_tf_;
-    Eigen::Isometry3d odom_tf_;
 
     SubmapsVec maps_gt_;
-    SubmapsVec traj_pings_;
 
     MultibeamSensor<PointT> vox_oc_;
-
-    ros::Time time_now_, time_prev_;
-    geometry_msgs::TransformStamped prev_base_link_;
-    geometry_msgs::TransformStamped new_base_link_;
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 

@@ -4,8 +4,9 @@
 BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string gt_pings_top, debug_pings_top, gt_odom_top;
+    std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top;
     nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
+    nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
     nh_->param<std::string>("debug_pings", debug_pings_top, "/debug_pings");
     nh_->param<std::string>("odom_gt", gt_odom_top, "/gt/odom");
     nh_->param<std::string>("world_frame", world_frame_, "world");
@@ -17,6 +18,9 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
+
+    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
 
     tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
     ping_num_ = 0;
@@ -51,8 +55,10 @@ void BathymapConstructor::init(/*const boost::filesystem::path map_path,*/ const
     tf::transformTFToEigen(tf_world_map_, map_tf_);
     traj_pings_ = parsePingsAUVlib(std_pings, map_tf_);
 
-    // Store map and odom tf frames
+    // Store odom tf frame
     odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
+
+    ac_->waitForServer();
 
     ROS_INFO("Initialized bathymap constructor");
 }
@@ -155,15 +161,30 @@ void BathymapConstructor::run(){
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
 
+    geometry_msgs::TransformStamped transformStamped;
     try{
         // Transform points from map to ping i
         if(tfBuffer_.canTransform(mbes_frame_, map_frame_, ros::Time(0), ros::Duration(1))){
-            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform(mbes_frame_, map_frame_, ros::Time(0));
+            transformStamped = tfBuffer_.lookupTransform(mbes_frame_, map_frame_, ros::Time(0));
             pcl_ros::transformPointCloud(traj_pings_.at(ping_num_).submap_pcl_, *mbes_i_pcl, transformStamped.transform);
             pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
             mbes_i.header.frame_id = mbes_frame_;
             mbes_i.header.stamp = ros::Time::now();
             ping_pub_.publish(mbes_i);
+
+            // For testing of the action server
+            auv_2_ros::MbesSimGoal mbes_goal;
+            mbes_goal.mbes_pose = transformStamped;
+            ac_->sendGoal(mbes_goal);
+
+            ac_->waitForResult(ros::Duration(1.0));
+            actionlib::SimpleClientGoalState state = ac_->getState();
+            if (std::strncmp(state.toString().c_str(), "SUCCEEDED", 9) == 0){
+                sim_ping_pub_.publish(*ac_->getResult());
+            }
+            else{
+                ROS_WARN("Action %s", state.toString().c_str());
+            }
         }
 
         // Original ping (for debugging)

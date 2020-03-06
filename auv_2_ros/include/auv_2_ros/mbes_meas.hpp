@@ -13,7 +13,6 @@
 
 #include "submaps_tools/cxxopts.hpp"
 #include "submaps_tools/submaps.hpp"
-#include "registration/utils_visualization.hpp"
 #include "meas_models/multibeam_simple.hpp"
 
 #include <ros/ros.h>
@@ -25,12 +24,12 @@
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 
 #include <actionlib/server/simple_action_server.h>
+
 #include "auv_2_ros/MbesSimAction.h"
 
 using namespace Eigen;

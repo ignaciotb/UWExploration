@@ -3,8 +3,7 @@
 MbesMeas::MbesMeas(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string gt_pings_top, debug_pings_top, map_top, sim_pings_top, gt_odom_top;
-    nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
+    std::string gt_pings_top, debug_pings_top, map_top, gt_odom_top;
     nh_->param<std::string>("world_frame", world_frame_, "world");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
@@ -26,7 +25,9 @@ MbesMeas::~MbesMeas(){
 
 void MbesMeas::init(const boost::filesystem::path map_path){
 
-    // Read map
+     tfBuffer_.setUsingDedicatedThread(true);
+
+     // Read map
     MapObj map_loc;
     std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
     std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
@@ -57,38 +58,23 @@ void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     double mbes_opening = 1.5708; // In radians
     double n_beams = 254; // Number of beams +1 in the MBES simulation
 
-    try{
-        // Transform points from map to ping i
-        if(tfBuffer_.canTransform(mbes_frame_, map_frame_, ros::Time(0), ros::Duration(1))){
-            geometry_msgs::TransformStamped transformStamped = tfBuffer_.lookupTransform(mbes_frame_, map_frame_, ros::Time(0));
+    // Create simulated ping
+    Eigen::Isometry3d sensor_tf;
+    tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
+    Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
+    vox_oc_.createMBES(mbes_opening, n_beams, tf);
+    PointCloudT ping_i;
+    vox_oc_.pingComputation(ping_i);
+    pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, mbes_goal->mbes_pose.transform);
+    std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
 
-            // Create simulated ping
-            Eigen::Isometry3d sensor_tf;
-            tf::transformMsgToEigen(transformStamped.transform, sensor_tf);
-            Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
-            vox_oc_.createMBES(mbes_opening, n_beams, tf);
-            PointCloudT ping_i;
-            vox_oc_.pingComputation(ping_i);
-            pcl_ros::transformPointCloud(ping_i, *sim_mbes_i_pcl, transformStamped.transform);
-            std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
-//            for(PointT& point_i: mbes_i_pcl->points){
-//                std::cout << point_i.getArray3fMap().transpose() << std::endl;
-//            }
+    pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
+    sim_ping.header.frame_id = mbes_frame_;
+    sim_ping.header.stamp = ros::Time::now();
 
-            pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
-            sim_ping.header.frame_id = mbes_frame_;
-            sim_ping.header.stamp = ros::Time::now();
+    result_.sim_mbes = sim_ping;
+    as_->setSucceeded(result_);
 
-            result_.sim_mbes = sim_ping;
-            ROS_INFO("%s: Succeeded", action_name_.c_str());
-            // set the action state to succeeded
-            as_->setSucceeded(result_);
-        }
-    }
-    catch (tf2::TransformException &ex) {
-      ROS_WARN("%s",ex.what());
-    }
-    ping_num_ += 1;
 }
 
 

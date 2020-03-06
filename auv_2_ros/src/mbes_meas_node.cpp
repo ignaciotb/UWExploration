@@ -22,8 +22,9 @@ int main(int argc, char** argv){
     mbes_meas->init(map_path);
     ros::Timer timer1 = nh_nav.createTimer(ros::Duration(rate), &MbesMeas::broadcastW2MTf, mbes_meas);
 
-    ros::AsyncSpinner spinner_nav(1, &nav_queue);
+    ros::AsyncSpinner spinner_nav(4, &nav_queue);
     spinner_nav.start();
+//    ros::spin();
 
     ros::waitForShutdown();
 

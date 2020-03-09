@@ -1,44 +1,21 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(auv_2_ros)
+project(auv_particle_filter)
 
-## Compile as C++11, supported in ROS Kinetic and newer o
+## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  tf2
-  tf2_ros
-  pcl_ros
-  eigen_conversions
-  tf_conversions
-  genmsg
-  actionlib_msgs
   geometry_msgs
+  nav_msgs
+  roscpp
+  rospy
+  std_msgs
+  tf
+  tf2_ros
 )
-
-find_package(Ceres REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 3 REQUIRED)
-find_package(g2o REQUIRED)
-
-# AUVLIB stuff
-find_package(LibXTF REQUIRED)
-find_package(LibGSF REQUIRED)
-find_package(EigenCereal REQUIRED)
-find_package(DataTools REQUIRED)
-find_package(SonarTracing REQUIRED)
-find_package(AuvlibGlad REQUIRED)
-find_package(BathyMaps REQUIRED)
-
-# Bathymetric SLAM
-find_package(SubmapsTools REQUIRED)
-find_package(GraphOptimization REQUIRED)
-find_package(SubmapRegistration REQUIRED)
-find_package(MeasModels REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -87,20 +64,18 @@ find_package(MeasModels REQUIRED)
 #   Service2.srv
 # )
 
-# Generate actions in the 'action' folder
- add_action_files(
-   FILES
-   MbesSim.action
- )
+## Generate actions in the 'action' folder
+# add_action_files(
+#   FILES
+#   Action1.action
+#   Action2.action
+# )
 
 ## Generate added messages and services with any dependencies listed here
- generate_messages(
-   DEPENDENCIES
-   std_msgs
-   actionlib_msgs
-   geometry_msgs
-   sensor_msgs
- )
+# generate_messages(
+#   DEPENDENCIES
+#   geometry_msgs#   nav_msgs#   std_msgs
+# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -133,11 +108,9 @@ find_package(MeasModels REQUIRED)
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
 #  INCLUDE_DIRS include
-#  LIBRARIES mbes_model
-#  CATKIN_DEPENDS roscpp
-#  	DEPENDS LibXTF
-#     INCLUDE_DIRS 
-#     LIBRARIES ${LibXTF_LIBRARIES}
+#  LIBRARIES auv_particle_filter
+#  CATKIN_DEPENDS geometry_msgs nav_msgs roscpp rospy std_msgs tf tf2_ros
+#  DEPENDS system_lib
 )
 
 ###########
@@ -147,42 +120,24 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-include
-  	${catkin_INCLUDE_DIRS}
-	${CERES_INCLUDE_DIRS}
-	${EIGEN_INCLUDE_DIRS} 
-	${G2O_INCLUDE_DIRS} 
-	${PCL_INCLUDE_DIRS}
-  	${OpenCV_INCLUDE_DIRS}
-#        ${mbes_model_INCLUDE_DIRS}
-#   	${LibXTF_INCLUDE_DIRS}
-#   	${LibGSF_INCLUDE_DIRS}
-#   	${EigenCereal_INCLUDE_DIRS}
-#   	${DataTools_INCLUDE_DIRS}
-#   	${BathyMaps_INCLUDE_DIRS}
+# include
+  ${catkin_INCLUDE_DIRS}
 )
 
-# Add cmake target dependencies of the library
-# as an example, code may need to be generated before libraries
-# either from message generation or dynamic reconfigure
-# add_dependencies(meas_model 
-# 	${${PROJECT_NAME}_EXPORTED_TARGETS} 
-# 	${catkin_EXPORTED_TARGETS}
+## Declare a C++ library
+# add_library(${PROJECT_NAME}
+#   src/${PROJECT_NAME}/auv_particle_filter.cpp
 # )
+
+## Add cmake target dependencies of the library
+## as an example, code may need to be generated before libraries
+## either from message generation or dynamic reconfigure
+# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(auv_2_ros 
-       src/auv_2_ros_node.cpp
-       src/auv_2_ros.cpp
-)
-
-add_executable(mbes_meas_node
-       src/mbes_meas_node.cpp
-       src/mbes_meas.cpp
-)
-
+# add_executable(${PROJECT_NAME}_node src/auv_particle_filter_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -192,34 +147,12 @@ add_executable(mbes_meas_node
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
-add_dependencies(auv_2_ros 
-  ${${PROJECT_NAME}_EXPORTED_TARGETS} 
-  ${catkin_EXPORTED_TARGETS})
+# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_dependencies(mbes_meas_node
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS})
-
-# Specify libraries to link a library or executable target against
-target_link_libraries(auv_2_ros 
-    utils_visualization
-    submaps_tools
-    data_transforms
-    std_data
-    multibeam_simple
-    ${PCL_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
-
-target_link_libraries(mbes_meas_node
-    utils_visualization
-    submaps_tools
-    data_transforms
-    std_data
-    multibeam_simple
-    ${PCL_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
+## Specify libraries to link a library or executable target against
+# target_link_libraries(${PROJECT_NAME}_node
+#   ${catkin_LIBRARIES}
+# )
 
 #############
 ## Install ##
@@ -268,7 +201,7 @@ target_link_libraries(mbes_meas_node
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_pf.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_particle_filter.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

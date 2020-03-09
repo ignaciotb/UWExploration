@@ -30,6 +30,10 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 
+#include <actionlib/client/simple_action_client.h>
+#include <auv_2_ros/MbesSimAction.h>
+
+
 using namespace Eigen;
 using namespace std;
 
@@ -39,11 +43,11 @@ public:
     BathymapConstructor(std::string node_name, ros::NodeHandle &nh);
     ~BathymapConstructor();
 
-    void init(const boost::filesystem::path map_path, const boost::filesystem::path auv_path);
+    void init(const boost::filesystem::path auv_path);
 
     void run();
 
-    void broadcastTf(const ros::TimerEvent &event);
+    void broadcastTf(const ros::TimerEvent &);
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
 
@@ -52,11 +56,12 @@ private:
     ros::NodeHandle* nh_;
 
     ros::Publisher ping_pub_;
+    ros::Publisher sim_ping_pub_;
     ros::Publisher map_pub_;
     ros::Publisher test_pub_;
-    ros::Publisher sim_ping_pub_;
     ros::Publisher odom_pub_;
-//    ros::Subscriber mbes_laser_sub_;
+
+    actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
 
     tf2_ros::Buffer tfBuffer_;
     tf2_ros::TransformListener* tfListener_;
@@ -76,6 +81,8 @@ private:
     ros::Time time_now_, time_prev_;
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
+
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
     int ping_num_;
 

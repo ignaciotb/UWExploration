@@ -1,0 +1,8 @@
+# Define the goal
+geometry_msgs/TransformStamped mbes_pose
+---
+# Define the result
+sensor_msgs/PointCloud2 sim_mbes
+---
+# Define a feedback message
+bool working

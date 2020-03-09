@@ -180,7 +180,7 @@ void BathymapConstructor::run(){
             ac_->waitForResult(ros::Duration(1.0));
             actionlib::SimpleClientGoalState state = ac_->getState();
             if (std::strncmp(state.toString().c_str(), "SUCCEEDED", 9) == 0){
-                sim_ping_pub_.publish(*ac_->getResult());
+                // sim_ping_pub_.publish(*ac_->getResult());
             }
             else{
                 ROS_WARN("Action %s", state.toString().c_str());

@@ -27,8 +27,8 @@ class auv_pf():
         rospy.Subscriber(self.odom, Odometry, self.odom_callback)
         rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?
         # Read particle count 
-        self.pc = 10
-        self.cov = [0.01, 0.01, 0.001]
+        self.pc = 100
+        self.cov = [0.0, 0.0, 0.0001]
         self.time = None
         self.old_time = None
         self.particles = np.zeros((self.pc, 4))
@@ -43,16 +43,22 @@ class auv_pf():
     def odom_callback(self,msg):
         self.pred_odom = msg
         #print(self.pred_odom)
+        self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
+        if self.old_time and self.time > self.old_time:
+            self.predict()
+            # Publish
+            self.pub_()
+        self.old_time = self.time
 
     ##### Primary particle filter functions #####
-    def run_pf(self):
-        if self.pred_odom != None:
-            self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
-            if self.old_time and self.time > self.old_time:
-                self.predict()
-                # Publish
-                self.pub_()
-            self.old_time = self.time
+    # def run_pf(self):
+    #     if self.pred_odom != None:
+    #         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
+    #         if self.old_time and self.time > self.old_time:
+    #             self.predict()
+    #             # Publish
+    #             self.pub_()
+    #         self.old_time = self.time
         
 
     def predict(self):
@@ -109,9 +115,10 @@ def main():
     # Create particle filter class
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
-    while not rospy.is_shutdown():
-        # Run particle filter
-        pf.run_pf()
+    # while not rospy.is_shutdown():
+    #     # Run particle filter
+    #     pf.run_pf()
+    rospy.spin()
 
 if __name__ == '__main__':
     main()

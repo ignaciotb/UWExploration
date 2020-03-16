@@ -3,6 +3,7 @@
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
 	<arg name="simulation_freq" default="0.1"/>
+	<arg name="mbes_sim_threads" default="4"/>
 
 	<group ns="$(arg namespace)">
 
@@ -32,6 +33,7 @@
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
 			<param name="num_beams_sim" value="255" />
+			<param name="num_threads" value="$(arg mbes_sim_threads)" />
 		</node>
 		
 		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">

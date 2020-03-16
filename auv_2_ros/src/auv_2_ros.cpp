@@ -43,7 +43,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Get fixed transform world --> map frame
     tf::StampedTransform tf_world_map_;
     try {
-        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(25.0) );
         tflistener_.lookupTransform(world_frame_, map_frame_, ros::Time(0), tf_world_map_);
         ROS_INFO("Locked transform world --> map");
     }
@@ -143,7 +143,7 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     tf::quaternionEigenToTF(ang_vel, ang_vel_tf);
     odom.twist.twist.linear.x = vel_t.x();
     odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.y = vel_t.z();
+    odom.twist.twist.linear.z = vel_t.z();
     odom.twist.twist.angular.x = ang_vel_tf.x()/dt;
     odom.twist.twist.angular.y = ang_vel_tf.y()/dt;
     odom.twist.twist.angular.z = ang_vel_tf.z()/dt;
@@ -179,6 +179,7 @@ void BathymapConstructor::run(){
 
             ac_->waitForResult(ros::Duration(1.0));
             actionlib::SimpleClientGoalState state = ac_->getState();
+            // cout << "Mbes sim state: " << state.toString().c_str() << endl;
             if (std::strncmp(state.toString().c_str(), "SUCCEEDED", 9) == 0){
                 // sim_ping_pub_.publish(*ac_->getResult());
             }

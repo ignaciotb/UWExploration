@@ -43,7 +43,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Get fixed transform world --> map frame
     tf::StampedTransform tf_world_map_;
     try {
-        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(25.0) );
         tflistener_.lookupTransform(world_frame_, map_frame_, ros::Time(0), tf_world_map_);
         ROS_INFO("Locked transform world --> map");
     }
@@ -179,6 +179,7 @@ void BathymapConstructor::run(){
 
             ac_->waitForResult(ros::Duration(1.0));
             actionlib::SimpleClientGoalState state = ac_->getState();
+            cout << "Mbes sim state: " << state.toString().c_str() << endl;
             if (std::strncmp(state.toString().c_str(), "SUCCEEDED", 9) == 0){
                 // sim_ping_pub_.publish(*ac_->getResult());
             }

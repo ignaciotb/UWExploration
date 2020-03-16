@@ -1,5 +1,7 @@
 <launch>
 
+  <!-- Include auv_2_ros node -->
+  <include file="$(find auv_2_ros)/launch/auv_localization.launch" />
   
   <!-- Define args -->
   <arg name="particle_count"                    default="100"/>

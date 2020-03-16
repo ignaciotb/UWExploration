@@ -18,41 +18,63 @@ from geometry_msgs.msg import Pose, PoseArray, Quaternion
 class auv_pf():
     def __init__(self):
         # Read map frame id
-        self.map_frame = "odom"
-        # Read odometry
-        self.odom = "/gt/odom"
-        # Initialize callback variables
-        # self.obs_pose = None
-        self.pred_odom = None
-        rospy.Subscriber(self.odom, Odometry, self.odom_callback)
-        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?
+        param = rospy.search_param("map_frame")
+        self.map_frame = rospy.get_param(param)
+        # Read odometry subscription topic
+        param = rospy.search_param("odometry_topic")
+        self.odom = rospy.get_param(param)
+        # Read particle filter publisher topic
+        param = rospy.search_param("particle_poses_topic")
+        self.pf_top = rospy.get_param(param)        
+
         # Read particle count 
-        self.pc = 10
-        self.cov = [0.01, 0.01, 0.001]
+        param = rospy.search_param("particle_count")
+        self.pc = rospy.get_param(param)
+        # Read motion covariance values (and convert to float list) 
+        param = rospy.search_param("motion_covariance")
+        cov_string = rospy.get_param(param)
+        cov_string = cov_string.replace('[','')
+        cov_string = cov_string.replace(']','')
+        cov_list = list(cov_string.split(", "))
+        self.cov = list(map(float, cov_list))
+
+        # Initialize callback variables
+        self.pred_odom = None
+        
+        # Initialize class variables
         self.time = None
         self.old_time = None
+
+        # Establish subscription to odometry message
+        rospy.Subscriber(self.odom, Odometry, self.odom_callback)
+        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?
+
+        # Initialize array of particle states | # particles x 4 [x, y, theta_z, weight]
         self.particles = np.zeros((self.pc, 4))
-        # Set all particle weights equal
         self.particles[:,3] = np.ones((self.pc,))
-        # Initialize publisher
-        self.pf_top = "/particle_filter_topic"
+        
+        # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pf_top, PoseArray, queue_size=10)
         self.pos_ = PoseArray()
         self.pos_.header.frame_id = self.map_frame
     
     def odom_callback(self,msg):
         self.pred_odom = msg
-        #print(self.pred_odom)
+        self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
+        if self.old_time and self.time > self.old_time:
+            self.predict()
+            self.pub_()
+        self.old_time = self.time
 
     ##### Primary particle filter functions #####
-    def run_pf(self):
-        if self.pred_odom != None:
-            self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
-            if self.old_time and self.time > self.old_time:
-                self.predict()
-                # Publish
-                self.pub_()
-            self.old_time = self.time
+    # def run_pf(self):
+    #     if self.pred_odom != None:
+    #         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
+    #         if self.old_time and self.time > self.old_time:
+    #             self.predict()
+    #             # Publish
+    #             self.pub_()
+    #         self.old_time = self.time
         
 
     def predict(self):
@@ -64,10 +86,10 @@ class auv_pf():
         yaw_v = self.pred_odom.twist.twist.angular.z
         # Update particles pose estimate
         dt = self.time - self.old_time
-        print('dt: ', dt)
-        print('xv: ', xv)
-        print('yv: ', yv)
-        print('yaw_v: ', yaw_v)
+        # print('dt: ', dt)
+        # print('xv: ', xv)
+        # print('yv: ', yv)
+        # print('yaw_v: ', yaw_v)
         self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) 
         self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2])
         self.particles[:,2] += pf_noice[:,2] + yaw_v*dt
@@ -109,9 +131,10 @@ def main():
     # Create particle filter class
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
-    while not rospy.is_shutdown():
-        # Run particle filter
-        pf.run_pf()
+    # while not rospy.is_shutdown():
+    #     # Run particle filter
+    #     pf.run_pf()
+    rospy.spin()
 
 if __name__ == '__main__':
     main()

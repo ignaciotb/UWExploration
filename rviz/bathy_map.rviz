@@ -7,6 +7,9 @@ Panels:
         - /Global Options1
         - /Status1
         - /PointCloud21
+        - /PointCloud22
+        - /PointCloud23
+        - /PointCloud24
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
         - /PoseArray1
@@ -59,8 +62,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -53.364990234375
-        Min Value: -450.71417236328125
+        Max Value: -47.440635681152344
+        Min Value: -206.94664001464844
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -187,7 +190,7 @@ Visualization Manager:
       Color: 255; 153; 0
       Color Transformer: FlatColor
       Decay Time: 1000
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -204,7 +207,7 @@ Visualization Manager:
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:

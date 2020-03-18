@@ -90,10 +90,10 @@ class auv_pf():
         # print('xv: ', xv)
         # print('yv: ', yv)
         # print('yaw_v: ', yaw_v)
-        self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) # + yv*dt*np.sin(self.particles[:,2])
-        self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2]) # + yv*dt*np.cos(self.particles[:,2])
-        # self.particles[:,0] += pf_noice[:,0] + xv*dt
-        # self.particles[:,1] += pf_noice[:,1] + yv*dt
+        # self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) # + yv*dt*np.sin(self.particles[:,2])
+        # self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2]) # + yv*dt*np.cos(self.particles[:,2])
+        self.particles[:,0] += pf_noice[:,0] + xv*dt
+        self.particles[:,1] += pf_noice[:,1] + yv*dt
         self.particles[:,2] += pf_noice[:,2] + yaw_v*dt
         # Force angles to be on range [-pi, pi]
         self.particles[:,2] = np.remainder(self.particles[:,2]+np.pi,2*np.pi)-np.pi

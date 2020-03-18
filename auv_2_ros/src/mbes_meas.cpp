@@ -59,8 +59,9 @@ void MbesMeas::measCB(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     PointCloudT::Ptr sim_mbes_i_pcl(new PointCloudT);
     vox_oc_.pingComputation(*sim_mbes_i_pcl);
     pcl_ros::transformPointCloud(*sim_mbes_i_pcl, *sim_mbes_i_pcl, mbes_goal->mbes_pose.transform);
-    std::cout << "Sim mbes hits " << sim_mbes_i_pcl->points.size() << std::endl;
-
+    if(sim_mbes_i_pcl->points.size() == 0){
+        ROS_WARN("No multibeam hits! You're out of the GT map");
+    }
     sensor_msgs::PointCloud2 sim_ping;
     pcl::toROSMsg(*sim_mbes_i_pcl.get(), sim_ping);
     sim_ping.header.frame_id = mbes_goal->mbes_pose.header.frame_id;

@@ -16,7 +16,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<auv_2_ros::MbesSimResult>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
 
@@ -57,6 +57,12 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     // Store odom tf frame
     odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
+    std::cout << odom_tf_.translation().transpose() << std::endl;
+
+    Eigen::Vector3d euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    tf2::Quaternion quatm2o;
+    quatm2o.setRPY(euler[0], euler[1], euler[2]);
+    std::cout << euler.transpose() << std::endl;
 
     ac_->waitForServer();
 
@@ -75,7 +81,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     m2o_static_tfStamped.transform.translation.y = odom_tf_.translation()[1];
     m2o_static_tfStamped.transform.translation.z = odom_tf_.translation()[2];
     euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    tf2::Quaternion quatm2o;
+    tf::Quaternion quatm2o;
     quatm2o.setRPY(euler[0], euler[1], euler[2]);
     m2o_static_tfStamped.transform.rotation.x = quatm2o.x();
     m2o_static_tfStamped.transform.rotation.y = quatm2o.y();
@@ -91,7 +97,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     new_base_link_.transform.translation.x = odom_ping_i[0];
     new_base_link_.transform.translation.y = odom_ping_i[1];
     new_base_link_.transform.translation.z = odom_ping_i[2];
-    tf2::Quaternion quato2p;
+    tf::Quaternion quato2p;
     euler = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix().cast<double>() *
              odom_tf_.linear().matrix().inverse()).eulerAngles(0, 1, 2);
     quato2p.setRPY(euler[0], euler[1], euler[2]);
@@ -122,31 +128,27 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
 
     // Compute linear velocities
     double dt = (time_now_ - time_prev_).toSec();
-    Eigen::Vector3d pos_now = Eigen::Vector3d(new_base_link_.transform.translation.x,
-                                              new_base_link_.transform.translation.y,
-                                              new_base_link_.transform.translation.z);
-    Eigen::Vector3d pos_prev = Eigen::Vector3d(prev_base_link_.transform.translation.x,
-                                               prev_base_link_.transform.translation.y,
-                                               prev_base_link_.transform.translation.z);
+    Eigen::Vector3d pos_now, pos_prev;
+    tf::vectorMsgToEigen(new_base_link_.transform.translation, pos_now);
+    tf::vectorMsgToEigen(prev_base_link_.transform.translation, pos_prev);
     Eigen::Vector3d vel_t = (pos_now - pos_prev)/dt;
 
     // And angular vels
     tf::Quaternion q_prev;
-    Eigen::Quaterniond q_prev_eigen;
     tf::quaternionMsgToTF(prev_base_link_.transform.rotation, q_prev);
-    tf::quaternionTFToEigen(q_prev, q_prev_eigen);
+    tf::Quaternion q_now = tf::createQuaternionFromRPY(euler[0], euler[1], euler[2]);
+    tf::Quaternion q_vel = q_now * q_prev.inverse();
 
-    Eigen::Matrix3d rot_now = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix().cast<double>() *
-                               odom_tf_.linear().matrix().inverse());
-    Eigen::Quaterniond ang_vel = Eigen::Quaterniond(rot_now) * Eigen::Quaterniond(q_prev_eigen.matrix().inverse());
-    tf::Quaternion ang_vel_tf;
-    tf::quaternionEigenToTF(ang_vel, ang_vel_tf);
+    tf::Matrix3x3 m_vel(q_vel);
+    double roll_vel, pitch_vel, yaw_vel;
+    m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
+
     odom.twist.twist.linear.x = vel_t.x();
     odom.twist.twist.linear.y = vel_t.y();
     odom.twist.twist.linear.z = vel_t.z();
-    odom.twist.twist.angular.x = ang_vel_tf.x()/dt;
-    odom.twist.twist.angular.y = ang_vel_tf.y()/dt;
-    odom.twist.twist.angular.z = ang_vel_tf.z()/dt;
+    odom.twist.twist.angular.x = roll_vel/dt;
+    odom.twist.twist.angular.y = pitch_vel/dt;
+    odom.twist.twist.angular.z = yaw_vel/dt;
     odom_pub_.publish(odom);
 
     prev_base_link_ = new_base_link_;
@@ -177,14 +179,15 @@ void BathymapConstructor::run(){
             mbes_goal.mbes_pose = transformStamped;
             ac_->sendGoal(mbes_goal);
 
-            ac_->waitForResult(ros::Duration(1.0));
-            actionlib::SimpleClientGoalState state = ac_->getState();
-            // cout << "Mbes sim state: " << state.toString().c_str() << endl;
-            if (std::strncmp(state.toString().c_str(), "SUCCEEDED", 9) == 0){
-                // sim_ping_pub_.publish(*ac_->getResult());
-            }
-            else{
-                ROS_WARN("Action %s", state.toString().c_str());
+            bool finished = ac_->waitForResult(ros::Duration(10.0));
+            if (finished){
+                actionlib::SimpleClientGoalState state = ac_->getState();
+                if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
+                    sim_ping_pub_.publish(*ac_->getResult());
+                }
+                else{
+                    ROS_WARN("Action %s", state.toString().c_str());
+                }
             }
         }
 

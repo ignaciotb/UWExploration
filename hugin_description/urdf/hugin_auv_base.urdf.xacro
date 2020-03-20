@@ -4,15 +4,16 @@
 
   <!-- Properties -->
   <xacro:property name="M_PI" value="3.14159" />
+  <xacro:property name="visual_mesh_file" value="file://$(find hugin_description)/mesh/hugin_body.dae"/>
 
   <xacro:macro name="hugin_auv_base" params="namespace debug">
     <link name="${namespace}/base_link">
-<!--       <visual>
+      <visual>
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
-          <mesh filename="${visual_mesh_file}" scale="1 1 1" />
+          <mesh filename="${visual_mesh_file}" scale="3 3 3" />
         </geometry>
-      </visual> -->
+      </visual>
 
 <!--       <collision>
         <origin xyz="0 0 0" rpy="0 ${0.5*pi} 0"/>

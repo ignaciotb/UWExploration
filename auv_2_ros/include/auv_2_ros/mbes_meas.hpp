@@ -10,7 +10,6 @@
 #include <cereal/archives/binary.hpp>
 
 #include "data_tools/std_data.h"
-
 #include "submaps_tools/cxxopts.hpp"
 #include "submaps_tools/submaps.hpp"
 #include "meas_models/multibeam_simple.hpp"

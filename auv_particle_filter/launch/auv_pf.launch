@@ -1,13 +1,13 @@
+<?xml version="1.0" ?>
 <launch>
 
-  <!-- Include auv_2_ros node -->
-  <include file="$(find auv_2_ros)/launch/auv_localization.launch" />
+  <arg name="mode" default="sim"/>
   
   <!-- Define args -->
   <arg name="particle_count"                    default="100"/>
   <arg name="motion_covariance"                 default="[0.0, 0.0, 0.001]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
-  <arg name="odometry_topic"                    default="/gt/odom"/>
+  <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
   <arg name="particle_poses_topic"              default="/particle_filter_topic"/>
 
   <!-- <arg name="true_mbes_topic"                   default="/gt/mbes_pings"/>

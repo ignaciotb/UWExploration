@@ -11,10 +11,10 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 
 This is a collection of ROS packages. Just clone the repo within your catking workspace and run
 ```
+rosdep install --from-paths your_catkin_ws --ignore-src --rosdistro=$ROS_DISTRO -y
 catkin_make -DCMAKE_BUILD_TYPE=Release install
 ```
-If you've managed to install the dependencies, this part should be pretty easy.
-If you come across [this issue](https://github.com/ethz-asl/lidar_align/issues/16) during the building
+If you come across [this issue](https://github.com/ethz-asl/lidar_align/issues/16) during the compilation, follow the instructions at the end of the thread to solve it and build the workspace again again.
 
 ## ROS Packages
 
@@ -30,6 +30,7 @@ Keep reading to see how to change the operation mode.
 ### Replay an AUV survey 
 Construct and store a bathymetric map from a real AUV survey as a UFOmap. 
 Modify the launch file 'auv_exploration.launch' under the auv_model package: change the parameter `mode = gt`
+The bathymetric map being constructed during the mission will be saved under bathy_mapper/maps with the name specified in the parameter `map_name` in the launch file.
 
 ### Simulate AUV missions based on existing bathymetry 
 Use the bathymetric map constructed previously and an AUV with an MBES simulation to create your own missions. 

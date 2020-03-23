@@ -84,6 +84,7 @@ class auv_pf():
         xv = self.pred_odom.twist.twist.linear.x
         yv = self.pred_odom.twist.twist.linear.y
         yaw_v = self.pred_odom.twist.twist.angular.z
+        vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         # Update particles pose estimate
         dt = self.time - self.old_time
         # print('dt: ', dt)
@@ -92,8 +93,10 @@ class auv_pf():
         # print('yaw_v: ', yaw_v)
         # self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) # + yv*dt*np.sin(self.particles[:,2])
         # self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2]) # + yv*dt*np.cos(self.particles[:,2])
-        self.particles[:,0] += pf_noice[:,0] + xv*dt
-        self.particles[:,1] += pf_noice[:,1] + yv*dt
+        # self.particles[:,0] += pf_noice[:,0] + xv*dt
+        # self.particles[:,1] += pf_noice[:,1] + yv*dt
+        self.particles[:,0] += pf_noice[:,0] + vel * dt * np.cos(self.particles[:,2])
+        self.particles[:,1] += pf_noice[:,1] + vel * dt * np.sin(self.particles[:,2])
         self.particles[:,2] += pf_noice[:,2] + yaw_v*dt
         # Force angles to be on range [-pi, pi]
         self.particles[:,2] = np.remainder(self.particles[:,2]+np.pi,2*np.pi)-np.pi

@@ -2,7 +2,7 @@
 	<arg name="mode" default="default"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-	<arg name="simulation_freq" default="0.1"/>
+	<arg name="simulation_freq" default="0.01"/>
 
 	<group ns="$(arg namespace)">
 
@@ -24,7 +24,7 @@
 		<!-- Hugin simulation -->
 		<node pkg="auv_2_ros" type="mbes_meas_node" name="mbes_meas_node" output="screen">
 			<!-- <param name="map_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/map.cereal"/> -->
-			<param name="map_cereal" value="/home/robot/smarc_research/EM2040/localization_datasets/full_dataset/map.cereal"/>
+			<param name="map_cereal" value="/home/stine/Desktop/SMaRC/Data_gf/full_dataset/map.cereal"/> # full_dataset / single_track
 			<param name="sim_freq" value="$(arg simulation_freq)" />
 
 			<param name="map_pcl" value="/gt/map" />
@@ -37,7 +37,7 @@
 		
 		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 			<!-- <param name="trajectory_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/trajectory.cereal"/> -->
-			<param name="trajectory_cereal" value="/home/robot/smarc_research/EM2040/localization_datasets/full_dataset/trajectory.cereal"/>
+			<param name="trajectory_cereal" value="/home/stine/Desktop/SMaRC/Data_gf/full_dataset/trajectory.cereal"/> # full_dataset / single_track
 			<param name="sim_freq" value="$(arg simulation_freq)" />
 
 			<param name="mbes_pings" value="/gt/mbes_pings" />

@@ -16,7 +16,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<auv_2_ros::MbesSimResult>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
 
@@ -43,7 +43,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Get fixed transform world --> map frame
     tf::StampedTransform tf_world_map_;
     try {
-        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(25.0) );
         tflistener_.lookupTransform(world_frame_, map_frame_, ros::Time(0), tf_world_map_);
         ROS_INFO("Locked transform world --> map");
     }
@@ -145,7 +145,7 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
 
     odom.twist.twist.linear.x = vel_t.x();
     odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.y = vel_t.z();
+    odom.twist.twist.linear.z = vel_t.z();
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;

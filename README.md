@@ -14,6 +14,7 @@ This is a collection of ROS packages. Just clone the repo within your catking wo
 catkin_make -DCMAKE_BUILD_TYPE=Release install
 ```
 If you've managed to install the dependencies, this part should be pretty easy.
+If you come across [this issue](https://github.com/ethz-asl/lidar_align/issues/16) during the building
 
 ## ROS Packages
 

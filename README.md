@@ -22,6 +22,8 @@ So far, the online command line utility is
 ```
 roslaunch auv_model auv_exploration.launch
 ```
+Open RVIZ separately and use the config file in the bathy_mapper pkg to visualize the setup.
+
 Keep reading to see how to change the operation mode.
 
 ### Replay an AUV survey 
@@ -31,6 +33,11 @@ Modify the launch file 'auv_exploration.launch' under the auv_model package: cha
 ### Simulate AUV missions based on existing bathymetry 
 Use the bathymetric map constructed previously and an AUV with an MBES simulation to create your own missions. 
 Modify the launch file 'auv_exploration.launch' under the auv_model package: change the parameter `mode = sim`
+
+After launching the system, click on the black screen that pops up and use the following commands to navigate the simulated AUV:
+- w/s forwards/backward throtle
+- right/left keys: steering
+- up/down keys: inclination
 
 
 

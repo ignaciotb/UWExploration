@@ -5,7 +5,7 @@
   
   <!-- Define args -->
   <arg name="particle_count"                    default="100"/>
-  <arg name="motion_covariance"                 default="[0.0, 0.0, 0.00]"/> <!-- [x, y, yaw] -->
+  <arg name="motion_covariance"                 default="[0.0, 0.0, 0.001]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/gt/odom"/>
   <arg name="particle_poses_topic"              default="/particle_filter_topic"/>
@@ -14,7 +14,7 @@
   <arg name="simulated_mbes_topic"              default="/sim/mbes"/> -->
 
   <!-- Launch RVIZ for project -->
-  <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/robot/smarc_research/smarc_ws/src/auv_localization/rviz/bathy_map.rviz"/>
+  <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/stine/catkin_ws/src/auv_localization/rviz/bathy_map.rviz"/>
 
   <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
     

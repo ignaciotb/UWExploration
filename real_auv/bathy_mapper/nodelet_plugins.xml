@@ -1,0 +1,7 @@
+<library path="lib/libbathy_mapper_server_nodelet">
+  <class name="bathy_mapper/BathyMapperNodelet" type="bathy_mapper::BathyMapperNodelet" base_class_type="nodelet::Nodelet">
+    <description>
+      This is the BathyMapper server Nodelet.
+    </description>
+  </class>
+</library>

@@ -1,0 +1,19 @@
+<?xml version="1.0" ?>
+<launch>
+	<arg name="nodelet_manager" default="ufomap_mapping_server_nodelet_manager" />
+
+	<arg name="resolution" default="1" />
+	<arg name="depth_levels" default="21" />
+	<arg name="multithreaded" default="true" />
+
+	<node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen">
+		<param name="num_worker_threads" value="12" />
+	</node>
+
+	<node pkg="nodelet" type="nodelet" name="ufomap_mapping_server_nodelet" args="load ufomap_mapping/UFOMapServerNodelet $(arg nodelet_manager)" output="log" required="true">
+		<remap from="cloud_in" to="/gt/mbes_pings" />
+		<param name="multithreaded" value="$(arg multithreaded)" />
+                <param name="resolution" value="$(arg resolution)" />
+		<param name="depth_levels" value="$(arg depth_levels)" />
+	</node>
+</launch>

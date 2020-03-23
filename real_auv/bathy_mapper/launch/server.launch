@@ -1,0 +1,15 @@
+<?xml version="1.0" ?>
+<launch>
+	<arg name="resolution" default="1" />
+	<arg name="depth_levels" default="21" />
+	<arg name="multithreaded" default="false" />
+
+  <node pkg="ufomap_mapping" type="ufomap_mapping_server_node" name="ufomap_mapping_server_node" output="log" required="true">
+    <remap from="cloud_in" to="/gt/mbes_pings" />
+
+		<param name="multithreaded" value="$(arg multithreaded)" />
+		
+    <param name="resolution" value="$(arg resolution)" />
+		<param name="depth_levels" value="$(arg depth_levels)" />
+  </node>
+</launch>

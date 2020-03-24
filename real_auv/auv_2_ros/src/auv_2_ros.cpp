@@ -16,7 +16,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
-    sim_ping_pub_ = nh_->advertise<auv_2_ros::MbesSimResult>(sim_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
 
@@ -183,7 +183,10 @@ void BathymapConstructor::run(){
             if (finished){
                 actionlib::SimpleClientGoalState state = ac_->getState();
                 if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
-                    sim_ping_pub_.publish(*ac_->getResult());
+                    sensor_msgs::PointCloud2 mbes_msg;
+                    auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
+                    mbes_msg = mbes_res.sim_mbes;
+                    sim_ping_pub_.publish(mbes_msg);
                 }
                 else{
                     ROS_WARN("Action %s", state.toString().c_str());

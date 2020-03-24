@@ -181,8 +181,6 @@ void AUVMotionModel::updateMeas(){
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
             sensor_msgs::PointCloud2 mbes_msg;
             auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
-//            mbes_msg.header.frame_id = mbes_res.sim_mbes.header.frame_id;
-//            mbes_msg.header.stamp = mbes_res.sim_mbes.header.stamp;
             mbes_msg = mbes_res.sim_mbes;
             sim_ping_pub_.publish(mbes_msg);
         }

@@ -33,19 +33,14 @@ BathymapConstructor::~BathymapConstructor(){
 }
 
 
-void BathymapConstructor::init(const boost::filesystem::path auv_path,
-                               const boost::filesystem::path map_path){
-
-    // Read map
-    MapObj map_loc;
-    std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
-    std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
+void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
     ping_total_ = std_pings.size();
     std::cout << "Number of pings in survey " << ping_total_ << std::endl;
-    traj_pings_ = parsePingsAUVlib(std_pings, map_tf_);
+    traj_pings_ = parsePingsAUVlib(std_pings);
+    map_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
     // Store world --> map tf
     world_map_tfmsg_.header.frame_id = world_frame_;
@@ -63,7 +58,10 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path,
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> odom tf
-    odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
+    odom_tf_.translation() = Eigen::Vector3d(0,0,0);
+    Eigen::Quaterniond rot;
+    rot.setIdentity();
+    odom_tf_.linear() = rot.toRotationMatrix();
 
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
@@ -97,7 +95,9 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path,
         ros::Duration(1.0).sleep();
     }
 
-    //    ac_->waitForServer();
+//    while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
+//        ROS_INFO_NAMED(node_name_, "Waiting for action server");
+//    }
 
     ROS_INFO("Initialized auv_2_ros");
 }

@@ -81,7 +81,6 @@ void BathyMapper::init(const boost::filesystem::path map_path){
     std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
     std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
     maps_gt_.push_back(map_loc);
-    ROS_INFO("Initialized MBES simulation");
 
     q_180_ = Eigen::AngleAxisf(3.1415, Eigen::Vector3f::UnitX())
              * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
@@ -89,6 +88,7 @@ void BathyMapper::init(const boost::filesystem::path map_path){
 
     iter_ = 0;
     time_avg_ = 0;
+    ROS_INFO("Initialized Bathy mapper");
 }
 
 void BathyMapper::broadcastW2MTf(const ros::TimerEvent&){

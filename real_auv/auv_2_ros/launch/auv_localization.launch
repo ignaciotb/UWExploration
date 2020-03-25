@@ -35,7 +35,7 @@
 	        <param name="multithreaded" value="$(arg multithreaded)" />
 	        <param name="resolution" value="$(arg resolution)" />
 	        <param name="depth_levels" value="$(arg depth_levels)" />
-			<param name="map_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/$(arg area)/map.cereal"/>
+			<param name="map_cereal" value="/home/stine/Desktop/SMaRC/Data_gf/single_track/map.cereal"/> # full_dataset / single_track
 			<param name="sim_freq" value="$(arg simulation_freq)" />
 	        <param name="world_frame" value="world" />
 			<param name="map_frame" value="map" />
@@ -47,7 +47,7 @@
 
 		<!-- Hugin simulation -->
 		<node pkg="auv_2_ros" type="mbes_meas_node" name="mbes_meas_node" output="screen">
-			<param name="map_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/$(arg area)/map.cereal"/>
+			<param name="map_cereal" value="/home/stine/Desktop/SMaRC/Data_gf/single_track/map.cereal"/> # full_dataset / single_track
 			<param name="sim_freq" value="$(arg simulation_freq)" />
 
 			<param name="map_pcl" value="/gt/map" />
@@ -60,7 +60,7 @@
 		</node>
 		
 		<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
-			<param name="trajectory_cereal" value="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/$(arg area)/trajectory.cereal"/>
+			<param name="trajectory_cereal" value="/home/stine/Desktop/SMaRC/Data_gf/single_track/trajectory.cereal"/> # full_dataset / single_track
 			<param name="sim_freq" value="$(arg simulation_freq)" />
 
 			<param name="mbes_pings" value="/gt/mbes_pings" />

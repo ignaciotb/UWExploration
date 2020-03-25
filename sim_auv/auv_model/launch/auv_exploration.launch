@@ -2,15 +2,15 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-	<arg name="mode" default="sim"/>
+	<arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
     <arg name="simulation_freq" default="0.1"/>
 	<arg name="mbes_sim_threads" default="4"/>
     <arg name="map_name" default="single_track"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
-	<arg name="cereal_map" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/map.cereal"/>
-	<arg name="cereal_trajectory" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/localization_datasets/single_track/trajectory.cereal"/>
+	<arg name="cereal_map" default="/home/stine/Desktop/SMaRC/Data_gf/single_track/map.cereal"/> # full_dataset / single_track
+	<arg name="cereal_trajectory" default="/home/stine/Desktop/SMaRC/Data_gf/single_track/trajectory.cereal"/> # full_dataset / single_track
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<!-- Full biosensors mission -->

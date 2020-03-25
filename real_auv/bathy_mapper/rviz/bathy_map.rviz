@@ -159,11 +159,11 @@ Visualization Manager:
       Class: rviz/PoseArray
       Color: 211; 215; 207
       Enabled: true
-      Head Length: 0.800000011920929
-      Head Radius: 1
+      Head Length: 1
+      Head Radius: 2
       Name: PoseArray
-      Shaft Length: 2
-      Shaft Radius: 2.5
+      Shaft Length: 1.2000000476837158
+      Shaft Radius: 1
       Shape: Arrow (3D)
       Topic: /particle_filter_topic
       Unreliable: false
@@ -213,8 +213,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -77.2224349975586
-        Min Value: -82.99796295166016
+        Max Value: -76.95427703857422
+        Min Value: -82.90508270263672
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -268,7 +268,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 350.95806884765625
+      Distance: 381.83404541015625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -286,7 +286,7 @@ Visualization Manager:
       Pitch: 1.5397963523864746
       Target Frame: odom
       Value: Orbit (rviz)
-      Yaw: 2.4153943061828613
+      Yaw: 2.4203944206237793
     Saved: ~
 Window Geometry:
   Displays:

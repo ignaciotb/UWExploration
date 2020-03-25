@@ -14,7 +14,7 @@
   <arg name="simulated_mbes_topic"              default="/sim/mbes"/> -->
 
   <!-- Launch RVIZ for project -->
-  <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/stine/catkin_ws/src/auv_localization/real_auv/bathy_mapper/rviz/bathy_map.rviz"/>
+  <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/stine/catkin_ws/src/auv_exploration/real_auv/bathy_mapper/rviz/bathy_map.rviz"/>
 
   <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
     

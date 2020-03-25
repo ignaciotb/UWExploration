@@ -22,7 +22,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
 
 //    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
 
-    ping_num_ = 0;
+    ping_cnt_ = 0;
 
     time_now_ = ros::Time::now();
     time_prev_ = ros::Time::now();
@@ -36,14 +36,16 @@ BathymapConstructor::~BathymapConstructor(){
 void BathymapConstructor::init(const boost::filesystem::path auv_path,
                                const boost::filesystem::path map_path){
 
-    // Read pings
-    std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
-    std::cout << "Number of pings in survey " << std_pings.size() << std::endl;
-
     // Read map
     MapObj map_loc;
     std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
     std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
+
+    // Read pings
+    std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
+    ping_total_ = std_pings.size();
+    std::cout << "Number of pings in survey " << ping_total_ << std::endl;
+    traj_pings_ = parsePingsAUVlib(std_pings, map_tf_);
 
     // Store world --> map tf
     world_map_tfmsg_.header.frame_id = world_frame_;
@@ -61,7 +63,6 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path,
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> odom tf
-    traj_pings_ = parsePingsAUVlib(std_pings, map_tf_);
     odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
     map_odom_tfmsg_.header.frame_id = map_frame_;
@@ -77,6 +78,10 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path,
     map_odom_tfmsg_.transform.rotation.y = quatm2o.y();
     map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
     map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
+
+    std::cout << "Map to odom tf " << std::endl;
+    std::cout << odom_tf_.translation().transpose() << std::endl;
+    std::cout << euler.transpose() << std::endl;
 
     tf::Transform tf_map_odom;
     tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
@@ -112,12 +117,12 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     new_base_link_.child_frame_id = base_frame_;
     new_base_link_.header.stamp = ros::Time::now();
     Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
-                                   traj_pings_.at(ping_num_).submap_tf_.translation().cast<double>());
+                                   traj_pings_.at(ping_cnt_).submap_tf_.translation().cast<double>());
     new_base_link_.transform.translation.x = odom_ping_i[0];
     new_base_link_.transform.translation.y = odom_ping_i[1];
     new_base_link_.transform.translation.z = odom_ping_i[2];
     tf::Quaternion quato2p;
-    Eigen::Vector3d euler = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix().cast<double>() *
+    Eigen::Vector3d euler = (traj_pings_.at(ping_cnt_).submap_tf_.linear().matrix().cast<double>() *
              odom_tf_.linear().matrix().inverse()).eulerAngles(0, 1, 2);
     quato2p.setRPY(euler[0], euler[1], euler[2]);
     quato2p.normalize();
@@ -129,7 +134,11 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    this->publishMeas();
+    this->publishMeas(ping_cnt_);
+
+    if(ping_cnt_ < ping_total_-1){
+        ping_cnt_ += 1;
+    }
 }
 
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){
@@ -176,7 +185,7 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
 
 }
 
-void BathymapConstructor::publishMeas(){
+void BathymapConstructor::publishMeas(int ping_num){
 
     // Publish MBES pings
     sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
@@ -191,7 +200,7 @@ void BathymapConstructor::publishMeas(){
     tf::Transform tf_mbes_map;
     tf_mbes_map.mult(tf_mbes_odom, odom_map_tf_);
 
-    pcl_ros::transformPointCloud(traj_pings_.at(ping_num_).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
+    pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
     pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
     mbes_i.header.frame_id = mbes_frame_;
     mbes_i.header.stamp = ros::Time::now();
@@ -218,11 +227,9 @@ void BathymapConstructor::publishMeas(){
 //        }
 
     // Original ping (for debugging)
-    *mbes_i_pcl_map = traj_pings_.at(ping_num_).submap_pcl_;
+    *mbes_i_pcl_map = traj_pings_.at(ping_num).submap_pcl_;
     pcl::toROSMsg(*mbes_i_pcl_map.get(), mbes_i_map);
     mbes_i_map.header.frame_id = map_frame_;
     mbes_i_map.header.stamp = ros::Time::now();
     test_pub_.publish (mbes_i_map);
-
-    ping_num_ += 1;
 }

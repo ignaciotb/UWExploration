@@ -8,6 +8,7 @@ Panels:
         - /Status1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
+        - /PoseArray1
         - /Octree1/Voxel Rendering1
         - /Octree1/Voxel Rendering1/Occupied1
         - /PointCloud22
@@ -78,13 +79,13 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        odom:
-          hugin/base_link:
-            hugin/mbes_link:
-              {}
+        map:
+          odom:
+            hugin/base_link:
+              hugin/mbes_link:
+                {}
         world:
-          map:
-            {}
+          {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -158,10 +159,10 @@ Visualization Manager:
       Class: rviz/PoseArray
       Color: 211; 215; 207
       Enabled: true
-      Head Length: 5
-      Head Radius: 3
+      Head Length: 0.800000011920929
+      Head Radius: 1
       Name: PoseArray
-      Shaft Length: 1
+      Shaft Length: 2
       Shaft Radius: 2.5
       Shape: Arrow (3D)
       Topic: /particle_filter_topic
@@ -212,8 +213,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -76.30409240722656
-        Min Value: -80.12380981445312
+        Max Value: -77.2224349975586
+        Min Value: -82.99796295166016
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -267,16 +268,16 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 657.232421875
+      Distance: 350.95806884765625
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 57.43852615356445
-        Y: -36.145381927490234
-        Z: -315.3113708496094
+        X: 11.604157447814941
+        Y: -12.594259262084961
+        Z: -316.85888671875
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
@@ -303,5 +304,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 960
-  X: 960
+  X: 766
   Y: 27

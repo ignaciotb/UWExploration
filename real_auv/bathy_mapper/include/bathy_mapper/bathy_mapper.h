@@ -45,8 +45,6 @@ private:
 
     void loadMap(std::string& filename);
 
-    void broadcastW2MTf(const ros::TimerEvent&);
-
     void init(const boost::filesystem::path map_path);
 
 

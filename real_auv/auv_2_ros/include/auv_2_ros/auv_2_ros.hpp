@@ -45,7 +45,7 @@ public:
 
     void init(const boost::filesystem::path auv_path, const boost::filesystem::path map_path);
 
-    void publishMeas();
+    void publishMeas(int ping_num);
 
     void broadcastTf(const ros::TimerEvent &);
 
@@ -83,7 +83,8 @@ private:
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
-    int ping_num_;
+    int ping_cnt_;
+    int ping_total_;
 
 };
 

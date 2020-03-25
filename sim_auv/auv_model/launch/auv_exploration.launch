@@ -2,7 +2,7 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-	<arg name="mode" default="gt"/>
+	<arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
     <arg name="simulation_freq" default="0.1"/>

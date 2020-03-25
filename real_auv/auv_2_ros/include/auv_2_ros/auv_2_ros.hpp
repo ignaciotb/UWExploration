@@ -43,7 +43,7 @@ public:
     BathymapConstructor(std::string node_name, ros::NodeHandle &nh);
     ~BathymapConstructor();
 
-    void init(const boost::filesystem::path auv_path, const boost::filesystem::path map_path);
+    void init(const boost::filesystem::path auv_path);
 
     void publishMeas(int ping_num);
 

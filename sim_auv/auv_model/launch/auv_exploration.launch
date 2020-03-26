@@ -7,21 +7,25 @@
 	<arg name="debug" default="0"/>
     <arg name="simulation_freq" default="0.1"/>
 	<arg name="mbes_sim_threads" default="4"/>
-    <arg name="map_name" default="biosensors"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
+    <arg name="map_name" default="faulty_mbes"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->
-    <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/map_section"/>
+    <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/map_section"/> -->
+	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/> -->
+	<arg name="path" default="/home/torroba18/Downloads/Faulty_mbes"/>
 	<arg name="cereal_trajectory" default="$(arg path)/mbes_pings.cereal"/>
+
+
 
 	<!-- TODO: set tf map to odom in a more intuitive way -->
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<!-- <arg name="x" default="0.0"/>
+	<arg name="x" default="0.0"/>
 	<arg name="y" default="0.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/> -->
+	<arg name="yaw" default="0.0"/>
 
 	<!-- Full biosensors mission -->
 	<!-- <arg name="x" default="-3156.8217773438"/>
@@ -41,16 +45,16 @@
 
     <!--UFO mapping parameters-->
     <arg name="nodelet_manager" default="bathy_mapper_server_nodelet_manager" />
-    <arg name="resolution" default="1" />
+    <arg name="resolution" default="0.3" />
     <arg name="depth_levels" default="21" />
     <arg name="multithreaded" default="true" />
 
 	<group ns="$(arg namespace)">
 
 		  <!-- Include auv_2_ros node -->
-		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
+<!-- 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
-		</include>
+		</include> -->
 		
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
@@ -75,7 +79,7 @@
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="100" />
+			<param name="num_beams_sim" value="200" />
 			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 

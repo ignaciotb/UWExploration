@@ -45,13 +45,13 @@ class auv_pf():
         self.time = None
         self.old_time = None
 
-        # Establish subscription to odometry message
-        rospy.Subscriber(self.odom, Odometry, self.odom_callback)
-        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?
-
         # Initialize array of particle states | # particles x 4 [x, y, theta_z, weight]
         self.particles = np.zeros((self.pc, 4))
         self.particles[:,3] = np.ones((self.pc,))
+
+        # Establish subscription to odometry message
+        rospy.Subscriber(self.odom, Odometry, self.odom_callback)
+        rospy.sleep(1) # CAN ADD DURATION INSTEAD?
         
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pf_top, PoseArray, queue_size=10)
@@ -87,14 +87,6 @@ class auv_pf():
         vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         # Update particles pose estimate
         dt = self.time - self.old_time
-        # print('dt: ', dt)
-        # print('xv: ', xv)
-        # print('yv: ', yv)
-        # print('yaw_v: ', yaw_v)
-        # self.particles[:,0] += pf_noice[:,0] + xv*dt*np.cos(self.particles[:,2]) # + yv*dt*np.sin(self.particles[:,2])
-        # self.particles[:,1] += pf_noice[:,1] + xv*dt*np.sin(self.particles[:,2]) # + yv*dt*np.cos(self.particles[:,2])
-        # self.particles[:,0] += pf_noice[:,0] + xv*dt
-        # self.particles[:,1] += pf_noice[:,1] + yv*dt
         self.particles[:,0] += pf_noice[:,0] + vel * dt * np.cos(self.particles[:,2])
         self.particles[:,1] += pf_noice[:,1] + vel * dt * np.sin(self.particles[:,2])
         self.particles[:,2] += pf_noice[:,2] + yaw_v*dt

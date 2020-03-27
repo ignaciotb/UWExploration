@@ -16,14 +16,13 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
-    sim_ping_pub_ = nh_->advertise<auv_2_ros::MbesSimResult>(sim_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
 
-    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
+//    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
 
-    tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
-    ping_num_ = 0;
+    ping_cnt_ = 0;
 
     time_now_ = ros::Time::now();
     time_prev_ = ros::Time::now();
@@ -38,78 +37,108 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
-    std::cout << "Number of pings " << std_pings.size() << std::endl;
+    ping_total_ = std_pings.size();
+    std::cout << "Number of pings in survey " << ping_total_ << std::endl;
+    traj_pings_ = parsePingsAUVlib(std_pings);
+    map_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
-    // Get fixed transform world --> map frame
-    tf::StampedTransform tf_world_map_;
+    // Store world --> map tf
+    world_map_tfmsg_.header.frame_id = world_frame_;
+    world_map_tfmsg_.child_frame_id = map_frame_;
+    world_map_tfmsg_.transform.translation.x = map_tf_.translation()[0];
+    world_map_tfmsg_.transform.translation.y = map_tf_.translation()[1];
+    world_map_tfmsg_.transform.translation.z = map_tf_.translation()[2];
+    tf2::Quaternion quatw2m;
+    Eigen::Vector3d euler = map_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    quatw2m.setRPY(euler[0], euler[1], euler[2]);
+    quatw2m.normalize();
+    world_map_tfmsg_.transform.rotation.x = quatw2m.x();
+    world_map_tfmsg_.transform.rotation.y = quatw2m.y();
+    world_map_tfmsg_.transform.rotation.z = quatw2m.z();
+    world_map_tfmsg_.transform.rotation.w = quatw2m.w();
+
+    // Store map --> odom tf
+    odom_tf_.translation() = Eigen::Vector3d(0,0,0);
+    Eigen::Quaterniond rot;
+    rot.setIdentity();
+    odom_tf_.linear() = rot.toRotationMatrix();
+
+    map_odom_tfmsg_.header.frame_id = map_frame_;
+    map_odom_tfmsg_.child_frame_id = odom_frame_;
+    map_odom_tfmsg_.transform.translation.x = odom_tf_.translation()[0];
+    map_odom_tfmsg_.transform.translation.y = odom_tf_.translation()[1];
+    map_odom_tfmsg_.transform.translation.z = odom_tf_.translation()[2];
+    euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    tf::Quaternion quatm2o;
+    quatm2o.setRPY(euler[0], euler[1], euler[2]);
+    quatm2o.normalize();
+    map_odom_tfmsg_.transform.rotation.x = quatm2o.x();
+    map_odom_tfmsg_.transform.rotation.y = quatm2o.y();
+    map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
+    map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
+
+    std::cout << "Map to odom tf " << std::endl;
+    std::cout << odom_tf_.translation().transpose() << std::endl;
+    std::cout << euler.transpose() << std::endl;
+
+    tf::Transform tf_map_odom;
+    tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
+    odom_map_tf_ = tf_map_odom.inverse();
+
     try {
-        tflistener_.waitForTransform(world_frame_, map_frame_, ros::Time(0), ros::Duration(25.0) );
-        tflistener_.lookupTransform(world_frame_, map_frame_, ros::Time(0), tf_world_map_);
-        ROS_INFO("Locked transform world --> map");
+        tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
+        ROS_INFO("Locked transform base --> sensor");
     }
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
         ros::Duration(1.0).sleep();
     }
 
-    tf::transformTFToEigen(tf_world_map_, map_tf_);
-    traj_pings_ = parsePingsAUVlib(std_pings, map_tf_);
+//    while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
+//        ROS_INFO_NAMED(node_name_, "Waiting for action server");
+//    }
 
-    // Store odom tf frame
-    odom_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
-    std::cout << odom_tf_.translation().transpose() << std::endl;
-
-    Eigen::Vector3d euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    tf2::Quaternion quatm2o;
-    quatm2o.setRPY(euler[0], euler[1], euler[2]);
-    std::cout << euler.transpose() << std::endl;
-
-    ac_->waitForServer();
-
-    ROS_INFO("Initialized bathymap constructor");
+    ROS_INFO("Initialized auv_2_ros");
 }
 
 void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
-    // Publish map-->odom frames
-    geometry_msgs::TransformStamped m2o_static_tfStamped;
-    Eigen::Vector3d euler;
-    m2o_static_tfStamped.header.stamp = ros::Time::now();
-    m2o_static_tfStamped.header.frame_id = map_frame_;
-    m2o_static_tfStamped.child_frame_id = odom_frame_;
-    m2o_static_tfStamped.transform.translation.x = odom_tf_.translation()[0];
-    m2o_static_tfStamped.transform.translation.y = odom_tf_.translation()[1];
-    m2o_static_tfStamped.transform.translation.z = odom_tf_.translation()[2];
-    euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    tf::Quaternion quatm2o;
-    quatm2o.setRPY(euler[0], euler[1], euler[2]);
-    m2o_static_tfStamped.transform.rotation.x = quatm2o.x();
-    m2o_static_tfStamped.transform.rotation.y = quatm2o.y();
-    m2o_static_tfStamped.transform.rotation.z = quatm2o.z();
-    m2o_static_tfStamped.transform.rotation.w = quatm2o.w();
-    static_broadcaster_.sendTransform(m2o_static_tfStamped);
+    // BR world-->map frames
+    world_map_tfmsg_.header.stamp = ros::Time::now();
+    static_broadcaster_.sendTransform(world_map_tfmsg_);
 
+    // BR map-->odom frames
+    map_odom_tfmsg_.header.stamp = ros::Time::now();
+    static_broadcaster_.sendTransform(map_odom_tfmsg_);
+
+    // BR odom-->base frames
     new_base_link_.header.frame_id = odom_frame_;
     new_base_link_.child_frame_id = base_frame_;
     new_base_link_.header.stamp = ros::Time::now();
     Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
-                                   traj_pings_.at(ping_num_).submap_tf_.translation().cast<double>());
+                                   traj_pings_.at(ping_cnt_).submap_tf_.translation().cast<double>());
     new_base_link_.transform.translation.x = odom_ping_i[0];
     new_base_link_.transform.translation.y = odom_ping_i[1];
     new_base_link_.transform.translation.z = odom_ping_i[2];
     tf::Quaternion quato2p;
-    euler = (traj_pings_.at(ping_num_).submap_tf_.linear().matrix().cast<double>() *
+    Eigen::Vector3d euler = (traj_pings_.at(ping_cnt_).submap_tf_.linear().matrix().cast<double>() *
              odom_tf_.linear().matrix().inverse()).eulerAngles(0, 1, 2);
     quato2p.setRPY(euler[0], euler[1], euler[2]);
+    quato2p.normalize();
     new_base_link_.transform.rotation.x = quato2p.x();
     new_base_link_.transform.rotation.y = quato2p.y();
     new_base_link_.transform.rotation.z = quato2p.z();
     new_base_link_.transform.rotation.w = quato2p.w();
-    br_.sendTransform(new_base_link_);
+    static_broadcaster_.sendTransform(new_base_link_);
 
     this->publishOdom(odom_ping_i, euler);
 
-    this->run();
+    this->publishMeas(ping_cnt_);
+
+    if(ping_cnt_ < ping_total_-1){
+        ping_cnt_ += 1;
+    }
 }
 
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){
@@ -137,7 +166,7 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     tf::Quaternion q_prev;
     tf::quaternionMsgToTF(prev_base_link_.transform.rotation, q_prev);
     tf::Quaternion q_now = tf::createQuaternionFromRPY(euler[0], euler[1], euler[2]);
-    tf::Quaternion q_vel = q_now * q_prev.inverse();
+    tf::Quaternion q_vel = q_now.normalized() * q_prev.inverse().normalized();
 
     tf::Matrix3x3 m_vel(q_vel);
     double roll_vel, pitch_vel, yaw_vel;
@@ -156,50 +185,51 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
 
 }
 
-void BathymapConstructor::run(){
+void BathymapConstructor::publishMeas(int ping_num){
 
     // Publish MBES pings
     sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
 
-    geometry_msgs::TransformStamped transformStamped;
-    try{
-        // Transform points from map to ping i
-        if(tfBuffer_.canTransform(mbes_frame_, map_frame_, ros::Time(0), ros::Duration(1))){
-            transformStamped = tfBuffer_.lookupTransform(mbes_frame_, map_frame_, ros::Time(0));
-            pcl_ros::transformPointCloud(traj_pings_.at(ping_num_).submap_pcl_, *mbes_i_pcl, transformStamped.transform);
-            pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-            mbes_i.header.frame_id = mbes_frame_;
-            mbes_i.header.stamp = ros::Time::now();
-            ping_pub_.publish(mbes_i);
+    tf::Transform tf_mbes_odom;
+    tf::transformMsgToTF(new_base_link_.transform, tf_mbes_odom);
+    tf_mbes_odom.mult(tf_mbes_base_, tf_mbes_odom.inverse());
 
-            // For testing of the action server
-            auv_2_ros::MbesSimGoal mbes_goal;
-            mbes_goal.mbes_pose = transformStamped;
-            ac_->sendGoal(mbes_goal);
+    // Latest tf mbes-->map
+    tf::Transform tf_mbes_map;
+    tf_mbes_map.mult(tf_mbes_odom, odom_map_tf_);
 
-            bool finished = ac_->waitForResult(ros::Duration(10.0));
-            if (finished){
-                actionlib::SimpleClientGoalState state = ac_->getState();
-                if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
-                    sim_ping_pub_.publish(*ac_->getResult());
-                }
-                else{
-                    ROS_WARN("Action %s", state.toString().c_str());
-                }
-            }
-        }
+    pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
+    pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
+    mbes_i.header.frame_id = mbes_frame_;
+    mbes_i.header.stamp = ros::Time::now();
+    ping_pub_.publish(mbes_i);
 
-        // Original ping (for debugging)
-        *mbes_i_pcl_map = traj_pings_.at(ping_num_).submap_pcl_;
-        pcl::toROSMsg(*mbes_i_pcl_map.get(), mbes_i_map);
-        mbes_i_map.header.frame_id = map_frame_;
-        mbes_i_map.header.stamp = ros::Time::now();
-        test_pub_.publish (mbes_i_map);
-    }
-    catch (tf2::TransformException &ex) {
-      ROS_WARN("%s",ex.what());
-    }
-    ping_num_ += 1;
+//            // For testing of the action server
+//            auv_2_ros::MbesSimGoal mbes_goal;
+//            mbes_goal.mbes_pose = transformStamped;
+//            ac_->sendGoal(mbes_goal);
+
+//            bool finished = ac_->waitForResult(ros::Duration(10.0));
+//            if (finished){
+//                actionlib::SimpleClientGoalState state = ac_->getState();
+//                if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
+//                    sensor_msgs::PointCloud2 mbes_msg;
+//                    auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
+//                    mbes_msg = mbes_res.sim_mbes;
+//                    sim_ping_pub_.publish(mbes_msg);
+//                }
+//                else{
+//                    ROS_WARN("Action %s", state.toString().c_str());
+//                }
+//            }
+//        }
+
+    // Original ping (for debugging)
+    *mbes_i_pcl_map = traj_pings_.at(ping_num).submap_pcl_;
+    pcl::toROSMsg(*mbes_i_pcl_map.get(), mbes_i_map);
+    mbes_i_map.header.frame_id = map_frame_;
+    mbes_i_map.header.stamp = ros::Time::now();
+    test_pub_.publish (mbes_i_map);
 }

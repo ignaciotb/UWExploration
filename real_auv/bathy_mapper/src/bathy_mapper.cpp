@@ -28,7 +28,7 @@ BathyMapper::BathyMapper(ros::NodeHandle& nh, ros::NodeHandle& nh_priv)
     f_ = boost::bind(&BathyMapper::configCallback, this, _1, _2);
     cs_.setCallback(f_);
 
-    cloud_sub_ = nh.subscribe("cloud_in", nh_priv.param("cloud_in_queue_size", 10),
+    cloud_sub_ = nh.subscribe("cloud_in", nh_priv.param("cloud_in_queue_size", 1000),
                                                         &BathyMapper::cloudCallback, this);
 
     std::string map_str, gt_pings_top, debug_pings_top, map_top, gt_odom_top, mbes_sim_as;
@@ -46,14 +46,11 @@ BathyMapper::BathyMapper(ros::NodeHandle& nh, ros::NodeHandle& nh_priv)
     boost::filesystem::path map_path(map_str);
     this->init(map_str);
 
-
     if (0 < pub_rate_)
     {
         pub_timer_ =
                 nh_priv.createTimer(ros::Rate(pub_rate_), &BathyMapper::timerCallback, this);
 
-        pub_timer_2_ =
-                nh_priv.createTimer(ros::Rate(pub_rate_), &BathyMapper::broadcastW2MTf, this);
     }
 
     // Load existing map
@@ -76,40 +73,13 @@ BathyMapper::~BathyMapper(){
 
 void BathyMapper::init(const boost::filesystem::path map_path){
 
-     // Read map
-    MapObj map_loc;
-    std_data::pt_submaps ss = std_data::read_data<std_data::pt_submaps>(map_path);
-    std::tie(map_loc, map_tf_)= parseMapAUVlib(ss);
-    maps_gt_.push_back(map_loc);
-    ROS_INFO("Initialized MBES simulation");
-
     q_180_ = Eigen::AngleAxisf(3.1415, Eigen::Vector3f::UnitX())
              * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
              * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitZ());
 
     iter_ = 0;
     time_avg_ = 0;
-}
-
-void BathyMapper::broadcastW2MTf(const ros::TimerEvent&){
-
-    // Publish world-->map frames
-    geometry_msgs::TransformStamped w2m_static_tfStamped;
-
-    w2m_static_tfStamped.header.stamp = ros::Time::now();
-    w2m_static_tfStamped.header.frame_id = world_frame_;
-    w2m_static_tfStamped.child_frame_id = map_frame_;
-    w2m_static_tfStamped.transform.translation.x = map_tf_.translation()[0];
-    w2m_static_tfStamped.transform.translation.y = map_tf_.translation()[1];
-    w2m_static_tfStamped.transform.translation.z = map_tf_.translation()[2];
-    tf2::Quaternion quatw2m;
-    Eigen::Vector3d euler = map_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    quatw2m.setRPY(euler[0], euler[1], euler[2]);
-    w2m_static_tfStamped.transform.rotation.x = quatw2m.x();
-    w2m_static_tfStamped.transform.rotation.y = quatw2m.y();
-    w2m_static_tfStamped.transform.rotation.z = quatw2m.z();
-    w2m_static_tfStamped.transform.rotation.w = quatw2m.w();
-    static_broadcaster_.sendTransform(w2m_static_tfStamped);
+    ROS_INFO("Initialized Bathy mapper");
 }
 
 void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){

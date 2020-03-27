@@ -45,7 +45,7 @@ public:
 
     void init(const boost::filesystem::path auv_path);
 
-    void run();
+    void publishMeas(int ping_num);
 
     void broadcastTf(const ros::TimerEvent &);
 
@@ -57,14 +57,11 @@ private:
 
     ros::Publisher ping_pub_;
     ros::Publisher sim_ping_pub_;
-    ros::Publisher map_pub_;
     ros::Publisher test_pub_;
     ros::Publisher odom_pub_;
 
     actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
 
-    tf2_ros::Buffer tfBuffer_;
-    tf2_ros::TransformListener* tfListener_;
     tf::TransformListener tflistener_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
     tf2_ros::TransformBroadcaster br_;
@@ -76,15 +73,18 @@ private:
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
 
-    MultibeamSensor<PointT> vox_oc_;
-
     ros::Time time_now_, time_prev_;
+    tf::StampedTransform tf_mbes_base_;
+    tf::Transform odom_map_tf_;
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
+    geometry_msgs::TransformStamped map_odom_tfmsg_;
+    geometry_msgs::TransformStamped world_map_tfmsg_;
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
-    int ping_num_;
+    int ping_cnt_;
+    int ping_total_;
 
 };
 

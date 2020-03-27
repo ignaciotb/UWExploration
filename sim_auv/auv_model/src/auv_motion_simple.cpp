@@ -133,7 +133,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 
     odom.twist.twist.linear.x = vel_t.x();
     odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.y = vel_t.z();
+    odom.twist.twist.linear.z = vel_t.z();
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;

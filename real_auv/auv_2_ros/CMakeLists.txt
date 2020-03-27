@@ -178,10 +178,10 @@ add_executable(auv_2_ros
        src/auv_2_ros.cpp
 )
 
-add_executable(mbes_meas_node
-       src/mbes_meas_node.cpp
-       src/mbes_meas.cpp
-)
+#add_executable(mbes_meas_node
+#       src/mbes_meas_node.cpp
+#       src/mbes_meas.cpp
+#)
 
 
 ## Rename C++ executable without prefix
@@ -196,9 +196,9 @@ add_dependencies(auv_2_ros
   ${${PROJECT_NAME}_EXPORTED_TARGETS} 
   ${catkin_EXPORTED_TARGETS})
 
-add_dependencies(mbes_meas_node
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-  ${catkin_EXPORTED_TARGETS})
+#add_dependencies(mbes_meas_node
+#  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+#  ${catkin_EXPORTED_TARGETS})
 
 # Specify libraries to link a library or executable target against
 target_link_libraries(auv_2_ros 
@@ -211,15 +211,15 @@ target_link_libraries(auv_2_ros
     ${catkin_LIBRARIES}
 )
 
-target_link_libraries(mbes_meas_node
-    utils_visualization
-    submaps_tools
-    data_transforms
-    std_data
-    multibeam_simple
-    ${PCL_LIBRARIES}
-    ${catkin_LIBRARIES}
-)
+#target_link_libraries(mbes_meas_node
+#    utils_visualization
+#    submaps_tools
+#    data_transforms
+#    std_data
+#    multibeam_simple
+#    ${PCL_LIBRARIES}
+#    ${catkin_LIBRARIES}
+#)
 
 #############
 ## Install ##

@@ -97,7 +97,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 
     tf::Quaternion q_prev;
     tf::quaternionMsgToTF(prev_odom_.pose.pose.orientation, q_prev);
-    tf::Matrix3x3 m(q_prev);
+    tf::Matrix3x3 m(q_prev.normalized());
     double roll_prev, pitch_prev, yaw_prev;
     m.getRPY(roll_prev, pitch_prev, yaw_prev);
     double roll_now, pitch_now, yaw_now;
@@ -126,7 +126,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 
     // And velocities
     tf::Quaternion q_now = tf::createQuaternionFromRPY(roll_now, pitch_now, yaw_now);
-    tf::Quaternion q_vel = q_now * q_prev.inverse();
+    tf::Quaternion q_vel = q_now.normalized() * q_prev.inverse().normalized();
     tf::Matrix3x3 m_vel(q_vel);
     double roll_vel, pitch_vel, yaw_vel;
     m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
@@ -157,7 +157,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 
 void AUVMotionModel::updateMeas(){
 
-        clock_t tStart = clock();
+//        clock_t tStart = clock();
         // Latest tf mbes-->odom
         tf::Transform tf_mbes_odom;
         tf::transformMsgToTF(new_base_link_.transform, tf_mbes_odom);
@@ -181,8 +181,6 @@ void AUVMotionModel::updateMeas(){
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
             sensor_msgs::PointCloud2 mbes_msg;
             auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
-//            mbes_msg.header.frame_id = mbes_res.sim_mbes.header.frame_id;
-//            mbes_msg.header.stamp = mbes_res.sim_mbes.header.stamp;
             mbes_msg = mbes_res.sim_mbes;
             sim_ping_pub_.publish(mbes_msg);
         }

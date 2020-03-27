@@ -4,7 +4,7 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 
 ## Dependencies (tested on Ubuntu 16.04 and 18.04)
 * AUVLIB [here](https://github.com/ignaciotb/auvlib) 
-* Bathymetric SLAM [in the private gitr] (https://gitr.sys.kth.se/torroba/bathymetric_slam)
+* Bathymetric SLAM [here] (https://github.com/ignaciotb/bathymetric_slam)
 * UFOMap [here](https://github.com/ignaciotb/UFOMap.git)
 
 ## Building

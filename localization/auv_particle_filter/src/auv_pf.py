@@ -74,7 +74,6 @@ class auv_pf():
     
     def odom_callback(self,msg):
         self.pred_odom = msg
-        print(msg.twist.twist)
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()

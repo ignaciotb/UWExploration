@@ -10,10 +10,15 @@ import tf
 import tf2_ros
 import tf_conversions
 
+# import action 
+from auv_2_ros.action import MbesSim
+import actionlib
+
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from geometry_msgs.msg import Pose, PoseArray, Quaternion
+from sensor_msgs.msg import PointCloud2 # For the action
 
 class Particle():
     def __init__(self):
@@ -77,6 +82,7 @@ class auv_pf():
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
+            self.pf2mbes() # sim MBES for each particle
             self.pub_()
         self.old_time = self.time
 
@@ -113,6 +119,26 @@ class auv_pf():
         var = np.diagonal(cov_)
         return np.sqrt(var)*np.random.randn(self.pc, 3)
 
+    # def cb(req):
+    #     # I want to send that each partcle pose is a Mbes pose, 
+    #     # so, from action. mbe_pose is particle pose and sim_mbes is what will be recieved on the other hand
+    #     s = rospy.Service('pf_mbes',MbesSim, cb )
+    #     rospy.spin()
+
+
+    def pf2mbes(self):
+        ac = actionlib.SimpleActionClient('pf_mbes',MbesSim)
+        trans = geometry_msgs.Transform()
+        tf_mbes_map = tf.Transformer
+        mbes_goal = auv_2_ros.MbesSimGoal()
+        mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.header.stamp = int(self.time)
+        # mbes_goal.mbes_pose.header.stamp.nsecs = (self.time - int(self.time))*10**9
+        mbes_goal.mbes_pose.transform.translation = self.pos_.position
+        mbes_goal.mbes_pose.transform.rotation = self.pos_.orientation
+        # mbes_goal.mbes_pose.transform = trans
+        ac.send_goal(mbes_goal)
+
 
 def main():
     # Initialize ROS node
@@ -128,3 +154,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

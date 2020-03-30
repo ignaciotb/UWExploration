@@ -172,6 +172,7 @@ class auv_pf():
 
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
+        mbes_pcloud.header.frame_id = 'hugin/mbes_link'
 
         self.pcloud_pub.publish(mbes_pcloud)
 

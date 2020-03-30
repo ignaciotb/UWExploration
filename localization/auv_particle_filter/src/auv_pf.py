@@ -10,15 +10,17 @@ import tf
 import tf2_ros
 import tf_conversions
 
-# import action 
-from auv_2_ros.action import MbesSim
-import actionlib
 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from geometry_msgs.msg import Pose, PoseArray, Quaternion
 from sensor_msgs.msg import PointCloud2 # For the action
+
+# import action 
+#from auv_2_ros.action import MbesSim
+import actionlib
+from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 
 class Particle():
     def __init__(self):
@@ -72,17 +74,39 @@ class auv_pf():
 
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
+        # Initialize sim_mbes pointcloud publisher
+        self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=1)
 
         # Establish subscription to odometry message
         rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
-        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?      
+        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?    
+
+        # Initialize tf listener
+        self.tfBuffer = tf2_ros.Buffer()
+        tf2_ros.TransformListener(self.tfBuffer)
+        
+        ###### Is this necessary ???
+        try:
+            # Confirm mbes_link & base_link are in the correct order!!!
+            rospy.loginfo("Waiting for transform from base_link to mbes_link")
+            self.mbes_trans = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
+            rospy.loginfo("Transform locked from base_link to mbes_link")
+        except:
+            rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
+        ######
+
+        self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
+        rospy.loginfo("Waiting for MbesSim action server")
+        self.ac_mbes.wait_for_server()
+        rospy.loginfo("Connected MbesSim action server")
+
+  
     
     def odom_callback(self,msg):
         self.pred_odom = msg
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
-            self.pf2mbes() # sim MBES for each particle
             self.pub_()
         self.old_time = self.time
 
@@ -125,19 +149,31 @@ class auv_pf():
     #     s = rospy.Service('pf_mbes',MbesSim, cb )
     #     rospy.spin()
 
+    def measurement(self):
+        particle = self.particles[0]
+        self.pf2mbes(particle)
 
-    def pf2mbes(self):
-        ac = actionlib.SimpleActionClient('pf_mbes',MbesSim)
-        trans = geometry_msgs.Transform()
-        tf_mbes_map = tf.Transformer
-        mbes_goal = auv_2_ros.MbesSimGoal()
+
+    def pf2mbes(self, particle_):
+        
+        trans = self.tfBuffer.lookup_transform('hugin/mbes_link', self.map_frame, rospy.Time())
+        mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
-        mbes_goal.mbes_pose.header.stamp = int(self.time)
-        # mbes_goal.mbes_pose.header.stamp.nsecs = (self.time - int(self.time))*10**9
-        mbes_goal.mbes_pose.transform.translation = self.pos_.position
-        mbes_goal.mbes_pose.transform.rotation = self.pos_.orientation
-        # mbes_goal.mbes_pose.transform = trans
-        ac.send_goal(mbes_goal)
+
+        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
+        mbes_goal.mbes_pose.transform = trans.transform
+
+
+        self.ac_mbes.send_goal(mbes_goal)
+        rospy.loginfo("Waiting for MbesSim action Result")
+        self.ac_mbes.wait_for_result()
+        rospy.loginfo("Got MbesSim action Result")
+        mbes_res = self.ac_mbes.get_result()
+
+        mbes_pcloud = PointCloud2()
+        mbes_pcloud = mbes_res.sim_mbes
+
+        self.pcloud_pub.publish(mbes_pcloud)
 
 
 def main():
@@ -146,10 +182,15 @@ def main():
     rospy.loginfo("Successful initilization of node")
 
     # Create particle filter class
-    auv_pf()
+    pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    rospy.spin()
+    meas_rate = rospy.Rate(1) # Hz
+    while not rospy.is_shutdown():
+        pf.measurement()
+        meas_rate.sleep()
+    
+    # rospy.spin()
 
 
 if __name__ == '__main__':

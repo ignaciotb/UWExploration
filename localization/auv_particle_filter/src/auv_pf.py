@@ -10,17 +10,15 @@ import tf
 import tf2_ros
 import tf_conversions
 
-
+from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from geometry_msgs.msg import Pose, PoseArray, Quaternion
-from sensor_msgs.msg import PointCloud2 # For the action
 
-# import action 
-#from auv_2_ros.action import MbesSim
+# For 
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
+from sensor_msgs.msg import PointCloud2
 
 class Particle():
     def __init__(self):
@@ -39,6 +37,8 @@ class Particle():
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1]
         yaw += vel_vec[1] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
+
+        ### Need to broadcast tf to each particle (I think)
 
 class auv_pf():
     def __init__(self):
@@ -84,8 +84,15 @@ class auv_pf():
         # Initialize tf listener
         self.tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tfBuffer)
+
+        # Initialize connection to MbesSim action server
+        self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
+        rospy.loginfo("Waiting for MbesSim action server")
+        self.ac_mbes.wait_for_server()
+        rospy.loginfo("Connected MbesSim action server")
         
-        ###### Is this necessary ???
+        ###### Is this necessary ??? ######
+        """
         try:
             # Confirm mbes_link & base_link are in the correct order!!!
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
@@ -93,15 +100,8 @@ class auv_pf():
             rospy.loginfo("Transform locked from base_link to mbes_link")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
-        ######
+        """
 
-        self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
-        rospy.loginfo("Waiting for MbesSim action server")
-        self.ac_mbes.wait_for_server()
-        rospy.loginfo("Connected MbesSim action server")
-
-  
-    
     def odom_callback(self,msg):
         self.pred_odom = msg
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
@@ -150,26 +150,31 @@ class auv_pf():
     #     rospy.spin()
 
     def measurement(self):
+        # Right now this only runs for the first particle
+        # Can be expanded to all particles once it for sure works
         particle = self.particles[0]
         self.pf2mbes(particle)
 
 
     def pf2mbes(self, particle_):
-        
+        # Look up transform of mbes_link in map frame
+        #### This needs to be transform to each particle in the future
         trans = self.tfBuffer.lookup_transform('hugin/mbes_link', self.map_frame, rospy.Time())
+        
+        # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
-
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
 
-
+        # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
         rospy.loginfo("Waiting for MbesSim action Result")
         self.ac_mbes.wait_for_result()
         rospy.loginfo("Got MbesSim action Result")
         mbes_res = self.ac_mbes.get_result()
 
+        # Pack result into PointCloud2 and publish
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
         mbes_pcloud.header.frame_id = 'hugin/mbes_link'
@@ -186,7 +191,7 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(1) # Hz
+    meas_rate = rospy.Rate(10) # Hz
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()

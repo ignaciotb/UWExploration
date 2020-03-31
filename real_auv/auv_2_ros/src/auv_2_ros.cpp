@@ -156,26 +156,29 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     odom.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(euler[0], euler[1], euler[2]);
     odom.child_frame_id = base_frame_;
 
-    // Compute linear velocities
+    // Compute linear and angular velocities
     double dt = (time_now_ - time_prev_).toSec();
     Eigen::Vector3d pos_now, pos_prev;
     tf::vectorMsgToEigen(new_base_link_.transform.translation, pos_now);
     tf::vectorMsgToEigen(prev_base_link_.transform.translation, pos_prev);
     Eigen::Vector3d vel_t = (pos_now - pos_prev)/dt;
 
-    // And angular vels
     tf::Quaternion q_prev;
     tf::quaternionMsgToTF(prev_base_link_.transform.rotation, q_prev);
     tf::Quaternion q_now = tf::createQuaternionFromRPY(euler[0], euler[1], euler[2]);
     tf::Quaternion q_vel = q_now.normalized() * q_prev.inverse().normalized();
 
+    tf::Matrix3x3 m_prev(q_prev);
+    Eigen::Matrix3d m_prev_e;
+    tf::matrixTFToEigen(m_prev, m_prev_e);
+    Eigen::Vector3d vel_rel = m_prev_e.inverse() * vel_t;
     tf::Matrix3x3 m_vel(q_vel);
     double roll_vel, pitch_vel, yaw_vel;
     m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
 
-    odom.twist.twist.linear.x = vel_t.x();
-    odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.z = vel_t.z();
+    odom.twist.twist.linear.x = vel_rel.x();
+    odom.twist.twist.linear.y = vel_rel.y();
+    odom.twist.twist.linear.z = vel_rel.z();
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;

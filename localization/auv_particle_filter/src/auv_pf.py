@@ -35,7 +35,7 @@ class Particle():
 
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0]
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1]
-        yaw += vel_vec[1] * dt + noise_vec[2] # No need for remainder bc quaternion
+        yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 
         ### Need to broadcast tf to each particle (I think)
@@ -117,9 +117,9 @@ class auv_pf():
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
         yv = self.pred_odom.twist.twist.linear.y
-        vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
+        # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
-        vel_vec = [vel, yaw_v]
+        vel_vec = [xv, yv, yaw_v]
         
         # Update particles pose estimate
         for i in range(len(self.particles)):
@@ -143,11 +143,6 @@ class auv_pf():
         var = np.diagonal(cov_)
         return np.sqrt(var)*np.random.randn(self.pc, 3)
 
-    # def cb(req):
-    #     # I want to send that each partcle pose is a Mbes pose, 
-    #     # so, from action. mbe_pose is particle pose and sim_mbes is what will be recieved on the other hand
-    #     s = rospy.Service('pf_mbes',MbesSim, cb )
-    #     rospy.spin()
 
     def measurement(self):
         # Right now this only runs for the first particle

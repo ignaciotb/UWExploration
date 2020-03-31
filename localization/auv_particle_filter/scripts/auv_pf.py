@@ -9,6 +9,7 @@ import numpy as np
 import tf
 import tf2_ros
 import tf_conversions
+import tf2_msgs.msg # Not sure if needed
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
@@ -84,6 +85,8 @@ class auv_pf():
         # Initialize tf listener
         self.tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tfBuffer)
+        # Not sure where to put this.
+        trans = self.tfBuffer.lookup_transform(self.map_frame, "particle_frame", rospy.Time())
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -141,10 +144,6 @@ class auv_pf():
         var = np.diagonal(cov_)
         return np.sqrt(var)*np.random.randn(self.pc, 3)
 
-<<<<<<< HEAD:localization/auv_particle_filter/scripts/auv_pf.py
-=======
-
->>>>>>> kyle/kyle_devel:localization/auv_particle_filter/src/auv_pf.py
     def measurement(self):
         # Right now this only runs for the first particle
         # Can be expanded to all particles once it for sure works
@@ -159,13 +158,16 @@ class auv_pf():
         # Transform to particle frame _id
         # Add transform to particle's mbes (based on transform of hugin to mbes_link)
 
-        trans = self.tfBuffer.lookup_transform(particle_frame, self.map_frame, rospy.Time())
+        trans = self.tfBuffer.lookup_transform("particle_frame", self.map_frame, rospy.Time())
         #trans += self.mbes_trans
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.child_frame_id = "particle_frame" # The particles will be in a child frame to the map
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
+
+        tfm = tf2_msgs.msg.TFMessage([mbes_goal]) # Not sure if needed
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)

@@ -143,12 +143,6 @@ class auv_pf():
         var = np.diagonal(cov_)
         return np.sqrt(var)*np.random.randn(self.pc, 3)
 
-    # def cb(req):
-    #     # I want to send that each partcle pose is a Mbes pose, 
-    #     # so, from action. mbe_pose is particle pose and sim_mbes is what will be recieved on the other hand
-    #     s = rospy.Service('pf_mbes',MbesSim, cb )
-    #     rospy.spin()
-
     def measurement(self):
         # Right now this only runs for the first particle
         # Can be expanded to all particles once it for sure works

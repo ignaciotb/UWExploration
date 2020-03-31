@@ -1,0 +1,135 @@
+<?xml version="1.0" ?>
+<launch>
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+    <arg name="mode" default="sim"/>
+	<arg name="namespace" default="hugin"/>
+	<arg name="debug" default="0"/>
+    <arg name="simulation_freq" default="0.01"/>
+	<arg name="mbes_sim_threads" default="4"/>
+    <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
+
+    <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
+    <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->
+    <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/map_section"/> -->
+	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/> -->
+	<arg name="path" default="/home/torroba18/Downloads/Faulty_mbes"/> <!-- Only used when in mode 'gt' (not used for 'sim')--> 
+	<arg name="cereal_trajectory" default="$(arg path)/mbes_pings.cereal"/> <!-- Only used when in mode 'gt' (not used for 'sim')--> 
+
+
+
+	<!-- TODO: set tf map to odom in a more intuitive way -->
+	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
+	<arg name="x" default="0.0"/>
+	<arg name="y" default="0.0"/>
+	<arg name="z" default="0.0"/>
+	<arg name="roll" default="0.0"/>
+	<arg name="pitch" default="0.0"/>
+	<arg name="yaw" default="0.0"/>
+
+	<!-- Full biosensors mission -->
+	<!-- <arg name="x" default="-3156.8217773438"/>
+	<arg name="y" default="-8971.4775390625"/>
+	<arg name="z" default="-9.6876974106"/>
+	<arg name="roll" default="3.0998792840"/>
+	<arg name="pitch" default="-3.1344368035"/>
+	<arg name="yaw" default="-0.3484518065"/> -->
+
+	<!-- Single track biosensors mission -->
+<!-- 	<arg name="x" default="499.0773620605"/>
+	<arg name="y" default="904.3760986328"/>
+	<arg name="z" default="-0.0138893127"/>
+	<arg name="roll" default="3.1049407392"/>
+	<arg name="pitch" default="-3.1264082885"/>
+	<arg name="yaw" default="1.0222077044"/> -->
+
+    <!--UFO mapping parameters-->
+    <arg name="nodelet_manager" default="bathy_mapper_server_nodelet_manager" />
+    <arg name="resolution" default="0.3" />
+    <arg name="depth_levels" default="21" />
+    <arg name="multithreaded" default="true" />
+
+	<group ns="$(arg namespace)">
+
+		  <!-- Include auv_pf node -->
+		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
+			<arg name="mode" value="$(arg mode)"/>
+		</include>
+
+		  <!-- Include rviz -->
+    	<node type="rviz" name="rviz" pkg="rviz" args="-d $(find bathy_mapper)/rviz/bathy_map.rviz" output="screen" />
+		
+		<!-- Hugin model -->
+		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
+		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
+			<param name="robot_description" value="/$(arg namespace)/robot_description" />
+		</node>
+
+		<!-- UFO mapping -->
+	    <node pkg="nodelet" type="nodelet" name="$(arg nodelet_manager)" args="manager" output="screen">
+            <param name="num_worker_threads" value="12" />
+	    </node>
+
+		<node pkg="nodelet" type="nodelet" name="bathy_mapper_server_nodelet" args="load bathy_mapper/BathyMapperNodelet $(arg nodelet_manager)" output="log" required="true">
+	        <remap from="cloud_in" to="/gt/mbes_pings" />
+	        <param name="output_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
+	        <param name="input_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
+	        <param name="multithreaded" value="$(arg multithreaded)" />
+	        <param name="resolution" value="$(arg resolution)" />
+	        <param name="depth_levels" value="$(arg depth_levels)" />
+			<param name="sim_freq" value="$(arg simulation_freq)" />
+	        <param name="world_frame" value="world" />
+			<param name="map_frame" value="map" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+			<param name="mbes_open_angle" value="1.5708" />
+			<param name="num_beams_sim" value="50" /> <!-- default=200 -->
+			<param name="mbes_sim_as" value="/mbes_sim_server" />				
+		</node>
+
+		<!-- Simulate Hugin AUV -->
+		<group if="$(eval mode == 'sim')">
+    		<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" args="0 0 0 0 0 0 world map 50" />
+
+    		<node pkg="tf" type="static_transform_publisher" name="tf_map_odom_pub" args="$(arg x) $(arg y) $(arg z) $(arg yaw) $(arg pitch) $(arg roll) map odom 50" />
+
+			<node pkg="auv_model" type="auv_motion_model" name="auv_motion_model" output="screen">
+				<param name="sim_freq" value="$(arg simulation_freq)" />
+				<param name="odom_sim" value="/$(arg mode)/odom" />
+				<param name="world_frame" value="world" />
+				<param name="map_frame" value="map" />
+				<param name="odom_frame" value="odom" />
+				<param name="base_link" value="$(arg namespace)/base_link" />
+				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
+				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
+				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
+				<param name="mbes_sim_as" value="/mbes_sim_server" />
+			</node>
+
+			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
+				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
+				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
+				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
+			</node>
+  		</group>
+
+		<!-- Reproduce real Hugin survey -->
+  		<group unless="$(eval mode == 'sim')">
+			<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
+				<param name="trajectory_cereal" value="$(arg cereal_trajectory)"/>
+				<param name="sim_freq" value="$(arg simulation_freq)" />
+				<param name="mbes_pings" value="/gt/mbes_pings" />
+				<param name="map_pcl" value="/gt/map" />
+				<param name="debug_pings" value="debug/mbes_pings" />
+				<param name="sim_pings" value="/sim/mbes_pings" />
+				<param name="world_frame" value="world" />
+				<param name="map_frame" value="map" />
+				<param name="odom_frame" value="odom" />
+				<param name="base_link" value="$(arg namespace)/base_link" />
+				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+			</node>
+		</group>
+
+	</group>
+
+</launch>

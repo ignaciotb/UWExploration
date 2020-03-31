@@ -33,8 +33,8 @@ class Particle():
                 self.pose.orientation.w)
         _, _, yaw = euler_from_quaternion(quat)
 
-        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0]
-        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1]
+        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
+        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
         yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 

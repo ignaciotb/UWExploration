@@ -33,8 +33,8 @@ class Particle():
                 self.pose.orientation.w)
         _, _, yaw = euler_from_quaternion(quat)
 
-        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0]
-        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1]
+        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
+        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
         yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 
@@ -90,9 +90,7 @@ class auv_pf():
         rospy.loginfo("Waiting for MbesSim action server")
         self.ac_mbes.wait_for_server()
         rospy.loginfo("Connected MbesSim action server")
-        
-        ###### Is this necessary ??? ######
-        """
+                
         try:
             # Confirm mbes_link & base_link are in the correct order!!!
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
@@ -100,7 +98,7 @@ class auv_pf():
             rospy.loginfo("Transform locked from base_link to mbes_link")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
-        """
+        
 
     def odom_callback(self,msg):
         self.pred_odom = msg
@@ -157,8 +155,12 @@ class auv_pf():
     def pf2mbes(self, particle_):
         # Look up transform of mbes_link in map frame
         #### This needs to be transform to each particle in the future
-        trans = self.tfBuffer.lookup_transform('hugin/mbes_link', self.map_frame, rospy.Time())
         
+        # Transform to particle frame _id
+        # Add transform to particle's mbes (based on transform of hugin to mbes_link)
+
+        trans = self.tfBuffer.lookup_transform(particle_frame, self.map_frame, rospy.Time())
+        #trans += self.mbes_trans
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame

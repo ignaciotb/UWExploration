@@ -90,9 +90,7 @@ class auv_pf():
         rospy.loginfo("Waiting for MbesSim action server")
         self.ac_mbes.wait_for_server()
         rospy.loginfo("Connected MbesSim action server")
-        
-        ###### Is this necessary ??? ######
-        """
+                
         try:
             # Confirm mbes_link & base_link are in the correct order!!!
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
@@ -100,7 +98,7 @@ class auv_pf():
             rospy.loginfo("Transform locked from base_link to mbes_link")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
-        """
+        
 
     def odom_callback(self,msg):
         self.pred_odom = msg
@@ -154,8 +152,12 @@ class auv_pf():
     def pf2mbes(self, particle_):
         # Look up transform of mbes_link in map frame
         #### This needs to be transform to each particle in the future
-        trans = self.tfBuffer.lookup_transform('hugin/mbes_link', self.map_frame, rospy.Time())
         
+        # Transform to particle frame _id
+        # Add transform to particle's mbes (based on transform of hugin to mbes_link)
+
+        trans = self.tfBuffer.lookup_transform(particle_frame, self.map_frame, rospy.Time())
+        #trans += self.mbes_trans
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame

@@ -5,7 +5,7 @@
     <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-    <arg name="simulation_freq" default="0.01"/>
+    <arg name="simulation_freq" default="0.1"/>
 	<arg name="mbes_sim_threads" default="4"/>
     <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 

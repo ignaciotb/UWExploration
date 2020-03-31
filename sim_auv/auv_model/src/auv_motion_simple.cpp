@@ -109,11 +109,6 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
                              latest_throttle_*std::sin(yaw_now)*std::cos(pitch_now),
                              -latest_throttle_*std::sin(pitch_now)};
 
-    // TODO: find a safer way to do this
-    latest_throttle_ = 0;
-    latest_thrust_ = 0;
-    latest_inclination_ = 0;
-
     // Publish odom
     nav_msgs::Odometry odom;
     odom.header.stamp = time_now_;
@@ -131,9 +126,9 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
     double roll_vel, pitch_vel, yaw_vel;
     m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
 
-    odom.twist.twist.linear.x = vel_t.x();
-    odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.z = vel_t.z();
+    odom.twist.twist.linear.x = latest_throttle_;
+    odom.twist.twist.linear.y = 0.0;
+    odom.twist.twist.linear.z = 0.0;
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;
@@ -151,6 +146,11 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 
     time_prev_ = time_now_;
     prev_odom_ = odom;
+
+    // TODO: find a safer way to do this
+    latest_throttle_ = 0;
+    latest_thrust_ = 0;
+    latest_inclination_ = 0;
 
     this->updateMeas();
 }

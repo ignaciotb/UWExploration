@@ -22,12 +22,33 @@ from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 
 class Particle():
-    def __init__(self):
+    def __init__(self, i, map_frame, mbes_trans, broadcaster, static_broadcaster):
+        self.frame_id = "particle_" + str(i)
+        self.mbes_frame_id = "particle_" + str(i) + "/mbes_link"
+        
+        self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
-        self.weight = 1.
+        
+        self.transform = TransformStamped() 
+        self.transform.header.frame_id = map_frame
+        self.transform.child_frame_id = self.frame_id
+        self.transform.transform.rotation.w = 1 
+        broadcaster.sendTransform(self.transform)
 
-    def update(self, vel_vec, noise_vec, dt):
+        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+
+        self.mbes_trans = TransformStamped()
+        self.mbes_trans.transform = mbes_trans.transform
+        self.mbes_trans.header.frame_id = self.frame_id
+        self.mbes_trans.child_frame_id = self.mbes_frame_id
+        self.mbes_trans.header.stamp = rospy.Time.now()
+        print(self.mbes_trans)
+        self.static_broadcaster.sendTransform(self.mbes_trans)
+
+
+
+    def update(self, vel_vec, noise_vec, dt, broadcaster):
         quat = (self.pose.orientation.x,
                 self.pose.orientation.y,
                 self.pose.orientation.z,
@@ -38,6 +59,13 @@ class Particle():
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
         yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
+
+        self.transform.transform.translation = self.pose.position
+        self.transform.transform.rotation = self.pose.orientation
+        self.transform.header.stamp = rospy.Time.now()
+        broadcaster.sendTransform(self.transform)
+        # self.mbes_trans.header.stamp = rospy.Time.now()
+        # broadcaster.sendTransform(self.mbes_trans)
 
         ### Need to broadcast tf to each particle (I think)
 
@@ -68,31 +96,16 @@ class auv_pf():
         self.pos_ = PoseArray()
         self.pos_.header.frame_id = self.map_frame        
 
-        # Initialize list of particles
-        self.particles = []
-        for _ in range(self.pc):
-            self.particles.append(Particle())
-
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
         # Initialize sim_mbes pointcloud publisher
         self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=1)
 
-        # Establish subscription to odometry message
-        rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
-        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD?    
-
-        # Initialize tf listener
+        # Initialize tf listener and broadcaster
         self.tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tfBuffer)
-        # Not sure where to put this.
-        trans = self.tfBuffer.lookup_transform(self.map_frame, "particle_frame", rospy.Time())
-
-        # Initialize connection to MbesSim action server
-        self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
-        rospy.loginfo("Waiting for MbesSim action server")
-        self.ac_mbes.wait_for_server()
-        rospy.loginfo("Connected MbesSim action server")
+        self.broadcaster = tf2_ros.TransformBroadcaster()
+        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
                 
         try:
             # Confirm mbes_link & base_link are in the correct order!!!
@@ -101,6 +114,21 @@ class auv_pf():
             rospy.loginfo("Transform locked from base_link to mbes_link")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
+        
+        # Initialize list of particles
+        self.particles = []
+        for i in range(self.pc):
+            self.particles.append(Particle(i, self.map_frame, self.mbes_trans, self.broadcaster, self.static_broadcaster))
+
+        # Initialize connection to MbesSim action server
+        self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
+        rospy.loginfo("Waiting for MbesSim action server")
+        self.ac_mbes.wait_for_server()
+        rospy.loginfo("Connected MbesSim action server")
+
+        # Establish subscription to odometry message | Last because this will start callback running
+        rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
+        rospy.sleep(0.5) # CAN ADD DURATION INSTEAD? 
         
 
     def odom_callback(self,msg):
@@ -125,7 +153,7 @@ class auv_pf():
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]
-            particle.update(vel_vec, pred_noice[i,:], dt)
+            particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster)
 
     def pub_(self):
         self.pos_.poses = []
@@ -147,7 +175,7 @@ class auv_pf():
     def measurement(self):
         # Right now this only runs for the first particle
         # Can be expanded to all particles once it for sure works
-        particle = self.particles[0]
+        particle = self.particles[-1]
         self.pf2mbes(particle)
 
 
@@ -158,16 +186,16 @@ class auv_pf():
         # Transform to particle frame _id
         # Add transform to particle's mbes (based on transform of hugin to mbes_link)
 
-        trans = self.tfBuffer.lookup_transform("particle_frame", self.map_frame, rospy.Time())
+        trans = self.tfBuffer.lookup_transform(self.map_frame, particle_.mbes_frame_id , rospy.Time())
         #trans += self.mbes_trans
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
-        mbes_goal.mbes_pose.child_frame_id = "particle_frame" # The particles will be in a child frame to the map
+        mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
 
-        tfm = tf2_msgs.msg.TFMessage([mbes_goal]) # Not sure if needed
+        #tfm = tf2_msgs.msg.TFMessage([mbes_goal]) # Not sure if needed
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
@@ -179,7 +207,7 @@ class auv_pf():
         # Pack result into PointCloud2 and publish
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = 'hugin/mbes_link'
+        mbes_pcloud.header.frame_id = particle_.mbes_frame_id
 
         self.pcloud_pub.publish(mbes_pcloud)
 
@@ -193,7 +221,7 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(10) # Hz
+    meas_rate = rospy.Rate(3) # Hz
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()

@@ -58,8 +58,8 @@ private:
     tf2_ros::Buffer tfBuffer_;
     tf2_ros::TransformListener* tfListener_;
     tf::TransformListener tflistener_;
-    tf::StampedTransform tf_odom_map_;
-    tf::StampedTransform tf_mbes_base_;
+    tf::StampedTransform tf_map_odom_;
+    tf::StampedTransform tf_base_mbes_;
     tf2_ros::TransformBroadcaster br_;
 
     actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;

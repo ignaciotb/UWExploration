@@ -73,9 +73,7 @@ BathyMapper::~BathyMapper(){
 
 void BathyMapper::init(const boost::filesystem::path map_path){
 
-    q_180_ = Eigen::AngleAxisf(3.1415, Eigen::Vector3f::UnitX())
-             * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
-             * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitZ());
+    q_180_ = Eigen::AngleAxisd(3.1415, Eigen::Vector3d::UnitX());
 
     iter_ = 0;
     time_avg_ = 0;
@@ -91,20 +89,19 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     // set the sensor origin and sensor orientation
     Eigen::Isometry3d sensor_tf;
     tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
-    Eigen::Isometry3f tf = sensor_tf.inverse().cast<float>();
-    sensor_origin_ = ufomap::Point3(tf.translation().x(), tf.translation().y(), tf.translation().z());
-    sensor_orientation_ = Eigen::Quaternionf(tf.linear()) /** q_180_*/;
+    sensor_origin_ = ufomap::Point3(sensor_tf.translation().x(),
+                                    sensor_tf.translation().y(),
+                                    sensor_tf.translation().z());
+    sensor_orientation_ = sensor_tf.linear();
 
     beam_directions_.reserve(n_beams_);
     float roll_step = spam_/n_beams_;
-    Eigen::Quaternionf q;
-    Eigen::Matrix3f rot_beam;
+    Eigen::Quaterniond q;
+    Eigen::Matrix3d rot_beam;
     for(int i = -n_beams_/2; i<=n_beams_/2; i++){
-        q = Eigen::AngleAxisf(roll_step*i, Eigen::Vector3f::UnitX())
-            * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
-            * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitZ());
-        rot_beam = (Eigen::Quaternionf(sensor_orientation_ * q)).toRotationMatrix();
-        beam_directions_.emplace_back(ufomap::Point3(rot_beam.col(2).x(),rot_beam.col(2).y(),rot_beam.col(2).z()).normalize());
+        q = Eigen::AngleAxisd(roll_step*i, Eigen::Vector3d::UnitX());
+        rot_beam = (sensor_orientation_ * q).normalized().toRotationMatrix();
+        beam_directions_.emplace_back(rot_beam.col(2).x(),rot_beam.col(2).y(),rot_beam.col(2).z());
     }
 
     /// Ray trace each beam against the ufomap
@@ -126,8 +123,6 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
         as_->setAborted(result_);
     }
     else{
-        ufomap_math::Pose6 transform = ufomap::toUfomap(mbes_goal->mbes_pose.transform);
-        cloud.transform(transform);
         sensor_msgs::PointCloud2::Ptr sim_ping(new sensor_msgs::PointCloud2);
         ufomap::fromUfomap(cloud, sim_ping);
         sim_ping->header.frame_id = mbes_goal->mbes_pose.header.frame_id;

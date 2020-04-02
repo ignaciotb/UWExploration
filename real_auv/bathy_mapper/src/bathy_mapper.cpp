@@ -91,9 +91,10 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     // set the sensor origin and sensor orientation
     Eigen::Isometry3d sensor_tf;
     tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
-    Eigen::Isometry3f tf = sensor_tf.cast<float>();
-    sensor_origin_ = ufomap::Point3(tf.translation().x(), tf.translation().y(), tf.translation().z());
-    sensor_orientation_ = Eigen::Quaternionf(tf.linear()) /** q_180_*/;
+    sensor_origin_ = ufomap::Point3(sensor_tf.cast<float>().translation().x(),
+                                    sensor_tf.cast<float>().translation().y(),
+                                    sensor_tf.cast<float>().translation().z());
+    sensor_orientation_ = Eigen::Quaternionf(sensor_tf.linear().cast<float>()) /** q_180_*/;
 
     beam_directions_.reserve(n_beams_);
     float roll_step = spam_/n_beams_;
@@ -126,8 +127,6 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
         as_->setAborted(result_);
     }
     else{
-//        ufomap_math::Pose6 transform = ufomap::toUfomap(mbes_goal->mbes_pose.transform);
-//        cloud.transform(transform);
         sensor_msgs::PointCloud2::Ptr sim_ping(new sensor_msgs::PointCloud2);
         ufomap::fromUfomap(cloud, sim_ping);
         sim_ping->header.frame_id = mbes_goal->mbes_pose.header.frame_id;

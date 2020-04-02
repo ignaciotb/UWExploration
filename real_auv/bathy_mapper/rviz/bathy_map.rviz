@@ -102,7 +102,7 @@ Visualization Manager:
       Invert Rainbow: false
       Max Color: 239; 41; 41
       Max Intensity: 4096
-      Min Color: 0; 0; 0
+      Min Color: 0.1; 0; 0
       Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ

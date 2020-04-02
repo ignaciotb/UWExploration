@@ -167,11 +167,11 @@ void AUVMotionModel::updateMeas(){
         tf::Transform tf_mbes_map;
         tf_mbes_map.mult(tf_mbes_odom, tf_odom_map_);
         geometry_msgs::Transform transform;
-        tf::transformTFToMsg(tf_mbes_map, transform);
+        tf::transformTFToMsg(tf_mbes_map.inverse(), transform);
 
         auv_2_ros::MbesSimGoal mbes_goal;
-        mbes_goal.mbes_pose.header.frame_id = mbes_frame_;
-        mbes_goal.mbes_pose.child_frame_id = map_frame_;
+        mbes_goal.mbes_pose.header.frame_id = map_frame_;
+        mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
         mbes_goal.mbes_pose.header.stamp = ros::Time::now();
         mbes_goal.mbes_pose.transform = transform;
         ac_->sendGoal(mbes_goal);

@@ -4,14 +4,17 @@
   <arg name="mode" default="sim"/>
   
   <!-- Define args -->
-  <arg name="particle_count"                    default="10"/>
-  <arg name="motion_covariance"                 default="[0.0, 0.0, 0.0001]"/> <!-- [x, y, yaw] -->
+  <arg name="particle_count"                    default="5"/>
+  <arg name="motion_covariance"                 default="[0.0, 0.0, 0.001]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
   <arg name="particle_poses_topic"              default="/particle_filter_topic"/>
 
   <!-- <arg name="true_mbes_topic"                   default="/gt/mbes_pings"/>
   <arg name="simulated_mbes_topic"              default="/sim/mbes"/> -->
+
+  <!-- Launch RVIZ for project -->
+  <!-- <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/stine/catkin_ws/src/auv_exploration/real_auv/bathy_mapper/rviz/bathy_map.rviz"/> -->
 
   <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
     

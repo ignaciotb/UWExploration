@@ -1,19 +1,18 @@
 Panels:
   - Class: rviz/Displays
-    Help Height: 78
+    Help Height: 79
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /Global Options1
-        - /Status1
-        - /PointCloud21
+        - /TF1
+        - /TF1/Frames1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
         - /Octree1/Voxel Rendering1
         - /Octree1/Voxel Rendering1/Occupied1
         - /PointCloud22
       Splitter Ratio: 0.5735294222831726
-    Tree Height: 755
+    Tree Height: 754
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -62,7 +61,7 @@ Visualization Manager:
       Enabled: true
       Frame Timeout: 15
       Frames:
-        All Enabled: true
+        All Enabled: false
         hugin/base_link:
           Value: true
         hugin/mbes_link:
@@ -71,6 +70,26 @@ Visualization Manager:
           Value: true
         odom:
           Value: true
+        particle_1:
+          Value: true
+        particle_1_mbes_link:
+          Value: false
+        particle_2:
+          Value: true
+        particle_2_mbes_link:
+          Value: false
+        particle_3:
+          Value: true
+        particle_3_mbes_link:
+          Value: false
+        particle_4:
+          Value: true
+        particle_4_mbes_link:
+          Value: false
+        particle_5:
+          Value: true
+        particle_5_mbes_link:
+          Value: false
         world:
           Value: true
       Marker Scale: 40
@@ -85,6 +104,21 @@ Visualization Manager:
               hugin/base_link:
                 hugin/mbes_link:
                   {}
+              particle_1:
+                particle_1_mbes_link:
+                  {}
+              particle_2:
+                particle_2_mbes_link:
+                  {}
+              particle_3:
+                particle_3_mbes_link:
+                  {}
+              particle_4:
+                particle_4_mbes_link:
+                  {}
+              particle_5:
+                particle_5_mbes_link:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
@@ -96,7 +130,7 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 239; 41; 41
+      Color: 52; 101; 164
       Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
@@ -109,7 +143,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 2
       Size (m): 0.009999999776482582
       Style: Points
       Topic: /hugin/bathy_mapper_server_nodelet/map_cloud
@@ -158,17 +192,17 @@ Visualization Manager:
       Class: rviz/PoseArray
       Color: 211; 215; 207
       Enabled: true
-      Head Length: 5
-      Head Radius: 3
+      Head Length: 0.800000011920929
+      Head Radius: 2
       Name: PoseArray
       Shaft Length: 1
-      Shaft Radius: 2.5
+      Shaft Radius: 1
       Shape: Arrow (3D)
       Topic: /particle_filter_topic
       Unreliable: false
       Value: true
     - Class: ufomap_rviz_plugin/Octree
-      Enabled: true
+      Enabled: false
       Min. Depth: 0
       Name: Octree
       Queue size: 10
@@ -183,7 +217,7 @@ Visualization Manager:
           Y: -1000
           Z: -1000
         Value: false
-      Value: true
+      Value: false
       Voxel Rendering:
         Free:
           Alpha: 0.029999999329447746
@@ -212,8 +246,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.25
-        Min Value: -16.750001907348633
+        Max Value: -14.25
+        Min Value: -15.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -231,10 +265,10 @@ Visualization Manager:
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 4
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /sim/mbes_pings
+      Topic: /devel_sim_mbes_pcloud
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -266,26 +300,21 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Class: rviz/Orbit
-      Distance: 744.8346557617188
+      Angle: 0
+      Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
-      Focal Point:
-        X: -124.52179718017578
-        Y: 13.407072067260742
-        Z: -320.5508728027344
-      Focal Shape Fixed Size: false
-      Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5397963523864746
+      Scale: 4.894861698150635
       Target Frame: odom
-      Value: Orbit (rviz)
-      Yaw: 2.4153943061828613
+      Value: TopDownOrtho (rviz)
+      X: -52.98332595825195
+      Y: -3.2149057388305664
     Saved: ~
 Window Geometry:
   Displays:
@@ -293,7 +322,7 @@ Window Geometry:
   Height: 1052
   Hide Left Dock: false
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd0000000400000000000001560000037efc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d0000037e000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f00000363fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d00000363000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d00650100000000000004500000000000000000000006240000037e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001630000037efc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d0000037e000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000037efc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d0000037e000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d00650100000000000004500000000000000000000006170000037e00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -304,4 +333,4 @@ Window Geometry:
     collapsed: true
   Width: 1920
   X: 1920
-  Y: 130
+  Y: 120

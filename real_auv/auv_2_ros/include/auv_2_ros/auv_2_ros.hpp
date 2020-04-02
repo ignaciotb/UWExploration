@@ -13,8 +13,8 @@
 
 #include "submaps_tools/cxxopts.hpp"
 #include "submaps_tools/submaps.hpp"
-#include "registration/utils_visualization.hpp"
-#include "meas_models/multibeam_simple.hpp"
+//#include "registration/utils_visualization.hpp"
+//#include "meas_models/multibeam_simple.hpp"
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>

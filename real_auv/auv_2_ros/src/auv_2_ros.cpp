@@ -104,18 +104,20 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
 void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
+    time_now_ = ros::Time::now();
+
     // BR world-->map frames
-    world_map_tfmsg_.header.stamp = ros::Time::now();
+    world_map_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(world_map_tfmsg_);
 
     // BR map-->odom frames
-    map_odom_tfmsg_.header.stamp = ros::Time::now();
+    map_odom_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(map_odom_tfmsg_);
 
     // BR odom-->base frames
     new_base_link_.header.frame_id = odom_frame_;
     new_base_link_.child_frame_id = base_frame_;
-    new_base_link_.header.stamp = ros::Time::now();
+    new_base_link_.header.stamp = time_now_;
     Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
                                    traj_pings_.at(ping_cnt_).submap_tf_.translation().cast<double>());
     new_base_link_.transform.translation.x = odom_ping_i[0];
@@ -144,7 +146,6 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){
 
     // Publish odom
-    time_now_ = ros::Time::now();
     nav_msgs::Odometry odom;
     odom.header.stamp = time_now_;
     odom.header.frame_id = odom_frame_;
@@ -155,26 +156,29 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     odom.pose.pose.orientation = tf::createQuaternionMsgFromRollPitchYaw(euler[0], euler[1], euler[2]);
     odom.child_frame_id = base_frame_;
 
-    // Compute linear velocities
+    // Compute linear and angular velocities
     double dt = (time_now_ - time_prev_).toSec();
     Eigen::Vector3d pos_now, pos_prev;
     tf::vectorMsgToEigen(new_base_link_.transform.translation, pos_now);
     tf::vectorMsgToEigen(prev_base_link_.transform.translation, pos_prev);
     Eigen::Vector3d vel_t = (pos_now - pos_prev)/dt;
 
-    // And angular vels
     tf::Quaternion q_prev;
     tf::quaternionMsgToTF(prev_base_link_.transform.rotation, q_prev);
     tf::Quaternion q_now = tf::createQuaternionFromRPY(euler[0], euler[1], euler[2]);
     tf::Quaternion q_vel = q_now.normalized() * q_prev.inverse().normalized();
 
+    tf::Matrix3x3 m_prev(q_prev);
+    Eigen::Matrix3d m_prev_e;
+    tf::matrixTFToEigen(m_prev, m_prev_e);
+    Eigen::Vector3d vel_rel = m_prev_e.inverse() * vel_t;
     tf::Matrix3x3 m_vel(q_vel);
     double roll_vel, pitch_vel, yaw_vel;
     m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
 
-    odom.twist.twist.linear.x = vel_t.x();
-    odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.z = vel_t.z();
+    odom.twist.twist.linear.x = vel_rel.x();
+    odom.twist.twist.linear.y = vel_rel.y();
+    odom.twist.twist.linear.z = vel_rel.z();
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;
@@ -203,33 +207,13 @@ void BathymapConstructor::publishMeas(int ping_num){
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
     pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
     mbes_i.header.frame_id = mbes_frame_;
-    mbes_i.header.stamp = ros::Time::now();
+    mbes_i.header.stamp = time_now_;
     ping_pub_.publish(mbes_i);
-
-//            // For testing of the action server
-//            auv_2_ros::MbesSimGoal mbes_goal;
-//            mbes_goal.mbes_pose = transformStamped;
-//            ac_->sendGoal(mbes_goal);
-
-//            bool finished = ac_->waitForResult(ros::Duration(10.0));
-//            if (finished){
-//                actionlib::SimpleClientGoalState state = ac_->getState();
-//                if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
-//                    sensor_msgs::PointCloud2 mbes_msg;
-//                    auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
-//                    mbes_msg = mbes_res.sim_mbes;
-//                    sim_ping_pub_.publish(mbes_msg);
-//                }
-//                else{
-//                    ROS_WARN("Action %s", state.toString().c_str());
-//                }
-//            }
-//        }
 
     // Original ping (for debugging)
     *mbes_i_pcl_map = traj_pings_.at(ping_num).submap_pcl_;
     pcl::toROSMsg(*mbes_i_pcl_map.get(), mbes_i_map);
     mbes_i_map.header.frame_id = map_frame_;
-    mbes_i_map.header.stamp = ros::Time::now();
+    mbes_i_map.header.stamp = time_now_;
     test_pub_.publish (mbes_i_map);
 }

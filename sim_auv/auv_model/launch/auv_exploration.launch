@@ -82,7 +82,7 @@
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="50" /> <!-- default=200 -->
+			<param name="num_beams_sim" value="20" /> <!-- default=200 -->
 			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 

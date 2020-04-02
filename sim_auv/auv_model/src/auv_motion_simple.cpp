@@ -67,8 +67,8 @@ void AUVMotionModel::init(){
     }
 
     try {
-        tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
-        tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
+        tflistener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), tf_map_odom_);
         ROS_INFO("Locked transform map --> odom");
     }
     catch(tf::TransformException &exception) {
@@ -77,8 +77,8 @@ void AUVMotionModel::init(){
     }
 
     try {
-        tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
-        tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
+        tflistener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), tf_base_mbes_);
         ROS_INFO("Locked transform base --> sensor");
     }
     catch(tf::TransformException &exception) {
@@ -109,11 +109,6 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
                              latest_throttle_*std::sin(yaw_now)*std::cos(pitch_now),
                              -latest_throttle_*std::sin(pitch_now)};
 
-    // TODO: find a safer way to do this
-    latest_throttle_ = 0;
-    latest_thrust_ = 0;
-    latest_inclination_ = 0;
-
     // Publish odom
     nav_msgs::Odometry odom;
     odom.header.stamp = time_now_;
@@ -131,9 +126,9 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
     double roll_vel, pitch_vel, yaw_vel;
     m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
 
-    odom.twist.twist.linear.x = vel_t.x();
-    odom.twist.twist.linear.y = vel_t.y();
-    odom.twist.twist.linear.z = vel_t.z();
+    odom.twist.twist.linear.x = latest_throttle_;
+    odom.twist.twist.linear.y = 0.0;
+    odom.twist.twist.linear.z = 0.0;
     odom.twist.twist.angular.x = roll_vel/dt;
     odom.twist.twist.angular.y = pitch_vel/dt;
     odom.twist.twist.angular.z = yaw_vel/dt;
@@ -152,28 +147,30 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
     time_prev_ = time_now_;
     prev_odom_ = odom;
 
+    // TODO: find a safer way to do this
+    latest_throttle_ = 0;
+    latest_thrust_ = 0;
+    latest_inclination_ = 0;
+
     this->updateMeas();
 }
 
 void AUVMotionModel::updateMeas(){
 
 //        clock_t tStart = clock();
-        // Latest tf mbes-->odom
-        tf::Transform tf_mbes_odom;
-        tf::transformMsgToTF(new_base_link_.transform, tf_mbes_odom);
-        tf_mbes_odom.mult(tf_mbes_base_, tf_mbes_odom.inverse());
 
-        // Latest tf mbes-->map
-        tf::Transform tf_mbes_map;
-        tf_mbes_map.mult(tf_mbes_odom, tf_odom_map_);
-        geometry_msgs::Transform transform;
-        tf::transformTFToMsg(tf_mbes_map, transform);
+        // Transformation map-->mbes
+        tf::Transform tf_odom_base;
+        tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
+        tf::Transform tf_map_mbes = tf_map_odom_ * tf_odom_base * tf_base_mbes_;
+        geometry_msgs::Transform transform_msg;
+        tf::transformTFToMsg(tf_map_mbes, transform_msg);
 
         auv_2_ros::MbesSimGoal mbes_goal;
-        mbes_goal.mbes_pose.header.frame_id = mbes_frame_;
-        mbes_goal.mbes_pose.child_frame_id = map_frame_;
+        mbes_goal.mbes_pose.header.frame_id = map_frame_;
+        mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
         mbes_goal.mbes_pose.header.stamp = ros::Time::now();
-        mbes_goal.mbes_pose.transform = transform;
+        mbes_goal.mbes_pose.transform = transform_msg;
         ac_->sendGoal(mbes_goal);
 
         ac_->waitForResult(ros::Duration(1.0));

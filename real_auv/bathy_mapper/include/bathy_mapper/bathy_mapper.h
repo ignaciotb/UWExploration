@@ -100,8 +100,8 @@ private:
 	unsigned int map_cloud_queue_size_;
 
     ufomap::Point3 sensor_origin_;
-    Eigen::Quaternionf sensor_orientation_;
-    Eigen::Quaternionf q_180_;
+    Eigen::Quaterniond sensor_orientation_;
+    Eigen::Quaterniond q_180_;
     std::vector<ufomap::Point3 > beam_directions_;
     std::vector<ufomap::Point3> ping_;
 //    ufomap::PointCloud ping_cloud_;

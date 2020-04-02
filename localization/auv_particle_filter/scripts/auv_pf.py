@@ -16,16 +16,22 @@ from geometry_msgs.msg import Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 
-# For 
+# For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 
+# Define
+meas_freq = 5 # [Hz] to run mbes_sim
+pcloud_pub_index = 2 # Which particle's mbes pointcloud to publish
+
+
 class Particle():
-    def __init__(self, i, map_frame, mbes_trans, broadcaster, static_broadcaster):
-        self.frame_id = "particle_" + str(i)
-        self.mbes_frame_id = "particle_" + str(i) + "/mbes_link"
-        
+    def __init__(self, index, map_frame, mbes_trans, broadcaster, static_broadcaster):
+        self.index = index
+        self.frame_id = "particle_" + str(index)
+        self.mbes_frame_id = "particle_" + str(index) + "_mbes_link"
+
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
@@ -36,16 +42,12 @@ class Particle():
         self.transform.transform.rotation.w = 1 
         broadcaster.sendTransform(self.transform)
 
-        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-
         self.mbes_trans = TransformStamped()
         self.mbes_trans.transform = mbes_trans.transform
         self.mbes_trans.header.frame_id = self.frame_id
         self.mbes_trans.child_frame_id = self.mbes_frame_id
         self.mbes_trans.header.stamp = rospy.Time.now()
-        print(self.mbes_trans)
-        self.static_broadcaster.sendTransform(self.mbes_trans)
-
+        static_broadcaster.sendTransform(self.mbes_trans)
 
 
     def update(self, vel_vec, noise_vec, dt, broadcaster):
@@ -64,10 +66,7 @@ class Particle():
         self.transform.transform.rotation = self.pose.orientation
         self.transform.header.stamp = rospy.Time.now()
         broadcaster.sendTransform(self.transform)
-        # self.mbes_trans.header.stamp = rospy.Time.now()
-        # broadcaster.sendTransform(self.mbes_trans)
 
-        ### Need to broadcast tf to each particle (I think)
 
 class auv_pf():
     def __init__(self):
@@ -99,13 +98,14 @@ class auv_pf():
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
         # Initialize sim_mbes pointcloud publisher
-        self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=1)
+        self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=10)
 
         # Initialize tf listener and broadcaster
         self.tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tfBuffer)
         self.broadcaster = tf2_ros.TransformBroadcaster()
         self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
+        rospy.sleep(1) # Must keep! Or static particle_mbes transforms don't broadcast
                 
         try:
             # Confirm mbes_link & base_link are in the correct order!!!
@@ -118,7 +118,7 @@ class auv_pf():
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i, self.map_frame, self.mbes_trans, self.broadcaster, self.static_broadcaster))
+            self.particles.append(Particle(i+1, self.map_frame, self.mbes_trans, self.broadcaster, self.static_broadcaster))
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -139,6 +139,7 @@ class auv_pf():
             self.pub_()
         self.old_time = self.time
 
+
     def predict(self):
         # Adding gaussian noice
         pred_noice =  self.process_noise()
@@ -155,6 +156,7 @@ class auv_pf():
             particle = self.particles[i]
             particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster)
 
+
     def pub_(self):
         self.pos_.poses = []
         for pt in self.particles:
@@ -164,6 +166,7 @@ class auv_pf():
         self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
         self.pf_pub.publish(self.pos_)
 
+
     def process_noise(self):
         cov_ = np.zeros((3,3))
         cov_[0,0] = self.predict_cov[0]
@@ -172,30 +175,28 @@ class auv_pf():
         var = np.diagonal(cov_)
         return np.sqrt(var)*np.random.randn(self.pc, 3)
 
+
     def measurement(self):
         # Right now this only runs for the first particle
         # Can be expanded to all particles once it for sure works
-        particle = self.particles[-1]
-        self.pf2mbes(particle)
+        # particle = self.particles[0]
+        for particle in self.particles:
+            mbes_pcloud = self.pf2mbes(particle)
+            # Only publish one particle's mbes for debugging/visualization purposes
+            if particle.index == pcloud_pub_index:
+                self.pcloud_pub.publish(mbes_pcloud)
 
 
     def pf2mbes(self, particle_):
-        # Look up transform of mbes_link in map frame
-        #### This needs to be transform to each particle in the future
-        
-        # Transform to particle frame _id
-        # Add transform to particle's mbes (based on transform of hugin to mbes_link)
 
         trans = self.tfBuffer.lookup_transform(self.map_frame, particle_.mbes_frame_id , rospy.Time())
-        #trans += self.mbes_trans
+
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
         mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
-
-        #tfm = tf2_msgs.msg.TFMessage([mbes_goal]) # Not sure if needed
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
@@ -204,12 +205,11 @@ class auv_pf():
         rospy.loginfo("Got MbesSim action Result")
         mbes_res = self.ac_mbes.get_result()
 
-        # Pack result into PointCloud2 and publish
+        # Pack result into PointCloud2
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = particle_.mbes_frame_id
-
-        self.pcloud_pub.publish(mbes_pcloud)
+        mbes_pcloud.header.frame_id = self.map_frame
+        return mbes_pcloud
 
 
 def main():
@@ -221,7 +221,7 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(3) # Hz
+    meas_rate = rospy.Rate(meas_freq) # Hz
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()

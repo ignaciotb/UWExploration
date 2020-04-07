@@ -136,8 +136,22 @@ class auv_pf():
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
+            # self.weights_() # Instead of predict, doing predict within weights, or as we have it, do weights_ after predict, and prod(self.particles)
             self.pub_()
         self.old_time = self.time
+
+
+    # def weights_(self):
+        # for loop over all particles, or everything at ones?  
+        # w = eta * np.prod( p(measurement | new_position, map_of_particles )) --- eta is a constant normalizing factor
+        # -----------------------------
+        # w = np.prod( self.particles.weight)
+        # # p = p / np.sum(p) # Normalizing (eta)
+        # print(" weights " + str(w))
+        # w = np.log(w) 
+        # self.particles.weight = w
+
+
 
 
     def predict(self):

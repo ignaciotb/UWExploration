@@ -64,6 +64,8 @@ class auv_pf():
         self.map_frame = rospy.get_param(param) # map frame_id
         param = rospy.search_param("odometry_topic")
         self.odom_top = rospy.get_param(param) # odometry msg topic (subscribed)
+        param = rospy.search_param("mbes_pings_topic")
+        self.mbes_pings_top = rospy.get_param(param) # mbes_pings msg topic (subscribed)
         param = rospy.search_param("particle_poses_topic")
         self.pose_array_top = rospy.get_param(param) # Particle pose array topic (published)
         param = rospy.search_param("particle_count")
@@ -83,6 +85,7 @@ class auv_pf():
         self.old_time = None
         self.pos_ = PoseArray()
         self.pos_.header.frame_id = self.map_frame        
+        self.mbes_true_pc = None
 
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
@@ -124,7 +127,9 @@ class auv_pf():
         self.ac_mbes.wait_for_server()
         rospy.loginfo("Connected MbesSim action server")
 
-        # Establish subscription to odometry message | Last because this will start callback running
+        # Establish subscription to mbes pings message
+        rospy.Subscriber(self.mbes_pings_top, PointCloud2, self.mbes_callback)
+        # Establish subscription to odometry message | Last because this will start callback & prediction running
         rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
         rospy.sleep(0.5) # CAN ADD DURATION INSTEAD? 
         
@@ -137,6 +142,8 @@ class auv_pf():
             self.pub_()
         self.old_time = self.time
 
+    def mbes_callback(self, msg):
+        self.mbes_true_pc = msg
 
     def predict(self):
         # Adding gaussian noice

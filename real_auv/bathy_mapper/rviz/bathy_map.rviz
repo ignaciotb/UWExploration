@@ -240,7 +240,7 @@ Visualization Manager:
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: -16.75
-        Min Value: -16.75
+        Min Value: -17.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -269,7 +269,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.25
+        Max Value: -16.75
         Min Value: -16.75
         Value: true
       Axis: Z
@@ -299,8 +299,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.75
-        Min Value: -16.75
+        Max Value: -17.25
+        Min Value: -17.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -329,8 +329,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.75
-        Min Value: -16.75
+        Max Value: -17.25
+        Min Value: -17.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -359,8 +359,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.25
-        Min Value: -16.75
+        Max Value: -17.25
+        Min Value: -17.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -389,8 +389,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.25
-        Min Value: -16.75
+        Max Value: -17.25
+        Min Value: -17.25
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -479,7 +479,7 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.25
+        Max Value: -16.75
         Min Value: -16.75
         Value: true
       Axis: Z
@@ -543,11 +543,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 7.248345375061035
+      Scale: 4.450566291809082
       Target Frame: odom
       Value: TopDownOrtho (rviz)
-      X: -15.326632499694824
-      Y: -3.1500751972198486
+      X: -104.17465209960938
+      Y: 20.249547958374023
     Saved: ~
 Window Geometry:
   Displays:

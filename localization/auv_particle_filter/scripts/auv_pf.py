@@ -34,6 +34,15 @@ class Particle():
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
+        
+        if index < 10:
+            pcloud_top = '/sim_mbes/particle_0' + str(index)
+        else:
+            pcloud_top = '/sim_mbes/particle_' + str(index)
+
+        # Initialize sim_mbes pointcloud publisher
+        self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
+
 
     def update(self, vel_vec, noise_vec, dt):
         quat = (self.pose.orientation.x,
@@ -77,8 +86,6 @@ class auv_pf():
 
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
-        # Initialize sim_mbes pointcloud publisher
-        self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=10)
 
         # Initialize tf listener (and broadcaster)
         self.tfBuffer = tf2_ros.Buffer()
@@ -170,9 +177,6 @@ class auv_pf():
     def measurement(self):
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
-            # Only publish one particle's mbes for debugging/visualization purposes
-            if particle.index == pcloud_pub_index:
-                self.pcloud_pub.publish(mbes_pcloud)
 
 
     def pf2mbes(self, particle_):
@@ -217,6 +221,9 @@ class auv_pf():
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
         mbes_pcloud.header.frame_id = self.map_frame
+
+        particle_.pcloud_pub.publish(mbes_pcloud)
+
         return mbes_pcloud
 
 

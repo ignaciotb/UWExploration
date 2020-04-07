@@ -15,6 +15,8 @@ from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from tf.transformations import translation_matrix, translation_from_matrix
+from tf.transformations import quaternion_matrix, quaternion_from_matrix
 
 # For sim mbes action client
 import actionlib
@@ -27,30 +29,13 @@ pcloud_pub_index = 2 # Which particle's mbes pointcloud to publish
 
 
 class Particle():
-    def __init__(self, index, map_frame, mbes_trans, broadcaster, static_broadcaster):
-        self.index = index
-        self.frame_id = "particle_" + str(index)
-        self.mbes_frame_id = "particle_" + str(index) + "_mbes_link"
-
+    def __init__(self, index):
+        self.index = index # index starts from 1
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
-        
-        self.transform = TransformStamped() 
-        self.transform.header.frame_id = map_frame
-        self.transform.child_frame_id = self.frame_id
-        self.transform.transform.rotation.w = 1 
-        broadcaster.sendTransform(self.transform)
 
-        self.mbes_trans = TransformStamped()
-        self.mbes_trans.transform = mbes_trans.transform
-        self.mbes_trans.header.frame_id = self.frame_id
-        self.mbes_trans.child_frame_id = self.mbes_frame_id
-        self.mbes_trans.header.stamp = rospy.Time.now()
-        static_broadcaster.sendTransform(self.mbes_trans)
-
-
-    def update(self, vel_vec, noise_vec, dt, broadcaster):
+    def update(self, vel_vec, noise_vec, dt):
         quat = (self.pose.orientation.x,
                 self.pose.orientation.y,
                 self.pose.orientation.z,
@@ -61,11 +46,6 @@ class Particle():
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
         yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
-
-        self.transform.transform.translation = self.pose.position
-        self.transform.transform.rotation = self.pose.orientation
-        self.transform.header.stamp = rospy.Time.now()
-        broadcaster.sendTransform(self.transform)
 
 
 class auv_pf():
@@ -100,25 +80,36 @@ class auv_pf():
         # Initialize sim_mbes pointcloud publisher
         self.pcloud_pub = rospy.Publisher('/devel_sim_mbes_pcloud', PointCloud2, queue_size=10)
 
-        # Initialize tf listener and broadcaster
+        # Initialize tf listener (and broadcaster)
         self.tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(self.tfBuffer)
-        self.broadcaster = tf2_ros.TransformBroadcaster()
-        self.static_broadcaster = tf2_ros.StaticTransformBroadcaster()
-        rospy.sleep(1) # Must keep! Or static particle_mbes transforms don't broadcast
+        # self.broadcaster = tf2_ros.TransformBroadcaster()
                 
         try:
-            # Confirm mbes_link & base_link are in the correct order!!!
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
-            self.mbes_trans = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            rospy.loginfo("Transform locked from base_link to mbes_link")
+            mbes_tf = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
+            
+            mbes_trans = (mbes_tf.transform.translation.x,
+                        mbes_tf.transform.translation.y,
+                        mbes_tf.transform.translation.z)
+            mbes_quat = (mbes_tf.transform.rotation.x,
+                        mbes_tf.transform.rotation.y,
+                        mbes_tf.transform.rotation.z,
+                        mbes_tf.transform.rotation.w)
+            
+            tmat_mbes = translation_matrix(mbes_trans)
+            qmat_mbes = quaternion_matrix(mbes_quat)
+            self.mbes_matrix = np.dot(tmat_mbes, qmat_mbes)
+            
+            rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
+
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
         
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i+1, self.map_frame, self.mbes_trans, self.broadcaster, self.static_broadcaster))
+            self.particles.append(Particle(i+1)) # particle index starts from 1
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -154,7 +145,7 @@ class auv_pf():
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]
-            particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster)
+            particle.update(vel_vec, pred_noice[i,:], dt)
 
 
     def pub_(self):
@@ -177,9 +168,6 @@ class auv_pf():
 
 
     def measurement(self):
-        # Right now this only runs for the first particle
-        # Can be expanded to all particles once it for sure works
-        # particle = self.particles[0]
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
             # Only publish one particle's mbes for debugging/visualization purposes
@@ -189,12 +177,32 @@ class auv_pf():
 
     def pf2mbes(self, particle_):
 
-        trans = self.tfBuffer.lookup_transform(self.map_frame, particle_.mbes_frame_id , rospy.Time())
+        # Find particle's mbes pose without broadcasting/listening to tf transforms
+        particle_trans = (particle_.pose.position.x,
+                        particle_.pose.position.y,
+                        particle_.pose.position.z)
+        particle_quat = (particle_.pose.orientation.x,
+                        particle_.pose.orientation.y,
+                        particle_.pose.orientation.z,
+                        particle_.pose.orientation.w)
+
+        tmat_part = translation_matrix(particle_trans)
+        qmat_part = quaternion_matrix(particle_quat)
+        mat_part = np.dot(tmat_part, qmat_part)
+
+        trans_mat = np.dot(mat_part, self.mbes_matrix)
+
+        trans = TransformStamped()
+        trans.transform.translation.x = translation_from_matrix(trans_mat)[0]
+        trans.transform.translation.y = translation_from_matrix(trans_mat)[1]
+        trans.transform.translation.z = translation_from_matrix(trans_mat)[2]
+        trans.transform.rotation = Quaternion(*quaternion_from_matrix(trans_mat))
+
 
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
-        mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
+        # mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
 

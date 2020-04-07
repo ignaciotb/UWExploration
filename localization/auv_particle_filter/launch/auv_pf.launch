@@ -8,6 +8,7 @@
   <arg name="motion_covariance"                 default="[0.0, 0.0, 0.0001]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
+  <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
   <arg name="particle_poses_topic"              default="/particle_filter_topic"/>
 
   <!-- <arg name="true_mbes_topic"                   default="/gt/mbes_pings"/>
@@ -22,6 +23,7 @@
     <param name="motion_covariance"                       value="$(arg motion_covariance)" />
     <param name="map_frame"                               value="$(arg map_frame)" />
     <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+    <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
     <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
 
     <!-- <param name="true_mbes_topic"                         value="$(arg true_mbes_topic)" />

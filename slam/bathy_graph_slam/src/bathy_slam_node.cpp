@@ -7,12 +7,16 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <nav_msgs/Odometry.h>
+#include <std_msgs/Bool.h>
 
 #include <tf/transform_datatypes.h>
 #include <tf_conversions/tf_eigen.h>
 #include <tf/transform_broadcaster.h>
 
 #include "submaps_tools/submaps.hpp"
+
+#include "data_tools/std_data.h"
+#include "data_tools/benchmark.h"
 
 #include <actionlib/client/simple_action_client.h>
 
@@ -28,13 +32,14 @@ public:
     BathySlamNode(std::string node_name, ros::NodeHandle& nh):
     node_name_(node_name), nh_(&nh){
 
-        std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top;
+        std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top, enable_top;
         nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
         nh_->param<std::string>("odom_gt", gt_odom_top, "/gt/odom");
         nh_->param<std::string>("map_frame", map_frame_, "map");
         nh_->param<std::string>("odom_frame", odom_frame_, "odom");
         nh_->param<std::string>("base_link", base_frame_, "base_frame");
         nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
+        nh_->param<std::string>("survey_finished_top", enable_top, "enable");
 
         mbes_subs_.subscribe(*nh_, gt_pings_top, 1);
         odom_subs_.subscribe(*nh_, gt_odom_top, 1);
@@ -43,6 +48,7 @@ public:
         sync_->registerCallback(&BathySlamNode::pingCB, this);
 
         submaps_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/submaps", 10, false);
+        enable_subs_ = nh_->subscribe(enable_top, 1, &BathySlamNode::enableCB, this);
 
         try {
             tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
@@ -79,6 +85,7 @@ private:
     std::string node_name_;
     ros::NodeHandle* nh_;
     ros::Publisher submaps_pub_;
+    ros::Subscriber enable_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
@@ -94,13 +101,24 @@ private:
     tf::TransformListener tflistener_;
     tf::StampedTransform tf_mbes_base_;
 
+    void enableCB(const std_msgs::BoolPtr& enable_msg){
+        if(enable_msg->data == true){
+            ROS_INFO_STREAM("Creating benchmark");
+            benchmark::track_error_benchmark benchmark("real_data");
+            PointsT gt_map = pclToMatrixSubmap(submaps_vec_);
+            PointsT gt_track = trackToMatrixSubmap(submaps_vec_);
+            ROS_INFO_STREAM("About to... " << gt_track.size());
+            benchmark.add_ground_truth(gt_map, gt_track);
+        }
+    }
+
     void pingCB(const sensor_msgs::PointCloud2Ptr& mbes_ping, const nav_msgs::OdometryPtr& odom_msg){
 
         tf::Transform ping_tf;
         tf::poseMsgToTF(odom_msg->pose.pose, ping_tf);
         submap_raw_.emplace_back(mbes_ping, ping_tf*tf_mbes_base_);
 
-        if(submap_raw_.size()>200){
+        if(submap_raw_.size()>100){
             this->submapConstructor();
             submap_raw_.clear();
         }
@@ -128,6 +146,8 @@ private:
         submap_i.submap_pcl_.sensor_origin_ << submap_i.submap_tf_.translation();
         submap_i.submap_pcl_.sensor_orientation_ = submap_i.submap_tf_.linear();
         submap_i.submap_id_ = submaps_cnt_;
+        submap_i.auv_tracks_.conservativeResize(submap_i.auv_tracks_.rows()+1, 3);
+        submap_i.auv_tracks_.row(0) = submap_i.submap_tf_.translation().transpose().cast<double>();
         submaps_cnt_++;
         submaps_vec_.push_back(submap_i);
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(bathy_slam)
+project(bathy_graph_slam)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -173,7 +173,7 @@ target_link_libraries(${PROJECT_NAME}_node
    submaps_tools
    data_transforms
    utils_visualization
-
+   benchmark
 )
 
 #############

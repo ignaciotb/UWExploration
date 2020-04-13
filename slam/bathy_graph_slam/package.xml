@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>bathy_slam</name>
+  <name>bathy_graph_slam</name>
   <version>0.0.0</version>
-  <description>The bathy_slam package</description>
+  <description>The bathy_graph_slam package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
@@ -57,6 +57,7 @@
   <depend>sensor_msgs</depend>
   <depend>tf</depend>
   <depend>tf_conversions</depend>
+  <depend>std_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

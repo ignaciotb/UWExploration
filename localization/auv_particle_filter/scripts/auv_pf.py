@@ -53,6 +53,9 @@ class Particle():
 
         """
         NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
+        ACTUALLY UP/DOWN ARROWS CHANGE PITCH...
+        SOMEHOW PARTICLE POSE (AND MBES READING) NEEDS TO
+        CHANGE FROM UP/DOWN ARROW MOVEMENTS (IN SIM)
         """
 
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
@@ -186,11 +189,19 @@ class auv_pf():
 
 
     def measurement(self):
+        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
-            mbes_ranges = self.pcloud2ranges(mbes_pcloud, particle)
-            if particle.index == 5:
-                print(mbes_ranges)
+            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
+
+            try: # Sometimes there is no result for mbes_sim_ranges
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
+                print(particle.index, mse)
+            except: # What should we do for reweighting particles without an mbes result???
+                print('Caught exception in auv_pf.measurement() function')
+                mse = None
+
 
 
     def pcloud2ranges(self, point_cloud, particle_):
@@ -202,7 +213,7 @@ class auv_pf():
             dz = particle_.pose.position.z - p[2]
             dist = math.sqrt((dx**2 + dy**2 + dz**2))
             ranges.append(dist)
-        return ranges
+        return np.asarray(ranges)
 
 
     def pf2mbes(self, particle_):
@@ -238,9 +249,9 @@ class auv_pf():
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
-        rospy.loginfo("Waiting for MbesSim action Result")
+        # rospy.loginfo("Waiting for MbesSim action Result")
         self.ac_mbes.wait_for_result()
-        rospy.loginfo("Got MbesSim action Result")
+        # rospy.loginfo("Got MbesSim action Result")
         mbes_res = self.ac_mbes.get_result()
 
         # Pack result into PointCloud2

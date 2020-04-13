@@ -22,10 +22,10 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
+import sensor_msgs.point_cloud2 as pc2
 
 # Define
 meas_freq = 5 # [Hz] to run mbes_sim
-pcloud_pub_index = 2 # Which particle's mbes pointcloud to publish
 
 
 class Particle():
@@ -50,6 +50,10 @@ class Particle():
                 self.pose.orientation.z,
                 self.pose.orientation.w)
         _, _, yaw = euler_from_quaternion(quat)
+
+        """
+        NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
+        """
 
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
@@ -184,6 +188,21 @@ class auv_pf():
     def measurement(self):
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
+            mbes_ranges = self.pcloud2ranges(mbes_pcloud, particle)
+            if particle.index == 5:
+                print(mbes_ranges)
+
+
+    def pcloud2ranges(self, point_cloud, particle_):
+        ranges = []
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            # starts at left hand side of particle's mbes
+            dx = particle_.pose.position.x - p[0]
+            dy = particle_.pose.position.y - p[1]
+            dz = particle_.pose.position.z - p[2]
+            dist = math.sqrt((dx**2 + dy**2 + dz**2))
+            ranges.append(dist)
+        return ranges
 
 
     def pf2mbes(self, particle_):

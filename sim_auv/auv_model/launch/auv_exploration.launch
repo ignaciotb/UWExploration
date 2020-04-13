@@ -2,18 +2,19 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-    <arg name="mode" default="gt"/>
+    <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-    <arg name="simulation_freq" default="0.1"/>
+    <arg name="simulation_freq" default="0.01"/>
 	<arg name="mbes_sim_threads" default="4"/>
-    <arg name="map_name" default="faulty_mbes"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
+    <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->
+	<arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/>
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/map_section"/> -->
-	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/> -->
-	<arg name="path" default="/home/torroba18/Downloads/Faulty_mbes"/>
+	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/Mission_58_20190619_1/pp/EM2040"/> -->
+	<!-- <arg name="path" default="/home/torroba18/Downloads/Faulty_mbes"/> -->
 	<arg name="cereal_trajectory" default="$(arg path)/mbes_pings.cereal"/>
 
 
@@ -45,17 +46,17 @@
 
     <!--UFO mapping parameters-->
     <arg name="nodelet_manager" default="bathy_mapper_server_nodelet_manager" />
-    <arg name="resolution" default="0.3" />
+    <arg name="resolution" default="1" />
     <arg name="depth_levels" default="21" />
     <arg name="multithreaded" default="true" />
 
 	<group ns="$(arg namespace)">
 
-		  <!-- Include auv_2_ros node -->
+		  <!-- Particle filter -->
 <!-- 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 		</include> -->
-		
+	
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">

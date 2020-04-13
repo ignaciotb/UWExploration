@@ -29,6 +29,7 @@
   <exec_depend>tf_conversions</exec_depend>
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
+  <depend>std_msgs</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

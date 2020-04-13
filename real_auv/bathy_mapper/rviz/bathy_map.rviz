@@ -6,11 +6,13 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /PointCloud21/Status1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
         - /Octree1/Voxel Rendering1
         - /Octree1/Voxel Rendering1/Occupied1
-        - /PointCloud22
+        - /PointCloud23
+        - /PointCloud23/Status1
       Splitter Ratio: 0.5735294222831726
     Tree Height: 728
   - Class: rviz/Selection
@@ -78,26 +80,25 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        odom:
-          hugin/base_link:
-            hugin/mbes_link:
-              {}
         world:
           map:
-            {}
+            odom:
+              hugin/base_link:
+                hugin/mbes_link:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: -14.511000633239746
+        Min Value: -15.529001235961914
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 239; 41; 41
-      Color Transformer: FlatColor
+      Color Transformer: AxisColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -157,7 +158,7 @@ Visualization Manager:
       Axes Radius: 0.009999999776482582
       Class: rviz/PoseArray
       Color: 211; 215; 207
-      Enabled: true
+      Enabled: false
       Head Length: 5
       Head Radius: 3
       Name: PoseArray
@@ -166,7 +167,7 @@ Visualization Manager:
       Shape: Arrow (3D)
       Topic: /particle_filter_topic
       Unreliable: false
-      Value: true
+      Value: false
     - Class: ufomap_rviz_plugin/Octree
       Enabled: true
       Min. Depth: 0
@@ -219,7 +220,7 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz/PointCloud2
       Color: 255; 255; 255
-      Color Transformer: AxisColor
+      Color Transformer: Intensity
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
@@ -235,6 +236,36 @@ Visualization Manager:
       Size (m): 0.009999999776482582
       Style: Points
       Topic: /sim/mbes_pings
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: -35.840858459472656
+        Min Value: -49.315792083740234
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 100
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /submaps
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -267,25 +298,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 657.232421875
+      Distance: 568.2560424804688
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 57.43852615356445
-        Y: -36.145381927490234
-        Z: -315.3113708496094
+        X: 0
+        Y: 0
+        Z: 0
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5397963523864746
-      Target Frame: odom
+      Pitch: 1.2553989887237549
+      Target Frame: hugin/mbes_link
       Value: Orbit (rviz)
-      Yaw: 2.4153943061828613
+      Yaw: 5.090425968170166
     Saved: ~
 Window Geometry:
   Displays:

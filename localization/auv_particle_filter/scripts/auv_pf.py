@@ -190,6 +190,7 @@ class auv_pf():
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+        weights = []
 
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
@@ -197,10 +198,37 @@ class auv_pf():
 
             try: # Sometimes there is no result for mbes_sim_ranges
                 mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
-                print(particle.index, mse)
+                #print(particle.index, mse)
             except: # What should we do for reweighting particles without an mbes result???
                 print('Caught exception in auv_pf.measurement() function')
                 mse = None
+            
+            # Temporary weight calculation
+            ### Replace with something legit
+            if mse == None:
+                particle.weight = 0
+            else:
+                particle.weight = mse
+            weights.append(particle.weight)
+        
+        weights_ = np.asarray(weights)
+        self.resample(weights_)
+
+    def resample(self, weights):
+        # Define cumulative density function
+        cdf = np.cumsum(weights)
+        cdf /= cdf[cdf.size-1]
+        # Multinomial resampling
+        r = np.random.rand(self.pc,1)
+        indices = []
+        for i in range(self.pc):
+            indices.append(np.argmax(cdf >= r[i]))
+        indices.sort()
+        print(indices)
+
+        """"
+        Now reassign particles based on the sampled indices
+        """
 
 
 

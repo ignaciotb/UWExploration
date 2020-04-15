@@ -25,7 +25,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 # Define
-meas_freq = 5 # [Hz] to run mbes_sim
+meas_freq = .1 # [Hz] to run mbes_sim
 
 
 class Particle():
@@ -210,11 +210,15 @@ class auv_pf():
             else:
                 particle.weight = mse
             weights.append(particle.weight)
-        
+
         weights_ = np.asarray(weights)
         self.resample(weights_)
 
+
     def resample(self, weights):
+        if np.sum(weights) == 0: # Catches situation where all weights go to zero
+            weights = np.ones(weights.size) # Assign all an equal weight
+
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
@@ -224,10 +228,25 @@ class auv_pf():
         for i in range(self.pc):
             indices.append(np.argmax(cdf >= r[i]))
         indices.sort()
-        print(indices)
+
+        keep = list(set(indices))
+        lost = [i for i in range(self.pc) if i not in keep]
+        dupes = indices[:]
+        for i in keep:
+            dupes.remove(i)
+
+        print('resampling    ', indices)
+        print('keep set      ', keep)
+        print('lost particles', lost)
+        print('duplicates    ', dupes)
+        
+        for i in range(len(lost)): # Perform resampling
+            self.particles[lost[i]].pose = self.particles[dupes[i]].pose
+            # pass
 
         """"
-        Now reassign particles based on the sampled indices
+        Resampling causes strange behaviour in the prediction update step
+        The particles develop a crazy fast linear/angular velocity behaviour
         """
 
 
@@ -300,7 +319,7 @@ def main():
     # Create particle filter class
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
-
+    rospy.sleep(20)
     meas_rate = rospy.Rate(meas_freq) # Hz
     while not rospy.is_shutdown():
         pf.measurement()

@@ -10,6 +10,7 @@ import tf
 import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
+import scipy.stats # For weights
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
@@ -66,6 +67,46 @@ class Particle():
         self.transform.transform.rotation = self.pose.orientation
         self.transform.header.stamp = rospy.Time.now()
         broadcaster.sendTransform(self.transform)
+
+
+        # Update particles weight
+        # p_pose = [self.pose.position.x, self.pose.position.y, self.pose.orientation]
+        # true_pose = 
+        # -----------------------------
+        for j, landmark in enumerate(landmarks):
+            
+            distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
+            self.weight *= scipy.stats.norm(distance, sensor_std).pdf(observation[j])
+    
+            self.weight += 1.e-300 # avoid round-off to zero
+            self.weight /= np.sum(self.weight) # normalize
+            self.weight = np.log(self.weight)
+    
+# def update(particles, weights, observation, sensor_std, landmarks):
+#     '''
+#     Update particle weights
+    
+#     PARAMETERS
+#      - particles:    Locations and headings of all particles
+#      - weights:      Weights of all particles
+#      - observation:  Observation of distances between robot and all landmarks
+#      - sensor_std:   Standard deviation for error in sensor for observation
+#      - landmarks:    Locations of all landmarks
+    
+#     DESCRIPTION
+#     Set all weights to 1. For each landmark, calculate the distance between 
+#     the particles and that landmark. Then, for a normal distribution with mean 
+#     = distance and std = sensor_std, calculate the pdf for a measurement of observation. 
+#     Multiply weight by pdf. If observation is close to distance, then the 
+#     particle is similar to the true state of the model so the pdf is close 
+#     to one so the weight stays near one. If observation is far from distance,
+#     then the particle is not similar to the true state of the model so the 
+#     pdf is close to zero so the weight becomes very small.   
+    
+#     The distance variable depends on the particles while the z parameter depends 
+#     on the robot.
+#     '''
+#     weights.fill(1.)
 
 
 class auv_pf():
@@ -136,21 +177,8 @@ class auv_pf():
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
-            # self.weights_() # Instead of predict, doing predict within weights, or as we have it, do weights_ after predict, and prod(self.particles)
             self.pub_()
         self.old_time = self.time
-
-
-    # def weights_(self):
-        # for loop over all particles, or everything at ones?  
-        # w = eta * np.prod( p(measurement | new_position, map_of_particles )) --- eta is a constant normalizing factor
-        # -----------------------------
-        # w = np.prod( self.particles.weight)
-        # # p = p / np.sum(p) # Normalizing (eta)
-        # print(" weights " + str(w))
-        # w = np.log(w) 
-        # self.particles.weight = w
-
 
 
 

@@ -192,13 +192,13 @@ class auv_pf():
         # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
         vel_vec = [xv, yv, yaw_v]
-        # True pose to use for the weights
-        quat = (self.pred_odom.pose.pose.orientation.x,
-                self.pred_odom.pose.pose.orientation.y,
-                self.pred_odom.pose.pose.orientation.z,
-                self.pred_odom.pose.pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
-        true_pose = [self.pred_odom.pose.pose.position.x, self.pred_odom.pose.pose.position.y, yaw]
+        # # True pose to use for the weights
+        # quat = (self.pred_odom.pose.pose.orientation.x,
+        #         self.pred_odom.pose.pose.orientation.y,
+        #         self.pred_odom.pose.pose.orientation.z,
+        #         self.pred_odom.pose.pose.orientation.w)
+        # _, _, yaw = euler_from_quaternion(quat)
+        # true_pose = [self.pred_odom.pose.pose.position.x, self.pred_odom.pose.pose.position.y, yaw]
         
         # Update particles pose estimate
         for i in range(len(self.particles)):

@@ -51,7 +51,7 @@ class Particle():
         static_broadcaster.sendTransform(self.mbes_trans)
 
 
-    def update(self, vel_vec, noise_vec, dt, broadcaster):
+    def update(self, vel_vec, noise_vec, dt, broadcaster, true_pose):
         quat = (self.pose.orientation.x,
                 self.pose.orientation.y,
                 self.pose.orientation.z,
@@ -70,17 +70,17 @@ class Particle():
 
 
         # Update particles weight
-        # p_pose = [self.pose.position.x, self.pose.position.y, self.pose.orientation]
-        # true_pose = 
+        # p_pose = [self.pose.position.x, self.pose.position.y, yaw]
         # -----------------------------
-        for j, landmark in enumerate(landmarks):
-            
-            distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
-            self.weight *= scipy.stats.norm(distance, sensor_std).pdf(observation[j])
-    
-            self.weight += 1.e-300 # avoid round-off to zero
-            self.weight /= np.sum(self.weight) # normalize
-            self.weight = np.log(self.weight)
+        # for j, tp in enumerate(true_pose):
+        print(true_pose)
+        # distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
+        distance = np.linalg.norm(p_pose - true_pose, axis=1)
+        self.weight *= scipy.stats.norm(distance, sensor_std).pdf(observation[j])
+
+        self.weight += 1.e-300 # avoid round-off to zero
+        self.weight /= np.sum(self.weight) # normalize
+        self.weight = np.log(self.weight)
     
 # def update(particles, weights, observation, sensor_std, landmarks):
 #     '''
@@ -192,11 +192,18 @@ class auv_pf():
         # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
         vel_vec = [xv, yv, yaw_v]
+        # True pose to use for the weights
+        quat = (self.pred_odom.pose.pose.orientation.x,
+                self.pred_odom.pose.pose.orientation.y,
+                self.pred_odom.pose.pose.orientation.z,
+                self.pred_odom.pose.pose.orientation.w)
+        _, _, yaw = euler_from_quaternion(quat)
+        true_pose = [self.pred_odom.pose.pose.position.x, self.pred_odom.pose.pose.position.y, yaw]
         
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]
-            particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster)
+            particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster, true_pose)
 
 
     def pub_(self):

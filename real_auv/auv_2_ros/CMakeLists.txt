@@ -17,6 +17,7 @@ find_package(catkin REQUIRED COMPONENTS
   genmsg
   actionlib_msgs
   geometry_msgs
+  std_msgs
 )
 
 find_package(Ceres REQUIRED)

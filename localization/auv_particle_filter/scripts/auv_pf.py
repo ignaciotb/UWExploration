@@ -10,6 +10,7 @@ import tf
 import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
+from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
@@ -22,10 +23,10 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
+import sensor_msgs.point_cloud2 as pc2
 
 # Define
-meas_freq = 5 # [Hz] to run mbes_sim
-pcloud_pub_index = 2 # Which particle's mbes pointcloud to publish
+meas_freq = 1 # [Hz] to run mbes_sim
 
 
 class Particle():
@@ -50,6 +51,13 @@ class Particle():
                 self.pose.orientation.z,
                 self.pose.orientation.w)
         _, _, yaw = euler_from_quaternion(quat)
+
+        """
+        NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
+        ACTUALLY UP/DOWN ARROWS CHANGE PITCH...
+        SOMEHOW PARTICLE POSE (AND MBES READING) NEEDS TO
+        CHANGE FROM UP/DOWN ARROW MOVEMENTS IN SIM (I THINK)
+        """
 
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
@@ -182,8 +190,69 @@ class auv_pf():
 
 
     def measurement(self):
+        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+        weights = []
+
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
+            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
+
+            try: # Sometimes there is no result for mbes_sim_ranges
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
+                #print(particle.index, mse)
+            except: # What should we do for reweighting particles without an mbes result???
+                print('Caught exception in auv_pf.measurement() function')
+                mse = None
+            
+            """
+            Temporary weight calculation
+            Replace with something legit
+            """
+            if mse == None:
+                particle.weight = 0
+            else:
+                particle.weight = math.exp(mse**2)
+            weights.append(particle.weight)
+
+        weights_ = np.asarray(weights)
+        self.resample(weights_)
+
+
+    def resample(self, weights):
+        
+        if np.sum(weights) == 0: # Catches situation where all weights go to zero
+            weights = np.ones(weights.size)
+
+        # Define cumulative density function
+        cdf = np.cumsum(weights)
+        cdf /= cdf[cdf.size-1]
+        # Multinomial resampling
+        r = np.random.rand(self.pc,1)
+        indices = []
+        for i in range(self.pc):
+            indices.append(np.argmax(cdf >= r[i]))
+        indices.sort()
+
+        keep = list(set(indices)) # set of particles resampled (independent of count)
+        lost = [i for i in range(self.pc) if i not in keep] # particle poses to forget
+        dupes = indices[:] # particle poses to replace the forgotten
+        for i in keep:
+            dupes.remove(i)
+        
+        for i in range(len(lost)): # Perform resampling
+            self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
+
+
+    def pcloud2ranges(self, point_cloud, particle_):
+        ranges = []
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            # starts at left hand side of particle's mbes
+            dx = particle_.pose.position.x - p[0]
+            dy = particle_.pose.position.y - p[1]
+            dz = particle_.pose.position.z - p[2]
+            dist = math.sqrt((dx**2 + dy**2 + dz**2))
+            ranges.append(dist)
+        return np.asarray(ranges)
 
 
     def pf2mbes(self, particle_):
@@ -219,9 +288,9 @@ class auv_pf():
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
-        rospy.loginfo("Waiting for MbesSim action Result")
+        # rospy.loginfo("Waiting for MbesSim action Result")
         self.ac_mbes.wait_for_result()
-        rospy.loginfo("Got MbesSim action Result")
+        # rospy.loginfo("Got MbesSim action Result")
         mbes_res = self.ac_mbes.get_result()
 
         # Pack result into PointCloud2

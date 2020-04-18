@@ -10,6 +10,7 @@ import tf
 import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
+from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
@@ -25,7 +26,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 # Define
-meas_freq = .1 # [Hz] to run mbes_sim
+meas_freq = 1 # [Hz] to run mbes_sim
 
 
 class Particle():
@@ -55,7 +56,7 @@ class Particle():
         NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
         ACTUALLY UP/DOWN ARROWS CHANGE PITCH...
         SOMEHOW PARTICLE POSE (AND MBES READING) NEEDS TO
-        CHANGE FROM UP/DOWN ARROW MOVEMENTS (IN SIM)
+        CHANGE FROM UP/DOWN ARROW MOVEMENTS IN SIM (I THINK)
         """
 
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
@@ -203,12 +204,14 @@ class auv_pf():
                 print('Caught exception in auv_pf.measurement() function')
                 mse = None
             
-            # Temporary weight calculation
-            ### Replace with something legit
+            """
+            Temporary weight calculation
+            Replace with something legit
+            """
             if mse == None:
                 particle.weight = 0
             else:
-                particle.weight = mse
+                particle.weight = math.exp(mse**2)
             weights.append(particle.weight)
 
         weights_ = np.asarray(weights)
@@ -216,8 +219,9 @@ class auv_pf():
 
 
     def resample(self, weights):
+        
         if np.sum(weights) == 0: # Catches situation where all weights go to zero
-            weights = np.ones(weights.size) # Assign all an equal weight
+            weights = np.ones(weights.size)
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
@@ -229,26 +233,14 @@ class auv_pf():
             indices.append(np.argmax(cdf >= r[i]))
         indices.sort()
 
-        keep = list(set(indices))
-        lost = [i for i in range(self.pc) if i not in keep]
-        dupes = indices[:]
+        keep = list(set(indices)) # set of particles resampled (independent of count)
+        lost = [i for i in range(self.pc) if i not in keep] # particle poses to forget
+        dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
-
-        print('resampling    ', indices)
-        print('keep set      ', keep)
-        print('lost particles', lost)
-        print('duplicates    ', dupes)
         
         for i in range(len(lost)): # Perform resampling
-            self.particles[lost[i]].pose = self.particles[dupes[i]].pose
-            # pass
-
-        """"
-        Resampling causes strange behaviour in the prediction update step
-        The particles develop a crazy fast linear/angular velocity behaviour
-        """
-
+            self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
 
 
     def pcloud2ranges(self, point_cloud, particle_):
@@ -319,7 +311,7 @@ def main():
     # Create particle filter class
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
-    rospy.sleep(20)
+
     meas_rate = rospy.Rate(meas_freq) # Hz
     while not rospy.is_shutdown():
         pf.measurement()

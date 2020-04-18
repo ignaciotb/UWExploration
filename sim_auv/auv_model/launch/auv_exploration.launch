@@ -5,7 +5,7 @@
     <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-    <arg name="simulation_freq" default="0.01"/>
+    <arg name="simulation_freq" default="0.1"/>
 	<arg name="mbes_sim_threads" default="4"/>
     <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
@@ -53,9 +53,9 @@
 	<group ns="$(arg namespace)">
 
 		  <!-- Particle filter -->
-<!-- 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
+		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
-		</include> -->
+		</include>
 	
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
@@ -80,7 +80,7 @@
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="200" />
+			<param name="num_beams_sim" value="50" />
 			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 

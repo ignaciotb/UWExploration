@@ -26,7 +26,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 # Define
-meas_freq = 1 # [Hz] to run mbes_sim
+meas_freq = 3 # [Hz] to run mbes_sim
 
 
 class Particle():
@@ -191,6 +191,10 @@ class auv_pf():
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+        """
+        Should pred_odom pose not be ussed b/c we won't actually know it ???
+        Maybe we should tyake average of partricles here?
+        """
         weights = []
 
         for particle in self.particles:
@@ -198,8 +202,19 @@ class auv_pf():
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
 
             try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
-                #print(particle.index, mse)
+                #mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
+                error_of_mean = mbes_meas_ranges.mean() - mbes_sim_ranges.mean()
+                """
+                error_of_mean gives a warning when it fails in try loop
+                    - RuntimeWarning: invalid value encountered in double_scalars
+                Find a better way to catch if no result was returned
+                """
+                mse = 1 - error_of_mean # Temporary to not change names later
+                """
+                Try take mean length of beams here and compare to mean length
+                of true mbes beams
+                """
+                # print(particle.index, mse)
             except: # What should we do for reweighting particles without an mbes result???
                 print('Caught exception in auv_pf.measurement() function')
                 mse = None
@@ -209,19 +224,23 @@ class auv_pf():
             Replace with something legit
             """
             if mse == None:
-                particle.weight = 0
+                particle.weight = 1.e-300 # avoid round-off to zero
             else:
-                particle.weight = math.exp(mse**2)
+                particle.weight = math.log(mse**2)
             weights.append(particle.weight)
 
         weights_ = np.asarray(weights)
         self.resample(weights_)
 
+        """
+        Calc mean pose of particles and display on RVIZ to compare to true pose
+        """
 
     def resample(self, weights):
         
-        if np.sum(weights) == 0: # Catches situation where all weights go to zero
-            weights = np.ones(weights.size)
+        # if np.sum(weights) == 0: # Catches situation where all weights go to zero
+        #     weights = np.ones(weights.size)
+        # Above catch no longer necessary
 
         # Define cumulative density function
         cdf = np.cumsum(weights)

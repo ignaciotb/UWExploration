@@ -20,7 +20,6 @@
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
-
 #include <tf2_ros/static_transform_broadcaster.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -29,6 +28,7 @@
 #include <geometry_msgs/TransformStamped.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
+#include <std_msgs/Bool.h>
 
 #include <actionlib/client/simple_action_client.h>
 #include <auv_2_ros/MbesSimAction.h>
@@ -59,6 +59,7 @@ private:
     ros::Publisher sim_ping_pub_;
     ros::Publisher test_pub_;
     ros::Publisher odom_pub_;
+    ros::Publisher enable_pub_;
 
     actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
 
@@ -83,6 +84,7 @@ private:
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
+    bool survey_finished_;
     int ping_cnt_;
     int ping_total_;
 

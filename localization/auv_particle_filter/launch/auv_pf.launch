@@ -4,17 +4,19 @@
   <arg name="mode" default="sim"/>
   
   <!-- Define args -->
-  <arg name="particle_count"                    default="5"/>
-  <arg name="motion_covariance"                 default="[0.0, 0.0, 0.001]"/> <!-- [x, y, yaw] -->
+  <arg name="particle_count"                    default="50"/>
+  <arg name="motion_covariance"                 default="[0.001, 0.001, 0.0007]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
+  <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
   <arg name="particle_poses_topic"              default="/particle_filter_topic"/>
 
   <!-- <arg name="true_mbes_topic"                   default="/gt/mbes_pings"/>
   <arg name="simulated_mbes_topic"              default="/sim/mbes"/> -->
 
-  <!-- Launch RVIZ for project -->
-  <!-- <node pkg="rviz" type="rviz" name="$(anon rviz)" args="-d /home/stine/catkin_ws/src/auv_exploration/real_auv/bathy_mapper/rviz/bathy_map.rviz"/> -->
+
+  <!-- Include rviz -->
+  <node type="rviz" name="rviz" pkg="rviz" args="-d $(find bathy_mapper)/rviz/bathy_map.rviz" output="screen" />
 
   <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
     
@@ -22,6 +24,7 @@
     <param name="motion_covariance"                       value="$(arg motion_covariance)" />
     <param name="map_frame"                               value="$(arg map_frame)" />
     <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+    <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
     <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
 
     <!-- <param name="true_mbes_topic"                         value="$(arg true_mbes_topic)" />

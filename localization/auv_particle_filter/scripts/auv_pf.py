@@ -65,46 +65,6 @@ class Particle():
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 
 
-        # Update particles weight
-        # p_pose = [self.pose.position.x, self.pose.position.y, yaw]
-        # -----------------------------
-        # for j, tp in enumerate(true_pose):
-        print(true_pose)
-        # distance = np.linalg.norm(particles[:, 0:2] - landmark, axis=1)
-        distance = np.linalg.norm(p_pose - true_pose, axis=1)
-        self.weight *= scipy.stats.norm(distance, sensor_std).pdf(observation[j])
-
-        self.weight += 1.e-300 # avoid round-off to zero
-        self.weight /= np.sum(self.weight) # normalize
-        self.weight = np.log(self.weight)
-    
-# def update(particles, weights, observation, sensor_std, landmarks):
-#     '''
-#     Update particle weights
-    
-#     PARAMETERS
-#      - particles:    Locations and headings of all particles
-#      - weights:      Weights of all particles
-#      - observation:  Observation of distances between robot and all landmarks
-#      - sensor_std:   Standard deviation for error in sensor for observation
-#      - landmarks:    Locations of all landmarks
-    
-#     DESCRIPTION
-#     Set all weights to 1. For each landmark, calculate the distance between 
-#     the particles and that landmark. Then, for a normal distribution with mean 
-#     = distance and std = sensor_std, calculate the pdf for a measurement of observation. 
-#     Multiply weight by pdf. If observation is close to distance, then the 
-#     particle is similar to the true state of the model so the pdf is close 
-#     to one so the weight stays near one. If observation is far from distance,
-#     then the particle is not similar to the true state of the model so the 
-#     pdf is close to zero so the weight becomes very small.   
-    
-#     The distance variable depends on the particles while the z parameter depends 
-#     on the robot.
-#     '''
-#     weights.fill(1.)
-
-
 class auv_pf():
     def __init__(self):
         # Read nnecessary ROS parameters
@@ -204,14 +164,7 @@ class auv_pf():
         # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
         vel_vec = [xv, yv, yaw_v]
-        # # True pose to use for the weights
-        # quat = (self.pred_odom.pose.pose.orientation.x,
-        #         self.pred_odom.pose.pose.orientation.y,
-        #         self.pred_odom.pose.pose.orientation.z,
-        #         self.pred_odom.pose.pose.orientation.w)
-        # _, _, yaw = euler_from_quaternion(quat)
-        # true_pose = [self.pred_odom.pose.pose.position.x, self.pred_odom.pose.pose.position.y, yaw]
-        
+
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]

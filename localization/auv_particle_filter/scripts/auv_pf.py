@@ -10,11 +10,8 @@ import tf
 import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
-<<<<<<< HEAD
 import scipy.stats # For weights
-=======
 from copy import deepcopy
->>>>>>> kyle/master
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion, TransformStamped
@@ -48,12 +45,7 @@ class Particle():
         # Initialize sim_mbes pointcloud publisher
         self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
 
-
-<<<<<<< HEAD
-    def update(self, vel_vec, noise_vec, dt, broadcaster, true_pose):
-=======
     def update(self, vel_vec, noise_vec, dt):
->>>>>>> kyle/master
         quat = (self.pose.orientation.x,
                 self.pose.orientation.y,
                 self.pose.orientation.z,
@@ -223,11 +215,7 @@ class auv_pf():
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]
-<<<<<<< HEAD
-            particle.update(vel_vec, pred_noice[i,:], dt, self.broadcaster, true_pose)
-=======
             particle.update(vel_vec, pred_noice[i,:], dt)
->>>>>>> kyle/master
 
 
     def pub_(self):

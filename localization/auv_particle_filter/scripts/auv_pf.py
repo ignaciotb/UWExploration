@@ -197,23 +197,21 @@ class auv_pf():
         """
         weights = []
 
+        std = 0.01
+        """
+        No idea what value to use here...
+        Should this be a constant or calced
+        based on beams / particle poses / etc. ???
+        e.g. std = math.sqrt((1/N)*sum((x_i - mu)**2))
+        """
+        C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
+
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
 
             try: # Sometimes there is no result for mbes_sim_ranges
-                #mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
-                error_of_mean = mbes_meas_ranges.mean() - mbes_sim_ranges.mean()
-                """
-                error_of_mean gives a warning when it fails in try loop
-                    - RuntimeWarning: invalid value encountered in double_scalars
-                Find a better way to catch if no result was returned
-                """
-                mse = 1 - error_of_mean # Temporary to not change names later
-                """
-                Try take mean length of beams here and compare to mean length
-                of true mbes beams
-                """
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
                 # print(particle.index, mse)
             except: # What should we do for reweighting particles without an mbes result???
                 print('Caught exception in auv_pf.measurement() function')
@@ -223,10 +221,17 @@ class auv_pf():
             Temporary weight calculation
             Replace with something legit
             """
+            
             if mse == None:
-                particle.weight = 1.e-300 # avoid round-off to zero
+                particle.weight = 0
             else:
-                particle.weight = math.log(mse**2)
+                """
+                log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
+                C = #son * log(sqrt(2*pi*std**2))
+                """
+                particle.weight = math.exp(C - mse/(2*std**2))
+            
+            particle.weight += 1.e-300 # avoid round-off to zero
             weights.append(particle.weight)
 
         weights_ = np.asarray(weights)
@@ -257,10 +262,15 @@ class auv_pf():
         dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
-        
-        for i in range(len(lost)): # Perform resampling
-            self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
-
+            
+        if len(lost) > self.pc/2: # Threshold to perform resampling
+            for i in range(len(lost)): # Perform resampling
+                self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
+                """
+                Consider adding noise to resampled particle
+                """
+        else:
+            print('Too many particles kept - not resampling')
 
     def pcloud2ranges(self, point_cloud, particle_):
         ranges = []

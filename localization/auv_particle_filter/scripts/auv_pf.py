@@ -26,7 +26,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 # Define
-meas_freq = 3 # [Hz] to run mbes_sim
+meas_freq = 1 # [Hz] to run mbes_sim
 
 
 class Particle():
@@ -97,6 +97,8 @@ class auv_pf():
 
         # Initialize particle poses publisher
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
+        # Initialize average of poses publisher
+        self.avg_pub = rospy.Publisher('/avg_pf_pose', PoseWithCovarianceStamped, queue_size=10)
 
         # Initialize tf listener (and broadcaster)
         self.tfBuffer = tf2_ros.Buffer()
@@ -205,13 +207,14 @@ class auv_pf():
         e.g. std = math.sqrt((1/N)*sum((x_i - mu)**2))
         """
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
+        print('C= ',C)
 
         for particle in self.particles:
             mbes_pcloud = self.pf2mbes(particle)
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
 
             try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean() 
                 # print(particle.index, mse)
             except: # What should we do for reweighting particles without an mbes result???
                 print('Caught exception in auv_pf.measurement() function')
@@ -229,27 +232,40 @@ class auv_pf():
                 log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
                 C = #son * log(sqrt(2*pi*std**2))
                 """
-                particle.weight = math.exp(C - mse/(2*std**2))
+                # particle.weight = math.exp(C - mse/(2*std**2))
+                print(mse/(2*std**2))
+                log_w = C - mse/(2*std**2)
+                """
+                With 10 particles,
+                log_w should ~ -1.0 -> w ~ 0.1
+                BUT, log_w ~ -300
+                """
+                particle.weight = -1.0/(C - mse/(2*std**2))
+                """
+                The -1.0 / log(weight) is a bit weird
+                Find a better way to use the log(w) that come out negative
+                """
             
             particle.weight += 1.e-300 # avoid round-off to zero
             weights.append(particle.weight)
-
+        
+        weights = weights / sum(weights)
         weights_ = np.asarray(weights)
         self.resample(weights_)
+        # self.average_pf_pose()
 
-        """
-        Calc mean pose of particles and display on RVIZ to compare to true pose
-        """
 
     def resample(self, weights):
         
         # if np.sum(weights) == 0: # Catches situation where all weights go to zero
         #     weights = np.ones(weights.size)
         # Above catch no longer necessary
+        print('log of weights: ',weights)
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
-        cdf /= cdf[cdf.size-1]
+        # cdf /= cdf[cdf.size-1]
+        print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []
@@ -262,7 +278,7 @@ class auv_pf():
         dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
-            
+
         if len(lost) > self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
                 self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
@@ -282,6 +298,44 @@ class auv_pf():
             dist = math.sqrt((dx**2 + dy**2 + dz**2))
             ranges.append(dist)
         return np.asarray(ranges)
+
+
+    def average_pf_pose(self):
+        x_ = []
+        y_ = []
+        z_ = []
+        roll_ = []
+        pitch_ = []
+        yaw_ = []
+        for particle in self.particles:
+            pose = deepcopy(particle.pose)
+            x_.append(pose.position.x)
+            y_.append(pose.position.y)
+            z_.append(pose.position.z)
+
+            quat = (pose.orientation.x,
+                    pose.orientation.y,
+                    pose.orientation.z,
+                    pose.orientation.w)
+            roll, pitch, yaw = euler_from_quaternion(quat)
+            roll_.append(roll)
+            pitch_.append(pitch)
+            yaw_.append(yaw)
+            
+        pf_pose = PoseWithCovarianceStamped()
+        pf_pose.header.frame_id = self.map_frame
+        pf_pose.header.stamp = rospy.Time.now()
+
+        pf_pose.pose.pose.position.x = sum(x_) / len(x_)
+        pf_pose.pose.pose.position.y = sum(y_) / len(y_)
+        pf_pose.pose.pose.position.z = sum(z_) / len(z_)
+
+        roll  = sum(roll_) / len(roll_)
+        pitch = sum(pitch_) / len(pitch_)
+        yaw   = sum(yaw_) / len(yaw_)
+        
+        pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+        self.avg_pub.publish(pf_pose)
 
 
     def pf2mbes(self, particle_):

@@ -4,7 +4,7 @@
   <arg name="mode" default="sim"/>
   
   <!-- Define args -->
-  <arg name="particle_count"                    default="50"/>
+  <arg name="particle_count"                    default="10"/>
   <arg name="motion_covariance"                 default="[0.001, 0.001, 0.0007]"/> <!-- [x, y, yaw] -->
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>

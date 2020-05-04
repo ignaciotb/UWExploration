@@ -73,9 +73,7 @@ BathyMapper::~BathyMapper(){
 
 void BathyMapper::init(const boost::filesystem::path map_path){
 
-    q_180_ = Eigen::AngleAxisf(3.1415, Eigen::Vector3f::UnitX())
-             * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
-             * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitZ());
+    q_180_ = Eigen::AngleAxisd(3.1415, Eigen::Vector3d::UnitX());
 
     iter_ = 0;
     time_avg_ = 0;
@@ -91,21 +89,19 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
     // set the sensor origin and sensor orientation
     Eigen::Isometry3d sensor_tf;
     tf::transformMsgToEigen(mbes_goal->mbes_pose.transform, sensor_tf);
-    sensor_origin_ = ufomap::Point3(sensor_tf.cast<float>().translation().x(),
-                                    sensor_tf.cast<float>().translation().y(),
-                                    sensor_tf.cast<float>().translation().z());
-    sensor_orientation_ = Eigen::Quaternionf(sensor_tf.linear().cast<float>()) /** q_180_*/;
+    sensor_origin_ = ufomap::Point3(sensor_tf.translation().x(),
+                                    sensor_tf.translation().y(),
+                                    sensor_tf.translation().z());
+    sensor_orientation_ = sensor_tf.linear();
 
     beam_directions_.reserve(n_beams_);
     float roll_step = spam_/n_beams_;
-    Eigen::Quaternionf q;
-    Eigen::Matrix3f rot_beam;
+    Eigen::Quaterniond q;
+    Eigen::Matrix3d rot_beam;
     for(int i = -n_beams_/2; i<=n_beams_/2; i++){
-        q = Eigen::AngleAxisf(roll_step*i, Eigen::Vector3f::UnitX())
-            * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitY())
-            * Eigen::AngleAxisf(0.0, Eigen::Vector3f::UnitZ());
-        rot_beam = (Eigen::Quaternionf(sensor_orientation_ * q)).toRotationMatrix();
-        beam_directions_.emplace_back(rot_beam.col(2).x(),rot_beam.col(2).y(),rot_beam.col(2).z()).normalize();
+        q = Eigen::AngleAxisd(roll_step*i, Eigen::Vector3d::UnitX());
+        rot_beam = (sensor_orientation_ * q).normalized().toRotationMatrix();
+        beam_directions_.emplace_back(rot_beam.col(2).x(),rot_beam.col(2).y(),rot_beam.col(2).z());
     }
 
     /// Ray trace each beam against the ufomap

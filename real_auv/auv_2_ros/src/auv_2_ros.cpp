@@ -4,7 +4,7 @@
 BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top;
+    std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top, enable_top;
     nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
     nh_->param<std::string>("debug_pings", debug_pings_top, "/debug_pings");
@@ -15,11 +15,13 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("base_link", base_frame_, "base_link");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
     nh_->param<std::string>("mini_link", mini_frame_, "mini_link");
+    nh_->param<std::string>("survey_finished_top", enable_top, "enable");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
+    enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 10);
 
 //    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>("mbes_meas_node", true);
 
@@ -115,6 +117,8 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         ros::Duration(1.0).sleep();
     }
 
+    survey_finished_ = false;
+
 //    while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
 //        ROS_INFO_NAMED(node_name_, "Waiting for action server");
 //    }
@@ -186,10 +190,19 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    this->publishMeas(ping_cnt_);
+    if(ping_cnt_ == 10 && !survey_finished_){
+        std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
+        addMiniCar(mini_name);
+    }
 
-    if(ping_cnt_ < ping_total_-1){
+    if(ping_cnt_ < ping_total_-1 && !survey_finished_){
+        this->publishMeas(ping_cnt_);
         ping_cnt_ += 1;
+    }
+    if(ping_cnt_ == ping_total_-1 && !survey_finished_){
+        ROS_INFO_STREAM("Survey finished");
+        survey_finished_ = true;
+        enable_pub_.publish(survey_finished_);
     }
 }
 

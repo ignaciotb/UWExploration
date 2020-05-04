@@ -14,6 +14,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
     nh_->param<std::string>("base_link", base_frame_, "base_link");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
+    nh_->param<std::string>("mini_link", mini_frame_, "mini_link");
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
@@ -57,9 +58,28 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.z = quatw2m.z();
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
+    // Store map --> mini tf
+    mini_tf_.translation() = Eigen::Vector3d(100,0,-15);
+    Eigen::Quaterniond rot;
+    rot.setIdentity();
+    mini_tf_.linear() = rot.toRotationMatrix();
+
+    map_mini_tfmsg_.header.frame_id = map_frame_;
+    map_mini_tfmsg_.child_frame_id = mini_frame_;
+    map_mini_tfmsg_.transform.translation.x = mini_tf_.translation()[0];
+    map_mini_tfmsg_.transform.translation.y = mini_tf_.translation()[1];
+    map_mini_tfmsg_.transform.translation.z = mini_tf_.translation()[2];
+    euler = mini_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    tf::Quaternion quatm2m;
+    quatm2m.setRPY(euler[0], euler[1], euler[2]);
+    quatm2m.normalize();
+    map_mini_tfmsg_.transform.rotation.x = quatm2m.x();
+    map_mini_tfmsg_.transform.rotation.y = quatm2m.y();
+    map_mini_tfmsg_.transform.rotation.z = quatm2m.z();
+    map_mini_tfmsg_.transform.rotation.w = quatm2m.w();
+
     // Store map --> odom tf
     odom_tf_.translation() = Eigen::Vector3d(0,0,0);
-    Eigen::Quaterniond rot;
     rot.setIdentity();
     odom_tf_.linear() = rot.toRotationMatrix();
 
@@ -102,6 +122,32 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     ROS_INFO("Initialized auv_2_ros");
 }
 
+void BathymapConstructor::addMiniCar(std::string & mini_name){
+
+    PointCloudT::Ptr cloud_in (new PointCloudT);  // Original point cloud
+    mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
+    if (pcl::io::loadOBJFile(mini_name, *cloud_in) < 0){
+        PCL_ERROR ("Error loading cloud \n");
+    }
+    std::cout << "\nLoaded file " << mini_name << " (" << cloud_in->size () << " points)" << std::endl;
+
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(*cloud_in, centroid);
+    for(PointT& point_i: cloud_in->points){
+        point_i.getArray4fMap() = point_i.getArray4fMap() - centroid.array();
+    }
+
+    sensor_msgs::PointCloud2 mbes_i;
+    tf::Transform tf_map_mini;
+    tf::transformMsgToTF(map_mini_tfmsg_.transform, tf_map_mini);
+
+    pcl_ros::transformPointCloud(*cloud_in, *cloud_in, tf_map_mini);
+    pcl::toROSMsg(*cloud_in.get(), mbes_i);
+    mbes_i.header.frame_id = mini_frame_;
+    mbes_i.header.stamp = ros::Time::now();
+    ping_pub_.publish(mbes_i);
+}
+
 void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     time_now_ = ros::Time::now();
@@ -113,6 +159,10 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     // BR map-->odom frames
     map_odom_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(map_odom_tfmsg_);
+
+    // BR map-->mini frames
+    map_mini_tfmsg_.header.stamp = time_now_;
+    static_broadcaster_.sendTransform(map_mini_tfmsg_);
 
     // BR odom-->base frames
     new_base_link_.header.frame_id = odom_frame_;

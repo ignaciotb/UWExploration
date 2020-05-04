@@ -61,7 +61,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> mini tf
-    mini_tf_.translation() = Eigen::Vector3d(100,0,-15);
+    mini_tf_.translation() = Eigen::Vector3d(1,0,-17);
     Eigen::Quaterniond rot;
     rot.setIdentity();
     mini_tf_.linear() = rot.toRotationMatrix();
@@ -145,7 +145,7 @@ void BathymapConstructor::addMiniCar(std::string & mini_name){
     tf::Transform tf_map_mini;
     tf::transformMsgToTF(map_mini_tfmsg_.transform, tf_map_mini);
 
-    pcl_ros::transformPointCloud(*cloud_in, *cloud_in, tf_map_mini);
+//    pcl_ros::transformPointCloud(*cloud_in, *cloud_in, tf_map_mini);
     pcl::toROSMsg(*cloud_in.get(), mbes_i);
     mbes_i.header.frame_id = mini_frame_;
     mbes_i.header.stamp = ros::Time::now();

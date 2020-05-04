@@ -2,12 +2,12 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-    <arg name="mode" default="sim"/>
+    <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-    <arg name="simulation_freq" default="0.01"/>
+    <arg name="simulation_freq" default="0.1"/>
 	<arg name="mbes_sim_threads" default="4"/>
-    <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
+    <arg name="map_name" default="lost_targets_2"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->

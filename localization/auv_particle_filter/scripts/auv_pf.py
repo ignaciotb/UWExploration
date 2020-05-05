@@ -11,6 +11,7 @@ import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
 import scipy.stats # For weights
+from scipy.special import logsumexp # For log weights
 from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
@@ -109,27 +110,27 @@ class auv_pf():
         rospy.loginfo("Connected MbesSim action server")
 
         # Establish subscription to mbes pings message
-        rospy.Subscriber(self.mbes_pings_top, PointCloud2, self.mbes_callback)
+        rospy.Subscriber(self.mbes_pings_top, PointCloud2, self._mbes_callback)
         # Establish subscription to odometry message | Last because this will start callback & prediction running
         rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
         rospy.sleep(0.5) # CAN ADD DURATION INSTEAD? 
-        
+
+
+    def _mbes_callback(self, msg):
+        self.mbes_true_pc = msg
 
     def odom_callback(self,msg):
         self.pred_odom = msg
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
-            self.posearray_pub()
+            self._posearray_pub()
         self.old_time = self.time
-
-    def mbes_callback(self, msg):
-        self.mbes_true_pc = msg
 
 
     def predict(self):
         # Adding gaussian noice
-        pred_noice =  self.process_noise()
+        pred_noice = self._process_noise()
         # Unpack odometry message
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
@@ -143,99 +144,63 @@ class auv_pf():
             particle.pred_update(vel_vec, pred_noice[idx,:], dt)
 
 
-    def posearray_pub(self):
-        self.pos_.poses = []
-        for particle in self.particles:
-            self.pos_.poses.append(particle.pose)
-        # Publish particles with time odometry was received
-        self.pos_.header.stamp.secs = int(self.time)
-        self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
-        self.pf_pub.publish(self.pos_)
-
-
-    def process_noise(self):
-        cov_ = np.zeros((3,3))
-        cov_[0,0] = self.predict_cov[0]
-        cov_[1,1] = self.predict_cov[1]
-        cov_[2,2] = self.predict_cov[2]
-        var = np.diagonal(cov_)
-        return np.sqrt(var)*np.random.randn(self.pc, 3)
-
-
     def measurement(self):
-        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
         """
         Should pred_odom pose not be ussed b/c we won't actually know it ???
-        Maybe we should tyake average of partricles here?
+        Maybe we should take average of partricles here?
         """
+        log_weights = []
         weights = []
 
-        std = 0.01 # Noise in the multibeam (tunable parameter)
-        # Add to launch file
-
+        std = 0.1 # Add to launch file | Noise in the multibeam (tunable parameter)
+        use_log_weights = True # Boolean
+        
+        """
+        If trying to use log weights instead of regular weights:
+            log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
+            C = #son * log(sqrt(2*pi*std**2))
+        """
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
-        print('C= ',C)
 
         for particle in self.particles:
             mbes_pcloud = particle.simulate_mbes(self.mbes_matrix, self.ac_mbes)
-
+            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
             self.pcloud_pub.publish(mbes_pcloud)
 
-            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
-
             try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean() 
-                # print(particle.index, mse)
-            except: # What should we do for reweighting particles without an mbes result???
-                print('Caught exception in auv_pf.measurement() function')
-                mse = None
-            
-            """
-            Temporary weight calculation
-            Replace with something legit
-            """
-            
-            if mse == None:
-                particle.weight = 0
-            else:
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
                 """
-                log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
-                C = #son * log(sqrt(2*pi*std**2))
+                Calculate regular weight AND log weight for now
                 """
-                # particle.weight = math.exp(C - mse/(2*std**2))
-                print(mse/(2*std**2))
+                weight = math.exp(-mse/(2*std**2))
                 log_w = C - mse/(2*std**2)
-                """
-                With 10 particles,
-                log_w should ~ -1.0 -> w ~ 0.1
-                BUT, log_w ~ -300
-                """
-                particle.weight = -1.0/(C - mse/(2*std**2))
-                """
-                The -1.0 / log(weight) is a bit weird
-                Find a better way to use the log(w) that come out negative
-                """
-            
-            particle.weight += 1.e-300 # avoid round-off to zero
-            weights.append(particle.weight)
+            except:
+                rospy.loginfo('Caught exception in auv_pf.measurement() function')
+                log_w = -1.e100 # A very large negative value
+                weight = 1.e-300 # avoid round-off to zero
+
+            weights.append(weight)
+            log_weights.append(log_w)
+
+        if use_log_weights:
+            norm_factor = logsumexp(log_weights)
+            weights_ = np.asarray(log_weights)
+            weights_ -= norm_factor
+            weights_ = np.exp(weights_)
+        else:
+            weights_ = np.asarray(weights)
         
-        # weights = weights / sum(weights)
-        weights_ = np.asarray(weights)
         self.resample(weights_)
-        # self.average_pf_pose()
+        self.average_pf_pose()
 
 
     def resample(self, weights):
-        
-        # if np.sum(weights) == 0: # Catches situation where all weights go to zero
-        #     weights = np.ones(weights.size)
-        # Above catch no longer necessary
-        print('log of weights: ',weights)
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
-        print('cdf: ',cdf)
+        # print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []
@@ -257,18 +222,6 @@ class auv_pf():
                 """
         else:
             print('Too many particles kept - not resampling')
-
-
-    def pcloud2ranges(self, point_cloud, particle_):
-        ranges = []
-        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
-            # starts at left hand side of particle's mbes
-            dx = particle_.pose.position.x - p[0]
-            dy = particle_.pose.position.y - p[1]
-            dz = particle_.pose.position.z - p[2]
-            dist = math.sqrt((dx**2 + dy**2 + dz**2))
-            ranges.append(dist)
-        return np.asarray(ranges)
 
 
     def average_pf_pose(self):
@@ -295,7 +248,6 @@ class auv_pf():
             
         pf_pose = PoseWithCovarianceStamped()
         pf_pose.header.frame_id = self.map_frame
-        pf_pose.header.stamp = rospy.Time.now()
 
         pf_pose.pose.pose.position.x = sum(x_) / len(x_)
         pf_pose.pose.pose.position.y = sum(y_) / len(y_)
@@ -305,8 +257,57 @@ class auv_pf():
         pitch = sum(pitch_) / len(pitch_)
         yaw   = sum(yaw_) / len(yaw_)
         
+        """
+        Average of list of angles (e.g. yaw) creates
+        issues when heading towards pi because pi and
+        negative pi are next to eachother, but average
+        out to zero (opposite direction of heading)
+        """
+        abs_yaw_ = map(abs, yaw_)
+        abs_yaw = sum(abs_yaw_) / len(abs_yaw_)
+
+        print(yaw)
+        print(abs_yaw)
+
+
+        
+        
         pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+
+        pf_pose.header.stamp = rospy.Time.now()
+
         self.avg_pub.publish(pf_pose)
+
+
+    def pcloud2ranges(self, point_cloud, pose):
+        ranges = []
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            # starts at left hand side of particle's mbes
+            dx = pose.position.x - p[0]
+            dy = pose.position.y - p[1]
+            dz = pose.position.z - p[2]
+            dist = math.sqrt((dx**2 + dy**2 + dz**2))
+            ranges.append(dist)
+        return np.asarray(ranges)
+
+
+    def _posearray_pub(self):
+        self.pos_.poses = []
+        for particle in self.particles:
+            self.pos_.poses.append(particle.pose)
+        # Publish particles with time odometry was received
+        self.pos_.header.stamp.secs = int(self.time)
+        self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
+        self.pf_pub.publish(self.pos_)
+
+
+    def _process_noise(self):
+        cov_ = np.zeros((3,3))
+        cov_[0,0] = self.predict_cov[0]
+        cov_[1,1] = self.predict_cov[1]
+        cov_[2,2] = self.predict_cov[2]
+        var = np.diagonal(cov_)
+        return np.sqrt(var)*np.random.randn(self.pc, 3)
 
 
 def main():
@@ -322,8 +323,6 @@ def main():
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()
-    
-    # rospy.spin()
 
 
 if __name__ == '__main__':

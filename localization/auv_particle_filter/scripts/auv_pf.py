@@ -68,6 +68,8 @@ class auv_pf():
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
         # Initialize average of poses publisher
         self.avg_pub = rospy.Publisher('/avg_pf_pose', PoseWithCovarianceStamped, queue_size=10)
+        # Initialize sim_mbes pointcloud publisher
+        self.pcloud_pub = rospy.Publisher('/particle_mbes_pclouds', PointCloud2, queue_size=10)
 
         # Initialize tf listener (and broadcaster)
         self.tfBuffer = tf2_ros.Buffer()
@@ -137,15 +139,14 @@ class auv_pf():
         vel_vec = [xv, yv, yaw_v]
 
         # Update particles pose estimate
-        for i in range(len(self.particles)):
-            particle = self.particles[i]
-            particle.pred_update(vel_vec, pred_noice[i,:], dt)
+        for idx, particle in enumerate(self.particles):
+            particle.pred_update(vel_vec, pred_noice[idx,:], dt)
 
 
     def pub_(self):
         self.pos_.poses = []
-        for pt in self.particles:
-            self.pos_.poses.append(pt.pose)
+        for particle in self.particles:
+            self.pos_.poses.append(particle.pose)
         # Publish particles with time odometry was received
         self.pos_.header.stamp.secs = int(self.time)
         self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
@@ -220,7 +221,7 @@ class auv_pf():
             particle.weight += 1.e-300 # avoid round-off to zero
             weights.append(particle.weight)
         
-        weights = weights / sum(weights)
+        # weights = weights / sum(weights)
         weights_ = np.asarray(weights)
         self.resample(weights_)
         # self.average_pf_pose()
@@ -235,7 +236,7 @@ class auv_pf():
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
-        # cdf /= cdf[cdf.size-1]
+        cdf /= cdf[cdf.size-1]
         print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
@@ -352,7 +353,7 @@ class auv_pf():
         mbes_pcloud = mbes_res.sim_mbes
         mbes_pcloud.header.frame_id = self.map_frame
 
-        particle_.pcloud_pub.publish(mbes_pcloud)
+        self.pcloud_pub.publish(mbes_pcloud)
 
         return mbes_pcloud
 

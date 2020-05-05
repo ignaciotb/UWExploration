@@ -26,43 +26,12 @@ from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
+# Import Particle() class
+from auv_particle import Particle
+
+
 # Define
 meas_freq = 1 # [Hz] to run mbes_sim
-
-
-class Particle():
-    def __init__(self, index):
-        self.index = index # index starts from 1
-        self.weight = 1.
-        self.pose = Pose()
-        self.pose.orientation.w = 1.
-        
-        if index < 10:
-            pcloud_top = '/sim_mbes/particle_0' + str(index)
-        else:
-            pcloud_top = '/sim_mbes/particle_' + str(index)
-
-        # Initialize sim_mbes pointcloud publisher
-        self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
-
-    def update(self, vel_vec, noise_vec, dt):
-        quat = (self.pose.orientation.x,
-                self.pose.orientation.y,
-                self.pose.orientation.z,
-                self.pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
-
-        """
-        NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
-        ACTUALLY UP/DOWN ARROWS CHANGE PITCH...
-        SOMEHOW PARTICLE POSE (AND MBES READING) NEEDS TO
-        CHANGE FROM UP/DOWN ARROW MOVEMENTS IN SIM (I THINK)
-        """
-
-        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
-        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
-        yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
-        self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 
 
 class auv_pf():
@@ -170,7 +139,7 @@ class auv_pf():
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]
-            particle.update(vel_vec, pred_noice[i,:], dt)
+            particle.pred_update(vel_vec, pred_noice[i,:], dt)
 
 
     def pub_(self):
@@ -200,7 +169,8 @@ class auv_pf():
         """
         weights = []
 
-        std = 0.01
+        std = 0.01 # Noise in the multibeam (tunable parameter)
+        # Add to launch file
         """
         No idea what value to use here...
         Should this be a constant or calced

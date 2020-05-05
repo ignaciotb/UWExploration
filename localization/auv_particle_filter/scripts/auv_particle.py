@@ -33,14 +33,7 @@ class Particle():
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
-        
-        if index < 10:
-            pcloud_top = '/sim_mbes/particle_0' + str(index)
-        else:
-            pcloud_top = '/sim_mbes/particle_' + str(index)
 
-        # Initialize sim_mbes pointcloud publisher
-        self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
 
     def pred_update(self, vel_vec, noise_vec, dt):
         quat = (self.pose.orientation.x,

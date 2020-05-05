@@ -100,7 +100,7 @@ class auv_pf():
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i+1)) # particle index starts from 1
+            self.particles.append(Particle(i+1, map_frame=self.map_frame)) # particle index starts from 1
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -120,7 +120,7 @@ class auv_pf():
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
-            self.pub_()
+            self.posearray_pub()
         self.old_time = self.time
 
     def mbes_callback(self, msg):
@@ -143,7 +143,7 @@ class auv_pf():
             particle.pred_update(vel_vec, pred_noice[idx,:], dt)
 
 
-    def pub_(self):
+    def posearray_pub(self):
         self.pos_.poses = []
         for particle in self.particles:
             self.pos_.poses.append(particle.pose)
@@ -172,17 +172,15 @@ class auv_pf():
 
         std = 0.01 # Noise in the multibeam (tunable parameter)
         # Add to launch file
-        """
-        No idea what value to use here...
-        Should this be a constant or calced
-        based on beams / particle poses / etc. ???
-        e.g. std = math.sqrt((1/N)*sum((x_i - mu)**2))
-        """
+
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
         print('C= ',C)
 
         for particle in self.particles:
-            mbes_pcloud = self.pf2mbes(particle)
+            mbes_pcloud = particle.simulate_mbes(self.mbes_matrix, self.ac_mbes)
+
+            self.pcloud_pub.publish(mbes_pcloud)
+
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
 
             try: # Sometimes there is no result for mbes_sim_ranges
@@ -260,6 +258,7 @@ class auv_pf():
         else:
             print('Too many particles kept - not resampling')
 
+
     def pcloud2ranges(self, point_cloud, particle_):
         ranges = []
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
@@ -308,54 +307,6 @@ class auv_pf():
         
         pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         self.avg_pub.publish(pf_pose)
-
-
-    def pf2mbes(self, particle_):
-
-        # Find particle's mbes pose without broadcasting/listening to tf transforms
-        particle_trans = (particle_.pose.position.x,
-                        particle_.pose.position.y,
-                        particle_.pose.position.z)
-        particle_quat = (particle_.pose.orientation.x,
-                        particle_.pose.orientation.y,
-                        particle_.pose.orientation.z,
-                        particle_.pose.orientation.w)
-
-        tmat_part = translation_matrix(particle_trans)
-        qmat_part = quaternion_matrix(particle_quat)
-        mat_part = np.dot(tmat_part, qmat_part)
-
-        trans_mat = np.dot(mat_part, self.mbes_matrix)
-
-        trans = TransformStamped()
-        trans.transform.translation.x = translation_from_matrix(trans_mat)[0]
-        trans.transform.translation.y = translation_from_matrix(trans_mat)[1]
-        trans.transform.translation.z = translation_from_matrix(trans_mat)[2]
-        trans.transform.rotation = Quaternion(*quaternion_from_matrix(trans_mat))
-
-
-        # Build MbesSimGoal to send to action server
-        mbes_goal = MbesSimGoal()
-        mbes_goal.mbes_pose.header.frame_id = self.map_frame
-        # mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
-        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
-        mbes_goal.mbes_pose.transform = trans.transform
-
-        # Get result from action server
-        self.ac_mbes.send_goal(mbes_goal)
-        # rospy.loginfo("Waiting for MbesSim action Result")
-        self.ac_mbes.wait_for_result()
-        # rospy.loginfo("Got MbesSim action Result")
-        mbes_res = self.ac_mbes.get_result()
-
-        # Pack result into PointCloud2
-        mbes_pcloud = PointCloud2()
-        mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = self.map_frame
-
-        self.pcloud_pub.publish(mbes_pcloud)
-
-        return mbes_pcloud
 
 
 def main():

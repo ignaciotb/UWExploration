@@ -10,6 +10,7 @@ import tf
 import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
+import scipy.stats # For weights
 from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
@@ -43,7 +44,6 @@ class Particle():
 
         # Initialize sim_mbes pointcloud publisher
         self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
-
 
     def update(self, vel_vec, noise_vec, dt):
         quat = (self.pose.orientation.x,
@@ -155,6 +155,7 @@ class auv_pf():
     def mbes_callback(self, msg):
         self.mbes_true_pc = msg
 
+
     def predict(self):
         # Adding gaussian noice
         pred_noice =  self.process_noise()
@@ -165,7 +166,7 @@ class auv_pf():
         # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
         vel_vec = [xv, yv, yaw_v]
-        
+
         # Update particles pose estimate
         for i in range(len(self.particles)):
             particle = self.particles[i]

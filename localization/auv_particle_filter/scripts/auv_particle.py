@@ -14,7 +14,7 @@ import scipy.stats # For weights
 from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Quaternion, TransformStamped
+from geometry_msgs.msg import Quaternion, Transform, TransformStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
@@ -55,17 +55,10 @@ class Particle():
     def simulate_mbes(self, mbes_tf_matrix, mbes_ac):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
-        particle_trans = (self.pose.position.x,
-                          self.pose.position.y,
-                          self.pose.position.z)
-        particle_quat_ = (self.pose.orientation.x,
-                          self.pose.orientation.y,
-                          self.pose.orientation.z,
-                          self.pose.orientation.w)
-
-        tmat_part = translation_matrix(particle_trans)
-        qmat_part = quaternion_matrix(particle_quat_)
-        mat_part = np.dot(tmat_part, qmat_part)
+        particle_tf = Transform()
+        particle_tf.translation = self.pose.position
+        particle_tf.rotation    = self.pose.orientation
+        mat_part = matrix_from_tf(particle_tf)
 
         trans_mat = np.dot(mat_part, mbes_tf_matrix)
 
@@ -96,3 +89,30 @@ class Particle():
         mbes_pcloud.header.frame_id = self.map_frame
 
         return mbes_pcloud
+
+
+def matrix_from_tf(transform):
+    """
+    Converts a geometry_msgs/Transform or 
+    geometry_msgs/TransformStamped into a 4x4 
+    transformation matrix
+
+    :param transform: Transform from parent->child frame
+    :type transform: geometry_msgs/Transform(Stamped)
+    :return: Transform as 4x4 matrix
+    :rtype: Numpy array (4x4)
+    """
+    if transform._type == 'geometry_msgs/TransformStamped':
+        transform = transform.transform
+
+    trans = (transform.translation.x,
+             transform.translation.y,
+             transform.translation.z)
+    quat_ = (transform.rotation.x,
+             transform.rotation.y,
+             transform.rotation.z,
+             transform.rotation.w)
+
+    tmat = translation_matrix(trans)
+    qmat = quaternion_matrix(quat_)
+    return np.dot(tmat, qmat)

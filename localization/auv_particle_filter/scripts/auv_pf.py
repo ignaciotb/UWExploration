@@ -31,9 +31,14 @@ import sensor_msgs.point_cloud2 as pc2
 from auv_particle import Particle, matrix_from_tf
 
 
-# Define
+# Define (add to launch file at some point)
 meas_freq = 1 # [Hz] to run mbes_sim
-
+std = 0.1 # Noise in the multibeam (tunable parameter)
+use_log_weights = True # Boolean
+use_N_eff_from_paper = False # Boolean
+"""
+Test using new vs old N_eff calc and decide which is better
+"""
 
 class auv_pf():
     def __init__(self):
@@ -140,9 +145,6 @@ class auv_pf():
         log_weights = []
         weights = []
 
-        std = 0.1 # Add to launch file | Noise in the multibeam (tunable parameter)
-        use_log_weights = True # Boolean
-        
         """
         If trying to use log weights instead of regular weights:
             log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
@@ -201,14 +203,19 @@ class auv_pf():
         for i in keep:
             dupes.remove(i)
 
-        if len(lost) > self.pc/2: # Threshold to perform resampling
+        if use_N_eff_from_paper:
+            N_eff = 1/np.sum(np.square(weights)) # From paper
+        else:
+            N_eff = self.pc - len(lost) # old version
+
+        if N_eff < self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
                 self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
                 """
                 Consider adding noise to resampled particle
                 """
         else:
-            rospy.loginfo('Too many particles kept - not resampling')
+            rospy.loginfo('Number of effective particles too high - not resampling')
 
 
     def average_pf_pose(self):

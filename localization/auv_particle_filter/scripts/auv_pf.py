@@ -28,7 +28,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 # Import Particle() class
-from auv_particle import Particle
+from auv_particle import Particle, matrix_from_tf
 
 
 # Define
@@ -80,21 +80,8 @@ class auv_pf():
         try:
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
             mbes_tf = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            
-            mbes_trans = (mbes_tf.transform.translation.x,
-                        mbes_tf.transform.translation.y,
-                        mbes_tf.transform.translation.z)
-            mbes_quat = (mbes_tf.transform.rotation.x,
-                        mbes_tf.transform.rotation.y,
-                        mbes_tf.transform.rotation.z,
-                        mbes_tf.transform.rotation.w)
-            
-            tmat_mbes = translation_matrix(mbes_trans)
-            qmat_mbes = quaternion_matrix(mbes_quat)
-            self.mbes_matrix = np.dot(tmat_mbes, qmat_mbes)
-            
+            self.mbes_matrix = matrix_from_tf(mbes_tf)
             rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
-
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
         
@@ -221,7 +208,7 @@ class auv_pf():
                 Consider adding noise to resampled particle
                 """
         else:
-            print('Too many particles kept - not resampling')
+            rospy.loginfo('Too many particles kept - not resampling')
 
 
     def average_pf_pose(self):

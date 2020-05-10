@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 # Standard dependencies
 import sys
@@ -30,6 +30,13 @@ import sensor_msgs.point_cloud2 as pc2
 # Import Particle() class
 from auv_particle import Particle, matrix_from_tf
 
+# Multiprocessing
+# import time # For evaluating mp improvements
+# import multiprocessing as mp
+# from functools import partial
+# nprocs = mp.cpu_count()
+# pool = mp.Pool(processes=nprocs)
+# print(sys.version)
 
 # Define (add to launch file at some point)
 meas_freq = 1 # [Hz] to run mbes_sim
@@ -94,6 +101,12 @@ class auv_pf():
         self.particles = []
         for i in range(self.pc):
             self.particles.append(Particle(i+1, map_frame=self.map_frame)) # particle index starts from 1
+        """
+        Attempt at using multiprocessing
+        Either need to significantly alter functions to use
+        Python 2.7 multiporcessing or upgrade env to Python3
+        """
+        # self.particles = pool.map(partial(Particle, map_frame=self.map_frame), [i+1 for i in range(self.pc)])
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -220,9 +233,8 @@ class auv_pf():
 
     def average_pf_pose(self):
         x_, y_, z_ = [], [], []
-        roll_ = []
-        pitch_ = []
-        yaw_ = []
+        roll_, pitch_, yaw_ = [], [], []
+
         for particle in self.particles:
             x_.append(particle.pose.position.x)
             y_.append(particle.pose.position.y)
@@ -312,4 +324,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

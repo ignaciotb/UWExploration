@@ -212,22 +212,19 @@ class auv_pf():
 
 
     def average_pf_pose(self):
-        x_ = []
-        y_ = []
-        z_ = []
+        x_, y_, z_ = [], [], []
         roll_ = []
         pitch_ = []
         yaw_ = []
         for particle in self.particles:
-            pose = deepcopy(particle.pose)
-            x_.append(pose.position.x)
-            y_.append(pose.position.y)
-            z_.append(pose.position.z)
+            x_.append(particle.pose.position.x)
+            y_.append(particle.pose.position.y)
+            z_.append(particle.pose.position.z)
 
-            quat = (pose.orientation.x,
-                    pose.orientation.y,
-                    pose.orientation.z,
-                    pose.orientation.w)
+            quat = (particle.pose.orientation.x,
+                    particle.pose.orientation.y,
+                    particle.pose.orientation.z,
+                    particle.pose.orientation.w)
             roll, pitch, yaw = euler_from_quaternion(quat)
             roll_.append(roll)
             pitch_.append(pitch)
@@ -242,8 +239,6 @@ class auv_pf():
 
         roll  = sum(roll_) / len(roll_)
         pitch = sum(pitch_) / len(pitch_)
-        yaw   = sum(yaw_) / len(yaw_)
-        
         """
         Average of list of angles (e.g. yaw) creates
         issues when heading towards pi because pi and
@@ -251,18 +246,14 @@ class auv_pf():
         out to zero (opposite direction of heading)
         """
         abs_yaw_ = map(abs, yaw_)
-        abs_yaw = sum(abs_yaw_) / len(abs_yaw_)
+        if min(abs_yaw_) > math.pi/2:
+            pos_yaw_ = [x + 2*math.pi if x<0 else x for x in yaw_]
+            yaw = sum(pos_yaw_) / len(pos_yaw_)
+        else:
+            yaw = sum(yaw_) / len(yaw_)
 
-        print(yaw)
-        print(abs_yaw)
-
-
-        
-        
         pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
-
         pf_pose.header.stamp = rospy.Time.now()
-
         self.avg_pub.publish(pf_pose)
 
 

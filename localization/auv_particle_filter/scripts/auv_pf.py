@@ -92,7 +92,7 @@ class auv_pf():
         try:
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
             mbes_tf = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            self.mbes_matrix = matrix_from_tf(mbes_tf)
+            mbes_matrix = matrix_from_tf(mbes_tf)
             rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
@@ -100,10 +100,10 @@ class auv_pf():
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i+1, map_frame=self.map_frame)) # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, map_frame=self.map_frame)) # particle index starts from 1
         """
         Attempt at using multiprocessing
-        Either need to significantly alter functions to use
+        Either need to alter functions to use
         Python 2.7 multiporcessing or upgrade env to Python3
         """
         # self.particles = pool.map(partial(Particle, map_frame=self.map_frame), [i+1 for i in range(self.pc)])
@@ -145,6 +145,12 @@ class auv_pf():
         vel_vec = [xv, yv, yaw_v]
 
         # Update particles pose estimate
+        """
+        FOR MULTIPROCESSING:
+
+        Could append dt to vel_vec and calc noise in particle.pred_update
+        OR also append pred_noice[idx,:] to vel_vec and have it be a pass in vector
+        """
         for idx, particle in enumerate(self.particles):
             particle.pred_update(vel_vec, pred_noice[idx,:], dt)
 
@@ -164,9 +170,15 @@ class auv_pf():
             C = #son * log(sqrt(2*pi*std**2))
         """
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
+        """
+        FOR MULTIPROCESSING:
 
+        mbes_ac is now the only pass in variable if we make a vector of
+        mse values and then calc weights using numpy array functions
+        after multiproc is done
+        """
         for particle in self.particles:
-            mbes_pcloud = particle.simulate_mbes(self.mbes_matrix, self.ac_mbes)
+            mbes_pcloud = particle.simulate_mbes(self.ac_mbes)
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
             self.pcloud_pub.publish(mbes_pcloud)
 
@@ -235,6 +247,13 @@ class auv_pf():
         x_, y_, z_ = [], [], []
         roll_, pitch_, yaw_ = [], [], []
 
+        """
+        FOR MULTIPROCESSING:
+
+        Each particle could return a vector of [x,y,z,roll,pitch,yaw]
+        And then we turn all the vectors into one  numpy array and do
+        our row averaging operations afterwards
+        """
         for particle in self.particles:
             x_.append(particle.pose.position.x)
             y_.append(particle.pose.position.y)

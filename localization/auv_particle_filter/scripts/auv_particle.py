@@ -28,12 +28,13 @@ import sensor_msgs.point_cloud2 as pc2
 
 
 class Particle():
-    def __init__(self, index, map_frame='map'):
+    def __init__(self, index, mbes_tf_matrix, map_frame='map'):
         self.index = index # index starts from 1
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
         self.map_frame = map_frame
+        self.mbes_tf_mat = mbes_tf_matrix
 
 
     def pred_update(self, vel_vec, noise_vec, dt):
@@ -52,7 +53,7 @@ class Particle():
         self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
 
 
-    def simulate_mbes(self, mbes_tf_matrix, mbes_ac):
+    def simulate_mbes(self, mbes_ac):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
@@ -60,7 +61,7 @@ class Particle():
         particle_tf.rotation    = self.pose.orientation
         mat_part = matrix_from_tf(particle_tf)
 
-        trans_mat = np.dot(mat_part, mbes_tf_matrix)
+        trans_mat = np.dot(mat_part, self.mbes_tf_mat)
 
         trans = TransformStamped()
         trans.transform.translation.x = translation_from_matrix(trans_mat)[0]

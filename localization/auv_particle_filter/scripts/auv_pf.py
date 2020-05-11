@@ -92,7 +92,7 @@ class auv_pf():
         try:
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
             mbes_tf = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            self.mbes_matrix = matrix_from_tf(mbes_tf)
+            mbes_matrix = matrix_from_tf(mbes_tf)
             rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
@@ -100,7 +100,7 @@ class auv_pf():
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i+1, map_frame=self.map_frame)) # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, map_frame=self.map_frame)) # particle index starts from 1
         """
         Attempt at using multiprocessing
         Either need to significantly alter functions to use
@@ -166,7 +166,7 @@ class auv_pf():
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
 
         for particle in self.particles:
-            mbes_pcloud = particle.simulate_mbes(self.mbes_matrix, self.ac_mbes)
+            mbes_pcloud = particle.simulate_mbes(self.ac_mbes)
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
             self.pcloud_pub.publish(mbes_pcloud)
 

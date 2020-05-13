@@ -4,7 +4,7 @@
 
   <!-- Properties -->
   <xacro:property name="M_PI" value="3.14159" />
-  <xacro:property name="visual_mesh_file" value="file://$(find hugin_description)/mesh/Hugin_big_meter.dae"/>
+  <xacro:property name="visual_mesh_file" value="file://$(find hugin_description)/mesh/hugin_color.dae"/>
 
  <material name="blue">
     <color rgba="0 0 0.8 1"/>

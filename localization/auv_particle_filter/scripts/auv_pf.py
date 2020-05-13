@@ -33,13 +33,11 @@ from auv_particle import Particle, matrix_from_tf
 # Multiprocessing
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
-# from functools import partial
-# nprocs = mp.cpu_count()
-# pool = mp.Pool(processes=nprocs)
-# print(sys.version)
+# from functools import partial # Might be useful with mp
+# from pathos.multiprocessing import ProcessingPool as Pool
 
 # Define (add to launch file at some point)
-meas_freq = 1 # [Hz] to run mbes_sim
+T_meas = 2 # [s] Period between MBES scans
 std = 0.1 # Noise in the multibeam (tunable parameter)
 use_log_weights = True # Boolean
 use_N_eff_from_paper = False # Boolean
@@ -49,7 +47,7 @@ Test using new vs old N_eff calc and decide which is better
 
 class auv_pf():
     def __init__(self):
-        # Read nnecessary ROS parameters
+        # Read necessary ROS parameters
         param = rospy.search_param("map_frame")
         self.map_frame = rospy.get_param(param) # map frame_id
         param = rospy.search_param("odometry_topic")
@@ -67,7 +65,7 @@ class auv_pf():
         cov_string = cov_string.replace('[','')
         cov_string = cov_string.replace(']','')
         cov_list = list(cov_string.split(", "))
-        self.predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
+        predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
 
         # Initialize class/callback variables
         self.pred_odom = None
@@ -99,14 +97,8 @@ class auv_pf():
         
         # Initialize list of particles
         self.particles = []
-        for i in range(self.pc):
-            self.particles.append(Particle(i+1, mbes_matrix, map_frame=self.map_frame)) # particle index starts from 1
-        """
-        Attempt at using multiprocessing
-        Either need to alter functions to use
-        Python 2.7 multiporcessing or upgrade env to Python3
-        """
-        # self.particles = pool.map(partial(Particle, map_frame=self.map_frame), [i+1 for i in range(self.pc)])
+        for i in range(self.pc): # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, process_cov=predict_cov, map_frame=self.map_frame))
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -134,36 +126,50 @@ class auv_pf():
 
 
     def predict(self):
-        # Adding gaussian noice
-        pred_noice = self._process_noise()
         # Unpack odometry message
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
         yv = self.pred_odom.twist.twist.linear.y
-        # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
-        vel_vec = [xv, yv, yaw_v]
 
-        # Update particles pose estimate
-        """
-        FOR MULTIPROCESSING:
+        z = self.pred_odom.pose.pose.position.z
+        qx = self.pred_odom.pose.pose.orientation.x
+        qy = self.pred_odom.pose.pose.orientation.y
+        qz = self.pred_odom.pose.pose.orientation.z
+        qw = self.pred_odom.pose.pose.orientation.w
+        update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
 
-        Could append dt to vel_vec and calc noise in particle.pred_update
-        OR also append pred_noice[idx,:] to vel_vec and have it be a pass in vector
         """
-        for idx, particle in enumerate(self.particles):
-            particle.pred_update(vel_vec, pred_noice[idx,:], dt)
+        Failed attempts at using multiprocessing for pred_update
+        """
+        # nprocs = mp.cpu_count()
+        # # pool = mp.Pool(processes=nprocs)
+        # pool = Pool(nprocs)
+        # pool.map(_pred_update_helper, ((particle, update_vec) for particle in self.particles))
+
+        # # multi_result = [pool.apply_async(_pred_update_helper, (particle, update_vec)) for particle in self.particles]
+        # # result = [p.get() for p in multi_result]
+
+        pose_list = []
+        for particle in self.particles:
+            particle.pred_update(update_vec)
+            """
+            particle.get_pose_vec() function could be combined
+            with particle.pred_update() if that seems cleaner
+            """
+            pose_vec = particle.get_pose_vec()
+            pose_list.append(pose_vec)
+        self.average_pose(pose_list)
 
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
         """
-        Should pred_odom pose not be ussed b/c we won't actually know it ???
-        Maybe we should take average of partricles here?
+        Should pred_odom pose not be used b/c we won't actually know it?
+        Maybe this isn't relevant once we have better weight functions
         """
         log_weights = []
         weights = []
-
         """
         If trying to use log weights instead of regular weights:
             log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
@@ -206,7 +212,6 @@ class auv_pf():
             weights_ = np.asarray(weights)
         
         self.resample(weights_)
-        self.average_pf_pose()
 
 
     def resample(self, weights):
@@ -214,7 +219,6 @@ class auv_pf():
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
-        # print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []
@@ -227,7 +231,9 @@ class auv_pf():
         dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
-
+        """
+        Choose only one of these N_eff calcs to retain
+        """
         if use_N_eff_from_paper:
             N_eff = 1/np.sum(np.square(weights)) # From paper
         else:
@@ -235,7 +241,14 @@ class auv_pf():
 
         if N_eff < self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
-                self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
+                # Faster to do separately than using deepcopy()
+                self.particles[lost[i]].pose.position.x = self.particles[dupes[i]].pose.position.x
+                self.particles[lost[i]].pose.position.y = self.particles[dupes[i]].pose.position.y
+                self.particles[lost[i]].pose.position.z = self.particles[dupes[i]].pose.position.z
+                self.particles[lost[i]].pose.orientation.x = self.particles[dupes[i]].pose.orientation.x
+                self.particles[lost[i]].pose.orientation.y = self.particles[dupes[i]].pose.orientation.y
+                self.particles[lost[i]].pose.orientation.z = self.particles[dupes[i]].pose.orientation.z
+                self.particles[lost[i]].pose.orientation.w = self.particles[dupes[i]].pose.orientation.w
                 """
                 Consider adding noise to resampled particle
                 """
@@ -243,52 +256,42 @@ class auv_pf():
             rospy.loginfo('Number of effective particles too high - not resampling')
 
 
-    def average_pf_pose(self):
-        x_, y_, z_ = [], [], []
-        roll_, pitch_, yaw_ = [], [], []
-
+    def average_pose(self, pose_list):
         """
-        FOR MULTIPROCESSING:
+        Get average pose of particles and
+        publish it as PoseWithCovarianceStamped
 
-        Each particle could return a vector of [x,y,z,roll,pitch,yaw]
-        And then we turn all the vectors into one  numpy array and do
-        our row averaging operations afterwards
+        :param pose_list: List of lists containing pose
+                        of all particles in form
+                        [x, y, z, roll, pitch, yaw]
+        :type pose_list: list
         """
-        for particle in self.particles:
-            x_.append(particle.pose.position.x)
-            y_.append(particle.pose.position.y)
-            z_.append(particle.pose.position.z)
+        poses_array = np.array(pose_list)
+        ave_pose = poses_array.mean(axis = 0)
 
-            quat = (particle.pose.orientation.x,
-                    particle.pose.orientation.y,
-                    particle.pose.orientation.z,
-                    particle.pose.orientation.w)
-            roll, pitch, yaw = euler_from_quaternion(quat)
-            roll_.append(roll)
-            pitch_.append(pitch)
-            yaw_.append(yaw)
-            
         pf_pose = PoseWithCovarianceStamped()
         pf_pose.header.frame_id = self.map_frame
 
-        pf_pose.pose.pose.position.x = sum(x_) / len(x_)
-        pf_pose.pose.pose.position.y = sum(y_) / len(y_)
-        pf_pose.pose.pose.position.z = sum(z_) / len(z_)
-
-        roll  = sum(roll_) / len(roll_)
-        pitch = sum(pitch_) / len(pitch_)
+        pf_pose.pose.pose.position.x = ave_pose[0]
+        pf_pose.pose.pose.position.y = ave_pose[1]
         """
-        Average of list of angles (e.g. yaw) creates
+        If z, roll, and pitch can stay as read directly from
+        the odometry message there is no need to average them.
+        We could just read from any arbitrary particle
+        """
+        pf_pose.pose.pose.position.z = ave_pose[2]
+        roll  = ave_pose[3]
+        pitch = ave_pose[4]
+        """
+        Average of yaw angles creates
         issues when heading towards pi because pi and
         negative pi are next to eachother, but average
         out to zero (opposite direction of heading)
         """
-        abs_yaw_ = map(abs, yaw_)
-        if min(abs_yaw_) > math.pi/2:
-            pos_yaw_ = [x + 2*math.pi if x<0 else x for x in yaw_]
-            yaw = sum(pos_yaw_) / len(pos_yaw_)
-        else:
-            yaw = sum(yaw_) / len(yaw_)
+        yaws = poses_array[:,5]
+        if np.abs(yaws).min() > math.pi/2:
+            yaws[yaws < 0] += 2*math.pi
+        yaw = yaws.mean()
 
         pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         pf_pose.header.stamp = rospy.Time.now()
@@ -317,15 +320,6 @@ class auv_pf():
         self.pf_pub.publish(self.pos_)
 
 
-    def _process_noise(self):
-        cov_ = np.zeros((3,3))
-        cov_[0,0] = self.predict_cov[0]
-        cov_[1,1] = self.predict_cov[1]
-        cov_[2,2] = self.predict_cov[2]
-        var = np.diagonal(cov_)
-        return np.sqrt(var)*np.random.randn(self.pc, 3)
-
-
 def main():
     # Initialize ROS node
     rospy.init_node('auv_pf', anonymous=True)
@@ -335,10 +329,19 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(meas_freq) # Hz
+    meas_rate = rospy.Rate(1/float(T_meas))
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()
+
+
+# def _pred_update_helper(args):
+#     """
+#     Worker function for multiprocessing
+#     prediction update
+#     """
+#     particle, update_vec = args
+#     particle.pred_update(update_vec)
 
 
 if __name__ == '__main__':

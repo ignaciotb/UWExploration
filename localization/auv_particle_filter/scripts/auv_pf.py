@@ -39,7 +39,7 @@ from auv_particle import Particle, matrix_from_tf
 # print(sys.version)
 
 # Define (add to launch file at some point)
-meas_freq = 1 # [Hz] to run mbes_sim
+T_meas = 5 # [s] Period between MBES scans
 std = 0.1 # Noise in the multibeam (tunable parameter)
 use_log_weights = True # Boolean
 use_N_eff_from_paper = False # Boolean
@@ -130,7 +130,6 @@ class auv_pf():
         if self.old_time and self.time > self.old_time:
             self.predict()
             self._posearray_pub()
-            self.average_pf_pose()
         self.old_time = self.time
 
 
@@ -148,9 +147,16 @@ class auv_pf():
         qw = self.pred_odom.pose.pose.orientation.w
         update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
 
-        # Update particles pose estimate
+        pose_list = []
         for particle in self.particles:
             particle.pred_update(update_vec)
+            """
+            particle.get_pose_vec() function could be combined
+            with particle.pred_update() if that seems cleaner
+            """
+            pose_vec = particle.get_pose_vec()
+            pose_list.append(pose_vec)
+        self.average_pose(pose_list)
 
 
     def measurement(self):
@@ -242,60 +248,42 @@ class auv_pf():
             rospy.loginfo('Number of effective particles too high - not resampling')
 
 
-    def average_pf_pose(self):
-        x_, y_, z_ = [], [], []
-        roll_, pitch_, yaw_ = [], [], []
-
+    def average_pose(self, pose_list):
         """
-        FOR MULTIPROCESSING:
+        Get average pose of particles and
+        publish it as PoseWithCovarianceStamped
 
-        Each particle could return a vector of [x,y,z,roll,pitch,yaw]
-        And then we turn all the vectors into one numpy array and do
-        our row averaging operations afterwards
-
-        Also we could return those vectors from particle.pred_update()
-        since the values are already calced in that function and we
-        could reduce the number of times we iterate through all particles
+        :param pose_list: List of lists containing pose
+                        of all particles in form
+                        [x, y, z, roll, pitch, yaw]
+        :type pose_list: list
         """
-        for particle in self.particles:
-            x_.append(particle.pose.position.x)
-            y_.append(particle.pose.position.y)
-            z_.append(particle.pose.position.z)
+        poses_array = np.array(pose_list)
+        ave_pose = poses_array.mean(axis = 0)
 
-            quat = (particle.pose.orientation.x,
-                    particle.pose.orientation.y,
-                    particle.pose.orientation.z,
-                    particle.pose.orientation.w)
-            roll, pitch, yaw = euler_from_quaternion(quat)
-            roll_.append(roll)
-            pitch_.append(pitch)
-            yaw_.append(yaw)
-            
         pf_pose = PoseWithCovarianceStamped()
         pf_pose.header.frame_id = self.map_frame
 
-        pf_pose.pose.pose.position.x = sum(x_) / len(x_)
-        pf_pose.pose.pose.position.y = sum(y_) / len(y_)
-        pf_pose.pose.pose.position.z = sum(z_) / len(z_)
+        pf_pose.pose.pose.position.x = ave_pose[0]
+        pf_pose.pose.pose.position.y = ave_pose[1]
         """
         If z, roll, and pitch can stay as read directly from
         the odometry message there is no need to average them.
         We could just read from any arbitrary particle
         """
-        roll  = sum(roll_) / len(roll_)
-        pitch = sum(pitch_) / len(pitch_)
+        pf_pose.pose.pose.position.z = ave_pose[2]
+        roll  = ave_pose[3]
+        pitch = ave_pose[4]
         """
-        Average of list of angles (e.g. yaw) creates
+        Average of yaw angles creates
         issues when heading towards pi because pi and
         negative pi are next to eachother, but average
         out to zero (opposite direction of heading)
         """
-        abs_yaw_ = map(abs, yaw_)
-        if min(abs_yaw_) > math.pi/2:
-            pos_yaw_ = [x + 2*math.pi if x<0 else x for x in yaw_]
-            yaw = sum(pos_yaw_) / len(pos_yaw_)
-        else:
-            yaw = sum(yaw_) / len(yaw_)
+        yaws = poses_array[:,5]
+        if np.abs(yaws).min() > math.pi/2:
+            yaws[yaws < 0] += 2*math.pi
+        yaw = yaws.mean()
 
         pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         pf_pose.header.stamp = rospy.Time.now()
@@ -333,7 +321,7 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(meas_freq) # Hz
+    meas_rate = rospy.Rate(1/float(T_meas))
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()

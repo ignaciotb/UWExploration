@@ -28,16 +28,23 @@ import sensor_msgs.point_cloud2 as pc2
 
 
 class Particle():
-    def __init__(self, index, mbes_tf_matrix, map_frame='map'):
+    def __init__(self, index, mbes_tf_matrix, process_cov=[0., 0., 0.], map_frame='map'):
         self.index = index # index starts from 1
         self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
         self.map_frame = map_frame
         self.mbes_tf_mat = mbes_tf_matrix
+        self.process_cov = np.asarray(process_cov)
 
 
-    def pred_update(self, vel_vec, noise_vec, dt):
+    def pred_update(self, vel_vec, dt):
+        """
+        I think there should be a faster
+        way to compute noise_vec
+        """
+        noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 3)).flatten()
+
         quat = (self.pose.orientation.x,
                 self.pose.orientation.y,
                 self.pose.orientation.z,

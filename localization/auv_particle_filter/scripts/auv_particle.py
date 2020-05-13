@@ -47,7 +47,6 @@ class Particle():
         vel_vec = update_vec[1:4]
         depth = update_vec[4]
         true_quat = tuple(update_vec[5:])
-
         """
         I think there should be a faster
         way to compute noise_vec
@@ -63,7 +62,6 @@ class Particle():
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
         yaw += vel_vec[2] * dt + noise_vec[2]
-
         """
         depth, roll, & pitch are known from sensors
         """

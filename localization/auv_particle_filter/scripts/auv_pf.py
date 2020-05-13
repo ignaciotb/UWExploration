@@ -33,10 +33,8 @@ from auv_particle import Particle, matrix_from_tf
 # Multiprocessing
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
-# from functools import partial
-# nprocs = mp.cpu_count()
-# pool = mp.Pool(processes=nprocs)
-# print(sys.version)
+# from functools import partial # Might be useful with mp
+# from pathos.multiprocessing import ProcessingPool as Pool
 
 # Define (add to launch file at some point)
 T_meas = 2 # [s] Period between MBES scans
@@ -99,14 +97,8 @@ class auv_pf():
         
         # Initialize list of particles
         self.particles = []
-        for i in range(self.pc):
-            self.particles.append(Particle(i+1, mbes_matrix, process_cov=predict_cov, map_frame=self.map_frame)) # particle index starts from 1
-        """
-        Attempt at using multiprocessing
-        Either need to alter functions to use
-        Python 2.7 multiporcessing or upgrade env to Python3
-        """
-        # self.particles = pool.map(partial(Particle, map_frame=self.map_frame), [i+1 for i in range(self.pc)])
+        for i in range(self.pc): # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, process_cov=predict_cov, map_frame=self.map_frame))
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -147,6 +139,17 @@ class auv_pf():
         qw = self.pred_odom.pose.pose.orientation.w
         update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
 
+        """
+        Failed attempts at using multiprocessing for pred_update
+        """
+        # nprocs = mp.cpu_count()
+        # # pool = mp.Pool(processes=nprocs)
+        # pool = Pool(nprocs)
+        # pool.map(_pred_update_helper, ((particle, update_vec) for particle in self.particles))
+
+        # # multi_result = [pool.apply_async(_pred_update_helper, (particle, update_vec)) for particle in self.particles]
+        # # result = [p.get() for p in multi_result]
+
         pose_list = []
         for particle in self.particles:
             particle.pred_update(update_vec)
@@ -162,12 +165,11 @@ class auv_pf():
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
         """
-        Should pred_odom pose not be used b/c we won't actually know it ???
-        Maybe we should take average of particles here?
+        Should pred_odom pose not be used b/c we won't actually know it?
+        Maybe this isn't relevant once we have better weight functions
         """
         log_weights = []
         weights = []
-
         """
         If trying to use log weights instead of regular weights:
             log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
@@ -229,7 +231,6 @@ class auv_pf():
         dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
-
         """
         Choose only one of these N_eff calcs to retain
         """
@@ -332,6 +333,15 @@ def main():
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()
+
+
+# def _pred_update_helper(args):
+#     """
+#     Worker function for multiprocessing
+#     prediction update
+#     """
+#     particle, update_vec = args
+#     particle.pred_update(update_vec)
 
 
 if __name__ == '__main__':

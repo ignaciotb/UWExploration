@@ -109,6 +109,32 @@ class Particle():
         return mbes_pcloud
 
 
+    def get_pose_vec(self):
+        """
+        Returns a list of particle pose elements
+        [x, y, z, roll, pitch, yaw]
+
+        :return: List of pose values
+        :rtype: List
+        """
+        pose_vec = []
+        pose_vec.append(self.pose.position.x)
+        pose_vec.append(self.pose.position.y)
+        pose_vec.append(self.pose.position.z)
+
+        quat = (self.pose.orientation.x,
+                self.pose.orientation.y,
+                self.pose.orientation.z,
+                self.pose.orientation.w)
+        roll, pitch, yaw = euler_from_quaternion(quat)
+
+        pose_vec.append(roll)
+        pose_vec.append(pitch)
+        pose_vec.append(yaw)
+
+        return pose_vec
+
+
 def matrix_from_tf(transform):
     """
     Converts a geometry_msgs/Transform or 

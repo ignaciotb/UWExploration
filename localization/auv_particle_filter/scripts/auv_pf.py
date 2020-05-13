@@ -67,7 +67,7 @@ class auv_pf():
         cov_string = cov_string.replace('[','')
         cov_string = cov_string.replace(']','')
         cov_list = list(cov_string.split(", "))
-        self.predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
+        predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
 
         # Initialize class/callback variables
         self.pred_odom = None
@@ -100,7 +100,7 @@ class auv_pf():
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc):
-            self.particles.append(Particle(i+1, mbes_matrix, map_frame=self.map_frame)) # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, process_cov=predict_cov, map_frame=self.map_frame)) # particle index starts from 1
         """
         Attempt at using multiprocessing
         Either need to alter functions to use
@@ -134,8 +134,6 @@ class auv_pf():
 
 
     def predict(self):
-        # Adding gaussian noice
-        pred_noice = self._process_noise()
         # Unpack odometry message
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
@@ -152,7 +150,7 @@ class auv_pf():
         OR also append pred_noice[idx,:] to vel_vec and have it be a pass in vector
         """
         for idx, particle in enumerate(self.particles):
-            particle.pred_update(vel_vec, pred_noice[idx,:], dt)
+            particle.pred_update(vel_vec, dt)
 
 
     def measurement(self):
@@ -214,7 +212,6 @@ class auv_pf():
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
-        # print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []
@@ -315,15 +312,6 @@ class auv_pf():
         self.pos_.header.stamp.secs = int(self.time)
         self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
         self.pf_pub.publish(self.pos_)
-
-
-    def _process_noise(self):
-        cov_ = np.zeros((3,3))
-        cov_[0,0] = self.predict_cov[0]
-        cov_[1,1] = self.predict_cov[1]
-        cov_[2,2] = self.predict_cov[2]
-        var = np.diagonal(cov_)
-        return np.sqrt(var)*np.random.randn(self.pc, 3)
 
 
 def main():

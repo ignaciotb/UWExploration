@@ -39,7 +39,7 @@ from auv_particle import Particle, matrix_from_tf
 # print(sys.version)
 
 # Define (add to launch file at some point)
-T_meas = 5 # [s] Period between MBES scans
+T_meas = 2 # [s] Period between MBES scans
 std = 0.1 # Noise in the multibeam (tunable parameter)
 use_log_weights = True # Boolean
 use_N_eff_from_paper = False # Boolean
@@ -240,7 +240,14 @@ class auv_pf():
 
         if N_eff < self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
-                self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
+                # Faster to do separately than using deepcopy()
+                self.particles[lost[i]].pose.position.x = self.particles[dupes[i]].pose.position.x
+                self.particles[lost[i]].pose.position.y = self.particles[dupes[i]].pose.position.y
+                self.particles[lost[i]].pose.position.z = self.particles[dupes[i]].pose.position.z
+                self.particles[lost[i]].pose.orientation.x = self.particles[dupes[i]].pose.orientation.x
+                self.particles[lost[i]].pose.orientation.y = self.particles[dupes[i]].pose.orientation.y
+                self.particles[lost[i]].pose.orientation.z = self.particles[dupes[i]].pose.orientation.z
+                self.particles[lost[i]].pose.orientation.w = self.particles[dupes[i]].pose.orientation.w
                 """
                 Consider adding noise to resampled particle
                 """

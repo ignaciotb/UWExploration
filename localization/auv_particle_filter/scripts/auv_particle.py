@@ -38,26 +38,39 @@ class Particle():
         self.process_cov = np.asarray(process_cov)
 
 
-    def pred_update(self, vel_vec, dt):
+    def pred_update(self, update_vec):
+        """
+        Unpack update_vec
+        update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
+        """
+        dt = update_vec[0]
+        vel_vec = update_vec[1:4]
+        depth = update_vec[4]
+        true_quat = tuple(update_vec[5:])
+
         """
         I think there should be a faster
         way to compute noise_vec
         """
         noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 3)).flatten()
 
-        quat = (self.pose.orientation.x,
-                self.pose.orientation.y,
-                self.pose.orientation.z,
-                self.pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
+        particl_quat = (self.pose.orientation.x,
+                        self.pose.orientation.y,
+                        self.pose.orientation.z,
+                        self.pose.orientation.w)
+        _, _, yaw = euler_from_quaternion(particl_quat)
 
-        """
-        Include 6 DOF motion model 
-        """
         self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
         self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
-        yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
-        self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
+        yaw += vel_vec[2] * dt + noise_vec[2]
+
+        """
+        depth, roll, & pitch are known from sensors
+        """
+        self.pose.position.z = depth
+        roll, pitch, _ = euler_from_quaternion(true_quat)
+
+        self.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
 
 
     def simulate_mbes(self, mbes_ac):
@@ -76,7 +89,6 @@ class Particle():
         trans.transform.translation.z = translation_from_matrix(trans_mat)[2]
         trans.transform.rotation = Quaternion(*quaternion_from_matrix(trans_mat))
 
-
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
@@ -86,9 +98,7 @@ class Particle():
 
         # Get result from action server
         mbes_ac.send_goal(mbes_goal)
-        # rospy.loginfo("Waiting for MbesSim action Result")
         mbes_ac.wait_for_result()
-        # rospy.loginfo("Got MbesSim action Result")
         mbes_res = mbes_ac.get_result()
 
         # Pack result into PointCloud2

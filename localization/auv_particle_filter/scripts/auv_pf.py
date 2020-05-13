@@ -49,7 +49,7 @@ Test using new vs old N_eff calc and decide which is better
 
 class auv_pf():
     def __init__(self):
-        # Read nnecessary ROS parameters
+        # Read necessary ROS parameters
         param = rospy.search_param("map_frame")
         self.map_frame = rospy.get_param(param) # map frame_id
         param = rospy.search_param("odometry_topic")
@@ -130,6 +130,7 @@ class auv_pf():
         if self.old_time and self.time > self.old_time:
             self.predict()
             self._posearray_pub()
+            self.average_pf_pose()
         self.old_time = self.time
 
 
@@ -138,26 +139,25 @@ class auv_pf():
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
         yv = self.pred_odom.twist.twist.linear.y
-        # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
-        vel_vec = [xv, yv, yaw_v]
+
+        z = self.pred_odom.pose.pose.position.z
+        qx = self.pred_odom.pose.pose.orientation.x
+        qy = self.pred_odom.pose.pose.orientation.y
+        qz = self.pred_odom.pose.pose.orientation.z
+        qw = self.pred_odom.pose.pose.orientation.w
+        update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
 
         # Update particles pose estimate
-        """
-        FOR MULTIPROCESSING:
-
-        Could append dt to vel_vec and calc noise in particle.pred_update
-        OR also append pred_noice[idx,:] to vel_vec and have it be a pass in vector
-        """
-        for idx, particle in enumerate(self.particles):
-            particle.pred_update(vel_vec, dt)
+        for particle in self.particles:
+            particle.pred_update(update_vec)
 
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
         """
-        Should pred_odom pose not be ussed b/c we won't actually know it ???
-        Maybe we should take average of partricles here?
+        Should pred_odom pose not be used b/c we won't actually know it ???
+        Maybe we should take average of particles here?
         """
         log_weights = []
         weights = []
@@ -204,7 +204,6 @@ class auv_pf():
             weights_ = np.asarray(weights)
         
         self.resample(weights_)
-        self.average_pf_pose()
 
 
     def resample(self, weights):
@@ -225,6 +224,9 @@ class auv_pf():
         for i in keep:
             dupes.remove(i)
 
+        """
+        Choose only one of these N_eff calcs to retain
+        """
         if use_N_eff_from_paper:
             N_eff = 1/np.sum(np.square(weights)) # From paper
         else:
@@ -248,8 +250,12 @@ class auv_pf():
         FOR MULTIPROCESSING:
 
         Each particle could return a vector of [x,y,z,roll,pitch,yaw]
-        And then we turn all the vectors into one  numpy array and do
+        And then we turn all the vectors into one numpy array and do
         our row averaging operations afterwards
+
+        Also we could return those vectors from particle.pred_update()
+        since the values are already calced in that function and we
+        could reduce the number of times we iterate through all particles
         """
         for particle in self.particles:
             x_.append(particle.pose.position.x)
@@ -271,7 +277,11 @@ class auv_pf():
         pf_pose.pose.pose.position.x = sum(x_) / len(x_)
         pf_pose.pose.pose.position.y = sum(y_) / len(y_)
         pf_pose.pose.pose.position.z = sum(z_) / len(z_)
-
+        """
+        If z, roll, and pitch can stay as read directly from
+        the odometry message there is no need to average them.
+        We could just read from any arbitrary particle
+        """
         roll  = sum(roll_) / len(roll_)
         pitch = sum(pitch_) / len(pitch_)
         """

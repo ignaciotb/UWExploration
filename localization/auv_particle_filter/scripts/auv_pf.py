@@ -250,7 +250,7 @@ class auv_pf():
             particle.weight += 1.e-300 # avoid round-off to zero
             weights.append(particle.weight)
         
-        weights = weights / sum(weights)
+        # weights = weights / np.sum(weights)
         weights_ = np.asarray(weights)
         self.resample(weights_)
         # self.average_pf_pose()
@@ -265,7 +265,7 @@ class auv_pf():
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
-        # cdf /= cdf[cdf.size-1]
+        cdf /= cdf[cdf.size-1]
         print('cdf: ',cdf)
         # Multinomial resampling
         r = np.random.rand(self.pc,1)

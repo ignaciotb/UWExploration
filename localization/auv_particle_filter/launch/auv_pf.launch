@@ -1,7 +1,8 @@
 <?xml version="1.0" ?>
 <launch>
 
-  <arg name="mode" default="sim"/>
+  <arg name="mode"       default="sim"/>
+  <arg name="debug_mode" default="False"/> <!-- bool -->
 
   <!-- Define args -->
   <arg name="particle_count"                    default="25"/>
@@ -16,22 +17,37 @@
   <arg name="particle_poses_topic"              default="/pf/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/pf/sim_mbes"/>
 
-  <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
-
-    <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-    <param name="measurement_period"      type= "int"     value="$(arg measurement_period)" />
-    <param name="measurement_covariance"                  value="$(arg measurement_covariance)" />
-    <param name="motion_covariance"                       value="$(arg motion_covariance)" />
-    <param name="map_frame"                               value="$(arg map_frame)" />
-    <param name="odometry_topic"                          value="$(arg odometry_topic)" />
-    <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
-    <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
-    <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
-    <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-
-  </node>
-
   <!-- Include rviz -->
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find bathy_mapper)/rviz/bathy_map.rviz" output="screen" />
+
+  <group unless="$(arg debug_mode)"> <!-- quiet_mode -->
+    <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="log">
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
+      <param name="measurement_period"      type= "int"     value="$(arg measurement_period)" />
+      <param name="measurement_covariance"                  value="$(arg measurement_covariance)" />
+      <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+      <param name="map_frame"                               value="$(arg map_frame)" />
+      <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+      <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
+      <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+      <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
+      <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+    </node>
+  </group>
+
+  <group if="$(arg debug_mode)"> <!-- display loginfo in terminal -->
+    <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
+      <param name="measurement_period"      type= "int"     value="$(arg measurement_period)" />
+      <param name="measurement_covariance"                  value="$(arg measurement_covariance)" />
+      <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+      <param name="map_frame"                               value="$(arg map_frame)" />
+      <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+      <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
+      <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+      <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
+      <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+    </node>
+  </group>
 
 </launch>

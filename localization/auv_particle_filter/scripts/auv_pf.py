@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 # Standard dependencies
 import sys
@@ -11,6 +11,7 @@ import tf2_ros
 import tf_conversions
 import tf2_msgs.msg # Not sure if needed
 import scipy.stats # For weights
+from scipy.special import logsumexp # For log weights
 from copy import deepcopy
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
@@ -26,48 +27,27 @@ from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
-# Define
-meas_freq = 1 # [Hz] to run mbes_sim
+# Import Particle() class
+from auv_particle import Particle, matrix_from_tf
 
+# Multiprocessing
+# import time # For evaluating mp improvements
+# import multiprocessing as mp
+# from functools import partial # Might be useful with mp
+# from pathos.multiprocessing import ProcessingPool as Pool
 
-class Particle():
-    def __init__(self, index):
-        self.index = index # index starts from 1
-        self.weight = 1.
-        self.pose = Pose()
-        self.pose.orientation.w = 1.
-        
-        if index < 10:
-            pcloud_top = '/sim_mbes/particle_0' + str(index)
-        else:
-            pcloud_top = '/sim_mbes/particle_' + str(index)
-
-        # Initialize sim_mbes pointcloud publisher
-        self.pcloud_pub = rospy.Publisher(pcloud_top, PointCloud2, queue_size=1)
-
-    def update(self, vel_vec, noise_vec, dt):
-        quat = (self.pose.orientation.x,
-                self.pose.orientation.y,
-                self.pose.orientation.z,
-                self.pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(quat)
-
-        """
-        NEED TO INCLUDE Z (ALTITUDE) IN UPDATES
-        ACTUALLY UP/DOWN ARROWS CHANGE PITCH...
-        SOMEHOW PARTICLE POSE (AND MBES READING) NEEDS TO
-        CHANGE FROM UP/DOWN ARROW MOVEMENTS IN SIM (I THINK)
-        """
-
-        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
-        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
-        yaw += vel_vec[2] * dt + noise_vec[2] # No need for remainder bc quaternion
-        self.pose.orientation = Quaternion(*quaternion_from_euler(0, 0, yaw))
-
+# Define (add to launch file at some point)
+T_meas = 2 # [s] Period between MBES scans
+std = 0.1 # Noise in the multibeam (tunable parameter)
+use_log_weights = True # Boolean
+use_N_eff_from_paper = False # Boolean
+"""
+Test using new vs old N_eff calc and decide which is better
+"""
 
 class auv_pf():
     def __init__(self):
-        # Read nnecessary ROS parameters
+        # Read necessary ROS parameters
         param = rospy.search_param("map_frame")
         self.map_frame = rospy.get_param(param) # map frame_id
         param = rospy.search_param("odometry_topic")
@@ -85,7 +65,7 @@ class auv_pf():
         cov_string = cov_string.replace('[','')
         cov_string = cov_string.replace(']','')
         cov_list = list(cov_string.split(", "))
-        self.predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
+        predict_cov = list(map(float, cov_list)) # [xv_cov, yv_cov, yaw_v_cov]
 
         # Initialize class/callback variables
         self.pred_odom = None
@@ -99,6 +79,8 @@ class auv_pf():
         self.pf_pub = rospy.Publisher(self.pose_array_top, PoseArray, queue_size=10)
         # Initialize average of poses publisher
         self.avg_pub = rospy.Publisher('/avg_pf_pose', PoseWithCovarianceStamped, queue_size=10)
+        # Initialize sim_mbes pointcloud publisher
+        self.pcloud_pub = rospy.Publisher('/particle_mbes_pclouds', PointCloud2, queue_size=10)
 
         # Initialize tf listener (and broadcaster)
         self.tfBuffer = tf2_ros.Buffer()
@@ -108,28 +90,15 @@ class auv_pf():
         try:
             rospy.loginfo("Waiting for transform from base_link to mbes_link")
             mbes_tf = self.tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            
-            mbes_trans = (mbes_tf.transform.translation.x,
-                        mbes_tf.transform.translation.y,
-                        mbes_tf.transform.translation.z)
-            mbes_quat = (mbes_tf.transform.rotation.x,
-                        mbes_tf.transform.rotation.y,
-                        mbes_tf.transform.rotation.z,
-                        mbes_tf.transform.rotation.w)
-            
-            tmat_mbes = translation_matrix(mbes_trans)
-            qmat_mbes = quaternion_matrix(mbes_quat)
-            self.mbes_matrix = np.dot(tmat_mbes, qmat_mbes)
-            
+            mbes_matrix = matrix_from_tf(mbes_tf)
             rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
-
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
         
         # Initialize list of particles
         self.particles = []
-        for i in range(self.pc):
-            self.particles.append(Particle(i+1)) # particle index starts from 1
+        for i in range(self.pc): # particle index starts from 1
+            self.particles.append(Particle(i+1, mbes_matrix, process_cov=predict_cov, map_frame=self.map_frame))
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -138,135 +107,127 @@ class auv_pf():
         rospy.loginfo("Connected MbesSim action server")
 
         # Establish subscription to mbes pings message
-        rospy.Subscriber(self.mbes_pings_top, PointCloud2, self.mbes_callback)
+        rospy.Subscriber(self.mbes_pings_top, PointCloud2, self._mbes_callback)
         # Establish subscription to odometry message | Last because this will start callback & prediction running
         rospy.Subscriber(self.odom_top, Odometry, self.odom_callback)
         rospy.sleep(0.5) # CAN ADD DURATION INSTEAD? 
-        
+
+
+    def _mbes_callback(self, msg):
+        self.mbes_true_pc = msg
 
     def odom_callback(self,msg):
         self.pred_odom = msg
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
             self.predict()
-            self.pub_()
+            self._posearray_pub()
         self.old_time = self.time
-
-    def mbes_callback(self, msg):
-        self.mbes_true_pc = msg
 
 
     def predict(self):
-        # Adding gaussian noice
-        pred_noice =  self.process_noise()
         # Unpack odometry message
         dt = self.time - self.old_time
         xv = self.pred_odom.twist.twist.linear.x
         yv = self.pred_odom.twist.twist.linear.y
-        # vel = np.sqrt(np.power(xv,2) + np.power(yv,2))
         yaw_v = self.pred_odom.twist.twist.angular.z
-        vel_vec = [xv, yv, yaw_v]
 
-        # Update particles pose estimate
-        for i in range(len(self.particles)):
-            particle = self.particles[i]
-            particle.update(vel_vec, pred_noice[i,:], dt)
+        z = self.pred_odom.pose.pose.position.z
+        qx = self.pred_odom.pose.pose.orientation.x
+        qy = self.pred_odom.pose.pose.orientation.y
+        qz = self.pred_odom.pose.pose.orientation.z
+        qw = self.pred_odom.pose.pose.orientation.w
+        update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
 
+        """
+        Failed attempts at using multiprocessing for pred_update
+        """
+        # nprocs = mp.cpu_count()
+        # # pool = mp.Pool(processes=nprocs)
+        # pool = Pool(nprocs)
+        # pool.map(_pred_update_helper, ((particle, update_vec) for particle in self.particles))
 
-    def pub_(self):
-        self.pos_.poses = []
-        for pt in self.particles:
-            self.pos_.poses.append(pt.pose)
-        # Publish particles with time odometry was received
-        self.pos_.header.stamp.secs = int(self.time)
-        self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
-        self.pf_pub.publish(self.pos_)
+        # # multi_result = [pool.apply_async(_pred_update_helper, (particle, update_vec)) for particle in self.particles]
+        # # result = [p.get() for p in multi_result]
 
-
-    def process_noise(self):
-        cov_ = np.zeros((3,3))
-        cov_[0,0] = self.predict_cov[0]
-        cov_[1,1] = self.predict_cov[1]
-        cov_[2,2] = self.predict_cov[2]
-        var = np.diagonal(cov_)
-        return np.sqrt(var)*np.random.randn(self.pc, 3)
+        pose_list = []
+        for particle in self.particles:
+            particle.pred_update(update_vec)
+            """
+            particle.get_pose_vec() function could be combined
+            with particle.pred_update() if that seems cleaner
+            """
+            pose_vec = particle.get_pose_vec()
+            pose_list.append(pose_vec)
+        self.average_pose(pose_list)
 
 
     def measurement(self):
-        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose)
+        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
         """
-        Should pred_odom pose not be ussed b/c we won't actually know it ???
-        Maybe we should tyake average of partricles here?
+        Should pred_odom pose not be used b/c we won't actually know it?
+        Maybe this isn't relevant once we have better weight functions
         """
+        log_weights = []
         weights = []
-
-        std = 0.01
         """
-        No idea what value to use here...
-        Should this be a constant or calced
-        based on beams / particle poses / etc. ???
-        e.g. std = math.sqrt((1/N)*sum((x_i - mu)**2))
+        If trying to use log weights instead of regular weights:
+            log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
+            C = #son * log(sqrt(2*pi*std**2))
         """
         C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
-        print('C= ',C)
+        """
+        FOR MULTIPROCESSING:
 
+        mbes_ac is now the only pass in variable if we make a vector of
+        mse values and then calc weights using numpy array functions
+        after multiproc is done
+        """
         for particle in self.particles:
-            mbes_pcloud = self.pf2mbes(particle)
-            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle)
+            mbes_pcloud = particle.simulate_mbes(self.ac_mbes)
+            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
+            self.pcloud_pub.publish(mbes_pcloud)
 
             try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean() 
-                # print(particle.index, mse)
-            except: # What should we do for reweighting particles without an mbes result???
-                print('Caught exception in auv_pf.measurement() function')
-                mse = None
-            
-            """
-            Temporary weight calculation
-            Replace with something legit
-            """
-            
-            if mse == None:
-                particle.weight = 0
-            else:
+                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
                 """
-                log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
-                C = #son * log(sqrt(2*pi*std**2))
+                Calculate regular weight AND log weight for now
                 """
-                # particle.weight = math.exp(C - mse/(2*std**2))
-                print(mse/(2*std**2))
+                weight = math.exp(-mse/(2*std**2))
                 log_w = C - mse/(2*std**2)
-                """
-                With 10 particles,
-                log_w should ~ -1.0 -> w ~ 0.1
-                BUT, log_w ~ -300
-                """
-                particle.weight = -1.0/(C - mse/(2*std**2))
-                """
-                The -1.0 / log(weight) is a bit weird
-                Find a better way to use the log(w) that come out negative
-                """
-            
-            particle.weight += 1.e-300 # avoid round-off to zero
-            weights.append(particle.weight)
+            except:
+                rospy.loginfo('Caught exception in auv_pf.measurement() function')
+                log_w = -1.e100 # A very large negative value
+                weight = 1.e-300 # avoid round-off to zero
+
+            weights.append(weight)
+            log_weights.append(log_w)
+
+        if use_log_weights:
+            norm_factor = logsumexp(log_weights)
+            weights_ = np.asarray(log_weights)
+            weights_ -= norm_factor
+            weights_ = np.exp(weights_)
+        else:
+            weights_ = np.asarray(weights)
         
+<<<<<<< HEAD
         # weights = weights / np.sum(weights)
         weights_ = np.asarray(weights)
+=======
+>>>>>>> kyle/master
         self.resample(weights_)
-        # self.average_pf_pose()
 
 
     def resample(self, weights):
-        
-        # if np.sum(weights) == 0: # Catches situation where all weights go to zero
-        #     weights = np.ones(weights.size)
-        # Above catch no longer necessary
-        print('log of weights: ',weights)
 
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
+<<<<<<< HEAD
         print('cdf: ',cdf)
+=======
+>>>>>>> kyle/master
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []
@@ -279,112 +240,93 @@ class auv_pf():
         dupes = indices[:] # particle poses to replace the forgotten
         for i in keep:
             dupes.remove(i)
+        """
+        Choose only one of these N_eff calcs to retain
+        """
+        if use_N_eff_from_paper:
+            N_eff = 1/np.sum(np.square(weights)) # From paper
+        else:
+            N_eff = self.pc - len(lost) # old version
 
-        if len(lost) > self.pc/2: # Threshold to perform resampling
+        if N_eff < self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
-                self.particles[lost[i]].pose = deepcopy(self.particles[dupes[i]].pose)
+                # Faster to do separately than using deepcopy()
+                self.particles[lost[i]].pose.position.x = self.particles[dupes[i]].pose.position.x
+                self.particles[lost[i]].pose.position.y = self.particles[dupes[i]].pose.position.y
+                self.particles[lost[i]].pose.position.z = self.particles[dupes[i]].pose.position.z
+                self.particles[lost[i]].pose.orientation.x = self.particles[dupes[i]].pose.orientation.x
+                self.particles[lost[i]].pose.orientation.y = self.particles[dupes[i]].pose.orientation.y
+                self.particles[lost[i]].pose.orientation.z = self.particles[dupes[i]].pose.orientation.z
+                self.particles[lost[i]].pose.orientation.w = self.particles[dupes[i]].pose.orientation.w
                 """
                 Consider adding noise to resampled particle
                 """
         else:
-            print('Too many particles kept - not resampling')
+            rospy.loginfo('Number of effective particles too high - not resampling')
 
-    def pcloud2ranges(self, point_cloud, particle_):
+
+    def average_pose(self, pose_list):
+        """
+        Get average pose of particles and
+        publish it as PoseWithCovarianceStamped
+
+        :param pose_list: List of lists containing pose
+                        of all particles in form
+                        [x, y, z, roll, pitch, yaw]
+        :type pose_list: list
+        """
+        poses_array = np.array(pose_list)
+        ave_pose = poses_array.mean(axis = 0)
+
+        pf_pose = PoseWithCovarianceStamped()
+        pf_pose.header.frame_id = self.map_frame
+
+        pf_pose.pose.pose.position.x = ave_pose[0]
+        pf_pose.pose.pose.position.y = ave_pose[1]
+        """
+        If z, roll, and pitch can stay as read directly from
+        the odometry message there is no need to average them.
+        We could just read from any arbitrary particle
+        """
+        pf_pose.pose.pose.position.z = ave_pose[2]
+        roll  = ave_pose[3]
+        pitch = ave_pose[4]
+        """
+        Average of yaw angles creates
+        issues when heading towards pi because pi and
+        negative pi are next to eachother, but average
+        out to zero (opposite direction of heading)
+        """
+        yaws = poses_array[:,5]
+        if np.abs(yaws).min() > math.pi/2:
+            yaws[yaws < 0] += 2*math.pi
+        yaw = yaws.mean()
+
+        pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+        pf_pose.header.stamp = rospy.Time.now()
+        self.avg_pub.publish(pf_pose)
+
+
+    def pcloud2ranges(self, point_cloud, pose):
         ranges = []
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
             # starts at left hand side of particle's mbes
-            dx = particle_.pose.position.x - p[0]
-            dy = particle_.pose.position.y - p[1]
-            dz = particle_.pose.position.z - p[2]
+            dx = pose.position.x - p[0]
+            dy = pose.position.y - p[1]
+            dz = pose.position.z - p[2]
             dist = math.sqrt((dx**2 + dy**2 + dz**2))
             ranges.append(dist)
         return np.asarray(ranges)
 
 
-    def average_pf_pose(self):
-        x_ = []
-        y_ = []
-        z_ = []
-        roll_ = []
-        pitch_ = []
-        yaw_ = []
+    def _posearray_pub(self):
+        self.pos_.poses = []
         for particle in self.particles:
-            pose = deepcopy(particle.pose)
-            x_.append(pose.position.x)
-            y_.append(pose.position.y)
-            z_.append(pose.position.z)
-
-            quat = (pose.orientation.x,
-                    pose.orientation.y,
-                    pose.orientation.z,
-                    pose.orientation.w)
-            roll, pitch, yaw = euler_from_quaternion(quat)
-            roll_.append(roll)
-            pitch_.append(pitch)
-            yaw_.append(yaw)
-            
-        pf_pose = PoseWithCovarianceStamped()
-        pf_pose.header.frame_id = self.map_frame
-        pf_pose.header.stamp = rospy.Time.now()
-
-        pf_pose.pose.pose.position.x = sum(x_) / len(x_)
-        pf_pose.pose.pose.position.y = sum(y_) / len(y_)
-        pf_pose.pose.pose.position.z = sum(z_) / len(z_)
-
-        roll  = sum(roll_) / len(roll_)
-        pitch = sum(pitch_) / len(pitch_)
-        yaw   = sum(yaw_) / len(yaw_)
-        
-        pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
-        self.avg_pub.publish(pf_pose)
-
-
-    def pf2mbes(self, particle_):
-
-        # Find particle's mbes pose without broadcasting/listening to tf transforms
-        particle_trans = (particle_.pose.position.x,
-                        particle_.pose.position.y,
-                        particle_.pose.position.z)
-        particle_quat = (particle_.pose.orientation.x,
-                        particle_.pose.orientation.y,
-                        particle_.pose.orientation.z,
-                        particle_.pose.orientation.w)
-
-        tmat_part = translation_matrix(particle_trans)
-        qmat_part = quaternion_matrix(particle_quat)
-        mat_part = np.dot(tmat_part, qmat_part)
-
-        trans_mat = np.dot(mat_part, self.mbes_matrix)
-
-        trans = TransformStamped()
-        trans.transform.translation.x = translation_from_matrix(trans_mat)[0]
-        trans.transform.translation.y = translation_from_matrix(trans_mat)[1]
-        trans.transform.translation.z = translation_from_matrix(trans_mat)[2]
-        trans.transform.rotation = Quaternion(*quaternion_from_matrix(trans_mat))
-
-
-        # Build MbesSimGoal to send to action server
-        mbes_goal = MbesSimGoal()
-        mbes_goal.mbes_pose.header.frame_id = self.map_frame
-        # mbes_goal.mbes_pose.child_frame_id = particle_.mbes_frame_id # The particles will be in a child frame to the map
-        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
-        mbes_goal.mbes_pose.transform = trans.transform
-
-        # Get result from action server
-        self.ac_mbes.send_goal(mbes_goal)
-        # rospy.loginfo("Waiting for MbesSim action Result")
-        self.ac_mbes.wait_for_result()
-        # rospy.loginfo("Got MbesSim action Result")
-        mbes_res = self.ac_mbes.get_result()
-
-        # Pack result into PointCloud2
-        mbes_pcloud = PointCloud2()
-        mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = self.map_frame
-
-        particle_.pcloud_pub.publish(mbes_pcloud)
-
-        return mbes_pcloud
+            self.pos_.poses.append(particle.pose)
+        # Publish particles with time odometry was received
+        self.pos_.header.stamp.secs = int(self.time)
+        self.pos_.header.stamp.nsecs = (self.time - int(self.time))*10**9
+        self.pf_pub.publish(self.pos_)
 
 
 def main():
@@ -396,14 +338,20 @@ def main():
     pf = auv_pf()
     rospy.loginfo("Particle filter class successfully created")
 
-    meas_rate = rospy.Rate(meas_freq) # Hz
+    meas_rate = rospy.Rate(1/float(T_meas))
     while not rospy.is_shutdown():
         pf.measurement()
         meas_rate.sleep()
-    
-    # rospy.spin()
+
+
+# def _pred_update_helper(args):
+#     """
+#     Worker function for multiprocessing
+#     prediction update
+#     """
+#     particle, update_vec = args
+#     particle.pred_update(update_vec)
 
 
 if __name__ == '__main__':
     main()
-

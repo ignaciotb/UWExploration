@@ -4,8 +4,13 @@
   <arg name="mode" default="sim"/>
   
   <!-- Define args -->
+<<<<<<< HEAD
   <arg name="particle_count"                    default="10"/>
   <arg name="motion_covariance"                 default="[0.00, 0.00, 0.0007]"/> <!-- [x, y, yaw] -->
+=======
+  <arg name="particle_count"                    default="25"/>
+  <arg name="motion_covariance"                 default="[0.001, 0.001, 0.0007]"/> <!-- [x, y, yaw] -->
+>>>>>>> kyle/master
   <arg name="map_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
   <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>

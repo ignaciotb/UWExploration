@@ -4,7 +4,6 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
-        - /TF1
         - /TF1/Frames1
         - /Odometry1/Shape1
         - /Odometry1/Covariance1
@@ -12,7 +11,7 @@ Panels:
         - /Octree1/Voxel Rendering1/Occupied1
         - /PointCloud22/Autocompute Value Bounds1
       Splitter Ratio: 0.5672645568847656
-    Tree Height: 362
+    Tree Height: 845
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -163,7 +162,7 @@ Visualization Manager:
       Shaft Length: 1
       Shaft Radius: 1
       Shape: Arrow (3D)
-      Topic: /particle_filter_topic
+      Topic: /pf/particle_poses
       Unreliable: false
       Value: true
     - Class: ufomap_rviz_plugin/Octree
@@ -233,7 +232,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /particle_mbes_pclouds
+      Topic: /pf/sim_mbes
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -265,7 +264,7 @@ Visualization Manager:
       Shaft Length: 10
       Shaft Radius: 0.05000000074505806
       Shape: Axes
-      Topic: /avg_pf_pose
+      Topic: /pf/avg_pose
       Unreliable: false
       Value: true
   Enabled: true

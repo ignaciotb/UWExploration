@@ -211,11 +211,6 @@ class auv_pf():
         else:
             weights_ = np.asarray(weights)
         
-<<<<<<< HEAD
-        # weights = weights / np.sum(weights)
-        weights_ = np.asarray(weights)
-=======
->>>>>>> kyle/master
         self.resample(weights_)
 
 
@@ -224,10 +219,6 @@ class auv_pf():
         # Define cumulative density function
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
-<<<<<<< HEAD
-        print('cdf: ',cdf)
-=======
->>>>>>> kyle/master
         # Multinomial resampling
         r = np.random.rand(self.pc,1)
         indices = []

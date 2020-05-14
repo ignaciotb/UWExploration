@@ -159,48 +159,23 @@ class auv_pf():
             """
             pose_vec = particle.get_pose_vec()
             pose_list.append(pose_vec)
-        self.average_pose(pose_list)
+
+        self.average_pose(pose_list) # Calculate the average
 
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
-        """
-        Should pred_odom pose not be used b/c we won't actually know it?
-        Maybe this isn't relevant once we have better weight functions
-        """
+
         log_weights = []
         weights = []
-        """
-        If trying to use log weights instead of regular weights:
-            log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
-            C = #son * log(sqrt(2*pi*std**2))
-        """
-        C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
-        """
-        FOR MULTIPROCESSING:
 
-        mbes_ac is now the only pass in variable if we make a vector of
-        mse values and then calc weights using numpy array functions
-        after multiproc is done
-        """
         for particle in self.particles:
             mbes_pcloud = particle.simulate_mbes(self.ac_mbes)
             mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
             self.pcloud_pub.publish(mbes_pcloud)
 
-            try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
-                """
-                Calculate regular weight AND log weight for now
-                """
-                weight = math.exp(-mse/(2*std**2))
-                log_w = C - mse/(2*std**2)
-            except:
-                rospy.loginfo('Caught exception in auv_pf.measurement() function')
-                log_w = -1.e100 # A very large negative value
-                weight = 1.e-300 # avoid round-off to zero
-
-            weights.append(weight)
+            w, log_w = particle.weight(mbes_meas_ranges, mbes_sim_ranges) # calculating particles weights
+            weights.append(w)
             log_weights.append(log_w)
 
         if use_log_weights:
@@ -210,34 +185,9 @@ class auv_pf():
             weights_ = np.exp(weights_)
         else:
             weights_ = np.asarray(weights)
-        
-        self.resample(weights_)
 
-
-    def resample(self, weights):
-
-        # Define cumulative density function
-        cdf = np.cumsum(weights)
-        cdf /= cdf[cdf.size-1]
-        # Multinomial resampling
-        r = np.random.rand(self.pc,1)
-        indices = []
-        for i in range(self.pc):
-            indices.append(np.argmax(cdf >= r[i]))
-        indices.sort()
-
-        keep = list(set(indices)) # set of particles resampled (independent of count)
-        lost = [i for i in range(self.pc) if i not in keep] # particle poses to forget
-        dupes = indices[:] # particle poses to replace the forgotten
-        for i in keep:
-            dupes.remove(i)
-        """
-        Choose only one of these N_eff calcs to retain
-        """
-        if use_N_eff_from_paper:
-            N_eff = 1/np.sum(np.square(weights)) # From paper
-        else:
-            N_eff = self.pc - len(lost) # old version
+        for particle in self.particles: # Overrighting, can do self.particles[0].resample instead
+            N_eff, lost, dupes = particle.resample(weights, self.pc) # For resampling
 
         if N_eff < self.pc/2: # Threshold to perform resampling
             for i in range(len(lost)): # Perform resampling
@@ -255,7 +205,6 @@ class auv_pf():
         else:
             rospy.loginfo('Number of effective particles too high - not resampling')
 
-
     def average_pose(self, pose_list):
         """
         Get average pose of particles and
@@ -266,11 +215,11 @@ class auv_pf():
                         [x, y, z, roll, pitch, yaw]
         :type pose_list: list
         """
-        poses_array = np.array(pose_list)
-        ave_pose = poses_array.mean(axis = 0)
-
         pf_pose = PoseWithCovarianceStamped()
         pf_pose.header.frame_id = self.map_frame
+
+        poses_array = np.array(pose_list)
+        ave_pose = poses_array.mean(axis = 0)
 
         pf_pose.pose.pose.position.x = ave_pose[0]
         pf_pose.pose.pose.position.y = ave_pose[1]

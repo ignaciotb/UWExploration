@@ -159,143 +159,25 @@ class auv_pf():
             """
             pose_vec = particle.get_pose_vec()
             pose_list.append(pose_vec)
-        self.average_pose(pose_list)
+
+        
+        pf_pose = Particle().average_pose(pose_list) # Calculate the average
+        self.avg_pub.publish(pf_pose)
 
 
     def measurement(self):
         mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
-        """
-        Should pred_odom pose not be used b/c we won't actually know it?
-        Maybe this isn't relevant once we have better weight functions
-        """
-        log_weights = []
-        weights = []
-        """
-        If trying to use log weights instead of regular weights:
-            log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
-            C = #son * log(sqrt(2*pi*std**2))
-        """
-        C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
-        """
-        FOR MULTIPROCESSING:
 
-        mbes_ac is now the only pass in variable if we make a vector of
-        mse values and then calc weights using numpy array functions
-        after multiproc is done
-        """
-        for particle in self.particles:
+        for idx, particle in enumerate(self.particles):
             mbes_pcloud = particle.simulate_mbes(self.ac_mbes)
-            mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
+            if idx == 0:
+                mbes_sim_ranges = self.pcloud2ranges(mbes_pcloud, particle.pose)
+            else:
+                mbes_sim_ranges = [mbes_sim_ranges, self.pcloud2ranges(mbes_pcloud, particle.pose)] # Saves as a tuple
             self.pcloud_pub.publish(mbes_pcloud)
 
-            try: # Sometimes there is no result for mbes_sim_ranges
-                mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
-                """
-                Calculate regular weight AND log weight for now
-                """
-                weight = math.exp(-mse/(2*std**2))
-                log_w = C - mse/(2*std**2)
-            except:
-                rospy.loginfo('Caught exception in auv_pf.measurement() function')
-                log_w = -1.e100 # A very large negative value
-                weight = 1.e-300 # avoid round-off to zero
-
-            weights.append(weight)
-            log_weights.append(log_w)
-
-        if use_log_weights:
-            norm_factor = logsumexp(log_weights)
-            weights_ = np.asarray(log_weights)
-            weights_ -= norm_factor
-            weights_ = np.exp(weights_)
-        else:
-            weights_ = np.asarray(weights)
-        
-        self.resample(weights_)
-
-
-    def resample(self, weights):
-
-        # Define cumulative density function
-        cdf = np.cumsum(weights)
-        cdf /= cdf[cdf.size-1]
-        # Multinomial resampling
-        r = np.random.rand(self.pc,1)
-        indices = []
-        for i in range(self.pc):
-            indices.append(np.argmax(cdf >= r[i]))
-        indices.sort()
-
-        keep = list(set(indices)) # set of particles resampled (independent of count)
-        lost = [i for i in range(self.pc) if i not in keep] # particle poses to forget
-        dupes = indices[:] # particle poses to replace the forgotten
-        for i in keep:
-            dupes.remove(i)
-        """
-        Choose only one of these N_eff calcs to retain
-        """
-        if use_N_eff_from_paper:
-            N_eff = 1/np.sum(np.square(weights)) # From paper
-        else:
-            N_eff = self.pc - len(lost) # old version
-
-        if N_eff < self.pc/2: # Threshold to perform resampling
-            for i in range(len(lost)): # Perform resampling
-                # Faster to do separately than using deepcopy()
-                self.particles[lost[i]].pose.position.x = self.particles[dupes[i]].pose.position.x
-                self.particles[lost[i]].pose.position.y = self.particles[dupes[i]].pose.position.y
-                self.particles[lost[i]].pose.position.z = self.particles[dupes[i]].pose.position.z
-                self.particles[lost[i]].pose.orientation.x = self.particles[dupes[i]].pose.orientation.x
-                self.particles[lost[i]].pose.orientation.y = self.particles[dupes[i]].pose.orientation.y
-                self.particles[lost[i]].pose.orientation.z = self.particles[dupes[i]].pose.orientation.z
-                self.particles[lost[i]].pose.orientation.w = self.particles[dupes[i]].pose.orientation.w
-                """
-                Consider adding noise to resampled particle
-                """
-        else:
-            rospy.loginfo('Number of effective particles too high - not resampling')
-
-
-    def average_pose(self, pose_list):
-        """
-        Get average pose of particles and
-        publish it as PoseWithCovarianceStamped
-
-        :param pose_list: List of lists containing pose
-                        of all particles in form
-                        [x, y, z, roll, pitch, yaw]
-        :type pose_list: list
-        """
-        poses_array = np.array(pose_list)
-        ave_pose = poses_array.mean(axis = 0)
-
-        pf_pose = PoseWithCovarianceStamped()
-        pf_pose.header.frame_id = self.map_frame
-
-        pf_pose.pose.pose.position.x = ave_pose[0]
-        pf_pose.pose.pose.position.y = ave_pose[1]
-        """
-        If z, roll, and pitch can stay as read directly from
-        the odometry message there is no need to average them.
-        We could just read from any arbitrary particle
-        """
-        pf_pose.pose.pose.position.z = ave_pose[2]
-        roll  = ave_pose[3]
-        pitch = ave_pose[4]
-        """
-        Average of yaw angles creates
-        issues when heading towards pi because pi and
-        negative pi are next to eachother, but average
-        out to zero (opposite direction of heading)
-        """
-        yaws = poses_array[:,5]
-        if np.abs(yaws).min() > math.pi/2:
-            yaws[yaws < 0] += 2*math.pi
-        yaw = yaws.mean()
-
-        pf_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
-        pf_pose.header.stamp = rospy.Time.now()
-        self.avg_pub.publish(pf_pose)
+        weights = self.particles.weight(mbes_meas_ranges, mbes_sim_ranges, self.pc) # calculating particles weights
+        self.particles = self.particles.resample(weights, self.particles) # Perform resampling
 
 
     def pcloud2ranges(self, point_cloud, pose):

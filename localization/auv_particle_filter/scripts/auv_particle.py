@@ -8,14 +8,9 @@ import rospy
 import numpy as np
 import tf
 import tf2_ros
-import tf_conversions
-import tf2_msgs.msg # Not sure if needed
-import scipy.stats # For weights
-from copy import deepcopy
 
-from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped
-from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -26,21 +21,16 @@ from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
-# Define (add to launch file at some point)
-T_meas = 2 # [s] Period between MBES scans
-std = 0.1 # Noise in the multibeam (tunable parameter)
-use_log_weights = True # Boolean
-use_N_eff_from_paper = False # Boolean
-
 
 class Particle():
-    def __init__(self, index, mbes_tf_matrix, process_cov=[0., 0., 0.], map_frame='map'):
-        self.index = index # index starts from 1
+    def __init__(self, index, mbes_tf_matrix, meas_cov=0.01, process_cov=[0., 0., 0.], map_frame='map'):
+        self.index = index # index starts from 0
         # self.weight = 1.
         self.pose = Pose()
         self.pose.orientation.w = 1.
         self.map_frame = map_frame
         self.mbes_tf_mat = mbes_tf_matrix
+        self.meas_cov = meas_cov
         self.process_cov = np.asarray(process_cov)
 
 
@@ -54,8 +44,7 @@ class Particle():
         depth = update_vec[4]
         true_quat = tuple(update_vec[5:])
         """
-        I think there should be a faster
-        way to compute noise_vec
+        There should be a faster way to compute noise_vec
         """
         noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 3)).flatten()
 
@@ -77,31 +66,17 @@ class Particle():
         self.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
 
     def weight(self, mbes_meas_ranges, mbes_sim_ranges ):
-        """
-        Should pred_odom pose not be used b/c we won't actually know it?
-        Maybe this isn't relevant once we have better weight functions
-        """
 
-        """
-        If trying to use log weights instead of regular weights:
-            log(w) = C - (1/(2*std**2))*sum(z_hat - z)**2
-            C = #son * log(sqrt(2*pi*std**2))
-        """
-        C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*std**2))
-        """
-        FOR MULTIPROCESSING:
+        C = len(mbes_meas_ranges)*math.log(math.sqrt(2*math.pi*self.meas_cov))
 
-        mbes_ac is now the only pass in variable if we make a vector of
-        mse values and then calc weights using numpy array functions
-        after multiproc is done
-        """
         try: # Sometimes there is no result for mbes_sim_ranges
             mse = ((mbes_meas_ranges - mbes_sim_ranges)**2).mean()
             """
             Calculate regular weight AND log weight for now
+            Decide whether to use log or regular weights
             """
-            w = math.exp(-mse/(2*std**2))
-            log_w = C - mse/(2*std**2)
+            w = math.exp(-mse/(2*self.meas_cov))
+            log_w = C - mse/(2*self.meas_cov)
         except:
             rospy.loginfo('Caught exception in auv_pf.measurement() function')
             log_w = -1.e100 # A very large negative value
@@ -110,31 +85,25 @@ class Particle():
         return w, log_w
 
     def resample(self, weights, pc):
-        # Define cumulative density function
+
         cdf = np.cumsum(weights)
         cdf /= cdf[cdf.size-1]
-        # Multinomial resampling
+
         r = np.random.rand(pc,1)
         indices = []
         for i in range(pc):
             indices.append(np.argmax(cdf >= r[i]))
         indices.sort()
 
-        keep = list(set(indices)) # set of particles resampled (independent of count)
-        lost = [i for i in range(pc) if i not in keep] # particle poses to forget
-        dupes = indices[:] # particle poses to replace the forgotten
+        keep = list(set(indices))
+        lost = [i for i in range(pc) if i not in keep]
+        dupes = indices[:]
         for i in keep:
             dupes.remove(i)
-        """
-        Choose only one of these N_eff calcs to retain
-        """
-        if use_N_eff_from_paper:
-            N_eff = 1/np.sum(np.square(weights)) # From paper
-        else:
-            N_eff = pc - len(lost) # old version
+
+        N_eff = 1/np.sum(np.square(weights))
 
         return N_eff, lost, dupes
-
 
 
     def simulate_mbes(self, mbes_ac):

@@ -75,8 +75,8 @@ class Particle():
             Calculate regular weight AND log weight for now
             Decide whether to use log or regular weights
             """
-            w = math.exp(-mse/(2*self.meas_cov))
-            log_w = C - mse/(2*self.meas_cov)
+            w = math.exp(-mse/(2*self.meas_cov**2))
+            log_w = C - mse/(2*self.meas_cov**2)
         except:
             rospy.loginfo('Caught exception in auv_pf.measurement() function')
             log_w = -1.e100 # A very large negative value

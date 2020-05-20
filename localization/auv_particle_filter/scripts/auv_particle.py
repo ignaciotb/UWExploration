@@ -23,7 +23,7 @@ import sensor_msgs.point_cloud2 as pc2
 
 
 class Particle():
-    def __init__(self, index, mbes_tf_matrix, meas_cov=0.01, process_cov=[0., 0., 0.], map_frame='map'):
+    def __init__(self, index, mbes_tf_matrix, meas_cov=0.01, process_cov=[0., 0., 0.], map_frame='map', meas_as='/mbes_server'):
         self.index = index # index starts from 0
         # self.weight = 1.
         self.pose = Pose()
@@ -32,17 +32,21 @@ class Particle():
         self.mbes_tf_mat = mbes_tf_matrix
         self.meas_cov = meas_cov
         self.process_cov = np.asarray(process_cov)
+        self.w = 0.
+        self.log_w = 0.
 
+        # Initialize connection to MbesSim action server
+        self.ac_mbes = actionlib.SimpleActionClient(meas_as, MbesSimAction)
+        rospy.loginfo("Waiting for MbesSim action server ")
+        self.ac_mbes.wait_for_server()
+        rospy.loginfo("MbesSim action client ")
 
-    def pred_update(self, update_vec):
-        """
-        Unpack update_vec
-        update_vec = [dt, xv, yv, yaw_v, z, qx, qy, qz, qw]
-        """
-        dt = update_vec[0]
-        vel_vec = update_vec[1:4]
-        depth = update_vec[4]
-        true_quat = tuple(update_vec[5:])
+    def motion_pred(self, odom_t, dt):
+        
+        xv = odom_t.twist.twist.linear.x
+        yv = odom_t.twist.twist.linear.y
+        yaw_v = odom_t.twist.twist.angular.z
+
         """
         There should be a faster way to compute noise_vec
         """
@@ -54,16 +58,24 @@ class Particle():
                         self.pose.orientation.w)
         _, _, yaw = euler_from_quaternion(particl_quat)
 
-        self.pose.position.x += vel_vec[0] * dt * math.cos(yaw) + noise_vec[0] + vel_vec[1] * dt * math.sin(yaw)
-        self.pose.position.y += vel_vec[0] * dt * math.sin(yaw) + noise_vec[1] + vel_vec[1] * dt * math.cos(yaw)
-        yaw += vel_vec[2] * dt + noise_vec[2]
+        self.pose.position.x += xv * dt * math.cos(yaw) + noise_vec[0] + yv * dt * math.sin(yaw)
+        self.pose.position.y += xv * dt * math.sin(yaw) + noise_vec[1] + yv * dt * math.cos(yaw)
+        yaw += yaw_v * dt + noise_vec[2]
         """
         depth, roll, & pitch are known from sensors
         """
-        self.pose.position.z = depth
-        roll, pitch, _ = euler_from_quaternion(true_quat)
+        self.pose.position.z = odom_t.pose.pose.position.z
+        roll, pitch, _ = euler_from_quaternion([odom_t.pose.pose.orientation.x,
+                                               odom_t.pose.pose.orientation.y,
+                                               odom_t.pose.pose.orientation.z,
+                                               odom_t.pose.pose.orientation.w])
 
         self.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+
+    def meas_update(self, mbes_meas_ranges):
+        mbes_i = self.simulate_mbes()
+        mbes_i_ranges = pcloud2ranges(mbes_i, self.pose)
+        self.w, self.log_w = self.weight(mbes_meas_ranges, mbes_i_ranges)
 
     def weight(self, mbes_meas_ranges, mbes_sim_ranges ):
 
@@ -84,7 +96,7 @@ class Particle():
         
         return w, log_w
  
-    def simulate_mbes(self, mbes_ac):
+    def simulate_mbes(self):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
@@ -108,9 +120,9 @@ class Particle():
         mbes_goal.mbes_pose.transform = trans.transform
 
         # Get result from action server
-        mbes_ac.send_goal(mbes_goal)
-        mbes_ac.wait_for_result()
-        mbes_res = mbes_ac.get_result()
+        self.ac_mbes.send_goal(mbes_goal)
+        self.ac_mbes.wait_for_result()
+        mbes_res = self.ac_mbes.get_result()
 
         # Pack result into PointCloud2
         mbes_pcloud = PointCloud2()
@@ -144,6 +156,17 @@ class Particle():
         pose_vec.append(yaw)
 
         return pose_vec
+
+def pcloud2ranges(point_cloud, pose):
+        ranges = []
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            # starts at left hand side of particle's mbes
+            dx = pose.position.x - p[0]
+            dy = pose.position.y - p[1]
+            dz = pose.position.z - p[2]
+            dist = math.sqrt((dx**2 + dy**2 + dz**2))
+            ranges.append(dist)
+        return np.asarray(ranges)
 
 
 def matrix_from_tf(transform):

@@ -23,7 +23,7 @@ import sensor_msgs.point_cloud2 as pc2
 
 
 class Particle():
-    def __init__(self, index, mbes_tf_matrix, meas_cov=0.01, process_cov=[0., 0., 0.], map_frame='map', meas_as='/mbes_server'):
+    def __init__(self, index, mbes_tf_matrix, meas_cov=0.01, process_cov=[0., 0., 0.], map_frame='map', meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
         self.index = index # index starts from 0
         # self.weight = 1.
         self.pose = Pose()
@@ -41,6 +41,8 @@ class Particle():
         self.ac_mbes.wait_for_server()
         rospy.loginfo("MbesSim action client ")
 
+        self.pcloud_pub = rospy.Publisher(pc_mbes_top, PointCloud2, queue_size=10)
+    
     def motion_pred(self, odom_t, dt):
         
         xv = odom_t.twist.twist.linear.x
@@ -73,8 +75,13 @@ class Particle():
         self.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
 
     def meas_update(self, mbes_meas_ranges):
-        mbes_i = self.simulate_mbes()
+        # Predict mbes ping given current particle pose and map
+        mbes_i = self.predict_meas()
         mbes_i_ranges = pcloud2ranges(mbes_i, self.pose)
+        # Publish (for visualization)
+        self.pcloud_pub.publish(mbes_i)
+
+        # Update particle weights
         self.w, self.log_w = self.weight(mbes_meas_ranges, mbes_i_ranges)
 
     def weight(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -96,7 +103,7 @@ class Particle():
         
         return w, log_w
  
-    def simulate_mbes(self):
+    def predict_meas(self):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()

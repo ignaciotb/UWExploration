@@ -43,6 +43,8 @@ class auv_pf(object):
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
+        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
+
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -66,8 +68,7 @@ class auv_pf(object):
         # Initialize list of particles
         self.particles = []
         for i in range(self.pc): # index starts from 0
-            self.particles.append(Particle(i, mbes_matrix, meas_cov=meas_cov, process_cov=predict_cov, map_frame=map_frame, meas_as=meas_model_as))
-        # Initialize class/callback variables
+            self.particles.append(Particle(i, mbes_matrix, meas_cov=meas_cov, process_cov=predict_cov, map_frame=map_frame, meas_as=meas_model_as, pc_mbes_top=mbes_pc_top))        # Initialize class/callback variables
         self.time = None
         self.old_time = None
         self.pred_odom = None
@@ -86,10 +87,6 @@ class auv_pf(object):
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
         self.avg_pub = rospy.Publisher(avg_pose_top, PoseWithCovarianceStamped, queue_size=10)
         
-        # Initialize sim_mbes pointcloud publisher
-        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
-
         # Establish subscription to mbes pings message
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_callback)

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/python
 
 # Standard dependencies
 import sys
@@ -36,13 +36,12 @@ from auv_particle import Particle, matrix_from_tf
     Unnecessary to calculate both """
 use_log_weights = False # Boolean
 
-class auv_pf():
+class auv_pf(object):
+
     def __init__(self):
         # Read necessary parameters
-        param = rospy.search_param("particle_count")
-        self.pc = rospy.get_param(param) # Particle Count
-        param = rospy.search_param("map_frame")
-        map_frame = rospy.get_param(param) # map frame_id
+        self.pc = rospy.get_param('~particle_count', 10) # Particle Count
+        map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient('/mbes_sim_server',MbesSimAction)
@@ -62,10 +61,8 @@ class auv_pf():
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
         # Read covariance values
-        param = rospy.search_param("measurement_covariance")
-        meas_cov = float(rospy.get_param(param))
-        param = rospy.search_param("motion_covariance")
-        cov_string = rospy.get_param(param)
+        meas_cov = float(rospy.get_param('~measurement_covariance', 0.01))
+        cov_string = rospy.get_param('~motion_covariance')
         cov_string = cov_string.replace('[','')
         cov_string = cov_string.replace(']','')
         cov_list = list(cov_string.split(", "))
@@ -80,44 +77,52 @@ class auv_pf():
         self.time = None
         self.old_time = None
         self.pred_odom = None
-        self.mbes_true_pc = None
+        self.latest_mbes = PointCloud2()
+        self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
         self.poses.header.frame_id = map_frame      
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = map_frame
 
         # Initialize particle poses publisher
-        param = rospy.search_param("particle_poses_topic")
-        pose_array_top = rospy.get_param(param)
+        pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
         self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
+        
         # Initialize average of poses publisher
-        param = rospy.search_param("average_pose_topic")
-        avg_pose_top = rospy.get_param(param)
+        avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
         self.avg_pub = rospy.Publisher(avg_pose_top, PoseWithCovarianceStamped, queue_size=10)
+        
         # Initialize sim_mbes pointcloud publisher
-        param = rospy.search_param("particle_sim_mbes_topic")
-        mbes_pc_top = rospy.get_param(param)
+        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
 
         # Establish subscription to mbes pings message
-        param = rospy.search_param("mbes_pings_topic")
-        mbes_pings_top = rospy.get_param(param)
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self._mbes_callback)
+        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_callback)
+
         # Establish subscription to odometry message (intentionally last)
-        param = rospy.search_param("odometry_topic")
-        odom_top = rospy.get_param(param)
+        odom_top = rospy.get_param("~odometry_topic", 'odom')
         rospy.Subscriber(odom_top, Odometry, self.odom_callback)
-        rospy.sleep(0.5)
 
+        rospy.loginfo("Particle filter class successfully created")
+        rospy.spin()
 
-    def _mbes_callback(self, msg):
-        self.mbes_true_pc = msg
+    def mbes_callback(self, msg):
+        self.latest_mbes = msg
 
     def odom_callback(self,msg):
         self.pred_odom = msg
         self.time = self.pred_odom.header.stamp.secs + self.pred_odom.header.stamp.nsecs*10**-9 
         if self.old_time and self.time > self.old_time:
+            # Motion prediction
             self.predict()
+            if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
+                # Measurement update if new one received
+                self.update(self.latest_mbes, self.pred_odom)
+                self.prev_mbes = self.latest_mbes
+                # Particle resampling
+                self.resample(self.weights_)
+
             self._posearray_pub()
         self.old_time = self.time
 
@@ -160,8 +165,8 @@ class auv_pf():
         self.average_pose(pose_list)
 
 
-    def measurement(self):
-        mbes_meas_ranges = self.pcloud2ranges(self.mbes_true_pc, self.pred_odom.pose.pose)
+    def update(self, meas_mbes, control):
+        mbes_meas_ranges = self.pcloud2ranges(meas_mbes, control.pose.pose)
 
         log_weights = []
         weights = []
@@ -290,30 +295,21 @@ class auv_pf():
         self.pf_pub.publish(self.poses)
 
 
-def main():
-    rospy.init_node('auv_pf', anonymous=True)
-    rospy.loginfo("Successful initilization of node")
-
-    param = rospy.search_param("measurement_period")
-    T_meas = float(rospy.get_param(param))
-
-    pf = auv_pf()
-    rospy.loginfo("Particle filter class successfully created")
-
-    meas_rate = rospy.Rate(1/T_meas)
-    while not rospy.is_shutdown():
-        pf.measurement()
-        meas_rate.sleep()
-
-
-# def _pred_update_helper(args):
-#     """
-#     Worker function for multiprocessing
-#     prediction update
-#     """
-#     particle, update_vec = args
-#     particle.pred_update(update_vec)
-
-
 if __name__ == '__main__':
-    main()
+    
+    rospy.init_node('auv_pf')
+
+    #  param = rospy.search_param("measurement_period")
+    #  T_meas = float(rospy.get_param(param))
+
+    try:
+        auv_pf()
+    except rospy.ROSInterruptException:
+        rospy.logerr("Couldn't launch pf")
+        pass
+
+    #  meas_rate = rospy.Rate(1/T_meas)
+    #  while not rospy.is_shutdown():
+        #  pf.measurement()
+        #  meas_rate.sleep()
+#

@@ -83,29 +83,7 @@ class Particle():
             w = 1.e-300 # avoid round-off to zero
         
         return w, log_w
-
-    def resample(self, weights, pc):
-
-        cdf = np.cumsum(weights)
-        cdf /= cdf[cdf.size-1]
-
-        r = np.random.rand(pc,1)
-        indices = []
-        for i in range(pc):
-            indices.append(np.argmax(cdf >= r[i]))
-        indices.sort()
-
-        keep = list(set(indices))
-        lost = [i for i in range(pc) if i not in keep]
-        dupes = indices[:]
-        for i in keep:
-            dupes.remove(i)
-
-        N_eff = 1/np.sum(np.square(weights))
-
-        return N_eff, lost, dupes
-
-
+ 
     def simulate_mbes(self, mbes_ac):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms

@@ -180,19 +180,38 @@ class auv_pf():
 
         if use_log_weights:
             norm_factor = logsumexp(log_weights)
-            weights_ = np.asarray(log_weights)
-            weights_ -= norm_factor
-            weights_ = np.exp(weights_)
+            self.weights_ = np.asarray(log_weights)
+            self.weights_ -= norm_factor
+            self.weights_ = np.exp(self.weights_)
         else:
-            weights_ = np.asarray(weights)
+            self.weights_ = np.asarray(weights)
+    
+    def resample(self, weights):
 
-        N_eff, lost, dupes = self.particles[0].resample(weights_, self.pc)
+        cdf = np.cumsum(weights)
+        cdf /= cdf[cdf.size-1]
 
+        r = np.random.rand(self.pc,1)
+        indices = []
+        for i in range(self.pc):
+            indices.append(np.argmax(cdf >= r[i]))
+        indices.sort()
+
+        keep = list(set(indices))
+        lost = [i for i in range(self.pc) if i not in keep]
+        dupes = indices[:]
+        for i in keep:
+            dupes.remove(i)
+
+        N_eff = 1/np.sum(np.square(weights))
+        
         if N_eff < self.pc/2:
             rospy.loginfo('Resampling')
             self.reassign_poses(lost, dupes)
         else:
             rospy.loginfo('Number of effective particles too high - not resampling')
+
+        return N_eff, lost, dupes
 
 
     def reassign_poses(self, lost, dupes):

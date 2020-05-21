@@ -44,10 +44,15 @@ class auv_pf(object):
         tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(tfBuffer)
         try:
-            rospy.loginfo("Waiting for transform from base_link to mbes_link")
-            mbes_tf = tfBuffer.lookup_transform('hugin/mbes_link', 'hugin/base_link', rospy.Time.now(), rospy.Duration(10))
-            mbes_matrix = matrix_from_tf(mbes_tf)
-            rospy.loginfo("Transform locked from base_link to mbes_link - pf node")
+            rospy.loginfo("Waiting for transforms")
+            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
+                                                rospy.Time(0), rospy.Duration(10))
+            mbes2base_mat = matrix_from_tf(mbes_tf)
+            
+            m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(10))
+            m2o_mat = matrix_from_tf(m2o_tf)
+
+            rospy.loginfo("Transform locked from map to odom - pf node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
@@ -70,8 +75,8 @@ class auv_pf(object):
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
-            self.particles[i] = Particle(i, self.pc, mbes_matrix, init_cov=init_cov, meas_cov=meas_cov,
-                                     process_cov=motion_cov, odom_frame=odom_frame,
+            self.particles[i] = Particle(i, self.pc, mbes2base_mat, m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+                                     process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
                                      meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
 
         self.time = None
@@ -113,10 +118,10 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
-            #  if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
-                #  # Measurement update if new one received
-                #  self.update(self.latest_mbes, odom_msg)
-                #  self.prev_mbes = self.latest_mbes
+            if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
+                # Measurement update if new one received
+                self.update(self.latest_mbes, odom_msg)
+                self.prev_mbes = self.latest_mbes
                 #  # Particle resampling
                 #  self.resample(self.weights_)
 #
@@ -136,7 +141,7 @@ class auv_pf(object):
 
 
     def update(self, meas_mbes, odom):
-        mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose)
+        mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
 
         log_weights = []
         weights = []
@@ -231,7 +236,6 @@ class auv_pf(object):
             self.poses.poses.append(self.particles[i].p_pose)
         # Publish particles with time odometry was received
         self.poses.header.stamp = rospy.Time.now()
-        print "Publishing markers"
         self.pf_pub.publish(self.poses)
 
 

@@ -23,8 +23,8 @@ import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import PoseStamped, Pose
 
 class Particle():
-    def __init__(self, index, p_num, mbes_tf_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
-                 meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], odom_frame='odom',
+    def __init__(self, index, p_num, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
+                 meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], map_frame='map', odom_frame='odom',
                  meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
 
         self.p_num = p_num # index starts from 0
@@ -32,7 +32,9 @@ class Particle():
         # self.weight = 1.
         self.p_pose = Pose()
         self.odom_frame = odom_frame
+        self.map_frame = map_frame
         self.mbes_tf_mat = mbes_tf_matrix
+        self.m2o_tf_mat = m2o_matrix 
         self.init_cov = init_cov
         self.meas_cov = meas_cov
         self.process_cov = np.asarray(process_cov)
@@ -41,9 +43,7 @@ class Particle():
 
         # Initialize connection to MbesSim action server
         self.ac_mbes = actionlib.SimpleActionClient(meas_as, MbesSimAction)
-        rospy.loginfo("Waiting for MbesSim action server ")
         self.ac_mbes.wait_for_server()
-        rospy.loginfo("MbesSim action client ")
 
         self.pcloud_pub = rospy.Publisher(pc_mbes_top, PointCloud2, queue_size=10)
         self.pose_pub = rospy.Publisher('/pf/particles', PoseStamped, queue_size=10)
@@ -140,7 +140,7 @@ class Particle():
         particle_tf.translation = self.p_pose.position
         particle_tf.rotation    = self.p_pose.orientation
         mat_part = matrix_from_tf(particle_tf)
-        trans_mat = np.dot(mat_part, self.mbes_tf_mat)
+        trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
 
         trans = TransformStamped()
         trans.transform.translation.x = translation_from_matrix(trans_mat)[0]
@@ -150,8 +150,7 @@ class Particle():
 
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
-        mbes_goal.mbes_pose.header.frame_id = self.odom_frame
-        # mbes_goal.mbes_pose.child_frame_id = self.mbes_frame_id # The particles will be in a child frame to the map
+        mbes_goal.mbes_pose.header.frame_id = self.map_frame
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
 
@@ -163,7 +162,7 @@ class Particle():
         # Pack result into PointCloud2
         mbes_pcloud = PointCloud2()
         mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = self.odom_frame
+        mbes_pcloud.header.frame_id = self.map_frame
 
         return mbes_pcloud
 
@@ -197,9 +196,9 @@ def pcloud2ranges(point_cloud, pose_s):
     ranges = []
     for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
             # starts at left hand side of particle's mbes
-        dx = pose_s.pose.position.x - p[0]
-        dy = pose_s.pose.position.y - p[1]
-        dz = pose_s.pose.position.z - p[2]
+        dx = pose_s.position.x - p[0]
+        dy = pose_s.position.y - p[1]
+        dz = pose_s.position.z - p[2]
         dist = math.sqrt((dx**2 + dy**2 + dz**2))
         ranges.append(dist)
     return np.asarray(ranges)

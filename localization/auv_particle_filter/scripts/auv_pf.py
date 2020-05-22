@@ -52,7 +52,7 @@ class auv_pf(object):
             m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(10))
             m2o_mat = matrix_from_tf(m2o_tf)
 
-            rospy.loginfo("Transform locked from map to odom - pf node")
+            rospy.loginfo("Transforms locked - pf node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
@@ -107,7 +107,7 @@ class auv_pf(object):
 
         rospy.loginfo("Particle filter class successfully created")
 
-        self._posearray_pub()
+        self.update_rviz()
         rospy.spin()
 
     def mbes_callback(self, msg):
@@ -122,28 +122,23 @@ class auv_pf(object):
                 # Measurement update if new one received
                 self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-                #  # Particle resampling
-                #  self.resample(self.weights_)
+                # Particle resampling
+                self.resample(self.weights_)
 #
-            self._posearray_pub()
+            self.update_rviz()
         self.old_time = self.time
 
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
-        pose_list = []
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
-            pose_vec = self.particles[i].get_pose_vec()
-            pose_list.append(pose_vec)
 
-        self.average_pose(pose_list)
 
 
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
 
-        log_weights = []
         weights = []
         for i in range(self.pc):
             self.particles[i].meas_update(mbes_meas_ranges)
@@ -151,11 +146,15 @@ class auv_pf(object):
 
         self.weights_ = np.asarray(weights)
 
+        #  print self.weights_/self.weights_.sum()
+        #  print "-------"
+
     def resample(self, weights):
 
+        print "-------"
         weights = weights/weights.sum()
         N_eff = self.pc
-        print "Weights"
+        #  print "Weights"
         print weights
         # Normalize weights
         if weights.sum() == 0.:
@@ -163,12 +162,13 @@ class auv_pf(object):
         else:
             N_eff = 1/np.sum(np.square(weights))
 
+        print "N_eff ", N_eff 
         # Resampling?
         if N_eff < self.pc/2:
             rospy.loginfo('Resampling')
             cdf = np.cumsum(weights)
-            print cdf
-            print self.pc
+            #  print cdf
+            #  print self.pc
             base = np.arange(0.0,1.0,1/float(self.pc))
             resample_id = base + np.random.uniform(0, 1./self.pc)
             ind = 0
@@ -181,16 +181,17 @@ class auv_pf(object):
             print "Indexes"
             print indexes
             self.particles = self.particles[indexes]
+        
+            # Add noise to particles
+            for i in range(self.pc):
+                self.particles[i].add_noise([5.,5.,0.,0.,0.,0.05])
+
 
         else:
-            print N_eff
+            #  print N_eff
             rospy.loginfo('Number of effective particles high - not resampling')
 
-        # Add noise to particles
-        for i in range(self.pc):
-            self.particles[i].add_noise([1.,1.,0.,0.,0.,0.1])
-
-
+        
     def average_pose(self, pose_list):
         """
         Get average pose of particles and
@@ -230,13 +231,19 @@ class auv_pf(object):
         self.avg_pub.publish(self.avg_pose)
 
 
-    def _posearray_pub(self):
+    # TODO: publish markers instead of poses
+    #       Optimize this function
+    def update_rviz(self):
         self.poses.poses = []
+        pose_list = []
         for i in range(self.pc):
             self.poses.poses.append(self.particles[i].p_pose)
+            pose_vec = self.particles[i].get_pose_vec()
+            pose_list.append(pose_vec)
         # Publish particles with time odometry was received
         self.poses.header.stamp = rospy.Time.now()
         self.pf_pub.publish(self.poses)
+        self.average_pose(pose_list)
 
 
 if __name__ == '__main__':

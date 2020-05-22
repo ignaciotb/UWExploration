@@ -116,18 +116,31 @@ class Particle():
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas()
         mbes_i_ranges = pcloud2ranges(mbes_i, self.p_pose)
-        #  print(np.average(mbes_meas_ranges - mbes_i_ranges))
+        #  print(mbes_meas_ranges)
+        #  print(mbes_i_ranges)
         # Publish (for visualization)
         self.pcloud_pub.publish(mbes_i)
 
         # Update particle weights
-        self.w = self.weight(mbes_meas_ranges, mbes_i_ranges)
-
+        self.w = self.weight2(mbes_meas_ranges, mbes_i_ranges)
+        
     def weight(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = 1./self.p_num
             for i in range(len(mbes_sim_ranges)):
-                w_i *= 1.0/ math.sqrt(2.0 * math.pi * self.meas_cov) * math.exp(-((mbes_sim_ranges[i] - mbes_meas_ranges[i])**2)/(2*self.meas_cov))
+                w_i *= (1.0/ math.sqrt(2.0 * math.pi * self.meas_cov)) * math.exp(
+                    -((mbes_sim_ranges[i] - mbes_meas_ranges[i])**2)/(2*self.meas_cov))
+        else:
+            print ("missing pings!")
+            w_i = 0.
+        return w_i
+
+    def weight2(self, mbes_meas_ranges, mbes_sim_ranges ):
+        if len(mbes_meas_ranges) == len(mbes_sim_ranges):
+            w_i = 1./self.p_num
+            #  for i in range(len(mbes_sim_ranges)):
+            w_i *= (1.0/ math.sqrt(2.0 * math.pi * self.meas_cov)) * math.exp(
+                    -((mbes_sim_ranges - mbes_meas_ranges).mean()**2)/(2*self.meas_cov))
         else:
             print ("missing pings!")
             w_i = 0.

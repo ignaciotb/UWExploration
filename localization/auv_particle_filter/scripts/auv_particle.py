@@ -83,35 +83,58 @@ class Particle():
                                                             noisy_pose[4][0],
                                                             noisy_pose[5][0]))
 
+
+    def fullRotation(self, roll, pitch, yaw):
+        rot_z = np.array([[np.cos(yaw), -np.sin(yaw), 0.0],
+                          [np.sin(yaw), np.cos(yaw), 0.0],
+                          [0., 0., 1]])
+        rot_y = np.array([[np.cos(pitch), 0.0, np.sin(pitch)],
+                          [0., 1., 0.],
+                          [-np.sin(pitch), np.cos(pitch), 0.0]])
+        rot_x = np.array([[1., 0., 0.],
+                          [0., np.cos(roll), -np.sin(roll)],
+                          [0., np.sin(roll), np.cos(roll)]])
+
+        rot_t = np.matmul(rot_z, np.matmul(rot_y, rot_x))
+        return rot_t
+
+
     def motion_pred(self, odom_t, dt):
-        # TODO: extend to 6D
-
-        xv = odom_t.twist.twist.linear.x
-        yv = odom_t.twist.twist.linear.y
-        yaw_v = odom_t.twist.twist.angular.z
-
+        # Generate noise
         noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 6)).flatten()
+        
+        # Angular motion
+        [roll, pitch, yaw] = euler_from_quaternion([self.p_pose.orientation.x,
+                                            self.p_pose.orientation.y,
+                                            self.p_pose.orientation.z,
+                                            self.p_pose.orientation.w])
 
-        particl_quat = (self.p_pose.orientation.x,
-                        self.p_pose.orientation.y,
-                        self.p_pose.orientation.z,
-                        self.p_pose.orientation.w)
-        _, _, yaw = euler_from_quaternion(particl_quat)
+        vel_rot = np.array([odom_t.twist.twist.angular.x,
+                            odom_t.twist.twist.angular.y,
+                            odom_t.twist.twist.angular.z])
 
-        self.p_pose.position.x += xv * dt * math.cos(yaw) + noise_vec[0] + yv * dt * math.sin(yaw)
-        self.p_pose.position.y += xv * dt * math.sin(yaw) + noise_vec[1] + yv * dt * math.cos(yaw)
-        yaw += yaw_v * dt + noise_vec[5]
-        """
-        depth, roll, & pitch are known from sensors
-        """
-        self.p_pose.position.z = odom_t.pose.pose.position.z
-        roll, pitch, _ = euler_from_quaternion([odom_t.pose.pose.orientation.x,
-                                               odom_t.pose.pose.orientation.y,
-                                               odom_t.pose.pose.orientation.z,
-                                               odom_t.pose.pose.orientation.w])
+        rot_t = np.array([roll, pitch, yaw]) + vel_rot * dt + noise_vec[3:6]
 
-        self.p_pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+        roll_t = ((rot_t[0]) + 2 * np.pi) % (2 * np.pi)
+        pitch_t = ((rot_t[1]) + 2 * np.pi) % (2 * np.pi)
+        yaw_t = ((rot_t[2]) + 2 * np.pi) % (2 * np.pi)
 
+        self.p_pose.orientation = Quaternion(*quaternion_from_euler(roll_t,
+                                                                    pitch_t,
+                                                                    yaw_t))
+
+        # Linear motion
+        vel_p = np.array([odom_t.twist.twist.linear.x,
+                         odom_t.twist.twist.linear.y,
+                         odom_t.twist.twist.linear.z])
+
+        rot_mat_t = self.fullRotation(roll_t, pitch_t, yaw_t)
+        step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
+
+        self.p_pose.position.x += step_t[0]
+        self.p_pose.position.y += step_t[1]
+        self.p_pose.position.z += step_t[2]
+ 
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas()

@@ -118,12 +118,12 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
-            if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
+            #  if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
                 # Measurement update if new one received
-                self.update(self.latest_mbes, odom_msg)
-                self.prev_mbes = self.latest_mbes
+                #  self.update(self.latest_mbes, odom_msg)
+                #  self.prev_mbes = self.latest_mbes
                 # Particle resampling
-                self.resample(self.weights_)
+                #  self.resample(self.weights_)
 #
             self.update_rviz()
         self.old_time = self.time

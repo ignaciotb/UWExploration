@@ -21,12 +21,12 @@
 
 	<!-- TODO: set tf map to odom in a more intuitive way -->
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="0.0"/>
+	<arg name="x" default="-100.0"/>
 	<arg name="y" default="0.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/>
+	<arg name="yaw" default="3.0"/>
 
 	<!-- Full biosensors mission -->
 	<!-- <arg name="x" default="-3156.8217773438"/>

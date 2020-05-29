@@ -8,6 +8,7 @@ import rospy
 import numpy as np
 import tf
 import tf2_ros
+from scipy.stats import multivariate_normal
 
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped
@@ -139,26 +140,42 @@ class Particle():
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas()
         mbes_i_ranges = pcloud2ranges(mbes_i, self.p_pose)
+        #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)
         # Publish (for visualization)
         self.pcloud_pub.publish(mbes_i)
 
         # Update particle weights
-        self.w = self.weight2(mbes_meas_ranges, mbes_i_ranges)
-        
-    def weight(self, mbes_meas_ranges, mbes_sim_ranges ):
+        self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
+        print "MV ", self.w
+        self.w = self.weight_avg(mbes_meas_ranges, mbes_i_ranges)
+        print "Avg ", self.w
+        self.w = self.weight_grad(mbes_meas_ranges, mbes_i_ranges)
+        print "Gradient", self.w
+
+
+    def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
-            w_i = 1./self.p_num
-            for i in range(len(mbes_sim_ranges)):
-                w_i *= (1.0/ math.sqrt(2.0 * math.pi * self.meas_cov)) * math.exp(
-                    -((mbes_sim_ranges[i] - mbes_meas_ranges[i])**2)/(2*self.meas_cov))
+            grad_meas = np.gradient(mbes_meas_ranges)
+            grad_expected = np.gradient(mbes_sim_ranges)
+            w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
             print ("missing pings!")
             w_i = 0.
         return w_i
-
-    def weight2(self, mbes_meas_ranges, mbes_sim_ranges ):
+     
+        
+    def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
+        if len(mbes_meas_ranges) == len(mbes_sim_ranges):
+            w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
+        else:
+            print ("missing pings!")
+            w_i = 0.
+        return w_i
+    
+    
+    def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = 1./self.p_num
             #  for i in range(len(mbes_sim_ranges)):

@@ -24,7 +24,11 @@ import sensor_msgs.point_cloud2 as pc2
 # Import Particle() class
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges
 
-# Multiprocessing
+# Multiprocessing and parallelizing
+import numba
+from numba import jit
+
+from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample 
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
 # from functools import partial # Might be useful with mp
@@ -118,23 +122,22 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
-            #  if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():
+            
+            if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():    
                 # Measurement update if new one received
-                #  self.update(self.latest_mbes, odom_msg)
-                #  self.prev_mbes = self.latest_mbes
+                self.update(self.latest_mbes, odom_msg)
+                self.prev_mbes = self.latest_mbes
+                
                 # Particle resampling
-                #  self.resample(self.weights_)
-#
+                self.resample(self.weights_)
+
             self.update_rviz()
         self.old_time = self.time
-
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
-
-
 
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
@@ -145,6 +148,8 @@ class auv_pf(object):
             weights.append(self.particles[i].w)
 
         self.weights_ = np.asarray(weights)
+        # Add small non-zero value to avoid hitting zero
+        self.weights_ += 1.e-30
 
         #  print self.weights_/self.weights_.sum()
         #  print "-------"
@@ -152,11 +157,12 @@ class auv_pf(object):
     def resample(self, weights):
 
         print "-------"
-        weights = weights/weights.sum()
-        N_eff = self.pc
+        # Normalize weights
+        weights /= weights.sum()
         #  print "Weights"
         print weights
-        # Normalize weights
+        
+        N_eff = self.pc
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
         else:
@@ -164,28 +170,15 @@ class auv_pf(object):
 
         print "N_eff ", N_eff 
         # Resampling?
-        if N_eff < self.pc/2:
-            rospy.loginfo('Resampling')
-            cdf = np.cumsum(weights)
-            #  print cdf
-            #  print self.pc
-            base = np.arange(0.0,1.0,1/float(self.pc))
-            resample_id = base + np.random.uniform(0, 1./self.pc)
-            ind = 0
-            indexes = []
-            for i in range(self.pc):
-                while resample_id[i] > cdf[ind]:
-                    ind += 1
-                indexes.append(ind)
-
+        if N_eff < self.pc/2.:
+            indexes = residual_resample(weights)
             print "Indexes"
             print indexes
             self.particles = self.particles[indexes]
-        
+            
             # Add noise to particles
-            for i in range(self.pc):
-                self.particles[i].add_noise([5.,5.,0.,0.,0.,0.05])
-
+            #  for i in range(self.pc):
+                #  self.particles[i].add_noise([1.,1.,0.,0.,0.,0.01])
 
         else:
             #  print N_eff

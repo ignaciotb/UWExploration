@@ -27,8 +27,8 @@ from auv_particle import Particle, matrix_from_tf, pcloud2ranges
 # Multiprocessing and parallelizing
 import numba
 from numba import jit
-
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample 
+
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
 # from functools import partial # Might be useful with mp
@@ -122,11 +122,9 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
-            print "Predict!"
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
-                print "Update!"
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
                 
@@ -141,7 +139,7 @@ class auv_pf(object):
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
-
+         
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
 
@@ -163,7 +161,7 @@ class auv_pf(object):
         # Normalize weights
         weights /= weights.sum()
         #  print "Weights"
-        print weights
+        #  print weights
         
         N_eff = self.pc
         if weights.sum() == 0.:

@@ -28,9 +28,9 @@ class AUVTeleopServer(object):
         self.thruster_top = rospy.get_param('~thruster_cmd', '/thruster')
         self.inclination_top = rospy.get_param('~inclination_cmd', '/inclination')
 
-        throttle_pub = rospy.Publisher(self.throttle_top, Float64, queue_size=10)
-        thruster_pub = rospy.Publisher(self.thruster_top, Float64, queue_size=10)
-        inclination_pub = rospy.Publisher(self.inclination_top, Float64, queue_size=10)
+        throttle_pub = rospy.Publisher(self.throttle_top, Float64, queue_size=1)
+        thruster_pub = rospy.Publisher(self.thruster_top, Float64, queue_size=1)
+        inclination_pub = rospy.Publisher(self.inclination_top, Float64, queue_size=1)
 
         screen = pygame.display.set_mode((199, 200))
         pygame.display.flip()

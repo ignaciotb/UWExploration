@@ -174,20 +174,36 @@ class auv_pf(object):
         print "N_eff ", N_eff 
         # Resampling?
         if N_eff < self.pc*0.5:
-            indexes = residual_resample(weights)
-            print "Indexes"
-            print indexes
-            self.particles = self.particles[indexes]
+            indices = residual_resample(weights)
+            print "Indices"
+            print indices
+            keep = list(set(indices))
+            lost = [i for i in range(self.pc) if i not in keep]
+            dupes = indices[:].tolist()
+            for i in keep:
+                dupes.remove(i)
+            
+            self.reassign_poses(lost, dupes)
             
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise([3.,3.,0.,0.,0.,0.0])
 
-        #  else:
-            #  print N_eff
-            #  rospy.loginfo('Number of effective particles high - not resampling')
+        else:
+            print N_eff
+            rospy.loginfo('Number of effective particles high - not resampling')
 
-        
+    def reassign_poses(self, lost, dupes):
+        for i in range(len(lost)):
+            # Faster to do separately than using deepcopy()
+            self.particles[lost[i]].p_pose.position.x = self.particles[dupes[i]].p_pose.position.x
+            self.particles[lost[i]].p_pose.position.y = self.particles[dupes[i]].p_pose.position.y
+            self.particles[lost[i]].p_pose.position.z = self.particles[dupes[i]].p_pose.position.z
+            self.particles[lost[i]].p_pose.orientation.x = self.particles[dupes[i]].p_pose.orientation.x
+            self.particles[lost[i]].p_pose.orientation.y = self.particles[dupes[i]].p_pose.orientation.y
+            self.particles[lost[i]].p_pose.orientation.z = self.particles[dupes[i]].p_pose.orientation.z
+            self.particles[lost[i]].p_pose.orientation.w = self.particles[dupes[i]].p_pose.orientation.w
+
     def average_pose(self, pose_list):
         """
         Get average pose of particles and

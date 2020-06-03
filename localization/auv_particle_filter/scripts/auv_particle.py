@@ -129,6 +129,12 @@ class Particle():
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
 
+        if np.linalg.norm(vel_p) > 5.:
+            vel_p = np.array([5., 0.0, 0.0])
+        #  print dt
+            print "Too fast"
+        #  print vel_p*dt
+
         rot_mat_t = self.fullRotation(roll_t, pitch_t, yaw_t)
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
 
@@ -147,12 +153,12 @@ class Particle():
         self.pcloud_pub.publish(mbes_i)
 
         # Update particle weights
-        self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
-        print "MV ", self.w
-        self.w = self.weight_avg(mbes_meas_ranges, mbes_i_ranges)
-        print "Avg ", self.w
+        #  self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
+        #  print "MV ", self.w
+        #  self.w = self.weight_avg(mbes_meas_ranges, mbes_i_ranges)
+        #  print "Avg ", self.w
         self.w = self.weight_grad(mbes_meas_ranges, mbes_i_ranges)
-        print "Gradient", self.w
+        #  print "Gradient", self.w
 
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -179,8 +185,7 @@ class Particle():
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = 1./self.p_num
             #  for i in range(len(mbes_sim_ranges)):
-            w_i *= (1.0/ math.sqrt(2.0 * math.pi * self.meas_cov)) * math.exp(
-                    -((mbes_sim_ranges - mbes_meas_ranges).mean()**2)/(2*self.meas_cov))
+            w_i *= math.exp(-(((mbes_sim_ranges - mbes_meas_ranges)**2).mean())/(2*self.meas_cov))
         else:
             print ("missing pings!")
             w_i = 0.

@@ -17,11 +17,11 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");
     nh_->param<std::string>("mbes_sim_as", mbes_sim_as, "mbes_sim_action");
 
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 50);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 1);
     thruster_sub_ = nh_->subscribe(thruster_top, 1, &AUVMotionModel::thrustCB, this);
     incl_sub_ = nh_->subscribe(inclination_top, 1, &AUVMotionModel::inclinationCB, this);
     throttle_sub_ = nh_->subscribe(throttle_top, 1, &AUVMotionModel::throttleCB, this);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 3);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_sim_as, true);
 
@@ -137,7 +137,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
     // Broadcast odom ---> base link
     new_base_link_.header.frame_id = odom_frame_;
     new_base_link_.child_frame_id = base_frame_;
-    new_base_link_.header.stamp = ros::Time::now();
+    new_base_link_.header.stamp = time_now_;
     new_base_link_.transform.translation.x = odom.pose.pose.position.x;
     new_base_link_.transform.translation.y = odom.pose.pose.position.y;
     new_base_link_.transform.translation.z = odom.pose.pose.position.z;
@@ -152,10 +152,10 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
     latest_thrust_ = 0;
     latest_inclination_ = 0;
 
-    this->updateMeas();
+//    this->updateMeas();
 }
 
-void AUVMotionModel::updateMeas(){
+void AUVMotionModel::updateMeas(const ros::TimerEvent&){
 
 //        clock_t tStart = clock();
 
@@ -169,7 +169,7 @@ void AUVMotionModel::updateMeas(){
         auv_2_ros::MbesSimGoal mbes_goal;
         mbes_goal.mbes_pose.header.frame_id = map_frame_;
         mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
-        mbes_goal.mbes_pose.header.stamp = ros::Time::now();
+        mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
         mbes_goal.mbes_pose.transform = transform_msg;
         ac_->sendGoal(mbes_goal);
 

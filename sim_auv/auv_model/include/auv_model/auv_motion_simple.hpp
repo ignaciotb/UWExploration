@@ -43,7 +43,7 @@ public:
 
     void updateMotion(const ros::TimerEvent &);
 
-    void updateMeas();
+    void updateMeas(const ros::TimerEvent &);
 
 private:
     std::string node_name_;

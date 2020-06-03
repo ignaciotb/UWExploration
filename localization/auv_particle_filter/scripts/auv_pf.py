@@ -122,19 +122,22 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
+            print "Predict!"
             
-            if self.latest_mbes.header.stamp.to_sec() > self.prev_mbes.header.stamp.to_sec():    
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
-                self.update(self.latest_mbes, odom_msg)
+                print "Update!"
+                weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                self.resample(self.weights_)
+                self.resample(weights)
 
             self.update_rviz()
         self.old_time = self.time
 
     def predict(self, odom_t):
+        #  dt = 0.1
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
@@ -147,16 +150,16 @@ class auv_pf(object):
             self.particles[i].meas_update(mbes_meas_ranges)
             weights.append(self.particles[i].w)
 
-        self.weights_ = np.asarray(weights)
+        weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
-        self.weights_ += 1.e-30
+        weights_array += 1.e-30
 
-        #  print self.weights_/self.weights_.sum()
-        #  print "-------"
+        return weights_array
+
 
     def resample(self, weights):
 
-        print "-------"
+        print "-------------"
         # Normalize weights
         weights /= weights.sum()
         #  print "Weights"
@@ -170,19 +173,19 @@ class auv_pf(object):
 
         print "N_eff ", N_eff 
         # Resampling?
-        if N_eff < self.pc/2.:
+        if N_eff < self.pc*0.5:
             indexes = residual_resample(weights)
             print "Indexes"
             print indexes
             self.particles = self.particles[indexes]
             
             # Add noise to particles
-            #  for i in range(self.pc):
-                #  self.particles[i].add_noise([1.,1.,0.,0.,0.,0.01])
+            for i in range(self.pc):
+                self.particles[i].add_noise([3.,3.,0.,0.,0.,0.0])
 
-        else:
+        #  else:
             #  print N_eff
-            rospy.loginfo('Number of effective particles high - not resampling')
+            #  rospy.loginfo('Number of effective particles high - not resampling')
 
         
     def average_pose(self, pose_list):

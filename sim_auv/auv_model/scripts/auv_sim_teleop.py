@@ -20,66 +20,67 @@ from std_msgs.msg import Header, Float64, Bool
 
 class AUVTeleopServer(object):
 
-	def __init__(self):
-	
-		pygame.init()
-		
-		self.throttle_top = rospy.get_param('~throttle_cmd', '/throttle')
-		self.thruster_top = rospy.get_param('~thruster_cmd', '/thruster')
-		self.inclination_top = rospy.get_param('~inclination_cmd', '/inclination')
+    def __init__(self):
 
-		throttle_pub = rospy.Publisher(self.throttle_top, Float64, queue_size=10)
-		thruster_pub = rospy.Publisher(self.thruster_top, Float64, queue_size=10)
-		inclination_pub = rospy.Publisher(self.inclination_top, Float64, queue_size=10)
+        pygame.init()
 
-        	screen = pygame.display.set_mode((199, 200))
-        	pygame.display.flip()
-        	header = Header()
+        self.throttle_top = rospy.get_param('~throttle_cmd', '/throttle')
+        self.thruster_top = rospy.get_param('~thruster_cmd', '/thruster')
+        self.inclination_top = rospy.get_param('~inclination_cmd', '/inclination')
 
-        	thruster_angle = 0.2
-        	inclination_angle = 0.2
-        	throttle_level = 5.
+        throttle_pub = rospy.Publisher(self.throttle_top, Float64, queue_size=10)
+        thruster_pub = rospy.Publisher(self.thruster_top, Float64, queue_size=10)
+        inclination_pub = rospy.Publisher(self.inclination_top, Float64, queue_size=10)
 
-        	clock = pygame.time.Clock()
-        	while not rospy.is_shutdown():
-        		
-                        keys = pygame.key.get_pressed()
-			incl = Float64()
-                        throttle = Float64()
-			thrust = Float64()
+        screen = pygame.display.set_mode((199, 200))
+        pygame.display.flip()
+        header = Header()
 
-                        thrust.data = 0.0
-                        incl.data = 0.0
-                        throttle.data = 0.0
-                        
-                        # Steering
-                        if keys[K_LEFT]:
-                                thrust.data = thruster_angle 
-                        if keys[K_RIGHT]:
-                                thrust.data = -thruster_angle
-                        if keys[K_UP]:
-                                incl.data = -inclination_angle
-                        if keys[K_DOWN]:
-                                incl.data = inclination_angle
-                        thruster_pub.publish(thrust)
-                        inclination_pub.publish(incl)
+        thruster_angle = 0.2
+        inclination_angle = 0.2
+        throttle_level = 5.
 
-                        # Thrusting
-                        if keys[K_w]:
-                                throttle.data = throttle_level
-                                throttle_pub.publish(throttle)
-                        if keys[K_s]:
-                                throttle.data = -throttle_level
-                                throttle_pub.publish(throttle)
+        clock = pygame.time.Clock()
+        while not rospy.is_shutdown():
 
-			pygame.event.pump()
-			clock.tick(10)
+            keys = pygame.key.get_pressed()
+            incl = Float64()
+            throttle = Float64()
+            thrust = Float64()
+
+            thrust.data = 0.0
+            incl.data = 0.0
+            throttle.data = 0.0
+
+            # Steering
+            if keys[K_LEFT]:
+                thrust.data = thruster_angle
+            if keys[K_RIGHT]:
+                thrust.data = -thruster_angle
+            if keys[K_UP]:
+                incl.data = -inclination_angle
+            if keys[K_DOWN]:
+                incl.data = inclination_angle
+            thruster_pub.publish(thrust)
+            inclination_pub.publish(incl)
+
+            # Thrusting
+            if keys[K_w]:
+                throttle.data = throttle_level
+                throttle_pub.publish(throttle)
+            if keys[K_s]:
+                throttle.data = -throttle_level
+                throttle_pub.publish(throttle)
+
+            pygame.event.pump()
+            #  rospy.sleep(0.1)
+            clock.tick(10)
 
 if __name__ == "__main__":
 
-	rospy.init_node('auv_keyboard_teleop')
+    rospy.init_node('auv_keyboard_teleop')
 
-	try:
-		AUVTeleopServer()
-	except rospy.ROSInterruptException:
-		pass
+    try:
+        AUVTeleopServer()
+    except rospy.ROSInterruptException:
+        pass

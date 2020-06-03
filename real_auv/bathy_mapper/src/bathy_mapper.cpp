@@ -12,7 +12,7 @@ BathyMapper::BathyMapper(ros::NodeHandle& nh, ros::NodeHandle& nh_priv)
     : nh_(nh)
     , nh_priv_(nh_priv)
     , map_pub_(nh_priv.advertise<ufomap_msgs::Ufomap>(
-                "map", nh_priv.param("map_queue_size", 10), nh_priv.param("map_latch", false)))
+                "map", nh_priv.param("map_queue_size", 10), nh_priv.param("map_latch", true)))
     , map_binary_pub_(nh_priv.advertise<ufomap_msgs::Ufomap>(
                 "map_binary", nh_priv.param("map_binary_queue_size", 10),
                 nh_priv.param("map_binary_latch", false)))
@@ -237,6 +237,7 @@ void BathyMapper::configCallback(bathy_mapper::ServerConfig& config, uint32_t le
     if (pub_rate_ != config.pub_rate)
     {
         pub_rate_ = config.pub_rate;
+        pub_rate_ = 0.1;
         if (0 < pub_rate_)
         {
             pub_timer_ =
@@ -255,8 +256,7 @@ void BathyMapper::configCallback(bathy_mapper::ServerConfig& config, uint32_t le
     if (map_pub_.isLatched() != config.map_latch ||
             map_queue_size_ != config.map_queue_size)
     {
-        map_pub_ = nh_priv_.advertise<ufomap_msgs::Ufomap>("map", config.map_queue_size,
-                                                                                                             config.map_latch);
+        map_pub_ = nh_priv_.advertise<ufomap_msgs::Ufomap>("map", config.map_queue_size, config.map_latch);
     }
 
     if (map_binary_pub_.isLatched() != config.map_binary_latch ||

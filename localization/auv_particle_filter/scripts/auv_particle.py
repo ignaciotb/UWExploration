@@ -23,7 +23,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import PoseStamped, Pose
 
-class Particle():
+class Particle(object):
     def __init__(self, index, p_num, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
                  meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], map_frame='map', odom_frame='odom',
                  meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
@@ -59,8 +59,7 @@ class Particle():
         self.p_pose.orientation.w = 1.
 
         self.add_noise(init_cov)
-
-    
+ 
     def add_noise(self, noise):
         noise_cov =np.diag(noise)
         roll, pitch, yaw = euler_from_quaternion([self.p_pose.orientation.x,
@@ -129,15 +128,9 @@ class Particle():
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
 
-        if np.linalg.norm(vel_p) > 5.:
-            vel_p = np.array([5., 0.0, 0.0])
-        #  print dt
-            print "Too fast"
-        #  print vel_p*dt
-
         rot_mat_t = self.fullRotation(roll_t, pitch_t, yaw_t)
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
-
+        
         self.p_pose.position.x += step_t[0]
         self.p_pose.position.y += step_t[1]
         self.p_pose.position.z += step_t[2]
@@ -149,6 +142,7 @@ class Particle():
         #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)
+        
         # Publish (for visualization)
         self.pcloud_pub.publish(mbes_i)
 

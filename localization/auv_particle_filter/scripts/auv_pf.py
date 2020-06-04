@@ -109,6 +109,12 @@ class auv_pf(object):
         odom_top = rospy.get_param("~odometry_topic", 'odom')
         rospy.Subscriber(odom_top, Odometry, self.odom_callback)
 
+        # Expected meas of PF outcome at every time step
+        pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
+        self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
+
+
+
         rospy.loginfo("Particle filter class successfully created")
 
         self.update_rviz()
@@ -203,25 +209,12 @@ class auv_pf(object):
             self.particles[lost[i]].p_pose.orientation.w = self.particles[dupes[i]].p_pose.orientation.w
 
     def average_pose(self, pose_list):
-        """
-        Get average pose of particles and
-        publish it as PoseWithCovarianceStamped
-
-        :param pose_list: List of lists containing pose
-                        of all particles in form
-                        [x, y, z, roll, pitch, yaw]
-        :type pose_list: list
-            """
+        
         poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
-
+        
         self.avg_pose.pose.pose.position.x = ave_pose[0]
         self.avg_pose.pose.pose.position.y = ave_pose[1]
-        """
-        If z, roll, and pitch can stay as read directly from
-        the odometry message there is no need to average them.
-        We could just read from any arbitrary particle
-        """
         self.avg_pose.pose.pose.position.z = ave_pose[2]
         roll  = ave_pose[3]
         pitch = ave_pose[4]
@@ -239,6 +232,11 @@ class auv_pf(object):
         self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         self.avg_pose.header.stamp = rospy.Time.now()
         self.avg_pub.publish(self.avg_pose)
+
+        # Hacky way to get the expected MBES ping from avg pose of PF
+        # TODO: do this properly :d
+        pf_ping = self.particles[0].predict_meas(self.avg_pose.pose.pose)
+        self.pf_mbes_pub.publish(pf_ping)
 
 
     # TODO: publish markers instead of poses

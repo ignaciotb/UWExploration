@@ -137,7 +137,7 @@ class Particle(object):
  
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
-        mbes_i = self.predict_meas()
+        mbes_i = self.predict_meas(self.p_pose)
         mbes_i_ranges = pcloud2ranges(mbes_i, self.p_pose)
         #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
@@ -185,12 +185,12 @@ class Particle(object):
             w_i = 0.
         return w_i
 
-    def predict_meas(self):
+    def predict_meas(self, pose_t):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
-        particle_tf.translation = self.p_pose.position
-        particle_tf.rotation    = self.p_pose.orientation
+        particle_tf.translation = pose_t.position
+        particle_tf.rotation    = pose_t.orientation
         mat_part = matrix_from_tf(particle_tf)
         trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
 

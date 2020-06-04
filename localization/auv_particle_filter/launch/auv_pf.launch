@@ -3,21 +3,23 @@
 
   <arg name="mode"       default="sim"/>
   <arg name="debug_mode" default="True"/> <!-- bool -->
+  <arg name="filter" default="pf"/>
 
   <!-- Define args -->
   <arg name="particle_count"                    default="20"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[0, 0, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.01]"/>
   <arg name="motion_covariance" default="[0.001, 0.001, 0.0, 0.0, 0.0, 0.001]"/> 
-  <arg name="measurement_covariance"  default="1"/>
+  <arg name="measurement_covariance"  default="0.5"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
   <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
-  <arg name="average_pose_topic"                default="/pf/avg_pose"/>
-  <arg name="particle_poses_topic"              default="/pf/particle_poses"/>
-  <arg name="particle_sim_mbes_topic"           default="/pf/sim_mbes"/>
+  <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
+  <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
+  <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
+  <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
 
   <!-- Include rviz -->
 <!--   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find bathy_mapper)/rviz/bathy_map.rviz" output="screen" /> -->
@@ -34,6 +36,7 @@
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
     </node>
@@ -50,6 +53,7 @@
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+  	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
     </node>

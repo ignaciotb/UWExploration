@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
-	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
-	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
     <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
@@ -44,7 +44,7 @@
 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 		</include>
-	
+
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
@@ -70,7 +70,7 @@
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
 			<param name="num_beams_sim" value="30" />
-			<param name="mbes_sim_as" value="/mbes_sim_server" />				
+			<param name="mbes_sim_as" value="/mbes_sim_server" />
 		</node>
 
 		<!-- Simulate Hugin AUV -->

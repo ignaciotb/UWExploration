@@ -27,7 +27,11 @@ from auv_particle import Particle, matrix_from_tf, pcloud2ranges
 # Multiprocessing and parallelizing
 import numba
 from numba import jit
-from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample 
+from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
+
+# For sim mbes action client
+import actionlib
+from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
@@ -39,8 +43,8 @@ class auv_pf(object):
     def __init__(self):
         # Read necessary parameters
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
-        map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom') 
+        self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
+        odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
 
@@ -52,7 +56,7 @@ class auv_pf(object):
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
                                                 rospy.Time(0), rospy.Duration(10))
             mbes2base_mat = matrix_from_tf(mbes_tf)
-            
+
             m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(10))
             m2o_mat = matrix_from_tf(m2o_tf)
 
@@ -77,11 +81,15 @@ class auv_pf(object):
 
         # Initialize list of particles
         self.particles = np.empty(self.pc, dtype=object)
+        self.ac = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
             self.particles[i] = Particle(i, self.pc, mbes2base_mat, m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
-                                     process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
-                                     meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
+                                     process_cov=motion_cov, map_frame=self.map_frame, odom_frame=odom_frame, pc_mbes_top=mbes_pc_top)
+
+            self.ac[i] = actionlib.SimpleActionClient(meas_model_as, MbesSimAction)       # Initialize connection to MbesSim action server
+            self.ac[i].wait_for_server()
+
 
         self.time = None
         self.old_time = None
@@ -89,7 +97,7 @@ class auv_pf(object):
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
-        self.poses.header.frame_id = odom_frame 
+        self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
 
@@ -122,12 +130,12 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)
-            
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
+
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-                
+
                 # Particle resampling
                 self.resample(weights)
 
@@ -139,13 +147,25 @@ class auv_pf(object):
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
-         
+
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
 
         weights = []
         for i in range(self.pc):
-            self.particles[i].meas_update(mbes_meas_ranges)
+            mbes_goal = self.particles[i].meas_update(mbes_meas_ranges)
+            self.ac[i].send_goal(mbes_goal)
+
+        for i in range(self.pc):
+            self.ac[i].wait_for_result()
+            mbes_res = self.ac[i].get_result()
+
+            # Pack result into PointCloud2
+            mbes_pcloud = PointCloud2()
+            mbes_pcloud = mbes_res.sim_mbes
+            mbes_pcloud.header.frame_id = self.map_frame
+
+            self.particles[i].update_weight(mbes_pcloud, mbes_meas_ranges)
             weights.append(self.particles[i].w)
 
         weights_array = np.asarray(weights)
@@ -154,7 +174,6 @@ class auv_pf(object):
 
         return weights_array
 
-
     def resample(self, weights):
 
         print "-------------"
@@ -162,14 +181,14 @@ class auv_pf(object):
         weights /= weights.sum()
         #  print "Weights"
         #  print weights
-        
+
         N_eff = self.pc
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
         else:
             N_eff = 1/np.sum(np.square(weights))
 
-        print "N_eff ", N_eff 
+        print "N_eff ", N_eff
         # Resampling?
         if N_eff < self.pc*0.5:
             indices = residual_resample(weights)
@@ -180,9 +199,9 @@ class auv_pf(object):
             dupes = indices[:].tolist()
             for i in keep:
                 dupes.remove(i)
-            
+
             self.reassign_poses(lost, dupes)
-            
+
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise([3.,3.,0.,0.,0.,0.0])

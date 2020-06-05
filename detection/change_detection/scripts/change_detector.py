@@ -4,6 +4,7 @@ import rospy
 
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 
 import tf
 import tf2_ros
@@ -37,7 +38,27 @@ class ChangeDetector(object):
                                                               allow_headerless=False)
         self.ts.registerCallback(self.detectionCB)
         
-        rospy.spin()
+        plt.ion()
+        plt.show()
+        self.max_height = 30. # TODO: this should equal the n beams in ping
+        self.new_msg = False
+        first_msg = True
+        self.waterfall =[] 
+ 
+        while not rospy.is_shutdown():
+            if self.new_msg:
+                #  plt.imshow(waterfall, aspect='equal')
+                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(-30., 30.), aspect='equal')
+                if first_msg:
+                    first_msg = False
+                    plt.colorbar()
+                    plt.title("Bathymetry difference (m)")
+                
+                plt.pause(0.01)       
+
+                self.new_msg = False
+    
+        #  rospy.spin()
 
 
     def pcloud2ranges(self, point_cloud, pose_s):
@@ -53,15 +74,19 @@ class ChangeDetector(object):
 
 
     def detectionCB(self, auv_ping, pf_ping, auv_pose, pf_pose):
-        auv_ping = self.pcloud2ranges(auv_ping, auv_pose.pose.pose)
-        pf_ping = self.pcloud2ranges(pf_ping, pf_pose.pose.pose)
-        print auv_ping
-        print pf_ping
+        try:
+            auv_ping = self.pcloud2ranges(auv_ping, auv_pose.pose.pose)
+            pf_ping = self.pcloud2ranges(pf_ping, pf_pose.pose.pose)
+            #  print (auv_ping - pf_ping)
 
-        # Print cool waterfall image with ranges differences 
+            self.waterfall.append((auv_ping - pf_ping))
+            if len(self.waterfall)>self.max_height:
+                self.waterfall.pop(0)
 
-
-
+            self.new_msg = True
+        
+        except rospy.ROSInternalException:
+            pass
 
 if __name__ == '__main__':
 

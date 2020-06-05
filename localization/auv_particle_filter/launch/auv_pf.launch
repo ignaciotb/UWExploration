@@ -18,6 +18,7 @@
   <arg name="average_pose_topic"                default="/pf/avg_pose"/>
   <arg name="particle_poses_topic"              default="/pf/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/pf/sim_mbes"/>
+  <arg name="hugin_model"                       default="package://hugin_description/mesh/hugin_color.dae"/>
 
   <!-- Include rviz -->
 <!--   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find bathy_mapper)/rviz/bathy_map.rviz" output="screen" /> -->
@@ -36,6 +37,7 @@
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+      <param name="hugin_model"                             value="$(arg hugin_model)"/>
     </node>
   </group>
 

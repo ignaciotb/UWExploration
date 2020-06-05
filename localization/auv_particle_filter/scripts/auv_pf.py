@@ -11,11 +11,13 @@ import tf2_ros
 from scipy.special import logsumexp # For log weights
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Quaternion, TransformStamped
+from visualization_msgs.msg import Marker, MarkerArray
+from geometry_msgs.msg import Quaternion, TransformStamped, Vector3
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
+
 
 # For sim mbes action client
 from sensor_msgs.msg import PointCloud2
@@ -33,6 +35,9 @@ from resampling import residual_resample, naive_resample, systematic_resample, s
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 
+#Profiling
+import cProfile
+
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
 # from functools import partial # Might be useful with mp
@@ -47,7 +52,7 @@ class auv_pf(object):
         odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-
+        hugin_model = rospy.get_param("~hugin_model", 'package://hugin_description/mesh/hugin_color.dae')
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(tfBuffer)
@@ -96,14 +101,49 @@ class auv_pf(object):
         self.pred_odom = None
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
+
         self.poses = PoseArray()
+        self.markers = MarkerArray()
+        vector = Vector3()
+        vector.x = 0.001
+        vector.y = 0.001
+        vector.z = 0.001
+        self.pose_list = []
+        markers = []
+        for i in range(self.pc):
+            self.poses.poses.append(self.particles[i].p_pose)
+            self.pose_list.append(self.particles[i].get_pose_vec())
+
+            marker = Marker()
+            marker.header.frame_id = odom_frame
+            marker.pose = self.particles[i].p_pose
+            marker.ns = "hugin"
+            marker.id = i
+            marker.scale.x = 1.0
+            marker.scale.y = 1.0
+            marker.scale.z = 1.0
+            # marker.color.r = 1.0
+            # marker.color.g = 0.0
+            marker.color.b = 1.0
+            marker.color.a = 1.0
+            marker.scale = vector
+            marker.type = 10
+            marker.mesh_resource = hugin_model
+            markers.append(marker)
+
+        self.markers.markers = markers
+
+        self.pose_list = np.array(self.pose_list)
+
         self.poses.header.frame_id = odom_frame
+
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
 
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
-        self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
+        self.pf_pub = rospy.Publisher(pose_array_top, MarkerArray, queue_size=10)
+        # self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
 
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
@@ -221,7 +261,7 @@ class auv_pf(object):
             self.particles[lost[i]].p_pose.orientation.z = self.particles[dupes[i]].p_pose.orientation.z
             self.particles[lost[i]].p_pose.orientation.w = self.particles[dupes[i]].p_pose.orientation.w
 
-    def average_pose(self, pose_list):
+    def average_pose(self, poses_array):
         """
         Get average pose of particles and
         publish it as PoseWithCovarianceStamped
@@ -231,7 +271,6 @@ class auv_pf(object):
                         [x, y, z, roll, pitch, yaw]
         :type pose_list: list
             """
-        poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
 
         self.avg_pose.pose.pose.position.x = ave_pose[0]
@@ -251,6 +290,9 @@ class auv_pf(object):
         out to zero (opposite direction of heading)
         """
         yaws = poses_array[:,5]
+        # print(yaws)
+        # yaws = np.where(np.abs(yaws) > 2*np.pi, yaws + 2*np.pi, yaws)
+        #Something feels wrong with the code below, need to think more on it
         if np.abs(yaws).min() > math.pi/2:
             yaws[yaws < 0] += 2*math.pi
         yaw = yaws.mean()
@@ -263,16 +305,18 @@ class auv_pf(object):
     # TODO: publish markers instead of poses
     #       Optimize this function
     def update_rviz(self):
-        self.poses.poses = []
-        pose_list = []
+
+        marker_list = []
         for i in range(self.pc):
-            self.poses.poses.append(self.particles[i].p_pose)
+            self.poses.poses[i] = self.particles[i].p_pose
+            self.markers.markers[i].pose = self.particles[i].p_pose
+            self.markers.markers[i].header.stamp = rospy.Time.now()
             pose_vec = self.particles[i].get_pose_vec()
-            pose_list.append(pose_vec)
+            self.pose_list[i] = pose_vec
         # Publish particles with time odometry was received
-        self.poses.header.stamp = rospy.Time.now()
-        self.pf_pub.publish(self.poses)
-        self.average_pose(pose_list)
+        #self.poses.header.stamp = rospy.Time.now()
+        self.pf_pub.publish(self.markers)
+        self.average_pose(self.pose_list)
 
 
 if __name__ == '__main__':

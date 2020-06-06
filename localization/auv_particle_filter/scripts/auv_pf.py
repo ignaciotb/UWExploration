@@ -11,11 +11,12 @@ import tf2_ros
 from scipy.special import logsumexp # For log weights
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Quaternion, TransformStamped
+from geometry_msgs.msg import Transform, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
+from tf.transformations import rotation_matrix, rotation_from_matrix
 
 # For sim mbes action client
 from sensor_msgs.msg import PointCloud2
@@ -51,10 +52,10 @@ class auv_pf(object):
             rospy.loginfo("Waiting for transforms")
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
                                                 rospy.Time(0), rospy.Duration(10))
-            mbes2base_mat = matrix_from_tf(mbes_tf)
+            self.base2mbes_mat = matrix_from_tf(mbes_tf)
             
             m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(10))
-            m2o_mat = matrix_from_tf(m2o_tf)
+            self.m2o_mat = matrix_from_tf(m2o_tf)
 
             rospy.loginfo("Transforms locked - pf node")
         except:
@@ -79,7 +80,7 @@ class auv_pf(object):
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
-            self.particles[i] = Particle(i, self.pc, mbes2base_mat, m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+            self.particles[i] = Particle(i, self.pc, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
                                      process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
                                      meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
 
@@ -113,8 +114,6 @@ class auv_pf(object):
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
-
-
         rospy.loginfo("Particle filter class successfully created")
 
         self.update_rviz()
@@ -147,8 +146,15 @@ class auv_pf(object):
             self.particles[i].motion_pred(odom_t, dt)
          
     def update(self, meas_mbes, odom):
-        mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
+        # Compute AUV MBES ping ranges
+        particle_tf = Transform()
+        particle_tf.translation = odom.pose.pose.position
+        particle_tf.rotation    = odom.pose.pose.orientation
+        tf_mat = matrix_from_tf(particle_tf)
+        m2auv = self.m2o_mat.dot(tf_mat.dot(self.base2mbes_mat))
+        mbes_meas_ranges = pcloud2ranges(meas_mbes, m2auv)
 
+        # Measurement update of each particle
         weights = []
         for i in range(self.pc):
             self.particles[i].meas_update(mbes_meas_ranges)

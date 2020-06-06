@@ -15,6 +15,7 @@ from geometry_msgs.msg import Quaternion, Transform, TransformStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
+from tf.transformations import rotation_matrix, rotation_from_matrix
 
 # For sim mbes action client
 import actionlib
@@ -138,7 +139,8 @@ class Particle(object):
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas(self.p_pose)
-        mbes_i_ranges = pcloud2ranges(mbes_i, self.p_pose)
+        mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+        mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
         #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)
@@ -192,13 +194,13 @@ class Particle(object):
         particle_tf.translation = pose_t.position
         particle_tf.rotation    = pose_t.orientation
         mat_part = matrix_from_tf(particle_tf)
-        trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
+        self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
 
         trans = TransformStamped()
-        trans.transform.translation.x = translation_from_matrix(trans_mat)[0]
-        trans.transform.translation.y = translation_from_matrix(trans_mat)[1]
-        trans.transform.translation.z = translation_from_matrix(trans_mat)[2]
-        trans.transform.rotation = Quaternion(*quaternion_from_matrix(trans_mat))
+        trans.transform.translation.x = translation_from_matrix(self.trans_mat)[0]
+        trans.transform.translation.y = translation_from_matrix(self.trans_mat)[1]
+        trans.transform.translation.z = translation_from_matrix(self.trans_mat)[2]
+        trans.transform.rotation = Quaternion(*quaternion_from_matrix(self.trans_mat))
 
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
@@ -244,15 +246,19 @@ class Particle(object):
 
         return pose_vec
 
-def pcloud2ranges(point_cloud, pose_s):
+def pcloud2ranges(point_cloud, tf_mat):
+    angle, direc, point = rotation_from_matrix(tf_mat)
+    R = rotation_matrix(angle, direc, point)
+    rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
+    
+    t = translation_from_matrix(tf_mat)
+    t_inv = rot_inv.dot(t)
+
     ranges = []
     for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
-            # starts at left hand side of particle's mbes
-        dx = pose_s.position.x - p[0]
-        dy = pose_s.position.y - p[1]
-        dz = pose_s.position.z - p[2]
-        dist = math.sqrt((dx**2 + dy**2 + dz**2))
-        ranges.append(dist)
+        p_part = rot_inv.dot(p) - t_inv
+        ranges.append(np.linalg.norm(p_part))
+    
     return np.asarray(ranges)
 
 

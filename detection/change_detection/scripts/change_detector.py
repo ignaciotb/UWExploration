@@ -70,6 +70,12 @@ class ChangeDetector(object):
  
         while not rospy.is_shutdown():
             if self.new_msg:
+                # Blob detection to find the car on waterfall image
+                #  if len(self.waterfall)==self.max_height:
+                #  waterfall_detect = self.car_detection(np.array(self.waterfall))
+                #  plt.imshow(waterfall_detect, norm=plt.Normalize(0., 60.),
+
+                # Visualize
                 plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
                            cmap='gray', aspect='equal')
                 if first_msg:
@@ -79,66 +85,44 @@ class ChangeDetector(object):
 
                 plt.pause(0.01)
                 
-                #  if len(self.waterfall)==self.max_height:
-                    #  img = self.car_detection(np.array(self.waterfall))
-            #
-                    #  print "img"
-                    #  cv2.imshow("hola", np.float32(img))
-                    #  cv2.waitKey(1)
             self.new_msg = False
     
         #  rospy.spin()
 
     def car_detection(self, img_array):
-        #  im = cv2.imread("blob.jpg", cv2.IMREAD_GRAYSCALE)
         
+        # Turn numpy array into cv2 image (and make bigger) 
+        #  img_array = np.float32(img_array)
+        #  img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+        #  rgb = Image.fromarray(img_array)
+
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
          
-        # Change thresholds
         params.minThreshold = 100;
         params.maxThreshold = 5000;
          
-        # Filter by Area.
         params.filterByArea = True
         params.minArea = 200
          
-        # Filter by Circularity
         params.filterByCircularity = False
         params.minCircularity = 0.785
          
-        # Filter by Convexity
         params.filterByConvexity = False
         params.minConvexity = 0.87
          
-        # Filter by Inertia
-        #params.filterByInertia = True
-        #params.minInertiaRatio = 0.01
-
-        # Set up the detector with default parameters.
         detector = cv2.SimpleBlobDetector(params)
         
         # Detect blobs.
-        img_array = np.float32(img_array)
-        #  img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
-        rgb = Image.fromarray(img_array)
         #  keypoints = detector.detect(rgb)
         
-        #  plt.imshow(rgb, norm=plt.Normalize(0., 60.),
-                            #  cmap='gray', aspect='equal')
-                #
-        plt.pause(0.01)
-        return rgb
-        
-#
         #  # Draw detected blobs as red circles.
         #  # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
         #  im_with_keypoints = cv2.drawKeypoints(im, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 #
-        #  # Show keypoints
-        #  cv2.imshow("Keypoints", im_with_keypoints)
-        #  rospy.sleep(0.1)
-        #  #  cv2.waitKey(0)
+
+        # Turn cv2 image back to numpy array and return
+
 
     def pcloud2ranges(self, point_cloud, tf_mat):
         angle, direc, point = rotation_from_matrix(tf_mat)

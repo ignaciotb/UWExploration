@@ -7,6 +7,7 @@ import scipy.misc
 from PIL import Image
 
 import numpy as np
+import scipy.interpolate
 import math
 import matplotlib.pyplot as plt
 
@@ -24,9 +25,9 @@ import message_filters
 class ChangeDetector(object):
 
     def __init__(self):
-        
+
         map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom') 
+        odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         auv_odom_top = rospy.get_param("~odometry_topic", '/odom')
         auv_mbes_top = rospy.get_param("~mbes_pings_topic", '/mbes')
@@ -34,11 +35,11 @@ class ChangeDetector(object):
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
 
         self.auv_mbes = message_filters.Subscriber(auv_mbes_top, PointCloud2)
-        self.auv_pose = message_filters.Subscriber(auv_odom_top, Odometry)  
+        self.auv_pose = message_filters.Subscriber(auv_odom_top, Odometry)
         self.pf_mbes = message_filters.Subscriber(pf_mbes_top, PointCloud2)
-        self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)  
-        self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.pf_mbes, 
-                                                              self.auv_pose, self.pf_pose], 
+        self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
+        self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.pf_mbes,
+                                                              self.auv_pose, self.pf_pose],
                                                               10, slop=10.0,
                                                               allow_headerless=False)
         self.ts.registerCallback(self.pingCB)
@@ -51,7 +52,7 @@ class ChangeDetector(object):
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
                                                 rospy.Time(0), rospy.Duration(20.))
             self.base2mbes_mat = self.matrix_from_tf(mbes_tf)
-            
+
             m2o_tf = tfBuffer.lookup_transform(map_frame, odom_frame,
                                                rospy.Time(0), rospy.Duration(20.))
             self.m2o_mat = self.matrix_from_tf(m2o_tf)
@@ -60,75 +61,79 @@ class ChangeDetector(object):
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
- 
+
         plt.ion()
         plt.show()
-        self.max_height = 30. # TODO: this should equal the n beams in ping
+        self.scale = 4
+        self.max_height = 5. # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
-        self.waterfall =[] 
- 
+        self.waterfall =[]
+
         while not rospy.is_shutdown():
             if self.new_msg:
                 # Blob detection to find the car on waterfall image
-                #  if len(self.waterfall)==self.max_height:
-                #  waterfall_detect = self.car_detection(np.array(self.waterfall))
-                #  plt.imshow(waterfall_detect, norm=plt.Normalize(0., 60.),
-
-                # Visualize
-                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
-                           cmap='gray', aspect='equal')
+                if len(self.waterfall)==self.max_height:
+                    waterfall_detect = self.car_detection(np.array(self.waterfall), self.scale)
+                    # Visualize
+                    plt.imshow(waterfall_detect, norm=plt.Normalize(0., 60.),
+                            cmap='gray', aspect='equal')
+                else:
+                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
+                            cmap='gray', aspect='equal')
                 if first_msg:
                     first_msg = False
                     plt.colorbar()
                     plt.title("Bathymetry difference (m)")
 
                 plt.pause(0.01)
-                
+
             self.new_msg = False
-    
+
         #  rospy.spin()
 
-    def car_detection(self, img_array):
-        
-        # Turn numpy array into cv2 image (and make bigger) 
-        #  img_array = np.float32(img_array)
+    def car_detection(self, img_array, scale):
+        # Turn numpy array into cv2 image (and make bigger)
+        img_array = np.float32(img_array)
+        f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)), img_array)
+        img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
+        gray_img = cv2.normalize(src=img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
         #  img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
         #  rgb = Image.fromarray(img_array)
 
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
-         
+
         params.minThreshold = 100;
         params.maxThreshold = 5000;
-         
+
         params.filterByArea = True
         params.minArea = 200
-         
+
         params.filterByCircularity = False
         params.minCircularity = 0.785
-         
+
         params.filterByConvexity = False
         params.minConvexity = 0.87
-         
-        detector = cv2.SimpleBlobDetector(params)
-        
+        detector = cv2.SimpleBlobDetector_create(params)
+
         # Detect blobs.
-        #  keypoints = detector.detect(rgb)
-        
-        #  # Draw detected blobs as red circles.
-        #  # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
-        #  im_with_keypoints = cv2.drawKeypoints(im, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-#
+        keypoints = detector.detect(gray_img)
+        print(keypoints)
+         # Draw detected blobs as red circles.
+         # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
+        im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
         # Turn cv2 image back to numpy array and return
-
+        img_array  = np.asarray(im_with_keypoints)
+        return img_array
 
     def pcloud2ranges(self, point_cloud, tf_mat):
         angle, direc, point = rotation_from_matrix(tf_mat)
         R = rotation_matrix(angle, direc, point)
         rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
-        
+
         t = translation_from_matrix(tf_mat)
         t_inv = rot_inv.dot(t)
 
@@ -136,7 +141,7 @@ class ChangeDetector(object):
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
             p_part = rot_inv.dot(p) - t_inv
             ranges.append(np.linalg.norm(p_part))
-        
+
         return np.asarray(ranges)
 
 
@@ -158,10 +163,10 @@ class ChangeDetector(object):
                 self.waterfall.pop(0)
 
             self.new_msg = True
-        
+
         except rospy.ROSInternalException:
             pass
-    
+
     def matrix_from_tf(self, transform):
         """
         Converts a geometry_msgs/Transform or

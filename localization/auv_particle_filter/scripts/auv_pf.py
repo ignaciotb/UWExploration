@@ -36,7 +36,7 @@ import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 
 #Profiling
-import cProfile
+# import cProfile
 
 # import time # For evaluating mp improvements
 # import multiprocessing as mp
@@ -52,7 +52,20 @@ class auv_pf(object):
         odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        hugin_model = rospy.get_param("~hugin_model", 'package://hugin_description/mesh/hugin_color.dae')
+        self.markers  = rospy.get_param("~markers", "true")
+
+        if self.markers:
+            marker_topic =  rospy.get_param("~marker_topic", '/pf/particle_markers')
+            marker_model = rospy.get_param("~marker_model", 'package://hugin_description/mesh/hugin_color.dae')
+            self.markers_list = MarkerArray()
+            vector = Vector3()
+            vector.x = 0.001
+            vector.y = 0.001
+            vector.z = 0.001
+            markers_p = []
+        else:
+            self.poses = PoseArray()
+        self.pose_list = np.zeros((self.pc,6)) #x,y,z,roll,pitch,yaw
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(tfBuffer)
@@ -101,49 +114,44 @@ class auv_pf(object):
         self.pred_odom = None
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
+        self.weights = np.zeros((70,))
 
-        self.poses = PoseArray()
-        self.markers = MarkerArray()
-        vector = Vector3()
-        vector.x = 0.001
-        vector.y = 0.001
-        vector.z = 0.001
-        self.pose_list = []
-        markers = []
         for i in range(self.pc):
-            self.poses.poses.append(self.particles[i].p_pose)
-            self.pose_list.append(self.particles[i].get_pose_vec())
+            if self.markers:
+                marker = Marker()
+                marker.header.frame_id = odom_frame
+                marker.pose = self.particles[i].p_pose
+                marker.ns = "hugin"
+                marker.id = i
+                marker.scale.x = 1.0
+                marker.scale.y = 1.0
+                marker.scale.z = 1.0
+                # marker.color.r = 1.0
+                # marker.color.g = 0.0
+                marker.color.b = 1.0
+                marker.color.a = 1.0
+                marker.scale = vector
+                marker.type = 10
+                marker.mesh_resource = marker_model
+                markers_p.append(marker)
 
-            marker = Marker()
-            marker.header.frame_id = odom_frame
-            marker.pose = self.particles[i].p_pose
-            marker.ns = "hugin"
-            marker.id = i
-            marker.scale.x = 1.0
-            marker.scale.y = 1.0
-            marker.scale.z = 1.0
-            # marker.color.r = 1.0
-            # marker.color.g = 0.0
-            marker.color.b = 1.0
-            marker.color.a = 1.0
-            marker.scale = vector
-            marker.type = 10
-            marker.mesh_resource = hugin_model
-            markers.append(marker)
+                self.markers_list.markers = markers_p
+            else:
+                self.poses.poses.append(self.particles[i].p_pose)
+            self.pose_list[i] = self.particles[i].update_pose_vec()
 
-        self.markers.markers = markers
-
-        self.pose_list = np.array(self.pose_list)
-
-        self.poses.header.frame_id = odom_frame
+        if not self.markers:
+            self.poses.header.frame_id = odom_frame
 
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
 
         # Initialize particle poses publisher
-        pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
-        self.pf_pub = rospy.Publisher(pose_array_top, MarkerArray, queue_size=10)
-        # self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
+        if self.markers:
+            self.pf_pub = rospy.Publisher(marker_topic, MarkerArray, queue_size=10)
+        else:
+            pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
+            self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
 
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
@@ -173,11 +181,11 @@ class auv_pf(object):
 
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
-                weights = self.update(self.latest_mbes, odom_msg)
+                self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
 
                 # Particle resampling
-                self.resample(weights)
+                self.resample()
 
             self.update_rviz()
         self.old_time = self.time
@@ -191,7 +199,7 @@ class auv_pf(object):
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
 
-        weights = []
+
         for i in range(self.pc):
             mbes_goal = self.particles[i].meas_update(mbes_meas_ranges)
             self.ac[i].send_goal(mbes_goal)
@@ -206,32 +214,31 @@ class auv_pf(object):
             mbes_pcloud.header.frame_id = self.map_frame
 
             self.particles[i].update_weight(mbes_pcloud, mbes_meas_ranges)
-            weights.append(self.particles[i].w)
+            self.weights[i] = self.particles[i].w
 
-        weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
-        weights_array += 1.e-30
+        self.weights += 1.e-30
 
-        return weights_array
+        return
 
-    def resample(self, weights):
+    def resample(self):
 
         print "-------------"
         # Normalize weights
-        weights /= weights.sum()
+        self.weights /= self.weights.sum()
         #  print "Weights"
         #  print weights
 
         N_eff = self.pc
-        if weights.sum() == 0.:
+        if self.weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
         else:
-            N_eff = 1/np.sum(np.square(weights))
+            N_eff = 1/np.sum(np.square(self.weights))
 
         print "N_eff ", N_eff
         # Resampling?
         if N_eff < self.pc*0.5:
-            indices = residual_resample(weights)
+            indices = residual_resample(self.weights)
             print "Indices"
             print indices
             keep = list(set(indices))
@@ -306,16 +313,21 @@ class auv_pf(object):
     #       Optimize this function
     def update_rviz(self):
 
-        marker_list = []
         for i in range(self.pc):
-            self.poses.poses[i] = self.particles[i].p_pose
-            self.markers.markers[i].pose = self.particles[i].p_pose
-            self.markers.markers[i].header.stamp = rospy.Time.now()
-            pose_vec = self.particles[i].get_pose_vec()
-            self.pose_list[i] = pose_vec
+            if self.markers:
+                self.markers_list.markers[i].pose = self.particles[i].p_pose
+                self.markers_list.markers[i].header.stamp = rospy.Time.now()
+            else:
+                self.poses.poses[i] = self.particles[i].p_pose
+            self.particles[i].update_pose_vec()
+            self.pose_list[i] = self.particles[i].pose_vec
         # Publish particles with time odometry was received
         #self.poses.header.stamp = rospy.Time.now()
-        self.pf_pub.publish(self.markers)
+        if self.markers:
+            self.pf_pub.publish(self.markers_list)
+        else:
+            self.pf_pub.publish(self.poses)
+
         self.average_pose(self.pose_list)
 
 

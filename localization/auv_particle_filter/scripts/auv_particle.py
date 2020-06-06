@@ -30,6 +30,7 @@ class Particle(object):
         self.index = index
         # self.weight = 1.
         self.p_pose = Pose()
+        self.pose_vec = np.zeros(6,)
         self.odom_frame = odom_frame
         self.map_frame = map_frame
         self.mbes_tf_mat = mbes_tf_matrix
@@ -207,7 +208,7 @@ class Particle(object):
         return mbes_goal
 
 
-    def get_pose_vec(self):
+    def update_pose_vec(self):
         """
         Returns a list of particle pose elements
         [x, y, z, roll, pitch, yaw]
@@ -215,22 +216,19 @@ class Particle(object):
         :return: List of pose values
         :rtype: List
         """
-        pose_vec = []
-        pose_vec.append(self.p_pose.position.x)
-        pose_vec.append(self.p_pose.position.y)
-        pose_vec.append(self.p_pose.position.z)
+        self.pose_vec[0] = self.p_pose.position.x
+        self.pose_vec[1] = self.p_pose.position.y
+        self.pose_vec[2] = self.p_pose.position.z
 
         quat = (self.p_pose.orientation.x,
                 self.p_pose.orientation.y,
                 self.p_pose.orientation.z,
                 self.p_pose.orientation.w)
         roll, pitch, yaw = euler_from_quaternion(quat)
-
-        pose_vec.append(roll)
-        pose_vec.append(pitch)
-        pose_vec.append(yaw)
-
-        return pose_vec
+        self.pose_vec[3] = roll
+        self.pose_vec[4] = pitch
+        self.pose_vec[5] = yaw
+        return
 
 def pcloud2ranges(point_cloud, pose_s):
     ranges = []

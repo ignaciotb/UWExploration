@@ -54,7 +54,8 @@ class auv_pf(object):
                                                 rospy.Time(0), rospy.Duration(10))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
             
-            m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(10))
+            m2o_tf = tfBuffer.lookup_transform(map_frame, odom_frame,
+                                               rospy.Time(0), rospy.Duration(10))
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
             rospy.loginfo("Transforms locked - pf node")
@@ -151,7 +152,7 @@ class auv_pf(object):
         particle_tf.translation = odom.pose.pose.position
         particle_tf.rotation    = odom.pose.pose.orientation
         tf_mat = matrix_from_tf(particle_tf)
-        m2auv = self.m2o_mat.dot(tf_mat.dot(self.base2mbes_mat))
+        m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
         mbes_meas_ranges = pcloud2ranges(meas_mbes, m2auv)
 
         # Measurement update of each particle

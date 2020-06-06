@@ -52,7 +52,8 @@ class ChangeDetector(object):
                                                 rospy.Time(0), rospy.Duration(20.))
             self.base2mbes_mat = self.matrix_from_tf(mbes_tf)
             
-            m2o_tf = tfBuffer.lookup_transform('map', 'odom', rospy.Time(0), rospy.Duration(20.))
+            m2o_tf = tfBuffer.lookup_transform(map_frame, odom_frame,
+                                               rospy.Time(0), rospy.Duration(20.))
             self.m2o_mat = self.matrix_from_tf(m2o_tf)
 
             rospy.loginfo("Transforms locked - Car detector node")
@@ -161,7 +162,7 @@ class ChangeDetector(object):
             particle_tf.translation = auv_pose.pose.pose.position
             particle_tf.rotation    = auv_pose.pose.pose.orientation
             tf_mat = self.matrix_from_tf(particle_tf)
-            m2auv = self.m2o_mat.dot(tf_mat.dot(self.base2mbes_mat))
+            m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
             auv_ping_ranges = self.pcloud2ranges(auv_ping, m2auv)
 
             #  auv_ping = self.pcloud2ranges(auv_ping, auv_pose.pose.pose)

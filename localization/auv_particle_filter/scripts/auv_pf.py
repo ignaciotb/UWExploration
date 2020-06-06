@@ -114,7 +114,8 @@ class auv_pf(object):
         self.pred_odom = None
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
-        self.weights = np.zeros((70,))
+        self.weights = np.zeros((self.pc,))
+        self.particle_mbes_pc = PointCloud2()
 
         for i in range(self.pc):
             if self.markers:
@@ -153,6 +154,8 @@ class auv_pf(object):
             pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
             self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
 
+        #Initialize mbes Publisher
+        self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
         self.avg_pub = rospy.Publisher(avg_pose_top, PoseWithCovarianceStamped, queue_size=10)
@@ -175,15 +178,15 @@ class auv_pf(object):
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
-        if self.old_time and self.time > self.old_time:
+        if self.old_time == None:
+            self.old_time = self.time
+        else:
             # Motion prediction
             self.predict(odom_msg)
-
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
                 self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-
                 # Particle resampling
                 self.resample()
 
@@ -198,27 +201,24 @@ class auv_pf(object):
 
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
-
-
         for i in range(self.pc):
             mbes_goal = self.particles[i].meas_update(mbes_meas_ranges)
             self.ac[i].send_goal(mbes_goal)
+            rospy.sleep(0.001)
 
         for i in range(self.pc):
             self.ac[i].wait_for_result()
             mbes_res = self.ac[i].get_result()
-
             # Pack result into PointCloud2
-            mbes_pcloud = PointCloud2()
-            mbes_pcloud = mbes_res.sim_mbes
-            mbes_pcloud.header.frame_id = self.map_frame
-
-            self.particles[i].update_weight(mbes_pcloud, mbes_meas_ranges)
+            self.particle_mbes_pc = mbes_res.sim_mbes
+            self.particle_mbes_pc.header.frame_id = self.map_frame
+            # Publish (for visualization)
+            self.pcloud_pub.publish(self.particle_mbes_pc)
+            self.particles[i].update_weight(self.particle_mbes_pc, mbes_meas_ranges)
             self.weights[i] = self.particles[i].w
 
         # Add small non-zero value to avoid hitting zero
         self.weights += 1.e-30
-
         return
 
     def resample(self):
@@ -339,3 +339,16 @@ if __name__ == '__main__':
     except rospy.ROSInterruptException:
         rospy.logerr("Couldn't launch pf")
         pass
+
+
+# [ERROR] [1591456286.594425]: bad callback: <bound method auv_pf.odom_callback of <__main__.auv_pf object at 0x7f82ad355390>>
+# Traceback (most recent call last):
+#   File "/opt/ros/melodic/lib/python2.7/dist-packages/rospy/topics.py", line 750, in _invoke_callback
+#     cb(msg)
+#   File "/home/auv/workspaces/UWE_ws/src/UWExploration/localization/auv_particle_filter/scripts/auv_pf.py", line 188, in odom_callback
+#     self.resample()
+#   File "/home/auv/workspaces/UWE_ws/src/UWExploration/localization/auv_particle_filter/scripts/auv_pf.py", line 250, in resample
+#     self.reassign_poses(lost, dupes)
+#   File "/home/auv/workspaces/UWE_ws/src/UWExploration/localization/auv_particle_filter/scripts/auv_pf.py", line 263, in reassign_poses
+#     self.particles[lost[i]].p_pose.position.x = self.particles[dupes[i]].p_pose.position.x
+# IndexError: index 50 is out of bounds for axis 0 with size 50

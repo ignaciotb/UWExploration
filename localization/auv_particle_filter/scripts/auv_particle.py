@@ -41,8 +41,6 @@ class Particle(object):
         self.w = 0.
         self.log_w = 0.
 
-
-        self.pcloud_pub = rospy.Publisher(pc_mbes_top, PointCloud2, queue_size=10)
         self.pose_pub = rospy.Publisher('/pf/particles', PoseStamped, queue_size=10)
 
         # Distribute particles around initial pose
@@ -142,11 +140,8 @@ class Particle(object):
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)
 
-        # Publish (for visualization)
-        self.pcloud_pub.publish(mbes_pc)
-
         # Update particle weights
-        #  self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
+        #self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
         #  print "MV ", self.w
         #  self.w = self.weight_avg(mbes_meas_ranges, mbes_i_ranges)
         #  print "Avg ", self.w

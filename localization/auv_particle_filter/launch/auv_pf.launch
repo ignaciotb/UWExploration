@@ -18,7 +18,7 @@
   <arg name="average_pose_topic"                default="/pf/avg_pose"/>
   <arg name="particle_poses_topic"              default="/pf/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/pf/sim_mbes"/>
-  <arg name="markers"                           default= "false"/>
+  <arg name="markers"                           default= "true"/>
   <arg name="marker_topic"                      default="/pf/particle_markers"/>
   <arg name="marker_model"                       default="package://hugin_description/mesh/hugin_color.dae"/>
 

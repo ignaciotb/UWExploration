@@ -119,8 +119,6 @@ class ChangeDetector(object):
 
         # Detect blobs.
         keypoints = detector.detect(gray_img)
-         # Draw detected blobs as red circles.
-         # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
         im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
@@ -156,8 +154,10 @@ class ChangeDetector(object):
             #  auv_ping = self.pcloud2ranges(auv_ping, auv_pose.pose.pose)
             #  pf_ping = self.pcloud2ranges(pf_ping, pf_pose.pose.pose)
             #  print (auv_ping_ranges)
-
-            self.waterfall.append(abs(auv_ping_ranges - auv_ping_ranges))
+            noise = np.random.rand(1,len(auv_ping_ranges)) * 60.
+            noise = noise.tolist()[0]
+            
+            self.waterfall.append(abs(auv_ping_ranges - (auv_ping_ranges + noise)))
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)
 

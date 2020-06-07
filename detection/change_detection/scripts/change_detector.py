@@ -73,14 +73,14 @@ class ChangeDetector(object):
         while not rospy.is_shutdown():
             if self.new_msg:
                 # Blob detection to find the car on waterfall image
+                #Visualize
                 if len(self.waterfall)==self.max_height:
                     waterfall_detect = self.car_detection(np.array(self.waterfall), self.scale)
-                    # Visualize
-                    plt.imshow(waterfall_detect, norm=plt.Normalize(0., 60.),
+                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 60.),
                             cmap='gray', aspect='equal')
                 else:
                     plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
-                            cmap='gray', aspect='equal')
+                        cmap='gray', aspect='equal')
                 if first_msg:
                     first_msg = False
                     plt.colorbar()
@@ -124,12 +124,12 @@ class ChangeDetector(object):
         #gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
         # Turn cv2 image back to numpy array, scale it down, and return
-        tmp_img_array  = np.asarray(im_with_keypoints)
+        tmp_img_array  = im_with_keypoints
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
         for i in range(np.size(tmp_img_array,2)):
-            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(tmp_img_array, 0)), np.linspace(0, 1, np.size(tmp_img_array, 1)), tmp_img_array[:,:,i])
-            out_img_array[:,:,i] =  f(np.linspace(0, 1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)))
-
+            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(tmp_img_array, 0)), np.linspace(0,255, np.size(tmp_img_array, 1)), tmp_img_array[:,:,i])
+            out_img_array[:,:,i] =  f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
+        out_img_array = out_img_array.astype(int)
         return out_img_array
 
     def pcloud2ranges(self, point_cloud, tf_mat):
@@ -162,7 +162,7 @@ class ChangeDetector(object):
             #  print (auv_ping_ranges)
             noise = np.random.rand(1,len(auv_ping_ranges)) * 60.
             noise = noise.tolist()[0]
-            
+
             self.waterfall.append(abs(auv_ping_ranges - (auv_ping_ranges + noise)))
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)

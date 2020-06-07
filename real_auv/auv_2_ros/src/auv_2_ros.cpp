@@ -249,7 +249,7 @@ void BathymapConstructor::publishExpectedMeas(){
         mbes_goal.mbes_pose.transform = transform_msg;
         ac_->sendGoal(mbes_goal);
 
-        ac_->waitForResult(ros::Duration(1.0));
+        ac_->waitForResult();
         actionlib::SimpleClientGoalState state = ac_->getState();
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
             sensor_msgs::PointCloud2 mbes_msg;

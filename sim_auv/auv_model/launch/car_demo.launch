@@ -5,6 +5,7 @@
     <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
+  	<arg name="filter" default="pf"/>
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.1"/>
@@ -41,9 +42,17 @@
 
 	<group ns="$(arg namespace)">
 
-		  <!-- Particle filter -->
-		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
+		<!-- Particle filter -->
+<!-- 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
+			<arg name="filter" value="$(arg filter)"/>
+		</include> -->
+
+		<!-- Particle filter -->
+		<include file="$(find change_detection)/launch/change_detection.launch" >
+			<arg name="mode" value="$(arg mode)"/>
+			<arg name="namespace" value="$(arg namespace)"/>
+			<arg name="filter" value="$(arg filter)"/>
 		</include>
 	
 		<!-- Hugin model -->

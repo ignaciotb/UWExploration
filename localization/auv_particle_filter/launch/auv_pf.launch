@@ -6,11 +6,11 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="20"/>
+  <arg name="particle_count"                    default="1"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.01]"/>
-  <arg name="motion_covariance" default="[0.001, 0.001, 0.0, 0.0, 0.0, 0.001]"/> 
-  <arg name="measurement_covariance"  default="0.5"/>
+  <arg name="init_covariance" default="[0, 0, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0, 0, 0.0, 0.0, 0.0, 0.00]"/> 
+  <arg name="measurement_covariance"  default="0.1"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>

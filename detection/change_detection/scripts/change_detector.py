@@ -31,18 +31,17 @@ class ChangeDetector(object):
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         auv_odom_top = rospy.get_param("~odometry_topic", '/odom')
         auv_mbes_top = rospy.get_param("~mbes_pings_topic", '/mbes')
+        auv_exp_mbes_top = rospy.get_param("~expected_mbes_topic", '/expected_mbes')
         pf_pose_top = rospy.get_param("~average_pose_topic", '/avg_pose')
-        pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
 
         self.auv_mbes = message_filters.Subscriber(auv_mbes_top, PointCloud2)
+        self.exp_mbes = message_filters.Subscriber(auv_exp_mbes_top, PointCloud2)
         self.auv_pose = message_filters.Subscriber(auv_odom_top, Odometry)
-        self.pf_mbes = message_filters.Subscriber(pf_mbes_top, PointCloud2)
-        self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
-        self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.pf_mbes,
-                                                              self.auv_pose, self.pf_pose],
+        #  self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
+        self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.exp_mbes,
+                                                              self.auv_pose],
                                                               10, slop=10.0,
                                                               allow_headerless=False)
-        self.ts.registerCallback(self.pingCB)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()

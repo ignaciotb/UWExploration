@@ -17,7 +17,7 @@ from tf.transformations import rotation_matrix, rotation_from_matrix, translatio
 
 from sensor_msgs.msg import PointCloud2
 from nav_msgs.msg import Odometry
-from geometry_msgs.msg import Transform, PoseWithCovarianceStamped
+from geometry_msgs.msg import Transform, PoseWithCovarianceStamped, Vector3
 import sensor_msgs.point_cloud2 as pc2
 
 import message_filters
@@ -33,6 +33,7 @@ class ChangeDetector(object):
         auv_mbes_top = rospy.get_param("~mbes_pings_topic", '/mbes')
         auv_exp_mbes_top = rospy.get_param("~expected_mbes_topic", '/expected_mbes')
         pf_pose_top = rospy.get_param("~average_pose_topic", '/avg_pose')
+        detection_top = rospy.get_param("~detection_topic", '/detection_pose')
 
         self.auv_mbes = message_filters.Subscriber(auv_mbes_top, PointCloud2)
         self.exp_mbes = message_filters.Subscriber(auv_exp_mbes_top, PointCloud2)
@@ -71,18 +72,29 @@ class ChangeDetector(object):
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
+        self.active_auv_poses = []
+
+        #Init detection publisher
+        self.detection_pb = rospy.Publisher(detection_top, PoseWithCovarianceStamped, queue_size=10)
 
         while not rospy.is_shutdown():
             if self.new_msg:
                 # Blob detection to find the car on waterfall image
                 #Visualize
                 if len(self.waterfall)==self.max_height:
-                    waterfall_detect = self.car_detection(np.array(self.waterfall), self.scale)
+                    waterfall_detect, centroids_row, centroids_col = self.car_detection(np.array(self.waterfall), self.scale)
+                    if len(centroids_row) > 0:
+                        for row in centroids_row:
+                            det_msg = PoseWithCovarianceStamped()
+                            det_msg.header = self.active_auv_poses[row].header
+                            det_msg.pose = self.active_auv_poses[row].pose
+                            self.detection_pb.publish(det_msg)
+
                     plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 60.),
-                            cmap='gray', aspect='equal')
+                            cmap='gray', aspect='equal', origin = "lower")
                 else:
                     plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
-                        cmap='gray', aspect='equal')
+                        cmap='gray', aspect='equal', origin = "lower")
                 if first_msg:
                     first_msg = False
                     plt.colorbar()
@@ -99,7 +111,7 @@ class ChangeDetector(object):
         img_array = np.float32(img_array)
         f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)), img_array)
         img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
-        gray_img = cv2.normalize(src=img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        gray_img = cv2.normalize(src=img_array, dst=None, alpha=255, beta=0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
 
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
@@ -119,6 +131,11 @@ class ChangeDetector(object):
 
         # Detect blobs.
         keypoints = detector.detect(gray_img)
+        rows, cols = [], []
+        if len(keypoints) != 0:
+            for keypoint in keypoints:
+                rows.append(int(keypoint.pt[1]))
+                cols.append(int(keypoint.pt[0]))
         im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         #gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
@@ -127,9 +144,9 @@ class ChangeDetector(object):
         for i in range(np.size(im_with_keypoints,2)):
             f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)),
                                     np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
-            out_img_array[:,:,i] =  f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
+            out_img_array[:,:,i] = f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
         out_img_array = out_img_array.astype(np.uint8)
-        return out_img_array
+        return out_img_array, rows, cols
 
     def pcloud2ranges(self, point_cloud, tf_mat):
         angle, direc, point = rotation_from_matrix(tf_mat)
@@ -170,8 +187,11 @@ class ChangeDetector(object):
             #  print exp_ping_ranges
 
             self.waterfall.append(abs(auv_ping_ranges[:self.max_height] - exp_ping_ranges[:self.max_height]))
+            self.active_auv_poses.append(auv_pose)
+
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)
+                self.active_auv_poses.pop(0)
 
             self.new_msg = True
 

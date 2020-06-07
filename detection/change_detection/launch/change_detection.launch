@@ -3,7 +3,7 @@
 
 	<arg name="namespace" default="hugin"/>
 	<arg name="mode"       default="gt"/>
-	<arg name="filter" default="pf"/> 
+	<arg name="filter" default="pf"/>
 
 	<arg name="map_frame"                         default="map"/>
 	<arg name="odom_frame"                         default="odom"/>
@@ -11,6 +11,7 @@
 	<arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
 	<arg name="expected_mbes_topic"                default="/sim/mbes_pings"/>
 	<arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
+	<arg name="detection_topic"                		default="/detection_pose"/>
 <!-- 	<arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
 	<arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/> -->
 
@@ -23,6 +24,7 @@
 			<param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
 			<param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
 			<param name="expected_mbes_topic"                      value="$(arg expected_mbes_topic)" />
+			<param name="detection_topic"                          value="$(arg detection_topic)" />
 		</node>
 
 	</group>

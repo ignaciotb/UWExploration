@@ -85,6 +85,7 @@ class Particle(object):
                                                             noisy_pose[5][0]))
 
 
+    # TODO: implement full matrix to avoid matmul and speed up
     def fullRotation(self, roll, pitch, yaw):
         rot_z = np.array([[np.cos(yaw), -np.sin(yaw), 0.0],
                           [np.sin(yaw), np.cos(yaw), 0.0],
@@ -140,7 +141,7 @@ class Particle(object):
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas(self.p_pose)
         mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
-        mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+        #  mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
         #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)

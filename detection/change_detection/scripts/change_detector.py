@@ -67,7 +67,7 @@ class ChangeDetector(object):
         plt.ion()
         plt.show()
         self.scale = 4
-        self.max_height = 512. # TODO: this should equal the n beams in ping
+        self.max_height = 100 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -125,12 +125,11 @@ class ChangeDetector(object):
         #gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
         # Turn cv2 image back to numpy array, scale it down, and return
-        tmp_img_array  = im_with_keypoints
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
-        for i in range(np.size(tmp_img_array,2)):
-            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(tmp_img_array, 0)), np.linspace(0,255, np.size(tmp_img_array, 1)), tmp_img_array[:,:,i])
+        for i in range(np.size(im_with_keypoints,2)):
+            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)), np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
             out_img_array[:,:,i] =  f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
-        out_img_array = out_img_array.astype(int)
+        out_img_array = out_img_array.astype(float)
         return out_img_array
 
     def pcloud2ranges(self, point_cloud, tf_mat):
@@ -148,6 +147,14 @@ class ChangeDetector(object):
 
         return np.asarray(ranges)
 
+    def ping2ranges(self, point_cloud):
+
+        ranges = []
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            ranges.append(np.linalg.norm(p))
+
+        return np.asarray(ranges)
+
 
     def pingCB(self, auv_ping, exp_ping, auv_pose):
         try:
@@ -156,16 +163,14 @@ class ChangeDetector(object):
             particle_tf.rotation    = auv_pose.pose.pose.orientation
             tf_mat = self.matrix_from_tf(particle_tf)
             m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
-            auv_ping_ranges = self.pcloud2ranges(auv_ping, m2auv)
+            
+            auv_ping_ranges = self.ping2ranges(auv_ping)
+            exp_ping_ranges = self.pcloud2ranges(exp_ping, m2auv)
+            #  print "------"
+            #  print auv_ping_ranges
+            #  print exp_ping_ranges
 
-            #  auv_ping = self.pcloud2ranges(auv_ping, auv_pose.pose.pose)
-            #  pf_ping = self.pcloud2ranges(pf_ping, pf_pose.pose.pose)
-            #  print (auv_ping_ranges)
-            noise = np.random.rand(1,len(auv_ping_ranges)) * 60.
-            noise = noise.tolist()[0]
-
-            self.waterfall.append(abs(auv_ping_ranges - (auv_ping_ranges + noise)))
-            #  print self.waterfall[len(self.waterfall)-1]
+            self.waterfall.append(abs(auv_ping_ranges[:self.max_height] - exp_ping_ranges[:self.max_height]))
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)
 

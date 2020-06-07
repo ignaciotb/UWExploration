@@ -141,7 +141,7 @@ class Particle(object):
         # Predict mbes ping given current particle pose and map
         mbes_i = self.predict_meas(self.p_pose)
         mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
-        #  mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+        
         #  print "Particle ", self.index
         #  print(mbes_meas_ranges)
         #  print(mbes_i_ranges)

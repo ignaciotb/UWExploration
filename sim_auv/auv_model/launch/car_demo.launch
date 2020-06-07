@@ -48,12 +48,12 @@
 			<arg name="filter" value="$(arg filter)"/>
 		</include> -->
 
-		<!-- Particle filter -->
-		<include file="$(find change_detection)/launch/change_detection.launch" >
+		<!-- Bathymetry change detection -->
+<!-- 		<include file="$(find change_detection)/launch/change_detection.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 			<arg name="namespace" value="$(arg namespace)"/>
 			<arg name="filter" value="$(arg filter)"/>
-		</include>
+		</include> -->
 	
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
@@ -76,8 +76,8 @@
 	        <param name="world_frame" value="world" />
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="30" />
+			<param name="mbes_open_angle" value="1.25" /> <!-- Ping on lost targets: 1.25 -->
+			<param name="num_beams_sim" value="512" />
 			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 

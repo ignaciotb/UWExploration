@@ -63,10 +63,10 @@ class ChangeDetector(object):
 
         # Register cb after tf is locked
         self.ts.registerCallback(self.pingCB)
-        
+
         plt.ion()
         plt.show()
-        self.scale = 4
+        self.scale = 1
         self.max_height = 100 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
@@ -127,7 +127,8 @@ class ChangeDetector(object):
         # Turn cv2 image back to numpy array, scale it down, and return
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
         for i in range(np.size(im_with_keypoints,2)):
-            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)), np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
+            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)),
+                                    np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
             out_img_array[:,:,i] =  f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
         out_img_array = out_img_array.astype(float)
         return out_img_array
@@ -163,7 +164,7 @@ class ChangeDetector(object):
             particle_tf.rotation    = auv_pose.pose.pose.orientation
             tf_mat = self.matrix_from_tf(particle_tf)
             m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
-            
+
             auv_ping_ranges = self.ping2ranges(auv_ping)
             exp_ping_ranges = self.pcloud2ranges(exp_ping, m2auv)
             #  print "------"

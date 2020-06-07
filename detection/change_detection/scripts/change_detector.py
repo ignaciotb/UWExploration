@@ -65,7 +65,7 @@ class ChangeDetector(object):
         plt.ion()
         plt.show()
         self.scale = 4
-        self.max_height = 30. # TODO: this should equal the n beams in ping
+        self.max_height = 5. # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -96,8 +96,8 @@ class ChangeDetector(object):
         # Turn numpy array into cv2 image (and make bigger)
         img_array = np.float32(img_array)
         f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)), img_array)
-        img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
-        gray_img = cv2.normalize(src=img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        scaled_img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
+        gray_img = cv2.normalize(src=scaled_img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
         #  img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
         #  rgb = Image.fromarray(img_array)
 
@@ -119,12 +119,16 @@ class ChangeDetector(object):
 
         # Detect blobs.
         keypoints = detector.detect(gray_img)
+
         im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
-        # Turn cv2 image back to numpy array and return
-        img_array  = np.asarray(im_with_keypoints)
-        return img_array
+        # Turn cv2 image back to numpy array, scale it down, and return
+        out_img_array  = np.asarray(gray_im_with_keypoints)
+        f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(out_img_array, 0)), np.linspace(0, 1, np.size(out_img_array, 1)), out_img_array)
+        out_img_array = f(np.linspace(0, 1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)))
+
+        return out_img_array
 
     def pcloud2ranges(self, point_cloud, tf_mat):
         angle, direc, point = rotation_from_matrix(tf_mat)

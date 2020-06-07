@@ -10,7 +10,7 @@ int main(int argc, char** argv){
     std::string track_str, output_str;
     double rate;
     nh.param<std::string>("trajectory_cereal", track_str, "trajectory.cereal");
-    nh.param<double>("sim_freq", rate, 1);
+    nh.param<double>("replay_rate", rate, 1);
 
     // Parse input data from cereal files
     boost::filesystem::path auv_path(track_str);

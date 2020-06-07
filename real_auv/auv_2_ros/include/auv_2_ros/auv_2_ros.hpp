@@ -51,6 +51,8 @@ public:
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
 
+    void publishExpectedMeas();
+
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -76,7 +78,7 @@ private:
 
     ros::Time time_now_, time_prev_;
     tf::StampedTransform tf_mbes_base_;
-    tf::Transform odom_map_tf_;
+    tf::Transform tf_odom_map_;
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
     geometry_msgs::TransformStamped map_odom_tfmsg_;
@@ -84,7 +86,7 @@ private:
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
 
-    bool survey_finished_;
+    bool survey_finished_, change_detection_;
     int ping_cnt_;
     int ping_total_;
 

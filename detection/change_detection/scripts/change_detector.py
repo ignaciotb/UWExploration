@@ -61,10 +61,13 @@ class ChangeDetector(object):
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
 
+        # Register cb after tf is locked
+        self.ts.registerCallback(self.pingCB)
+        
         plt.ion()
         plt.show()
         self.scale = 4
-        self.max_height = 30. # TODO: this should equal the n beams in ping
+        self.max_height = 512. # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -141,7 +144,7 @@ class ChangeDetector(object):
         return np.asarray(ranges)
 
 
-    def pingCB(self, auv_ping, pf_ping, auv_pose, pf_pose):
+    def pingCB(self, auv_ping, exp_ping, auv_pose):
         try:
             particle_tf = Transform()
             particle_tf.translation = auv_pose.pose.pose.position
@@ -157,6 +160,7 @@ class ChangeDetector(object):
             noise = noise.tolist()[0]
             
             self.waterfall.append(abs(auv_ping_ranges - (auv_ping_ranges + noise)))
+            #  print self.waterfall[len(self.waterfall)-1]
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)
 

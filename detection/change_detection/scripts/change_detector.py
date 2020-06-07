@@ -100,8 +100,6 @@ class ChangeDetector(object):
         f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)), img_array)
         img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
         gray_img = cv2.normalize(src=img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
-        #  img_array = cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
-        #  rgb = Image.fromarray(img_array)
 
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
@@ -181,16 +179,6 @@ class ChangeDetector(object):
             pass
 
     def matrix_from_tf(self, transform):
-        """
-        Converts a geometry_msgs/Transform or
-        geometry_msgs/TransformStamped into a 4x4
-        transformation matrix
-
-        :param transform: Transform from parent->child frame
-        :type transform: geometry_msgs/Transform(Stamped)
-        :return: Transform as 4x4 matrix
-        :rtype: Numpy array (4x4)
-        """
         if transform._type == 'geometry_msgs/TransformStamped':
             transform = transform.transform
 
@@ -206,6 +194,8 @@ class ChangeDetector(object):
         qmat = quaternion_matrix(quat_)
 
         return np.dot(tmat, qmat)
+
+
 if __name__ == '__main__':
 
     rospy.init_node('car_detector_node')

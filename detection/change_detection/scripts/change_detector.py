@@ -128,7 +128,7 @@ class ChangeDetector(object):
             f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)),
                                     np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
             out_img_array[:,:,i] =  f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
-        out_img_array = out_img_array.astype(float)
+        out_img_array = out_img_array.astype(np.uint8)
         return out_img_array
 
     def pcloud2ranges(self, point_cloud, tf_mat):

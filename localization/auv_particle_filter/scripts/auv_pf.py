@@ -241,8 +241,9 @@ class auv_pf(object):
         self.avg_pub.publish(self.avg_pose)
 
         # Hacky way to get the expected MBES ping from avg pose of PF
-        #  pf_ping = self.particles[0].predict_meas(self.avg_pose.pose.pose)
-        #  self.pf_mbes_pub.publish(pf_ping)
+        # TODO: do this properly :d
+        pf_ping = self.particles[0].predict_meas(self.avg_pose.pose.pose)
+        self.pf_mbes_pub.publish(pf_ping)
 
 
     # TODO: publish markers instead of poses

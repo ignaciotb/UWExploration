@@ -65,7 +65,7 @@ class ChangeDetector(object):
         plt.ion()
         plt.show()
         self.scale = 4
-        self.max_height = 5. # TODO: this should equal the n beams in ping
+        self.max_height = 30. # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -123,12 +123,14 @@ class ChangeDetector(object):
          # Draw detected blobs as red circles.
          # cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS ensures the size of the circle corresponds to the size of blob
         im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
+        #gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
 
         # Turn cv2 image back to numpy array, scale it down, and return
-        out_img_array  = np.asarray(gray_im_with_keypoints)
-        f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(out_img_array, 0)), np.linspace(0, 1, np.size(out_img_array, 1)), out_img_array)
-        out_img_array = f(np.linspace(0, 1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)))
+        tmp_img_array  = np.asarray(im_with_keypoints)
+        out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
+        for i in range(np.size(tmp_img_array,2)):
+            f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(tmp_img_array, 0)), np.linspace(0, 1, np.size(tmp_img_array, 1)), tmp_img_array[:,:,i])
+            out_img_array[:,:,i] =  f(np.linspace(0, 1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)))
 
         return out_img_array
 

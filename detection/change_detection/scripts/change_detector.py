@@ -78,10 +78,10 @@ class ChangeDetector(object):
                 #Visualize
                 if len(self.waterfall)==self.max_height:
                     waterfall_detect = self.car_detection(np.array(self.waterfall), self.scale)
-                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 60.),
+                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 3.),
                             cmap='gray', aspect='equal')
                 else:
-                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
+                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 3.),
                         cmap='gray', aspect='equal')
                 if first_msg:
                     first_msg = False

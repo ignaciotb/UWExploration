@@ -204,11 +204,11 @@ class auv_pf(object):
         for i in range(self.pc):
             mbes_goal = self.particles[i].meas_update(mbes_meas_ranges)
             self.ac[i].send_goal(mbes_goal)
-            rospy.sleep(0.001)
 
         for i in range(self.pc):
             self.ac[i].wait_for_result()
             mbes_res = self.ac[i].get_result()
+            print(mbes_res.sim_mbes.header.seq)
             # Pack result into PointCloud2
             self.particle_mbes_pc = mbes_res.sim_mbes
             self.particle_mbes_pc.header.frame_id = self.map_frame

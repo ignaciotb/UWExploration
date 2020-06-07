@@ -196,6 +196,7 @@ class Particle(object):
 
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
+        mbes_goal.mbes_pose.header.seq = self.index
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform

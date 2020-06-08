@@ -153,7 +153,9 @@ void BathymapConstructor::addMiniCar(std::string & mini_name){
     pcl::toROSMsg(*cloud_in.get(), mbes_i);
     mbes_i.header.frame_id = mini_frame_;
     mbes_i.header.stamp = ros::Time::now();
-    ping_pub_.publish(mbes_i);
+    for(int i=0; i<20; i++){
+        ping_pub_.publish(mbes_i);
+    }
 }
 
 void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
@@ -194,7 +196,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == 400 && add_mini_){
+    if(ping_cnt_ == 1 && add_mini_){
         std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }

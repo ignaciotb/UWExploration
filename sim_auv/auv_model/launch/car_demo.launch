@@ -9,7 +9,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.1"/>
-    <arg name="change_detection" default="True"/>
+    <arg name="detection" default="True"/>
     <arg name="add_mini" default="False"/>
 	<arg name="mbes_sim_threads" default="4"/>
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
@@ -51,13 +51,13 @@
 		</include>
 
 		<!-- Bathymetry change detection -->
-		<!-- <group if="$(eval change_detection == 'True')"> -->
-			<include file="$(find change_detection)/launch/change_detection.launch" >
+		<group if="$(arg detection)">
+		<include file="$(find change_detection)/launch/change_detection.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 			<arg name="namespace" value="$(arg namespace)"/>
 			<arg name="filter" value="$(arg filter)"/>
 		</include>
-		<!-- </group> -->
+		</group>
 		
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro.py '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />

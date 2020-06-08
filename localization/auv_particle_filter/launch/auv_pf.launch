@@ -41,6 +41,7 @@
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="markers"                type = "bool"    value="$(arg markers)" />
       <param name="marker_topic"                            value="$(arg marker_topic)"/>
+      <param name="marker_model"                             value="$(arg marker_model)"/>
       <param name="hugin_model"                             value="$(arg hugin_model)"/>
     </node>
   </group>
@@ -58,6 +59,9 @@
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+      <param name="markers"                type = "bool"    value="$(arg markers)" />
+      <param name="marker_topic"                            value="$(arg marker_topic)"/>
+      <param name="marker_model"                             value="$(arg marker_model)"/>
     </node>
   </group>
 

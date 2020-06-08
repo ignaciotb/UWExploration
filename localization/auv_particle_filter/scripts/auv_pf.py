@@ -52,7 +52,7 @@ class auv_pf(object):
         odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        self.markers  = rospy.get_param("~markers", "true")
+        self.markers  = rospy.get_param("~markers", "false")
 
         if self.markers:
             marker_topic =  rospy.get_param("~marker_topic", '/pf/particle_markers')

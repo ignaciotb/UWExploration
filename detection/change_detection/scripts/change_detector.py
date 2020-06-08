@@ -40,7 +40,7 @@ class ChangeDetector(object):
         #  self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
         self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.exp_mbes,
                                                               self.auv_pose],
-                                                              10, slop=10.0,
+                                                              10, slop=3.0,
                                                               allow_headerless=False)
 
         # Initialize tf listener
@@ -66,22 +66,22 @@ class ChangeDetector(object):
         
         plt.ion()
         plt.show()
-        self.scale = 4
-        self.max_height = 100 # TODO: this should equal the n beams in ping
+        self.ping_cnt = 0
+        self.scale = 1
+        self.max_height = 380 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
 
         while not rospy.is_shutdown():
             if self.new_msg:
-                # Blob detection to find the car on waterfall image
                 #Visualize
                 if len(self.waterfall)==self.max_height:
                     waterfall_detect = self.car_detection(np.array(self.waterfall), self.scale)
-                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 3.),
+                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 5.),
                             cmap='gray', aspect='equal')
                 else:
-                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 3.),
+                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
                         cmap='gray', aspect='equal')
                 if first_msg:
                     first_msg = False
@@ -99,16 +99,16 @@ class ChangeDetector(object):
         img_array = np.float32(img_array)
         f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)), np.linspace(0, 1, np.size(img_array, 1)), img_array)
         img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)), np.linspace(0, 1, scale*np.size(img_array, 1)))
-        gray_img = cv2.normalize(src=img_array, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        gray_img = cv2.normalize(src=img_array, dst=None, alpha=255, beta=0, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
 
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
 
-        params.minThreshold = 100;
-        params.maxThreshold = 5000;
+        params.minThreshold = 10
+        params.maxThreshold = 5000
 
-        params.filterByArea = True
-        params.minArea = 200
+        params.filterByArea = True 
+        params.minArea = 20
 
         params.filterByCircularity = False
         params.minCircularity = 0.785
@@ -172,6 +172,8 @@ class ChangeDetector(object):
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)
 
+            self.ping_cnt += 1
+            #  print "ping ", self.ping_cnt
             self.new_msg = True
 
         except rospy.ROSInternalException:

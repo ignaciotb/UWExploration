@@ -18,6 +18,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
     nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
     nh_->param<bool>("change_detection", change_detection_, false);
+    nh_->param<bool>("add_mini", add_mini_, false);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
@@ -63,7 +64,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> mini tf
-    mini_tf_.translation() = Eigen::Vector3d(1,0,-17);
+    mini_tf_.translation() = Eigen::Vector3d(15,-30,-15.5);
     Eigen::Quaterniond rot;
     rot.setIdentity();
     mini_tf_.linear() = rot.toRotationMatrix();
@@ -192,11 +193,12 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == 10 && !survey_finished_){
+    if(ping_cnt_ == 400 && add_mini_){
         std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }
 
+//    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < ping_total_-1 && !survey_finished_){
         this->publishMeas(ping_cnt_);
         if(change_detection_){

@@ -73,6 +73,8 @@ class ChangeDetector(object):
         first_msg = True
         self.waterfall =[]
 
+        rospy.loginfo("Change detection node created")
+
         while not rospy.is_shutdown():
             if self.new_msg:
                 #Visualize

@@ -1,5 +1,6 @@
 # Define the goal
 geometry_msgs/TransformStamped mbes_pose
+std_msgs/Int32 beams_num
 ---
 # Define the result
 sensor_msgs/PointCloud2 sim_mbes

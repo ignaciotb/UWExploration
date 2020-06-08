@@ -8,6 +8,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 #include <cereal/archives/binary.hpp>
+#include <pcl/io/obj_io.h>
 
 #include "data_tools/std_data.h"
 
@@ -51,6 +52,10 @@ public:
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
 
+    void publishExpectedMeas();
+
+    void addMiniCar(std::string& mini_name);
+
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -70,23 +75,26 @@ private:
 
     Eigen::Isometry3d map_tf_;
     Eigen::Isometry3d odom_tf_;
+    Eigen::Isometry3d mini_tf_;
 
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
 
     ros::Time time_now_, time_prev_;
     tf::StampedTransform tf_mbes_base_;
-    tf::Transform odom_map_tf_;
+    tf::Transform tf_odom_map_;
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
     geometry_msgs::TransformStamped map_odom_tfmsg_;
     geometry_msgs::TransformStamped world_map_tfmsg_;
+    geometry_msgs::TransformStamped map_mini_tfmsg_;
 
-    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, mini_frame_;
 
-    bool survey_finished_;
+    bool survey_finished_, change_detection_, add_mini_;
     int ping_cnt_;
     int ping_total_;
+    int beams_num_;
 
 };
 

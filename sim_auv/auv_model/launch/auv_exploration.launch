@@ -1,14 +1,17 @@
 <?xml version="1.0" ?>
 <launch>
-	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
-	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
-    <arg name="mode" default="sim"/>
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+    <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
 	<arg name="mbes_sim_threads" default="8"/>
+
+    <arg name="replay_rate" default="0.1"/>
     <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
+
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->
@@ -63,14 +66,11 @@
 	        <param name="multithreaded" value="$(arg multithreaded)" />
 	        <param name="resolution" value="$(arg resolution)" />
 	        <param name="depth_levels" value="$(arg depth_levels)" />
-			<param name="odom_rate" value="$(arg odom_rate)" />
-			<param name="meas_rate" value="$(arg meas_rate)" />
 	        <param name="world_frame" value="world" />
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="30" />
-			<param name="mbes_sim_as" value="/mbes_sim_server" />
+			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 
 		<!-- Simulate Hugin AUV -->
@@ -105,8 +105,7 @@
   		<group unless="$(eval mode == 'sim')">
 			<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 				<param name="trajectory_cereal" value="$(arg cereal_trajectory)"/>
-				<param name="odom_rate" value="$(arg odom_rate)" />
-				<param name="meas_rate" value="$(arg meas_rate)" />
+				<param name="replay_rate" value="$(arg replay_rate)" />
 				<param name="mbes_pings" value="/gt/mbes_pings" />
 				<param name="map_pcl" value="/gt/map" />
 				<param name="debug_pings" value="debug/mbes_pings" />
@@ -116,6 +115,7 @@
 				<param name="odom_frame" value="odom" />
 				<param name="base_link" value="$(arg namespace)/base_link" />
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+				<param name="num_beams_sim" value="30" />
 			</node>
 		</group>
 

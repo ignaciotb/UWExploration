@@ -38,9 +38,9 @@ class ChangeDetector(object):
         self.auv_mbes = message_filters.Subscriber(auv_mbes_top, PointCloud2)
         self.exp_mbes = message_filters.Subscriber(auv_exp_mbes_top, PointCloud2)
         self.auv_pose = message_filters.Subscriber(auv_odom_top, Odometry)
-        #  self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
+        self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
         self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.exp_mbes,
-                                                              self.auv_pose],
+                                                              self.auv_pose, self.pf_pose],
                                                               10, slop=3.0,
                                                               allow_headerless=False)
 
@@ -91,12 +91,15 @@ class ChangeDetector(object):
                             det_msg = PoseWithCovarianceStamped()
                             det_msg.header = self.active_auv_poses[row].header
                             det_msg.pose = self.active_auv_poses[row].pose
+                            det_msg.pose.pose.position.x
                             self.detection_pb.publish(det_msg)
 
-                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 5.),
-                            cmap='gray', aspect='equal', origin = "lower")
+                    waterfall_img = waterfall_detect
+
                 else:
-                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
+                    waterfall_img = self.waterfall    
+                    
+                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
                         cmap='gray', aspect='equal', origin = "lower")
                     
                 if first_msg:
@@ -140,15 +143,17 @@ class ChangeDetector(object):
             for keypoint in keypoints:
                 rows.append(int(keypoint.pt[1]))
                 cols.append(int(keypoint.pt[0]))
-        im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        #gray_im_with_keypoints = cv2.cvtColor(im_with_keypoints, cv2.COLOR_BGR2GRAY)
+        im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255),
+                                              cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
         # Turn cv2 image back to numpy array, scale it down, and return
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
         for i in range(np.size(im_with_keypoints,2)):
             f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)),
                                     np.linspace(0,255, np.size(im_with_keypoints, 1)), im_with_keypoints[:,:,i])
-            out_img_array[:,:,i] = f(np.linspace(0, 255, np.size(img_array, 0)), np.linspace(0, 255, np.size(img_array, 1)))
+            out_img_array[:,:,i] = f(np.linspace(0, 255, np.size(img_array, 0)),
+                                     np.linspace(0, 255, np.size(img_array, 1)))
+        
         out_img_array = out_img_array.astype(np.uint8)
         return out_img_array, rows, cols
 
@@ -176,7 +181,7 @@ class ChangeDetector(object):
         return np.asarray(ranges)
 
 
-    def pingCB(self, auv_ping, exp_ping, auv_pose):
+    def pingCB(self, auv_ping, exp_ping, auv_pose, pf_pose):
         try:
             particle_tf = Transform()
             particle_tf.translation = auv_pose.pose.pose.position
@@ -190,7 +195,9 @@ class ChangeDetector(object):
             #  print auv_ping_ranges
             #  print exp_ping_ranges
 
-            self.waterfall.append(abs(auv_ping_ranges[:self.max_height] - exp_ping_ranges[:self.max_height]))
+            # TODO: do the trimming of pings better than this
+            self.waterfall.append(abs(auv_ping_ranges[:self.max_height]
+                                      - exp_ping_ranges[:self.max_height]))
             self.active_auv_poses.append(auv_pose)
 
             if len(self.waterfall)>self.max_height:

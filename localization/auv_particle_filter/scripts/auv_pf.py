@@ -18,22 +18,12 @@ from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 from tf.transformations import rotation_matrix, rotation_from_matrix
 
-# For sim mbes action client
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
-# Import Particle() class
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges
 
-# Multiprocessing and parallelizing
-import numba
-from numba import jit
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample 
-
-# import time # For evaluating mp improvements
-# import multiprocessing as mp
-# from functools import partial # Might be useful with mp
-# from pathos.multiprocessing import ProcessingPool as Pool
 
 class auv_pf(object):
 
@@ -45,6 +35,7 @@ class auv_pf(object):
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         beams_num = rospy.get_param("~num_beams_sim", 20)
+        self.beams_real = rospy.get_param("~num_beams_real", 512)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -136,7 +127,7 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                self.resample(weights)
+                #  self.resample(weights)
 
             self.update_rviz()
         self.old_time = self.time
@@ -249,9 +240,10 @@ class auv_pf(object):
 
         # Hacky way to get the expected MBES ping from avg pose of PF
         # TODO: do this properly :d
-        #  (got_result, pf_ping)= self.particles[0].predict_meas(self.avg_pose.pose.pose)
-        #  if got_result:
-            #  self.pf_mbes_pub.publish(pf_ping)
+        (got_result, pf_ping)= self.particles[0].predict_meas(self.avg_pose.pose.pose,
+                                                              self.beams_real)
+        if got_result:
+            self.pf_mbes_pub.publish(pf_ping)
 
 
     # TODO: publish markers instead of poses

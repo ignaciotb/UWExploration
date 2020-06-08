@@ -9,8 +9,8 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.1"/>
-    <arg name="change_detection" default="False"/>
-    <arg name="add_mini" default="True"/>
+    <arg name="change_detection" default="True"/>
+    <arg name="add_mini" default="False"/>
 	<arg name="mbes_sim_threads" default="4"/>
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
@@ -71,7 +71,7 @@
 	    </node>
 
 		<node pkg="nodelet" type="nodelet" name="bathy_mapper_server_nodelet" args="load bathy_mapper/BathyMapperNodelet $(arg nodelet_manager)" output="log" required="true">
-	        <remap from="cloud_in" to="/gt/mbes_pings" />
+	        <!-- <remap from="cloud_in" to="/gt/mbes_pings" /> -->
 	        <param name="output_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
 	        <param name="input_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
 	        <param name="multithreaded" value="$(arg multithreaded)" />
@@ -117,7 +117,7 @@
 			<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 				<param name="trajectory_cereal" value="$(arg cereal_trajectory)"/>
 				<param name="replay_rate" value="$(arg replay_rate)" />
-				<param name="change_detection" value="$(arg change_detection)" />
+				<param name="change_detection" value="False" /> <!-- Leave to false for now -->
 				<param name="mbes_pings" value="/gt/mbes_pings" />
 				<param name="map_pcl" value="/gt/map" />
 				<param name="debug_pings" value="debug/mbes_pings" />

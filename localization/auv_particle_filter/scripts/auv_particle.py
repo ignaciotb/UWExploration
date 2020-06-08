@@ -220,11 +220,11 @@ class Particle(object):
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
+        mbes_pcloud = PointCloud2()
         if self.ac_mbes.wait_for_result(rospy.Duration(0.5)):
             mbes_res = self.ac_mbes.get_result()
 
             # Pack result into PointCloud2
-            mbes_pcloud = PointCloud2()
             mbes_pcloud = mbes_res.sim_mbes
             mbes_pcloud.header.frame_id = self.map_frame
             got_result = True

@@ -25,12 +25,12 @@ import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import PoseStamped, Pose
 
 class Particle(object):
-    def __init__(self, index, p_num, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
+    def __init__(self, beams_num, p_num, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
                  meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], map_frame='map', odom_frame='odom',
                  meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
 
-        self.p_num = p_num # index starts from 0
-        self.index = index
+        self.p_num = p_num 
+        self.beams_num = beams_num
         # self.weight = 1.
         self.p_pose = Pose()
         self.odom_frame = odom_frame
@@ -135,27 +135,35 @@ class Particle(object):
         
         self.p_pose.position.x += step_t[0]
         self.p_pose.position.y += step_t[1]
-        self.p_pose.position.z += step_t[2]
+        # Seems to be a problem when integrating depth from Ping vessel, so we just read it
+        self.p_pose.position.z = odom_t.pose.pose.position.z
  
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
-        mbes_i = self.predict_meas(self.p_pose)
-        mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+        (got_result, mbes_i) = self.predict_meas(self.p_pose)
         
-        #  print "Particle ", self.index
-        #  print(mbes_meas_ranges)
-        #  print(mbes_i_ranges)
-        
-        # Publish (for visualization)
-        self.pcloud_pub.publish(mbes_i)
+        if got_result:
+            mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+            
+            # Before calculating weights, make sure both meas have same length
+            mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num)]
+            #  print(len(mbes_meas_sampled))
+            #  print(len(mbes_i_ranges))
+     
+            # Publish (for visualization)
+            self.pcloud_pub.publish(mbes_i)
 
-        # Update particle weights
-        #  self.w = self.weight_mv(mbes_meas_ranges, mbes_i_ranges)
-        #  print "MV ", self.w
-        #  self.w = self.weight_avg(mbes_meas_ranges, mbes_i_ranges)
-        #  print "Avg ", self.w
-        self.w = self.weight_grad(mbes_meas_ranges, mbes_i_ranges)
-        #  print "Gradient", self.w
+
+            # Update particle weights
+            #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+            #  print "MV ", self.w
+            #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
+            #  print "Avg ", self.w
+            self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+            #  print "Gradient", self.w
+        else:
+            rospy.logwarn("Particle did not get meas")
+            self.w = 1./self.p_num
 
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -164,8 +172,8 @@ class Particle(object):
             grad_expected = np.gradient(mbes_sim_ranges)
             w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
-            print ("missing pings!")
-            w_i = 0.
+            rospy.logwarn("missing pings!")
+            w_i = 1./self.p_num
         return w_i
      
         
@@ -173,8 +181,8 @@ class Particle(object):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
-            print ("missing pings!")
-            w_i = 0.
+            rospy.logwar("missing pings!")
+            w_i = 1./self.p_num
         return w_i
     
     
@@ -184,8 +192,9 @@ class Particle(object):
             #  for i in range(len(mbes_sim_ranges)):
             w_i *= math.exp(-(((mbes_sim_ranges - mbes_meas_ranges)**2).mean())/(2*self.meas_cov))
         else:
-            print ("missing pings!")
-            w_i = 0.
+            rospy.logwarn("missing pings!")
+            w_i = 1./self.p_num
+            #  w_i = 0.
         return w_i
 
     def predict_meas(self, pose_t):
@@ -208,18 +217,22 @@ class Particle(object):
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
+        mbes_goal.beams_num.data = self.beams_num
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
-        self.ac_mbes.wait_for_result()
-        mbes_res = self.ac_mbes.get_result()
+        if self.ac_mbes.wait_for_result(rospy.Duration(1.0)):
+            mbes_res = self.ac_mbes.get_result()
 
-        # Pack result into PointCloud2
-        mbes_pcloud = PointCloud2()
-        mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = self.map_frame
+            # Pack result into PointCloud2
+            mbes_pcloud = PointCloud2()
+            mbes_pcloud = mbes_res.sim_mbes
+            mbes_pcloud.header.frame_id = self.map_frame
+            got_result = True
+        else:
+            got_result = False
 
-        return mbes_pcloud
+        return (got_result, mbes_pcloud)
 
 
     def get_pose_vec(self):

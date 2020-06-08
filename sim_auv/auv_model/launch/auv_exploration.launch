@@ -69,7 +69,6 @@
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="mbes_open_angle" value="1.5708" />
-			<param name="num_beams_sim" value="30" />
 			<param name="mbes_sim_as" value="/mbes_sim_server" />				
 		</node>
 
@@ -115,6 +114,7 @@
 				<param name="odom_frame" value="odom" />
 				<param name="base_link" value="$(arg namespace)/base_link" />
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+				<param name="num_beams_sim" value="30" />
 			</node>
 		</group>
 

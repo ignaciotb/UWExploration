@@ -23,7 +23,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 10);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 10);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);

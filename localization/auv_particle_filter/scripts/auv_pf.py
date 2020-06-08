@@ -201,21 +201,34 @@ class auv_pf(object):
 
     def update(self, meas_mbes, odom):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, odom.pose.pose)
+        wait_id = range(7, self.pc, 8)
+
         for i in range(self.pc):
             mbes_goal = self.particles[i].meas_update(mbes_meas_ranges)
             self.ac[i].send_goal(mbes_goal)
-            #rospy.sleep(0.005)
+            if i in wait_id:
+                for j in range(i - 7, i + 1):
+                    self.ac[j].wait_for_result()
+                    mbes_res = self.ac[j].get_result()
+                    # Pack result into PointCloud2
+                    self.particle_mbes_pc = mbes_res.sim_mbes
+                    self.particle_mbes_pc.header.frame_id = self.map_frame
+                    # Publish (for visualization)
+                    self.pcloud_pub.publish(self.particle_mbes_pc)
+                    self.particles[j].update_weight(self.particle_mbes_pc, mbes_meas_ranges)
+                    self.weights[j] = self.particles[j].w
 
-        for i in range(self.pc):
-            self.ac[i].wait_for_result()
-            mbes_res = self.ac[i].get_result()
+        for j in range(wait_id[-1] + 1, self.pc):
+            self.ac[j].wait_for_result()
+            mbes_res = self.ac[j].get_result()
             # Pack result into PointCloud2
             self.particle_mbes_pc = mbes_res.sim_mbes
             self.particle_mbes_pc.header.frame_id = self.map_frame
             # Publish (for visualization)
             self.pcloud_pub.publish(self.particle_mbes_pc)
-            self.particles[i].update_weight(self.particle_mbes_pc, mbes_meas_ranges)
-            self.weights[i] = self.particles[i].w
+            self.particles[j].update_weight(self.particle_mbes_pc, mbes_meas_ranges)
+            self.weights[j] = self.particles[j].w
+            #rospy.sleep(0.005)
 
         # Add small non-zero value to avoid hitting zero
         self.weights += 1.e-30

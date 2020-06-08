@@ -7,7 +7,7 @@
 	<arg name="debug" default="0"/>
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
-	<arg name="mbes_sim_threads" default="4"/>
+	<arg name="mbes_sim_threads" default="8"/>
     <arg name="map_name" default="lost_targets"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->

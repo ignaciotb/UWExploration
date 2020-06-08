@@ -41,7 +41,7 @@ class ChangeDetector(object):
         #  self.pf_pose = message_filters.Subscriber(pf_pose_top, PoseWithCovarianceStamped)
         self.ts = message_filters.ApproximateTimeSynchronizer([self.auv_mbes, self.exp_mbes,
                                                               self.auv_pose],
-                                                              10, slop=10.0,
+                                                              10, slop=3.0,
                                                               allow_headerless=False)
 
         # Initialize tf listener
@@ -67,8 +67,10 @@ class ChangeDetector(object):
 
         plt.ion()
         plt.show()
+
+        self.ping_cnt = 0
         self.scale = 1
-        self.max_height = 100 # TODO: this should equal the n beams in ping
+        self.max_height = 380 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -77,9 +79,10 @@ class ChangeDetector(object):
         #Init detection publisher
         self.detection_pb = rospy.Publisher(detection_top, PoseWithCovarianceStamped, queue_size=10)
 
+        rospy.loginfo("Change detection node created")
+
         while not rospy.is_shutdown():
             if self.new_msg:
-                # Blob detection to find the car on waterfall image
                 #Visualize
                 if len(self.waterfall)==self.max_height:
                     waterfall_detect, centroids_row, centroids_col = self.car_detection(np.array(self.waterfall), self.scale)
@@ -90,11 +93,12 @@ class ChangeDetector(object):
                             det_msg.pose = self.active_auv_poses[row].pose
                             self.detection_pb.publish(det_msg)
 
-                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 60.),
+                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 5.),
                             cmap='gray', aspect='equal', origin = "lower")
                 else:
-                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 60.),
+                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
                         cmap='gray', aspect='equal', origin = "lower")
+                    
                 if first_msg:
                     first_msg = False
                     plt.colorbar()
@@ -116,11 +120,11 @@ class ChangeDetector(object):
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
 
-        params.minThreshold = 100;
-        params.maxThreshold = 5000;
+        params.minThreshold = 10
+        params.maxThreshold = 5000
 
-        params.filterByArea = True
-        params.minArea = 200
+        params.filterByArea = True 
+        params.minArea = 20
 
         params.filterByCircularity = False
         params.minCircularity = 0.785
@@ -193,6 +197,8 @@ class ChangeDetector(object):
                 self.waterfall.pop(0)
                 self.active_auv_poses.pop(0)
 
+            self.ping_cnt += 1
+            #  print "ping ", self.ping_cnt
             self.new_msg = True
 
         except rospy.ROSInternalException:

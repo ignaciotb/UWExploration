@@ -18,11 +18,13 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
     nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
     nh_->param<bool>("change_detection", change_detection_, false);
+    nh_->param<bool>("add_mini", add_mini_, false);
+    nh_->param<int>("num_beams_sim", beams_num_, 100);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 10);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 10);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
@@ -63,7 +65,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> mini tf
-    mini_tf_.translation() = Eigen::Vector3d(1,0,-17);
+    mini_tf_.translation() = Eigen::Vector3d(15,-30,-15.5);
     Eigen::Quaterniond rot;
     rot.setIdentity();
     mini_tf_.linear() = rot.toRotationMatrix();
@@ -122,7 +124,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     survey_finished_ = false;
 
     while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
-        ROS_INFO_NAMED(node_name_, "Waiting for action server");
+        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for action server");
     }
 
     ROS_INFO("Initialized auv_2_ros");
@@ -192,11 +194,12 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == 10 && !survey_finished_){
+    if(ping_cnt_ == 400 && add_mini_){
         std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }
 
+//    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < ping_total_-1 && !survey_finished_){
         this->publishMeas(ping_cnt_);
         if(change_detection_){
@@ -302,15 +305,19 @@ void BathymapConstructor::publishExpectedMeas(){
         mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
         mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
         mbes_goal.mbes_pose.transform = transform_msg;
+        mbes_goal.beams_num.data = beams_num_;
         ac_->sendGoal(mbes_goal);
 
-        ac_->waitForResult();
+        ac_->waitForResult(ros::Duration(1));
         actionlib::SimpleClientGoalState state = ac_->getState();
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
             sensor_msgs::PointCloud2 mbes_msg;
             auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
             mbes_msg = mbes_res.sim_mbes;
             sim_ping_pub_.publish(mbes_msg);
+        }
+        else{
+            ROS_WARN("Dropped expected meas");
         }
 //        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 }

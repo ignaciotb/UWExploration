@@ -44,6 +44,7 @@ class auv_pf(object):
         odom_frame = rospy.get_param('~odom_frame', 'odom') 
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
+        beams_num = rospy.get_param("~num_beams_sim", 20)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -81,7 +82,7 @@ class auv_pf(object):
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
-            self.particles[i] = Particle(i, self.pc, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+            self.particles[i] = Particle(beams_num, self.pc, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
                                      process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
                                      meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
 
@@ -170,10 +171,9 @@ class auv_pf(object):
 
     def resample(self, weights):
 
-        print "-------------"
+        #  print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        #  print "Weights"
         #  print weights
         
         N_eff = self.pc
@@ -198,7 +198,7 @@ class auv_pf(object):
             
             # Add noise to particles
             for i in range(self.pc):
-                self.particles[i].add_noise([3.,3.,0.,0.,0.,0.0])
+                self.particles[i].add_noise([1.,1.,0.,0.,0.,0.01])
 
         else:
             print N_eff
@@ -232,9 +232,16 @@ class auv_pf(object):
         out to zero (opposite direction of heading)
         """
         yaws = poses_array[:,5]
-        if np.abs(yaws).min() > math.pi/2:
-            yaws[yaws < 0] += 2*math.pi
-        yaw = yaws.mean()
+        #  print yaws
+        #  if np.abs(yaws).min() > math.pi/2:
+            #  yaws[yaws < 0] += 2*math.pi
+        #  yaw = ave_pose[5] #yaws.mean()
+        
+        #  yaw = ((yaw) + 2 * np.pi) % (2 * np.pi)
+        for yaw_i in yaws: 
+            yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
+        yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
+
 
         self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         self.avg_pose.header.stamp = rospy.Time.now()
@@ -242,8 +249,9 @@ class auv_pf(object):
 
         # Hacky way to get the expected MBES ping from avg pose of PF
         # TODO: do this properly :d
-        pf_ping = self.particles[0].predict_meas(self.avg_pose.pose.pose)
-        self.pf_mbes_pub.publish(pf_ping)
+        #  (got_result, pf_ping)= self.particles[0].predict_meas(self.avg_pose.pose.pose)
+        #  if got_result:
+            #  self.pf_mbes_pub.publish(pf_ping)
 
 
     # TODO: publish markers instead of poses

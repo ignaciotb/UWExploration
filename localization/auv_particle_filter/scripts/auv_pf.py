@@ -127,7 +127,7 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                #  self.resample(weights)
+                self.resample(weights)
 
             self.update_rviz()
         self.old_time = self.time

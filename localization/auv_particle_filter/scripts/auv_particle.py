@@ -146,13 +146,12 @@ class Particle(object):
             mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
             
             # Before calculating weights, make sure both meas have same length
-            mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num)]
-            #  print(len(mbes_meas_sampled))
+            mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num-1)]
             #  print(len(mbes_i_ranges))
+            #  print(len(mbes_meas_sampled))
      
             # Publish (for visualization)
             self.pcloud_pub.publish(mbes_i)
-
 
             # Update particle weights
             #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
@@ -221,7 +220,7 @@ class Particle(object):
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
-        if self.ac_mbes.wait_for_result(rospy.Duration(1.0)):
+        if self.ac_mbes.wait_for_result(rospy.Duration(0.5)):
             mbes_res = self.ac_mbes.get_result()
 
             # Pack result into PointCloud2

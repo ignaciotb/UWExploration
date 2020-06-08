@@ -70,7 +70,7 @@ class ChangeDetector(object):
 
         self.ping_cnt = 0
         self.scale = 1
-        self.max_height = 380 # TODO: this should equal the n beams in ping
+        self.max_height = 250 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
         self.waterfall =[]
@@ -99,12 +99,12 @@ class ChangeDetector(object):
                 else:
                     waterfall_img = self.waterfall    
                     
-                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
+                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 10.),
                         cmap='gray', aspect='equal', origin = "lower")
                     
                 if first_msg:
                     first_msg = False
-                    plt.colorbar()
+                    #  plt.colorbar()
                     plt.title("Bathymetry difference (m)")
 
                 plt.pause(0.01)
@@ -192,8 +192,8 @@ class ChangeDetector(object):
             auv_ping_ranges = self.ping2ranges(auv_ping)
             exp_ping_ranges = self.pcloud2ranges(exp_ping, m2auv)
             #  print "------"
-            #  print auv_ping_ranges
-            #  print exp_ping_ranges
+            #  print len(auv_ping_ranges)
+            #  print len(exp_ping_ranges)
 
             # TODO: do the trimming of pings better than this
             self.waterfall.append(abs(auv_ping_ranges[:self.max_height]

@@ -13,6 +13,7 @@
   <xacro:macro name="hugin_auv_base" params="namespace debug">
     <link name="${namespace}/base_link">
       <visual>
+        <!-- <origin xyz="0 -10.0 0" rpy="0 0 0"/> --> <!-- To trick the eye with Hugin on Ping survey -->
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
           <mesh filename="${visual_mesh_file}" scale="0.001 0.001 0.001" />

@@ -165,7 +165,7 @@ class ChangeDetector(object):
             out_img_array[:,:,i] = f(np.linspace(0, 255, np.size(img_array, 0)),
                                      np.linspace(0, 255, np.size(img_array, 1)))
         
-        out_img_array = out_img_array.astype(np.uint8)
+        out_img_array = out_img_array.astype(np.float)
         return out_img_array, rows, cols
 
     def pcloud2ranges(self, point_cloud, tf_mat):

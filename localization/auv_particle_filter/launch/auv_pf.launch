@@ -40,6 +40,7 @@
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="num_beams_sim" value="10" />
+	  <param name="num_beams_real" value="512" />				
 
     </node>
   </group>
@@ -59,6 +60,7 @@
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="num_beams_sim" value="10" />
+	  <param name="num_beams_real" value="512" />				
 
     </node>
   </group>

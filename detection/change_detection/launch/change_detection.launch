@@ -9,7 +9,7 @@
 	<arg name="odom_frame"                         default="odom"/>
 	<arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
 	<arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
-	<arg name="expected_mbes_topic"                default="/sim/mbes_pings"/>
+	<arg name="expected_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
 	<arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
 	<arg name="detection_topic"                		default="/detection_pose"/>
 <!-- 	<arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>

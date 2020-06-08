@@ -140,7 +140,7 @@ class Particle(object):
  
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
-        (got_result, mbes_i) = self.predict_meas(self.p_pose)
+        (got_result, mbes_i) = self.predict_meas(self.p_pose, self.beams_num)
         
         if got_result:
             mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
@@ -197,7 +197,7 @@ class Particle(object):
             #  w_i = 0.
         return w_i
 
-    def predict_meas(self, pose_t):
+    def predict_meas(self, pose_t, beams_num):
 
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
@@ -217,7 +217,7 @@ class Particle(object):
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
-        mbes_goal.beams_num.data = self.beams_num
+        mbes_goal.beams_num.data = beams_num
 
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)

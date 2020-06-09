@@ -29,14 +29,14 @@ class Particle(object):
                  meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], map_frame='map', odom_frame='odom',
                  meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
 
-        self.p_num = p_num 
+        self.p_num = p_num
         self.beams_num = beams_num
         # self.weight = 1.
         self.p_pose = Pose()
         self.odom_frame = odom_frame
         self.map_frame = map_frame
         self.mbes_tf_mat = mbes_tf_matrix
-        self.m2o_tf_mat = m2o_matrix 
+        self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
         self.meas_cov = meas_cov
         self.process_cov = np.asarray(process_cov)
@@ -60,7 +60,7 @@ class Particle(object):
         self.p_pose.orientation.w = 1.
 
         self.add_noise(init_cov)
- 
+
     def add_noise(self, noise):
         noise_cov =np.diag(noise)
         roll, pitch, yaw = euler_from_quaternion([self.p_pose.orientation.x,
@@ -71,12 +71,12 @@ class Particle(object):
         current_pose = np.array([self.p_pose.position.x,
                                 self.p_pose.position.y,
                                 self.p_pose.position.z,
-                                roll, 
+                                roll,
                                 pitch,
                                 yaw])[np.newaxis]
-       
+
         noisy_pose = current_pose.T + np.matmul(np.sqrt(noise_cov), np.random.randn(6,1))
-        
+
         self.p_pose.position.x = noisy_pose[0][0]
         self.p_pose.position.y = noisy_pose[1][0]
         self.p_pose.position.z = noisy_pose[2][0]
@@ -104,7 +104,7 @@ class Particle(object):
     def motion_pred(self, odom_t, dt):
         # Generate noise
         noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 6)).flatten()
-        
+
         # Angular motion
         [roll, pitch, yaw] = euler_from_quaternion([self.p_pose.orientation.x,
                                             self.p_pose.orientation.y,
@@ -132,24 +132,24 @@ class Particle(object):
 
         rot_mat_t = self.fullRotation(roll_t, pitch_t, yaw_t)
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
-        
+
         self.p_pose.position.x += step_t[0]
         self.p_pose.position.y += step_t[1]
         # Seems to be a problem when integrating depth from Ping vessel, so we just read it
         self.p_pose.position.z = odom_t.pose.pose.position.z
- 
+
     def meas_update(self, mbes_meas_ranges):
         # Predict mbes ping given current particle pose and map
         (got_result, mbes_i) = self.predict_meas(self.p_pose, self.beams_num)
-        
+
         if got_result:
             mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
-            
+
             # Before calculating weights, make sure both meas have same length
             mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num-1)]
             #  print(len(mbes_i_ranges))
             #  print(len(mbes_meas_sampled))
-     
+
             # Publish (for visualization)
             self.pcloud_pub.publish(mbes_i)
 
@@ -174,8 +174,8 @@ class Particle(object):
             rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
-     
-        
+
+
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
@@ -183,8 +183,8 @@ class Particle(object):
             rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
-    
-    
+
+
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = 1./self.p_num
@@ -195,6 +195,28 @@ class Particle(object):
             w_i = 1./self.p_num
             #  w_i = 0.
         return w_i
+
+    def get_mbes_goal(self):
+        # Find particle's mbes pose without broadcasting/listening to tf transforms
+        particle_tf = Transform()
+        particle_tf.translation = self.p_pose.position
+        particle_tf.rotation    = self.p_pose.orientation
+        mat_part = matrix_from_tf(particle_tf)
+        self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
+
+        trans = TransformStamped()
+        trans.transform.translation.x = translation_from_matrix(self.trans_mat)[0]
+        trans.transform.translation.y = translation_from_matrix(self.trans_mat)[1]
+        trans.transform.translation.z = translation_from_matrix(self.trans_mat)[2]
+        trans.transform.rotation = Quaternion(*quaternion_from_matrix(self.trans_mat))
+
+        # Build MbesSimGoal to send to action server
+        mbes_goal = MbesSimGoal()
+        mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
+        mbes_goal.mbes_pose.transform = trans.transform
+        mbes_goal.beams_num.data = self.beams_num
+        return mbes_goal
 
     def predict_meas(self, pose_t, beams_num):
 
@@ -263,7 +285,7 @@ def pcloud2ranges(point_cloud, tf_mat):
     angle, direc, point = rotation_from_matrix(tf_mat)
     R = rotation_matrix(angle, direc, point)
     rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
-    
+
     t = translation_from_matrix(tf_mat)
     t_inv = rot_inv.dot(t)
 
@@ -271,7 +293,7 @@ def pcloud2ranges(point_cloud, tf_mat):
     for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
         p_part = rot_inv.dot(p) - t_inv
         ranges.append(np.linalg.norm(p_part))
-    
+
     return np.asarray(ranges)
 
 

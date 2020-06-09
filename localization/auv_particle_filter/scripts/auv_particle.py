@@ -180,7 +180,7 @@ class Particle(object):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
-            rospy.logwar("missing pings!")
+            rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
     

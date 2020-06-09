@@ -56,6 +56,9 @@ public:
 
     void addMiniCar(std::string& mini_name);
 
+    void initMiniFrames(std::vector<Vector3d> &minis_poses);
+
+
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -75,7 +78,7 @@ private:
 
     Eigen::Isometry3d map_tf_;
     Eigen::Isometry3d odom_tf_;
-    Eigen::Isometry3d mini_tf_;
+//    Eigen::Isometry3d mini_tf_;
 
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
@@ -87,7 +90,7 @@ private:
     geometry_msgs::TransformStamped new_base_link_;
     geometry_msgs::TransformStamped map_odom_tfmsg_;
     geometry_msgs::TransformStamped world_map_tfmsg_;
-    geometry_msgs::TransformStamped map_mini_tfmsg_;
+    std::vector<geometry_msgs::TransformStamped> map_mini_tfmsgs_;
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, mini_frame_;
 
@@ -95,6 +98,8 @@ private:
     int ping_cnt_;
     int ping_total_;
     int beams_num_;
+    int first_ping_;
+
 
 };
 

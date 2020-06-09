@@ -224,14 +224,14 @@ class auv_pf(object):
         """
         yaws = poses_array[:,5]
         #  print yaws
-        #  if np.abs(yaws).min() > math.pi/2:
-            #  yaws[yaws < 0] += 2*math.pi
-        #  yaw = ave_pose[5] #yaws.mean()
+        if np.abs(yaws).min() > math.pi/2:
+            yaws[yaws < 0] += 2*math.pi
+        yaw = yaws.mean()
         
         #  yaw = ((yaw) + 2 * np.pi) % (2 * np.pi)
-        for yaw_i in yaws: 
-            yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
-        yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
+        #  for yaw_i in yaws:
+            #  yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
+        #  yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
 
 
         self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))

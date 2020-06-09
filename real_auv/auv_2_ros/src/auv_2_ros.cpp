@@ -20,6 +20,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
     nh_->param<int>("num_beams_sim", beams_num_, 100);
+    nh_->param<int>("start_mission_ping_num", first_ping_, 100);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
@@ -29,7 +30,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
 
-    ping_cnt_ = 0;
+    ping_cnt_ = first_ping_;
 
     time_now_ = ros::Time::now();
     time_prev_ = ros::Time::now();
@@ -37,6 +38,36 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
 
 BathymapConstructor::~BathymapConstructor(){
 
+}
+
+void BathymapConstructor::initMiniFrames(std::vector<Eigen::Vector3d>& minis_poses){
+
+    // Store map --> mini tf
+    int cnt = 0;
+    geometry_msgs::TransformStamped map_mini_tfmsg;
+    Eigen::Isometry3d mini_tf;
+    for(Eigen::Vector3d& mini_i: minis_poses){
+        mini_tf.translation() = mini_i;//Eigen::Vector3d(15,-30,-15.5);
+        Eigen::Quaterniond rot;
+        rot.setIdentity();
+        mini_tf.linear() = rot.toRotationMatrix();
+
+        map_mini_tfmsg.header.frame_id = map_frame_;
+        map_mini_tfmsg.child_frame_id = mini_frame_ + "_" + std::to_string(cnt);
+        map_mini_tfmsg.transform.translation.x = mini_tf.translation()[0];
+        map_mini_tfmsg.transform.translation.y = mini_tf.translation()[1];
+        map_mini_tfmsg.transform.translation.z = mini_tf.translation()[2];
+        Eigen::Vector3d euler = mini_tf.linear().matrix().eulerAngles(0, 1, 2);
+        tf::Quaternion quatm2m;
+        quatm2m.setRPY(euler[0], euler[1], euler[2]);
+        quatm2m.normalize();
+        map_mini_tfmsg.transform.rotation.x = quatm2m.x();
+        map_mini_tfmsg.transform.rotation.y = quatm2m.y();
+        map_mini_tfmsg.transform.rotation.z = quatm2m.z();
+        map_mini_tfmsg.transform.rotation.w = quatm2m.w();
+        cnt ++;
+        map_mini_tfmsgs_.push_back(map_mini_tfmsg);
+    }
 }
 
 
@@ -64,30 +95,15 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.z = quatw2m.z();
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
-    // Store map --> mini tf
-    mini_tf_.translation() = Eigen::Vector3d(15,-30,-15.5);
-    Eigen::Quaterniond rot;
-    rot.setIdentity();
-    mini_tf_.linear() = rot.toRotationMatrix();
-
-    map_mini_tfmsg_.header.frame_id = map_frame_;
-    map_mini_tfmsg_.child_frame_id = mini_frame_;
-    map_mini_tfmsg_.transform.translation.x = mini_tf_.translation()[0];
-    map_mini_tfmsg_.transform.translation.y = mini_tf_.translation()[1];
-    map_mini_tfmsg_.transform.translation.z = mini_tf_.translation()[2];
-    euler = mini_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    tf::Quaternion quatm2m;
-    quatm2m.setRPY(euler[0], euler[1], euler[2]);
-    quatm2m.normalize();
-    map_mini_tfmsg_.transform.rotation.x = quatm2m.x();
-    map_mini_tfmsg_.transform.rotation.y = quatm2m.y();
-    map_mini_tfmsg_.transform.rotation.z = quatm2m.z();
-    map_mini_tfmsg_.transform.rotation.w = quatm2m.w();
+    // Store map --> minis tfs
+    std::vector<Eigen::Vector3d> minis_poses;
+    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
+    minis_poses.push_back(Eigen::Vector3d(-220,-20,-17.5));
+//    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
+    initMiniFrames(minis_poses);
 
     // Store map --> odom tf
-    odom_tf_.translation() = Eigen::Vector3d(0,0,0);
-    rot.setIdentity();
-    odom_tf_.linear() = rot.toRotationMatrix();
+    odom_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();
 
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
@@ -147,14 +163,16 @@ void BathymapConstructor::addMiniCar(std::string & mini_name){
 
     sensor_msgs::PointCloud2 mbes_i;
     tf::Transform tf_map_mini;
-    tf::transformMsgToTF(map_mini_tfmsg_.transform, tf_map_mini);
+    for(geometry_msgs::TransformStamped& mini_frame: map_mini_tfmsgs_){
+        tf::transformMsgToTF(mini_frame.transform, tf_map_mini);
 
-//    pcl_ros::transformPointCloud(*cloud_in, *cloud_in, tf_map_mini);
-    pcl::toROSMsg(*cloud_in.get(), mbes_i);
-    mbes_i.header.frame_id = mini_frame_;
-    mbes_i.header.stamp = ros::Time::now();
-    for(int i=0; i<20; i++){
-        ping_pub_.publish(mbes_i);
+    //    pcl_ros::transformPointCloud(*cloud_in, *cloud_in, tf_map_mini);
+        pcl::toROSMsg(*cloud_in.get(), mbes_i);
+        mbes_i.header.frame_id = mini_frame.child_frame_id;
+        mbes_i.header.stamp = ros::Time::now();
+        for(int i=0; i<3000; i++){
+            ping_pub_.publish(mbes_i);
+        }
     }
 }
 
@@ -171,8 +189,10 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     static_broadcaster_.sendTransform(map_odom_tfmsg_);
 
     // BR map-->mini frames
-    map_mini_tfmsg_.header.stamp = time_now_;
-    static_broadcaster_.sendTransform(map_mini_tfmsg_);
+    for(geometry_msgs::TransformStamped& mini_frame: map_mini_tfmsgs_){
+        mini_frame.header.stamp = time_now_;
+        static_broadcaster_.sendTransform(mini_frame);
+    }
 
     // BR odom-->base frames
     new_base_link_.header.frame_id = odom_frame_;
@@ -196,12 +216,12 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == 1 && add_mini_){
+    if(ping_cnt_ == first_ping_ && add_mini_){
         std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }
 
-//    std::cout << "ping " << ping_cnt_ << std::endl;
+    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < ping_total_-1 && !survey_finished_){
         this->publishMeas(ping_cnt_);
         if(change_detection_){

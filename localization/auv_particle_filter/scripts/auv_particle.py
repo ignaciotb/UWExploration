@@ -9,6 +9,7 @@ import numpy as np
 import tf
 import tf2_ros
 from scipy.stats import multivariate_normal
+from scipy.ndimage.filters import gaussian_filter
 
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped
@@ -147,11 +148,18 @@ class Particle(object):
             
             # Before calculating weights, make sure both meas have same length
             mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num-1)]
-            #  print(len(mbes_i_ranges))
-            #  print(len(mbes_meas_sampled))
-     
+                 
             # Publish (for visualization)
             self.pcloud_pub.publish(mbes_i)
+
+            # Gaussian blur to pings
+            mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.2)
+            mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=3)
+            
+            #  print (mbes_i_ranges - mbes_meas_sampled).mean()
+            #  print mbes_i_ranges - mbes_meas_sampled
+            #  print len(mbes_i_ranges)
+            #  print len(mbes_meas_sampled)
 
             # Update particle weights
             self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
@@ -221,7 +229,7 @@ class Particle(object):
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
         mbes_pcloud = PointCloud2()
-        if self.ac_mbes.wait_for_result(rospy.Duration(0.5)):
+        if self.ac_mbes.wait_for_result(rospy.Duration(0.01)):
             mbes_res = self.ac_mbes.get_result()
 
             # Pack result into PointCloud2

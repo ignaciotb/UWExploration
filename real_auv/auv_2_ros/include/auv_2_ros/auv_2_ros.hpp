@@ -99,6 +99,7 @@ private:
     int ping_total_;
     int beams_num_;
     int first_ping_;
+    int last_ping_;
 
 
 };

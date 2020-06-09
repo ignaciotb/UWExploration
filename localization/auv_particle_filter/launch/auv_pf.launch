@@ -40,8 +40,7 @@
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="num_beams_sim" value="10" />
-	  <param name="num_beams_real" value="512" />				
-
+	  <param name="num_beams_real" value="250" />				
     </node>
   </group>
 
@@ -53,6 +52,7 @@
       <param name="motion_covariance"                       value="$(arg motion_covariance)" />
       <param name="map_frame"                               value="$(arg map_frame)" />
       <param name="odom_frame"                               value="$(arg odom_frame)" />
+
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />

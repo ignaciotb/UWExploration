@@ -65,6 +65,7 @@ BathyMapper::BathyMapper(ros::NodeHandle& nh, ros::NodeHandle& nh_priv)
 }
 
 BathyMapper::~BathyMapper(){
+    ROS_INFO("Saving map");
     if(!out_map_file_.empty()){
         this->saveMap(out_map_file_);
     }

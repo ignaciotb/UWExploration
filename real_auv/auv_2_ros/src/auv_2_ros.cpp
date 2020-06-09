@@ -20,7 +20,8 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
     nh_->param<int>("num_beams_sim", beams_num_, 100);
-    nh_->param<int>("start_mission_ping_num", first_ping_, 100);
+    nh_->param<int>("start_mission_ping_num", first_ping_, 0);
+    nh_->param<int>("end_mission_ping_num", last_ping_, 0);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
@@ -80,6 +81,12 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     traj_pings_ = parsePingsAUVlib(std_pings);
     map_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
+    // If the last ping is not set, replay the full mission
+    last_ping_= (last_ping_ == 0)? ping_total_:last_ping_;
+
+    std::cout << "First ping " << first_ping_ << std::endl;
+    std::cout << "Last ping " << last_ping_ << std::endl;
+
     // Store world --> map tf
     world_map_tfmsg_.header.frame_id = world_frame_;
     world_map_tfmsg_.child_frame_id = map_frame_;
@@ -97,9 +104,9 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     // Store map --> minis tfs
     std::vector<Eigen::Vector3d> minis_poses;
-    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
-    minis_poses.push_back(Eigen::Vector3d(-220,-20,-17.5));
 //    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
+    minis_poses.push_back(Eigen::Vector3d(-220,-20,-17));
+    minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
     initMiniFrames(minis_poses);
 
     // Store map --> odom tf
@@ -170,8 +177,9 @@ void BathymapConstructor::addMiniCar(std::string & mini_name){
         pcl::toROSMsg(*cloud_in.get(), mbes_i);
         mbes_i.header.frame_id = mini_frame.child_frame_id;
         mbes_i.header.stamp = ros::Time::now();
-        for(int i=0; i<3000; i++){
+        for(int i=0; i<10; i++){
             ping_pub_.publish(mbes_i);
+            ros::Duration(0.1).sleep();
         }
     }
 }
@@ -222,14 +230,14 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     }
 
     std::cout << "ping " << ping_cnt_ << std::endl;
-    if(ping_cnt_ < ping_total_-1 && !survey_finished_){
+    if(ping_cnt_ < last_ping_ && !survey_finished_){
         this->publishMeas(ping_cnt_);
         if(change_detection_){
             this->publishExpectedMeas();
         }
         ping_cnt_ += 1;
     }
-    if(ping_cnt_ == ping_total_-1 && !survey_finished_){
+    if(ping_cnt_ == last_ping_ && !survey_finished_){
         ROS_INFO_STREAM("Survey finished");
         survey_finished_ = true;
         enable_pub_.publish(survey_finished_);

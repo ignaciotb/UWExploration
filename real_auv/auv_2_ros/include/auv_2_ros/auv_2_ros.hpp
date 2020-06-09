@@ -94,6 +94,7 @@ private:
     bool survey_finished_, change_detection_, add_mini_;
     int ping_cnt_;
     int ping_total_;
+    int beams_num_;
 
 };
 

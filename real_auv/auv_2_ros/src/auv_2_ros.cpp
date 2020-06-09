@@ -19,11 +19,12 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
+    nh_->param<int>("num_beams_sim", beams_num_, 100);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 50);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 10);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 10);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
@@ -123,7 +124,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     survey_finished_ = false;
 
     while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
-        ROS_INFO_NAMED(node_name_, "Waiting for action server");
+        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for action server");
     }
 
     ROS_INFO("Initialized auv_2_ros");
@@ -152,7 +153,9 @@ void BathymapConstructor::addMiniCar(std::string & mini_name){
     pcl::toROSMsg(*cloud_in.get(), mbes_i);
     mbes_i.header.frame_id = mini_frame_;
     mbes_i.header.stamp = ros::Time::now();
-    ping_pub_.publish(mbes_i);
+    for(int i=0; i<20; i++){
+        ping_pub_.publish(mbes_i);
+    }
 }
 
 void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
@@ -193,7 +196,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == 400 && add_mini_){
+    if(ping_cnt_ == 1 && add_mini_){
         std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }
@@ -264,6 +267,7 @@ void BathymapConstructor::publishMeas(int ping_num){
     // Publish MBES pings
     sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
+    PointCloudT::Ptr mbes_i_pcl_filt(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
 
     tf::Transform tf_mbes_odom;
@@ -275,10 +279,23 @@ void BathymapConstructor::publishMeas(int ping_num){
     tf_mbes_map.mult(tf_mbes_odom, tf_odom_map_);
 
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
-    pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-    mbes_i.header.frame_id = mbes_frame_;
-    mbes_i.header.stamp = time_now_;
-    ping_pub_.publish(mbes_i);
+
+    // Sample down ping to a fix size
+    if (mbes_i_pcl->points.size() >= 500){
+        int k = 0;
+//        std::cout << "Ping size before " << mbes_i_pcl->points.size() << std::endl;
+        mbes_i_pcl->points.resize(500);
+        while(k<mbes_i_pcl->points.size() /*&& k<beams_num_*/){
+            mbes_i_pcl_filt->points.push_back(mbes_i_pcl->points.at(k));
+            k+=2;
+        }
+//        std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
+
+        pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
+        mbes_i.header.frame_id = mbes_frame_;
+        mbes_i.header.stamp = time_now_;
+        ping_pub_.publish(mbes_i);
+    }
 
     // Original ping (for debugging)
     *mbes_i_pcl_map = traj_pings_.at(ping_num).submap_pcl_;
@@ -304,15 +321,19 @@ void BathymapConstructor::publishExpectedMeas(){
         mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
         mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
         mbes_goal.mbes_pose.transform = transform_msg;
+        mbes_goal.beams_num.data = beams_num_;
         ac_->sendGoal(mbes_goal);
 
-        ac_->waitForResult();
+        ac_->waitForResult(ros::Duration(1));
         actionlib::SimpleClientGoalState state = ac_->getState();
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
             sensor_msgs::PointCloud2 mbes_msg;
             auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
             mbes_msg = mbes_res.sim_mbes;
             sim_ping_pub_.publish(mbes_msg);
+        }
+        else{
+            ROS_WARN("Dropped expected meas");
         }
 //        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 }

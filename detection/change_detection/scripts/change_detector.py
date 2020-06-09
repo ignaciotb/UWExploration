@@ -89,14 +89,17 @@ class ChangeDetector(object):
                 #Visualize
                 if len(self.waterfall)==self.max_height:
                     waterfall_detect, centroids_row, centroids_col = self.car_detection(np.array(self.waterfall), self.scale)
+                    # Visualize detection markers
                     if len(centroids_row) > 0:
-                        print centroids_row
-                        for row in centroids_row:
+                        for i in range(len(centroids_row)):
+                            row = centroids_row[i]
+                            col = centroids_col[i]
+                            
                             det_msg = Pose()
                             #  det_msg.pose = self.active_auv_poses[row].pose
-                            det_msg.position.x = self.active_pf_pings[row][centroids_col][0][0]
-                            det_msg.position.y = self.active_pf_pings[row][centroids_col][0][1]
-                            det_msg.position.z = self.active_pf_pings[row][centroids_col][0][2]
+                            det_msg.position.x = self.active_pf_pings[row][col][0]
+                            det_msg.position.y = self.active_pf_pings[row][col][1]
+                            det_msg.position.z = self.active_pf_pings[row][col][2]
                             det_msg.orientation.y = 0.7071068
                             det_msg.orientation.w = 0.7071068
                             detections.poses.append(det_msg)

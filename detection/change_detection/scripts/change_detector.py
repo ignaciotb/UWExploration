@@ -69,7 +69,7 @@ class ChangeDetector(object):
         plt.show()
 
         self.ping_cnt = 0
-        self.scale = 4
+        self.scale = 1
         self.max_height = 250 # TODO: this should equal the n beams in ping
         self.new_msg = False
         first_msg = True
@@ -87,14 +87,15 @@ class ChangeDetector(object):
         while not rospy.is_shutdown():
             if self.new_msg:
                 #Visualize
+                detection = False
                 if len(self.waterfall)==self.max_height:
-                    waterfall_detect, centroids_row, centroids_col = self.car_detection(np.array(self.waterfall), self.scale)
+                    waterfall_detect, centroids_row, centroids_col, detection = self.car_detection(np.array(self.waterfall), self.scale)
                     # Visualize detection markers
                     if len(centroids_row) > 0:
                         for i in range(len(centroids_row)):
                             row = centroids_row[i]
                             col = centroids_col[i]
-                            
+
                             det_msg = Pose()
                             #  det_msg.pose = self.active_auv_poses[row].pose
                             det_msg.position.x = self.active_pf_pings[row][col][0]
@@ -103,15 +104,12 @@ class ChangeDetector(object):
                             det_msg.orientation.y = 0.7071068
                             det_msg.orientation.w = 0.7071068
                             detections.poses.append(det_msg)
-
-                    waterfall_img = waterfall_detect
-
+                if detection:
+                    plt.imshow(np.array(waterfall_detect), norm=plt.Normalize(0., 5.),
+                            cmap='gray', aspect='equal', origin = "lower")
                 else:
-                    waterfall_img = self.waterfall
-
-                plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
-                        cmap='gray', aspect='equal', origin = "lower")
-                        
+                    plt.imshow(np.array(self.waterfall), norm=plt.Normalize(0., 5.),
+                            cmap='gray', aspect='equal', origin = "lower")
                 if first_msg:
                     first_msg = False
                     #  plt.colorbar()
@@ -125,42 +123,44 @@ class ChangeDetector(object):
     def car_detection(self, img_array, scale):
         # Turn numpy array into cv2 image (and make bigger)
         img_array = np.float32(img_array)
+
         f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)),
                                                   np.linspace(0, 1, np.size(img_array, 1)), img_array)
-        img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)),
+        scaled_img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)),
                       np.linspace(0, 1, scale*np.size(img_array, 1)))
-        gray_img = cv2.normalize(src=img_array, dst=None, alpha=255, beta=0,
-                                 norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        gray_img = cv2.normalize(src=scaled_img_array, dst=None, alpha=0, beta=255,
+                                norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
+        gray_img_eq = cv2.equalizeHist(gray_img)
 
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
 
-        params.minThreshold = 1
-        params.maxThreshold = 5000
+        params.blobColor = 255
+        params.minThreshold = 0
+        params.maxThreshold = 255
 
         params.filterByArea = True
-        params.minArea = 20
+        params.minArea = int(300*scale**2)
+        params.maxArea = int(500*scale**2)
 
-        params.filterByCircularity = False
-        params.minCircularity = 0.785
+        params.filterByCircularity = True
+        params.minCircularity = 0.6
 
         params.filterByConvexity = False
         params.minConvexity = 0.87
         detector = cv2.SimpleBlobDetector_create(params)
 
         # Detect blobs.
-        keypoints = detector.detect(gray_img)
+        keypoints = detector.detect(gray_img_eq)
         rows, cols = [], []
         if len(keypoints) != 0:
             for keypoint in keypoints:
-                rows.append(int(keypoint.pt[1])/scale)
-                cols.append(int(keypoint.pt[0])/scale)
-        im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255),
-                                              cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        #  cv2.imshow('image', im_with_keypoints)
-        #  cv2.waitKey(0)
+                rows.append(int(keypoint.pt[1]/scale))
+                cols.append(int(keypoint.pt[0]/scale))
 
-        # Turn cv2 image back to numpy array, scale it down, and return
+        im_with_keypoints = cv2.drawKeypoints(gray_img_eq, keypoints, np.array([]), (0,0,255),
+                                              cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)
         for i in range(np.size(im_with_keypoints,2)):
             f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,255, np.size(im_with_keypoints, 0)),
@@ -168,8 +168,11 @@ class ChangeDetector(object):
             out_img_array[:,:,i] = f(np.linspace(0, 255, np.size(img_array, 0)),
                                      np.linspace(0, 255, np.size(img_array, 1)))
 
-        out_img_array = out_img_array.astype(np.float)
-        return out_img_array, rows, cols
+        out_img_array = out_img_array.astype(np.uint8)
+        detection = False
+        if len(keypoints) > 0:
+            detection = True
+        return out_img_array, rows, cols, detection
 
     def pcloud2ranges(self, point_cloud, tf_mat):
         angle, direc, point = rotation_from_matrix(tf_mat)

@@ -80,6 +80,7 @@ private:
     void throttleCB(const std_msgs::Float64ConstPtr& throttle_msg);
     void inclinationCB(const std_msgs::Float64ConstPtr& inclination_msg);
 
+    int beams_num_;
 };
 
 

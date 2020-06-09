@@ -10,8 +10,9 @@
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.1"/>
     <arg name="detection" default="True"/>
-    <arg name="add_mini" default="False"/>
-	<arg name="mbes_sim_threads" default="4"/>
+    <arg name="particle_filter" default="True"/>
+    <arg name="add_mini" default="True"/>
+	<arg name="mbes_sim_threads" default="8"/>
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
@@ -45,11 +46,13 @@
 	<group ns="$(arg namespace)">
 
 		<!-- Particle filter -->
+		<group if="$(arg particle_filter)">
 		<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 			<arg name="filter" value="$(arg filter)"/>
 		</include>
-
+		</group>
+		
 		<!-- Bathymetry change detection -->
 		<group if="$(arg detection)">
 		<include file="$(find change_detection)/launch/change_detection.launch" >
@@ -71,7 +74,7 @@
 	    </node>
 
 		<node pkg="nodelet" type="nodelet" name="bathy_mapper_server_nodelet" args="load bathy_mapper/BathyMapperNodelet $(arg nodelet_manager)" output="log" required="true">
-	        <!-- <remap from="cloud_in" to="/gt/mbes_pings" /> -->
+	        <remap from="cloud_in" to="/gt/mbes_pings" />
 	        <param name="output_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
 	        <param name="input_map" value="$(find bathy_mapper)/maps/$(arg map_name)_map" />
 	        <param name="multithreaded" value="$(arg multithreaded)" />
@@ -129,6 +132,7 @@
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />				
 				<param name="add_mini" value="$(arg add_mini)" />
+				<param name="start_mission_ping_num" value="69000" />
 				<!-- <param name="num_beams_sim" value="350" />				 -->
 		</node>
 		</group>

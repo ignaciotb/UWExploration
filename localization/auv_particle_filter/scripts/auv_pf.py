@@ -48,11 +48,11 @@ class auv_pf(object):
         try:
             rospy.loginfo("Waiting for transforms")
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
-                                                rospy.Time(0), rospy.Duration(10))
+                                                rospy.Time(0), rospy.Duration(20))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
 
             m2o_tf = tfBuffer.lookup_transform(map_frame, odom_frame,
-                                               rospy.Time(0), rospy.Duration(10))
+                                               rospy.Time(0), rospy.Duration(20))
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
             rospy.loginfo("Transforms locked - pf node")
@@ -161,7 +161,7 @@ class auv_pf(object):
         particle_tf.rotation    = odom.pose.pose.orientation
         tf_mat = matrix_from_tf(particle_tf)
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
-        mbes_meas_ranges = pcloud2ranges(meas_mbes, m2auv)
+        mbes_meas_ranges = self.ping2ranges(meas_mbes)
 
         # Measurement update of each particle
         for i in range(0, self.pc, 8):
@@ -196,6 +196,15 @@ class auv_pf(object):
 
         return weights_array
 
+    def ping2ranges(self, point_cloud):
+        ranges = []
+        cnt = 0
+        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+            ranges.append(np.linalg.norm(p))
+            #  if cnt == 0:
+                #  print "Beam 0 original ", p
+            #  cnt += 1
+        return np.asarray(ranges)
 
     def resample(self, weights):
 
@@ -229,7 +238,6 @@ class auv_pf(object):
                 self.particles[i].add_noise([2.,2.,0.,0.,0.,0.01])
 
         else:
-            print N_eff
             rospy.loginfo('Number of effective particles high - not resampling')
 
     def reassign_poses(self, lost, dupes):

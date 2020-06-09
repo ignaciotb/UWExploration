@@ -13,6 +13,7 @@ from scipy.special import logsumexp # For log weights
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion, TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
+from actionlib_msgs.msg import GoalStatus
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -77,12 +78,13 @@ class auv_pf(object):
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
-            self.particles[i] = Particle(beams_num, self.pc, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+            self.particles[i] = Particle(beams_num, self.pc, i, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
                                      process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
                                      meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
 
         #Initialize an ac per particle for the mbes updates
         self.ac_mbes = np.empty(self.pc, dtype=object)
+        self.nr_of_callbacks = 0
 
         for i in range(self.pc):
             self.ac_mbes[i] = actionlib.SimpleActionClient(meas_model_as, MbesSimAction)
@@ -97,7 +99,6 @@ class auv_pf(object):
         self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
-        self.map_frame = map_frame
 
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
@@ -124,13 +125,8 @@ class auv_pf(object):
         self.update_rviz()
         rospy.spin()
 
-    def mbes_as_done_callback(self, mbes_res):
-        mbes_pcloud = PointCloud2()
-        # Pack result into PointCloud2
-        mbes_pcloud = mbes_res.sim_mbes
-        mbes_pcloud.header.frame_id = self.map_frame
-        print(mbes_res)
-        return
+    def mbes_as_done_callback(self, goal_status, mbes_res):
+        self.nr_of_callbacks += 1
 
     def mbes_callback(self, msg):
         self.latest_mbes = msg
@@ -147,7 +143,7 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
 
                 # Particle resampling
-                self.resample(weights)
+                # self.resample(weights)
 
             self.update_rviz()
         self.old_time = self.time
@@ -168,11 +164,30 @@ class auv_pf(object):
         mbes_meas_ranges = pcloud2ranges(meas_mbes, m2auv)
 
         # Measurement update of each particle
+        for i in range(0, self.pc, 8):
+            for j in range(i, i + 8):
+                if j < self.pc:
+                    mbes_goal = self.particles[j].get_mbes_goal()
+                    #print(mbes_goal)
+                    self.ac_mbes[j].send_goal(mbes_goal)
+                else:
+                    break
+            for j in range(i, i + 8):
+                if j < self.pc:
+                    if self.ac_mbes[j].wait_for_result(rospy.Duration(0.01)):
+                        mbes_res = self.ac_mbes[j].get_result()
+                        got_result = True
+                    else:
+                        mbes_res = None
+                        got_result = False
+                    self.particles[j].meas_update(mbes_res, mbes_meas_ranges, got_result)
+                else:
+                    break
+
+
+
         weights = []
         for i in range(self.pc):
-            mbes_goal = self.particles[i].get_mbes_goal()
-            self.ac_mbes[i].send_goal(mbes_goal, self.ac_mbes[i].done_cb = self.mbes_as_done_callback())
-            self.particles[i].meas_update(mbes_meas_ranges)
             weights.append(self.particles[i].w)
 
         weights_array = np.asarray(weights)
@@ -187,7 +202,7 @@ class auv_pf(object):
         print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        print weights
+        #print weights
 
         N_eff = self.pc
         if weights.sum() == 0.:

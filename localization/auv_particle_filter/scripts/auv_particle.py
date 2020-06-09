@@ -12,6 +12,7 @@ from scipy.stats import multivariate_normal
 
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped
+from actionlib_msgs.msg import GoalStatus
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -25,11 +26,12 @@ import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import PoseStamped, Pose
 
 class Particle(object):
-    def __init__(self, beams_num, p_num, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
+    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
                  meas_cov=0.01, process_cov=[0.,0.,0.,0.,0.,0.], map_frame='map', odom_frame='odom',
                  meas_as='/mbes_server', pc_mbes_top='/sim_mbes'):
 
         self.p_num = p_num
+        self.index = index
         self.beams_num = beams_num
         # self.weight = 1.
         self.p_pose = Pose()
@@ -138,12 +140,14 @@ class Particle(object):
         # Seems to be a problem when integrating depth from Ping vessel, so we just read it
         self.p_pose.position.z = odom_t.pose.pose.position.z
 
-    def meas_update(self, mbes_meas_ranges):
-        # Predict mbes ping given current particle pose and map
-        (got_result, mbes_i) = self.predict_meas(self.p_pose, self.beams_num)
-
+    def meas_update(self, mbes_res, mbes_meas_ranges, got_result):
         if got_result:
-            mbes_i_ranges = pcloud2ranges(mbes_i, self.trans_mat)
+            # Predict mbes ping given current particle pose and m
+            mbes_pcloud = PointCloud2()
+            # Pack result into PointCloud2
+            mbes_pcloud = mbes_res.sim_mbes
+            mbes_pcloud.header.frame_id = self.map_frame
+            mbes_i_ranges = pcloud2ranges(mbes_pcloud, self.trans_mat)
 
             # Before calculating weights, make sure both meas have same length
             mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num-1)]
@@ -151,14 +155,14 @@ class Particle(object):
             #  print(len(mbes_meas_sampled))
 
             # Publish (for visualization)
-            self.pcloud_pub.publish(mbes_i)
+            self.pcloud_pub.publish(mbes_pcloud)
 
             # Update particle weights
-            self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+            #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
             #  print "MV ", self.w
             #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
             #  print "Avg ", self.w
-            #  self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+            self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
             #  print "Gradient", self.w
         else:
             rospy.logwarn("Particle did not get meas")
@@ -171,7 +175,7 @@ class Particle(object):
             grad_expected = np.gradient(mbes_sim_ranges)
             w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
-            rospy.logwarn("missing pings!")
+            # rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
 
@@ -180,7 +184,7 @@ class Particle(object):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
-            rospy.logwarn("missing pings!")
+            rospy.logwar("missing pings!")
             w_i = 1./self.p_num
         return w_i
 
@@ -200,7 +204,7 @@ class Particle(object):
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
         particle_tf.translation = self.p_pose.position
-        particle_tf.rotation    = self.p_pose.orientation
+        particle_tf.rotation = self.p_pose.orientation
         mat_part = matrix_from_tf(particle_tf)
         self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
 
@@ -213,9 +217,11 @@ class Particle(object):
         # Build MbesSimGoal to send to action server
         mbes_goal = MbesSimGoal()
         mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.header.seq = self.index
         mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
         mbes_goal.mbes_pose.transform = trans.transform
         mbes_goal.beams_num.data = self.beams_num
+
         return mbes_goal
 
     def predict_meas(self, pose_t, beams_num):

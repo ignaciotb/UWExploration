@@ -154,11 +154,11 @@ class Particle(object):
             self.pcloud_pub.publish(mbes_i)
 
             # Update particle weights
-            #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+            self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
             #  print "MV ", self.w
             #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
             #  print "Avg ", self.w
-            self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+            #  self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
             #  print "Gradient", self.w
         else:
             rospy.logwarn("Particle did not get meas")

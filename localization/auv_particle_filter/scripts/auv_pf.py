@@ -162,10 +162,10 @@ class auv_pf(object):
 
     def resample(self, weights):
 
-        #  print "-------------"
+        print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        #  print weights
+        print weights
         
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -189,7 +189,7 @@ class auv_pf(object):
             
             # Add noise to particles
             for i in range(self.pc):
-                self.particles[i].add_noise([1.,1.,0.,0.,0.,0.01])
+                self.particles[i].add_noise([2.,2.,0.,0.,0.,0.01])
 
         else:
             print N_eff

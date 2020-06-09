@@ -130,6 +130,7 @@ void BathyMapper::simulateMBES(const auv_2_ros::MbesSimGoalConstPtr &mbes_goal){
         ufomap::fromUfomap(cloud, sim_ping);
         sim_ping->header.frame_id = mbes_goal->mbes_pose.header.frame_id;
         sim_ping->header.stamp = mbes_goal->mbes_pose.header.stamp;
+        sim_ping->header.seq = mbes_goal->mbes_pose.header.seq;
         result_.sim_mbes = *sim_ping;
         as_->setSucceeded(result_);
 

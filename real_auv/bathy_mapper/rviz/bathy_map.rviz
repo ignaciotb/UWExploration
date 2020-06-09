@@ -65,7 +65,7 @@ Visualization Manager:
           Value: true
         map:
           Value: true
-        mini_link:
+        mini_link0:
           Value: true
         odom:
           Value: true
@@ -79,7 +79,7 @@ Visualization Manager:
       Tree:
         world:
           map:
-            mini_link:
+            mini_link0:
               {}
             odom:
               hugin/base_link:
@@ -222,8 +222,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -14.480998039245605
-        Min Value: -15.521003723144531
+        Max Value: -17.693008422851562
+        Min Value: -18.886993408203125
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -437,25 +437,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 111.04354095458984
+      Distance: 135.52346801757812
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 13.21335220336914
-        Y: -0.5182318687438965
-        Z: -4.455501039046794e-5
+        X: 0
+        Y: 0
+        Z: 0
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3797968626022339
-      Target Frame: mini_link
+      Pitch: 1.0753979682922363
+      Target Frame: hugin/base_link
       Value: XYOrbit (rviz)
-      Yaw: 0.5103885531425476
+      Yaw: 5.1785807609558105
     Saved: ~
 Window Geometry:
   Displays:

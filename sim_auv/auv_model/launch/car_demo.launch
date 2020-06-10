@@ -8,7 +8,7 @@
   	<arg name="filter" default="pf"/>
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
-    <arg name="replay_rate" default="0.2"/>
+    <arg name="replay_rate" default="1"/>
 
     <arg name="detection" default="True"/>
     <arg name="particle_filter" default="True"/>

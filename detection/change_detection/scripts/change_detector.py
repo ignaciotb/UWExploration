@@ -194,14 +194,14 @@ class ChangeDetector(object):
         ranges = []
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
             p_part = rot_inv.dot(p) - t_inv
-            ranges.append(np.linalg.norm(p_part))
+            ranges.append(np.linalg.norm(p_part[-2:]))
 
         return np.asarray(ranges)
 
     def ping2ranges(self, point_cloud):
         ranges = []
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
-            ranges.append(np.linalg.norm(p))
+            ranges.append(np.linalg.norm(p[-2:]))
 
         return np.asarray(ranges)
 

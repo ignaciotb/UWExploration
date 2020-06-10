@@ -14,6 +14,7 @@ from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion, TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
 from actionlib_msgs.msg import GoalStatus
+from std_msgs.msg import Float32
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
@@ -127,6 +128,7 @@ class auv_pf(object):
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
+        self.stats = rospy.Publisher('/pf/n_eff', Float32, queue_size=10)
         rospy.loginfo("Particle filter class successfully created")
 
         self.update_rviz()
@@ -190,11 +192,11 @@ class auv_pf(object):
                 else:
                     break
 
-
-
         weights = []
         for i in range(self.pc):
             weights.append(self.particles[i].w)
+
+        self.miss_meas = weights.count(1.e-27)
 
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
@@ -206,7 +208,7 @@ class auv_pf(object):
         ranges = []
         cnt = 0
         for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
-            ranges.append(np.linalg.norm(p))
+            ranges.append(np.linalg.norm(p[-2:]))
             #  if cnt == 0:
                 #  print "Beam 0 original ", p
             #  cnt += 1
@@ -217,8 +219,8 @@ class auv_pf(object):
         print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        print "weights"
-        print weights
+        #  print "weights"
+        #  print weights
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -227,8 +229,12 @@ class auv_pf(object):
             N_eff = 1/np.sum(np.square(weights))
 
         print "N_eff ", N_eff
+        print "Missed meas ", self.miss_meas
+        if self.miss_meas < self.pc/2.:
+            self.stats.publish(np.float32(N_eff)) 
+        
         # Resampling?
-        if N_eff < self.pc*0.5:
+        if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
             indices = stratified_resample(weights)
             print "Indices"
             print indices

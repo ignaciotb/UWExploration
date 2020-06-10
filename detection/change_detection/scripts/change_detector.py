@@ -28,11 +28,10 @@ class ChangeDetector(object):
 
         map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
-        meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
-        auv_odom_top = rospy.get_param("~odometry_topic", '/odom')
-        auv_mbes_top = rospy.get_param("~mbes_pings_topic", '/mbes')
-        auv_exp_mbes_top = rospy.get_param("~expected_mbes_topic", '/expected_mbes')
-        pf_pose_top = rospy.get_param("~average_pose_topic", '/avg_pose')
+        auv_odom_top = rospy.get_param("~odometry_topic", '/gt/odom')
+        auv_mbes_top = rospy.get_param("~mbes_pings_topic", '/gt/mbes_pings')
+        auv_exp_mbes_top = rospy.get_param("~expected_mbes_topic", '/pf/avg_mbes')
+        pf_pose_top = rospy.get_param("~average_pose_topic", '/pf/avg_pose')
         detection_top = rospy.get_param("~detection_topic", '/detection_pose')
 
         self.auv_mbes = message_filters.Subscriber(auv_mbes_top, PointCloud2)
@@ -229,11 +228,12 @@ class ChangeDetector(object):
             #  print len(exp_ping_ranges)
 
             # TODO: do the trimming of pings better than this
-            self.waterfall.append(abs(auv_ping_ranges[:self.max_height]
-                                      - exp_ping_ranges[:self.max_height]))
+            idx1 = np.round(np.linspace(0, len(exp_ping_ranges)-1 , self.max_height)).astype(int)
+            idx2 = np.round(np.linspace(0, len(auv_ping_ranges) - 40, self.max_height)).astype(int)
+            self.waterfall.append(abs(auv_ping_ranges[idx2] - exp_ping_ranges[idx1]))
             self.active_auv_poses.append(auv_pose)
             beams_vec = self.ping2vecs(exp_ping, m2auv)
-            self.active_pf_pings.append(beams_vec[:self.max_height])
+            self.active_pf_pings.append(beams_vec[idx1])
 
             if len(self.waterfall)>self.max_height:
                 self.waterfall.pop(0)

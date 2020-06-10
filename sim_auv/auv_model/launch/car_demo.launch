@@ -136,8 +136,9 @@
 				<param name="add_mini" value="$(arg add_mini)" />
 				<param name="start_mission_ping_num" value="68500" />
 				<param name="end_mission_ping_num" value="71700" />
-				<!-- <param name="start_mission_ping_num" value="62000" /> -->
-				<!-- <param name="end_mission_ping_num" value="71700" /> -->
+				<!-- Demo values -->
+				<!-- <param name="start_mission_ping_num" value="68500" />
+				<param name="end_mission_ping_num" value="71700" /> -->
 		</node>
 		</group>
 

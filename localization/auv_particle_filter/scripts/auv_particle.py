@@ -145,18 +145,18 @@ class Particle(object):
 
     def meas_update(self, mbes_res, mbes_meas_ranges, got_result):
         if got_result:
-            # Predict mbes ping given current particle pose and m
-            mbes_pcloud = PointCloud2()
-            # Pack result into PointCloud2
-            mbes_pcloud = mbes_res.sim_mbes
-            mbes_pcloud.header.frame_id = self.map_frame
-            mbes_i_ranges = pcloud2ranges(mbes_pcloud, self.trans_mat)
+            # Predict mbes ping given current particle pose and m 
+            mbes_i_ranges = pcloud2ranges(mbes_res.sim_mbes, self.trans_mat)
 
             if len(mbes_i_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
                 mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num)]
 
                 # Publish (for visualization)
+                # Pack result into PointCloud2
+                mbes_pcloud = PointCloud2()
+                mbes_pcloud = mbes_res.sim_mbes
+                mbes_pcloud.header.frame_id = self.map_frame    
                 self.pcloud_pub.publish(mbes_pcloud)
 
                 # Gaussian blur to pings
@@ -164,8 +164,9 @@ class Particle(object):
                 mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.2)
 
                 #  print len(mbes_i_ranges)
-                #  print len(mbes_meas_sampled)
-
+                #  print len(mbes_meas_sampled) 
+                #  print mbes_i_ranges
+                #  print mbes_meas_sampled
                 print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
                 #  print mbes_i_ranges - mbes_meas_sampled
 

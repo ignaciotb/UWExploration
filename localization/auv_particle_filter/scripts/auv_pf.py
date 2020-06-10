@@ -73,6 +73,12 @@ class auv_pf(object):
         cov_list = list(cov_string.split(", "))
         init_cov = list(map(float, cov_list))
 
+        cov_string = rospy.get_param('~resampling_noise_covariance')
+        cov_string = cov_string.replace('[','')
+        cov_string = cov_string.replace(']','')
+        cov_list = list(cov_string.split(", "))
+        self.res_noise_cov = list(map(float, cov_list))
+
 
         # Initialize list of particles
         self.particles = np.empty(self.pc, dtype=object)
@@ -235,7 +241,7 @@ class auv_pf(object):
             self.reassign_poses(lost, dupes)
             # Add noise to particles
             for i in range(self.pc):
-                self.particles[i].add_noise([2.,2.,0.,0.,0.,0.0])
+                self.particles[i].add_noise(self.res_noise_cov)
 
         else:
             rospy.loginfo('Number of effective particles high - not resampling')

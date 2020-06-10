@@ -11,8 +11,10 @@ import tf2_ros
 from scipy.special import logsumexp # For log weights
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Transform, Quaternion, TransformStamped
+from geometry_msgs.msg import Transform, Quaternion, TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
+from actionlib_msgs.msg import GoalStatus
+
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -21,9 +23,12 @@ from tf.transformations import rotation_matrix, rotation_from_matrix
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
+# For sim mbes action client
+import actionlib
+from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges
+from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
-from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample 
 
 class auv_pf(object):
 
@@ -31,7 +36,7 @@ class auv_pf(object):
         # Read necessary parameters
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom') 
+        odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         beams_num = rospy.get_param("~num_beams_sim", 20)
@@ -45,7 +50,7 @@ class auv_pf(object):
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
                                                 rospy.Time(0), rospy.Duration(20))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
-            
+
             m2o_tf = tfBuffer.lookup_transform(map_frame, odom_frame,
                                                rospy.Time(0), rospy.Duration(20))
             self.m2o_mat = matrix_from_tf(m2o_tf)
@@ -73,9 +78,18 @@ class auv_pf(object):
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
-            self.particles[i] = Particle(beams_num, self.pc, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+            self.particles[i] = Particle(beams_num, self.pc, i, self.base2mbes_mat, self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
                                      process_cov=motion_cov, map_frame=map_frame, odom_frame=odom_frame,
                                      meas_as=meas_model_as, pc_mbes_top=mbes_pc_top)
+
+        #Initialize an ac per particle for the mbes updates
+        self.ac_mbes = np.empty(self.pc, dtype=object)
+        self.nr_of_callbacks = 0
+
+        for i in range(self.pc):
+            self.ac_mbes[i] = actionlib.SimpleActionClient(meas_model_as, MbesSimAction)
+            self.ac_mbes[i].wait_for_server()
+
 
         self.time = None
         self.old_time = None
@@ -83,7 +97,7 @@ class auv_pf(object):
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
-        self.poses.header.frame_id = odom_frame 
+        self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
 
@@ -112,6 +126,9 @@ class auv_pf(object):
         self.update_rviz()
         rospy.spin()
 
+    def mbes_as_done_callback(self, goal_status, mbes_res):
+        self.nr_of_callbacks += 1
+      
     def mbes_callback(self, msg):
         self.latest_mbes = msg
 
@@ -119,8 +136,7 @@ class auv_pf(object):
         self.time = odom_msg.header.stamp.to_sec()
         if self.old_time and self.time > self.old_time:
             # Motion prediction
-            self.predict(odom_msg)
-            
+            self.predict(odom_msg)    
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
@@ -137,7 +153,7 @@ class auv_pf(object):
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
-         
+
     def update(self, meas_mbes, odom):
         # Compute AUV MBES ping ranges
         particle_tf = Transform()
@@ -148,9 +164,30 @@ class auv_pf(object):
         mbes_meas_ranges = self.ping2ranges(meas_mbes)
 
         # Measurement update of each particle
+        for i in range(0, self.pc, 8):
+            for j in range(i, i + 8):
+                if j < self.pc:
+                    mbes_goal = self.particles[j].get_mbes_goal()
+                    #print(mbes_goal)
+                    self.ac_mbes[j].send_goal(mbes_goal)
+                else:
+                    break
+            for j in range(i, i + 8):
+                if j < self.pc:
+                    if self.ac_mbes[j].wait_for_result(rospy.Duration(0.01)):
+                        mbes_res = self.ac_mbes[j].get_result()
+                        got_result = True
+                    else:
+                        mbes_res = None
+                        got_result = False
+                    self.particles[j].meas_update(mbes_res, mbes_meas_ranges, got_result)
+                else:
+                    break
+
+
+
         weights = []
         for i in range(self.pc):
-            self.particles[i].meas_update(mbes_meas_ranges)
             weights.append(self.particles[i].w)
 
         weights_array = np.asarray(weights)
@@ -174,15 +211,15 @@ class auv_pf(object):
         print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        print weights
-        
+        #print weights
+
         N_eff = self.pc
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
         else:
             N_eff = 1/np.sum(np.square(weights))
 
-        print "N_eff ", N_eff 
+        print "N_eff ", N_eff
         # Resampling?
         if N_eff < self.pc*0.5:
             indices = residual_resample(weights)
@@ -193,9 +230,8 @@ class auv_pf(object):
             dupes = indices[:].tolist()
             for i in keep:
                 dupes.remove(i)
-            
+
             self.reassign_poses(lost, dupes)
-            
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise([2.,2.,0.,0.,0.,0.01])
@@ -215,10 +251,9 @@ class auv_pf(object):
             self.particles[lost[i]].p_pose.orientation.w = self.particles[dupes[i]].p_pose.orientation.w
 
     def average_pose(self, pose_list):
-        
+
         poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
-        
         self.avg_pose.pose.pose.position.x = ave_pose[0]
         self.avg_pose.pose.pose.position.y = ave_pose[1]
         self.avg_pose.pose.pose.position.z = ave_pose[2]
@@ -235,12 +270,11 @@ class auv_pf(object):
         if np.abs(yaws).min() > math.pi/2:
             yaws[yaws < 0] += 2*math.pi
         yaw = yaws.mean()
-        
+
         #  yaw = ((yaw) + 2 * np.pi) % (2 * np.pi)
         #  for yaw_i in yaws:
             #  yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
         #  yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
-
 
         self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         self.avg_pose.header.stamp = rospy.Time.now()

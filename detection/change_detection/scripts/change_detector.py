@@ -129,8 +129,8 @@ class ChangeDetector(object):
         params.maxThreshold = 255
 
         params.filterByArea = True
-        params.minArea = int(150*self.scale**2)
-        params.maxArea = int(500*self.scale**2)
+        params.minArea = int(50*self.scale**2)
+        params.maxArea = int(300*self.scale**2)
 
         params.filterByCircularity = True
         params.minCircularity = 0.3

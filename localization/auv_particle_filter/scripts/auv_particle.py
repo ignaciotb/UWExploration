@@ -152,31 +152,35 @@ class Particle(object):
             mbes_pcloud.header.frame_id = self.map_frame
             mbes_i_ranges = pcloud2ranges(mbes_pcloud, self.trans_mat)
 
-            # Before calculating weights, make sure both meas have same length
-            mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num-1)]
+            if len(mbes_i_ranges) > 0:
+                # Before calculating weights, make sure both meas have same length
+                mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num)]
 
-            # Publish (for visualization)
-            self.pcloud_pub.publish(mbes_pcloud)
+                # Publish (for visualization)
+                self.pcloud_pub.publish(mbes_pcloud)
 
-            # Gaussian blur to pings
-            mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.2)
-            mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=3)
+                # Gaussian blur to pings
+                #  mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.2)
+                mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.2)
 
-            #  print (mbes_i_ranges - mbes_meas_sampled).mean()
-            #  print mbes_i_ranges - mbes_meas_sampled
-            #  print len(mbes_i_ranges)
-            #  print len(mbes_meas_sampled)
+                #  print len(mbes_i_ranges)
+                #  print len(mbes_meas_sampled)
 
-            # Update particle weights
-            #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
-            #  print "MV ", self.w
-            #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
-            #  print "Avg ", self.w
-            self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
-            #  print "Gradient", self.w
+                print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
+                #  print mbes_i_ranges - mbes_meas_sampled
+
+                # Update particle weights
+                self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+                #  print "MV ", self.w
+                #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
+                #  print "Avg ", self.w
+                #  self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+                #  print "Gradient", self.w
+            else:
+                self.w = 1.e-27
         else:
             rospy.logwarn("Particle did not get meas")
-            self.w = 1./self.p_num
+            self.w = 1.e-27
 
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -186,7 +190,7 @@ class Particle(object):
             w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1./self.p_num
+            w_i = 1.e-27
         return w_i
      
         
@@ -195,7 +199,7 @@ class Particle(object):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1./self.p_num
+            w_i = 1.e-27
         return w_i
       
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -205,8 +209,8 @@ class Particle(object):
             w_i *= math.exp(-(((mbes_sim_ranges - mbes_meas_ranges)**2).mean())/(2*self.meas_cov))
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1./self.p_num
-            #  w_i = 0.
+            #  w_i = 1./self.p_num
+            w_i = 1.e-27
         return w_i
 
     def get_mbes_goal(self):

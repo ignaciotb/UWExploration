@@ -211,7 +211,8 @@ class auv_pf(object):
         print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        #print weights
+        print "weights"
+        print weights
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -222,7 +223,7 @@ class auv_pf(object):
         print "N_eff ", N_eff
         # Resampling?
         if N_eff < self.pc*0.5:
-            indices = residual_resample(weights)
+            indices = stratified_resample(weights)
             print "Indices"
             print indices
             keep = list(set(indices))
@@ -234,7 +235,7 @@ class auv_pf(object):
             self.reassign_poses(lost, dupes)
             # Add noise to particles
             for i in range(self.pc):
-                self.particles[i].add_noise([2.,2.,0.,0.,0.,0.01])
+                self.particles[i].add_noise([2.,2.,0.,0.,0.,0.0])
 
         else:
             rospy.loginfo('Number of effective particles high - not resampling')

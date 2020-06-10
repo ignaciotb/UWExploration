@@ -14,6 +14,7 @@ from scipy.ndimage.filters import gaussian_filter
 from geometry_msgs.msg import Pose
 from geometry_msgs.msg import Quaternion, Transform, TransformStamped
 from actionlib_msgs.msg import GoalStatus
+
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -33,6 +34,7 @@ class Particle(object):
 
         self.p_num = p_num
         self.index = index
+
         self.beams_num = beams_num
         # self.weight = 1.
         self.p_pose = Pose()
@@ -183,20 +185,19 @@ class Particle(object):
             grad_expected = np.gradient(mbes_sim_ranges)
             w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
-            # rospy.logwarn("missing pings!")
+            rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
-
-
+     
+        
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
-            rospy.logwar("missing pings!")
+            rospy.logwarn("missing pings!")
             w_i = 1./self.p_num
         return w_i
-
-
+      
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = 1./self.p_num

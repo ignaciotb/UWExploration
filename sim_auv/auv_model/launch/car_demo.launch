@@ -9,6 +9,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.2"/>
+
     <arg name="detection" default="True"/>
     <arg name="particle_filter" default="True"/>
     <arg name="add_mini" default="False"/>
@@ -17,7 +18,8 @@
 
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/Antarctica/NBP_19_02_011/pp/EM2040/dataset"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/20190626_Mission_8/pp/EM2040/KTH1"/> -->
-	<arg name="path" default="/home/auv/auv/datasets/RAN_demo_Asko"/>
+
+	<arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/>
 	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Pre_Deployment_PROCESSED"/> -->
     <!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/2019_06_24_Biosensor/pp/EM2040/map_section"/> -->
 	<!-- <arg name="path" default="/media/torroba18/Seagate Expansion Drive/HuginDatasets/BornoSMaRC201906/Mission_58_20190619_1/pp/EM2040"/> -->

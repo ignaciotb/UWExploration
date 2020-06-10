@@ -76,6 +76,7 @@ class ChangeDetector(object):
         self.waterfall =[]
         self.active_auv_poses = []
         self.active_pf_pings = []
+        self.detector = self.init_blob_detector()
 
         #Init detection publisher
         self.detection_pb = rospy.Publisher(detection_top, PoseArray, queue_size=10)
@@ -120,18 +121,7 @@ class ChangeDetector(object):
             self.new_msg = False
             self.detection_pb.publish(detections)
 
-    def car_detection(self, img_array, scale):
-        # Turn numpy array into cv2 image (and make bigger)
-        img_array = np.float32(img_array)
-
-        f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1, np.size(img_array, 0)),
-                                                  np.linspace(0, 1, np.size(img_array, 1)), img_array)
-        scaled_img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)),
-                      np.linspace(0, 1, scale*np.size(img_array, 1)))
-        gray_img = cv2.normalize(src=scaled_img_array, dst=None, alpha=0, beta=255,
-                                norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_8UC1)
-        gray_img_eq = cv2.equalizeHist(gray_img)
-
+    def init_blob_detector(self):
         # Setup SimpleBlobDetector parameters.
         params = cv2.SimpleBlobDetector_Params()
 
@@ -140,25 +130,44 @@ class ChangeDetector(object):
         params.maxThreshold = 255
 
         params.filterByArea = True
-        params.minArea = int(300*scale**2)
-        params.maxArea = int(500*scale**2)
+        params.minArea = int(150*self.scale**2)
+        params.maxArea = int(500*self.scale**2)
 
         params.filterByCircularity = True
-        params.minCircularity = 0.6
+        params.minCircularity = 0.3
+        params.maxCircularity = 0.8
 
         params.filterByConvexity = False
         params.minConvexity = 0.87
-        detector = cv2.SimpleBlobDetector_create(params)
+        return cv2.SimpleBlobDetector_create(params)
+
+
+    def car_detection(self, img_array, scale):
+        # Turn numpy array into cv2 image (and make bigger)
+        img_array = np.float32(img_array)
+
+        #Filter out outliers
+        img_array = np.where(img_array < 10, img_array, np.median(img_array))
+
+        #Normalize between 0-255 black-white
+        img_array *= (255.0/img_array.max())
+        f = scipy.interpolate.RectBivariateSpline(np.linspace(0 ,1 , np.size(img_array, 0)),
+                                                  np.linspace(0, 1, np.size(img_array, 1)), img_array)
+        scaled_img_array = f(np.linspace(0, 1, scale*np.size(img_array, 0)),
+                      np.linspace(0, 1, scale*np.size(img_array, 1)))
+
+        gray_img = scaled_img_array.astype(np.uint8)
+
 
         # Detect blobs.
-        keypoints = detector.detect(gray_img_eq)
+        keypoints = self.detector.detect(gray_img)
         rows, cols = [], []
         if len(keypoints) != 0:
             for keypoint in keypoints:
                 rows.append(int(keypoint.pt[1]/scale))
                 cols.append(int(keypoint.pt[0]/scale))
 
-        im_with_keypoints = cv2.drawKeypoints(gray_img_eq, keypoints, np.array([]), (0,0,255),
+        im_with_keypoints = cv2.drawKeypoints(gray_img, keypoints, np.array([]), (0,0,255),
                                               cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
 
         out_img_array = np.empty((np.size(img_array,0), np.size(img_array,1) ,3), dtype=float)

@@ -14,6 +14,7 @@ from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion, TransformStamped, PoseStamped, Pose
 from nav_msgs.msg import Odometry
 from actionlib_msgs.msg import GoalStatus
+
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -25,10 +26,9 @@ import sensor_msgs.point_cloud2 as pc2
 # For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
-
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges
-
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
+
 
 class auv_pf(object):
 
@@ -90,6 +90,7 @@ class auv_pf(object):
             self.ac_mbes[i] = actionlib.SimpleActionClient(meas_model_as, MbesSimAction)
             self.ac_mbes[i].wait_for_server()
 
+
         self.time = None
         self.old_time = None
         self.pred_odom = None
@@ -127,7 +128,7 @@ class auv_pf(object):
 
     def mbes_as_done_callback(self, goal_status, mbes_res):
         self.nr_of_callbacks += 1
-
+      
     def mbes_callback(self, msg):
         self.latest_mbes = msg
 
@@ -135,15 +136,14 @@ class auv_pf(object):
         self.time = odom_msg.header.stamp.to_sec()
         if self.old_time and self.time > self.old_time:
             # Motion prediction
-            self.predict(odom_msg)
-
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
+            self.predict(odom_msg)    
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-
+                
                 # Particle resampling
-                # self.resample(weights)
+                self.resample(weights)
 
             self.update_rviz()
         self.old_time = self.time
@@ -232,7 +232,6 @@ class auv_pf(object):
                 dupes.remove(i)
 
             self.reassign_poses(lost, dupes)
-
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise([2.,2.,0.,0.,0.,0.01])
@@ -255,7 +254,6 @@ class auv_pf(object):
 
         poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
-
         self.avg_pose.pose.pose.position.x = ave_pose[0]
         self.avg_pose.pose.pose.position.y = ave_pose[1]
         self.avg_pose.pose.pose.position.z = ave_pose[2]
@@ -277,7 +275,6 @@ class auv_pf(object):
         #  for yaw_i in yaws:
             #  yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
         #  yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
-
 
         self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
         self.avg_pose.header.stamp = rospy.Time.now()

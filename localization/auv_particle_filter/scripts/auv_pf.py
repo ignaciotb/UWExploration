@@ -171,6 +171,8 @@ class auv_pf(object):
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
         mbes_meas_ranges = self.ping2ranges(meas_mbes)
 
+
+        self.pf_mbes_pub.publish(meas_mbes)
         # Measurement update of each particle
         for i in range(0, self.pc, 8):
             for j in range(i, i + 8):
@@ -182,7 +184,7 @@ class auv_pf(object):
                     break
             for j in range(i, i + 8):
                 if j < self.pc:
-                    if self.ac_mbes[j].wait_for_result(rospy.Duration(0.01)):
+                    if self.ac_mbes[j].wait_for_result(rospy.Duration(0.03)):
                         mbes_res = self.ac_mbes[j].get_result()
                         got_result = True
                     else:
@@ -196,7 +198,7 @@ class auv_pf(object):
         for i in range(self.pc):
             weights.append(self.particles[i].w)
 
-        self.miss_meas = weights.count(1.e-27)
+        self.miss_meas = weights.count(1.e-50)
 
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
@@ -216,7 +218,7 @@ class auv_pf(object):
 
     def resample(self, weights):
 
-        print "-------------"
+        #  print "-------------"
         # Normalize weights
         weights /= weights.sum()
         #  print "weights"
@@ -228,15 +230,15 @@ class auv_pf(object):
         else:
             N_eff = 1/np.sum(np.square(weights))
 
-        print "N_eff ", N_eff
+        #  print "N_eff ", N_eff
         print "Missed meas ", self.miss_meas
         if self.miss_meas < self.pc/2.:
             self.stats.publish(np.float32(N_eff)) 
         
         # Resampling?
         if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
-            indices = stratified_resample(weights)
-            print "Indices"
+            indices = residual_resample(weights)
+            print "Resampling "
             print indices
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]
@@ -249,8 +251,8 @@ class auv_pf(object):
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
 
-        else:
-            rospy.loginfo('Number of effective particles high - not resampling')
+        #  else:
+            #  rospy.loginfo('Number of effective particles high - not resampling')
 
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):
@@ -297,8 +299,8 @@ class auv_pf(object):
         # TODO: do this properly :d
         (got_result, pf_ping)= self.particles[0].predict_meas(self.avg_pose.pose.pose,
                                                               self.beams_real)
-        if got_result:
-            self.pf_mbes_pub.publish(pf_ping)
+        #  if got_result:
+            #  self.pf_mbes_pub.publish(pf_ping)
 
 
     # TODO: publish markers instead of poses

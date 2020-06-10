@@ -150,8 +150,8 @@ class Particle(object):
 
             if len(mbes_i_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
-                mbes_meas_sampled = mbes_meas_ranges[::(len(mbes_meas_ranges)/self.beams_num)]
-
+                idx = np.round(np.linspace(0, len(mbes_meas_ranges) - 40, self.beams_num+1)).astype(int)
+                mbes_meas_sampled = mbes_meas_ranges[idx]
                 # Publish (for visualization)
                 mbes_pcloud = PointCloud2()
                 mbes_pcloud = mbes_res.sim_mbes
@@ -159,28 +159,28 @@ class Particle(object):
                 self.pcloud_pub.publish(mbes_pcloud)
 
                 # Gaussian blur to pings
-                mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.1)
-                mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.1)
+                #  mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.5)
+                mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.5)
 
                 #  print len(mbes_i_ranges)
-                #  print len(mbes_meas_sampled) 
+                #  print len(mbes_meas_sampled)
                 #  print mbes_i_ranges
                 #  print mbes_meas_sampled
                 #  print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
                 #  print mbes_i_ranges - mbes_meas_sampled
 
                 # Update particle weights
-                #  self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+                self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
                 #  print "MV ", self.w
                 #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
                 #  print "Avg ", self.w
-                self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+                #  self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
                 #  print "Gradient", self.w
             else:
-                self.w = 1.e-27
+                self.w = 1.e-50
         else:
             #  rospy.logwarn("Particle did not get meas")
-            self.w = 1.e-27
+            self.w = 1.e-50
 
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -190,7 +190,7 @@ class Particle(object):
             w_i = multivariate_normal.pdf(grad_expected, mean=grad_meas, cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1.e-27
+            w_i = 1.e-50
         return w_i
      
         
@@ -199,7 +199,7 @@ class Particle(object):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges, cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1.e-27
+            w_i = 1.e-50
         return w_i
       
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -210,7 +210,7 @@ class Particle(object):
         else:
             rospy.logwarn("missing pings!")
             #  w_i = 1./self.p_num
-            w_i = 1.e-27
+            w_i = 1.e-50
         return w_i
 
     def get_mbes_goal(self):
@@ -262,7 +262,7 @@ class Particle(object):
         # Get result from action server
         self.ac_mbes.send_goal(mbes_goal)
         mbes_pcloud = PointCloud2()
-        if self.ac_mbes.wait_for_result(rospy.Duration(0.01)):
+        if self.ac_mbes.wait_for_result(rospy.Duration(0.03)):
             mbes_res = self.ac_mbes.get_result()
 
             # Pack result into PointCloud2

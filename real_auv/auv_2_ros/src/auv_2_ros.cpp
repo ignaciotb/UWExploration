@@ -23,11 +23,11 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<int>("start_mission_ping_num", first_ping_, 0);
     nh_->param<int>("end_mission_ping_num", last_ping_, 0);
 
-    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 10);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 10);
-    test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 10);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 10);
-    enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 10);
+    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 1);
+    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 1);
+    test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 1);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top,5);
+    enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 1);
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
 
@@ -229,7 +229,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         addMiniCar(mini_name);
     }
 
-    std::cout << "ping " << ping_cnt_ << std::endl;
+//    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < last_ping_ && !survey_finished_){
         this->publishMeas(ping_cnt_);
         if(change_detection_){

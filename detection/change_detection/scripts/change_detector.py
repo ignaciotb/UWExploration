@@ -141,25 +141,6 @@ class ChangeDetector(object):
         params.minConvexity = 0.87
         return cv2.SimpleBlobDetector_create(params)
 
-    # def init_blob_detector(self):
-    #     # Setup SimpleBlobDetector parameters.
-    #     params = cv2.SimpleBlobDetector_Params()
-    #
-    #     params.blobColor = 255
-    #     params.minThreshold = 0
-    #     params.maxThreshold = 255
-    #
-    #     params.filterByArea = True
-    #     params.minArea = int(300*self.scale**2)
-    #     params.maxArea = int(500*self.scale**2)
-    #
-    #     params.filterByCircularity = True
-    #     params.minCircularity = 0.3
-    #     params.maxCircularity = 0.8
-    #
-    #     params.filterByConvexity = False
-    #     params.minConvexity = 0.87
-    #     return cv2.SimpleBlobDetector_create(params)
 
     def car_detection(self, img_array, scale):
         # Turn numpy array into cv2 image (and make bigger)

@@ -19,7 +19,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
-    nh_->param<int>("num_beams_sim", beams_num_, 100);
+    nh_->param<int>("n_beams_mbes", beams_num_, 100);
     nh_->param<int>("start_mission_ping_num", first_ping_, 0);
     nh_->param<int>("end_mission_ping_num", last_ping_, 0);
 

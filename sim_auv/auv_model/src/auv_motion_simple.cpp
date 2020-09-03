@@ -16,7 +16,7 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("thruster_cmd", thruster_top, "/thruster");
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");
     nh_->param<std::string>("mbes_sim_as", mbes_sim_as, "mbes_sim_action");
-    nh_->param<int>("num_beams_sim", beams_num_, 100);
+    nh_->param<int>("n_beams_mbes", beams_num_, 100);
 
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 1);
     thruster_sub_ = nh_->subscribe(thruster_top, 1, &AUVMotionModel::thrustCB, this);

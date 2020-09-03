@@ -41,7 +41,7 @@ class auv_pf(object):
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         beams_num = rospy.get_param("~num_beams_sim", 20)
-        self.beams_real = rospy.get_param("~num_beams_real", 512)
+        self.beams_real = rospy.get_param("~n_beams_mbes", 512)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -169,6 +169,7 @@ class auv_pf(object):
         particle_tf.rotation    = odom.pose.pose.orientation
         tf_mat = matrix_from_tf(particle_tf)
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
+        # this will not work in simulation ***
         mbes_meas_ranges = self.ping2ranges(meas_mbes)
 
 
@@ -232,6 +233,7 @@ class auv_pf(object):
 
         #  print "N_eff ", N_eff
         print "Missed meas ", self.miss_meas
+        print "Neff ", N_eff 
         if self.miss_meas < self.pc/2.:
             self.stats.publish(np.float32(N_eff)) 
         

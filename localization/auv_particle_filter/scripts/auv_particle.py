@@ -150,7 +150,7 @@ class Particle(object):
 
             if len(mbes_i_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
-                idx = np.round(np.linspace(0, len(mbes_meas_ranges) - 40, self.beams_num+1)).astype(int)
+                idx = np.round(np.linspace(0, len(mbes_meas_ranges) - 1, self.beams_num+1)).astype(int)
                 mbes_meas_sampled = mbes_meas_ranges[idx]
                 # Publish (for visualization)
                 mbes_pcloud = PointCloud2()

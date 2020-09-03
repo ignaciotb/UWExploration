@@ -308,14 +308,11 @@ void BathymapConstructor::publishMeas(int ping_num){
 
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
 
-    // Sample down ping to a fix size
+    // Sample down pings to a fix size
     if (mbes_i_pcl->points.size() >= 500){
-        int k = 0;
-//        std::cout << "Ping size before " << mbes_i_pcl->points.size() << std::endl;
         mbes_i_pcl->points.resize(500);
-        while(k<mbes_i_pcl->points.size() /*&& k<beams_num_*/){
-            mbes_i_pcl_filt->points.push_back(mbes_i_pcl->points.at(k));
-            k+=2;
+        for(int i=0; i<beams_num_-1; i++){
+            mbes_i_pcl_filt->points.push_back(mbes_i_pcl->points.at(round((500.0-1.0)*i/beams_num_-1)));
         }
 //        std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
 

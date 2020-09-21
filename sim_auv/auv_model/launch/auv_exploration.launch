@@ -12,8 +12,8 @@
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="250"/>	
-	<param name="mbes_open_angle" value="1.5708" />
+	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="mbes_open_angle" value="1.5708" />
 
 	<!-- Car detection parameters -->
     <arg name="detection" default="False"/>
@@ -54,6 +54,7 @@
 				<arg name="mode" value="$(arg mode)"/>
 				<arg name="filter" value="$(arg filter)"/>
 				<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
+				<arg name="mbes_open_angle" value="1.5708" />
 			</include>
 		</group>
 
@@ -87,8 +88,8 @@
 	        <param name="world_frame" value="world" />
 			<param name="map_frame" value="map" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-			<param name="mbes_open_angle" value="(arg mbes_open_angle)" />
-			<param name="mbes_sim_as" value="/mbes_sim_server" />				
+			<param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+			<param name="mbes_sim_as" value="/mbes_sim_server_ufo" />
 		</node>
 
 		<!-- Simulate Hugin AUV -->
@@ -110,7 +111,7 @@
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
-				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />				
+				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
 			</node>
 
 			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">

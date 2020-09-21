@@ -7,12 +7,12 @@
   <arg name="n_beams_mbes" default="100"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="40"/>
+  <arg name="particle_count"                    default="50"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[30, 10, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.01, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
+  <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[2, 2, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_covariance"  default="10"/>
+  <arg name="measurement_covariance"  default="0.1"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
@@ -22,10 +22,17 @@
   <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
+  <arg name="mbes_open_angle" default="1.5708" />
 
 <!-- <node pkg="rosbag" type="record" name="rosbag_record_node" args="record -a"/>  -->
 
-    <node type="auv_pf.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
+    <node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
+      <param name="map_cloud_path"  value="/home/torroba18/Downloads/post_deployment/KTH_Post_Deployment_AVG_WGS84UTM32N_RH200_50cm.xyz" />
+      <param name="pings_path"  value="/home/torroba18/Downloads/post_deployment/mbes_pings.cereal" />
+      <param name="map_frame" value="map" />
+    </node>
+
+    <node type="auv_pf_igl.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
       <param name="init_covariance"                  value="$(arg init_covariance)" />
       <param name="resampling_noise_covariance"                  value="$(arg resampling_noise_covariance)" />
@@ -34,14 +41,17 @@
       <param name="map_frame"                               value="$(arg map_frame)" />
       <param name="odom_frame"                               value="$(arg odom_frame)" />
 
+      <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
   	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-      <param name="num_beams_sim" value="30" />
-      <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />				
+      <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
+      <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
+      <param name="mesh_path" value="$(find auv_particle_filter)/meshes/mesh.npz" />       
+      <param name="sound_velocity_prof" value="/home/torroba18/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />       
     </node>
 
 </launch>

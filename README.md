@@ -7,15 +7,15 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 * Bathymetric SLAM [here](https://github.com/ignaciotb/bathymetric_slam)
 * UFOMap [here](https://github.com/ignaciotb/UFOMap.git)
 
-## Building
+```
+sudo apt install python3-pygame python3-scipy python3-configargparse python3-numpy
+```
 
+## Building
 This is a collection of ROS packages. Just clone the repo within your catking workspace and run
 ```
-rosdep install --from-paths your_catkin_ws --ignore-src --rosdistro=$ROS_DISTRO -y
 catkin_make -DCMAKE_BUILD_TYPE=Release install
 ```
-If you come across [this issue](https://github.com/ethz-asl/lidar_align/issues/16) during the compilation, follow the instructions at the end of the thread to solve it and build the workspace again again.
-
 ## ROS Packages
 
 ## Usage

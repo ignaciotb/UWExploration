@@ -240,7 +240,9 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     if(ping_cnt_ == last_ping_ && !survey_finished_){
         ROS_INFO_STREAM("Survey finished");
         survey_finished_ = true;
-        enable_pub_.publish(survey_finished_);
+        std_msgs::Bool msg;
+        msg.data = true;
+        enable_pub_.publish(msg);
     }
 }
 

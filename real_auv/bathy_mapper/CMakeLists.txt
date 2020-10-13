@@ -31,7 +31,7 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 3 REQUIRED)
+find_package(OpenCV 4 REQUIRED)
 find_package(g2o REQUIRED)
 
 # AUVLIB stuff

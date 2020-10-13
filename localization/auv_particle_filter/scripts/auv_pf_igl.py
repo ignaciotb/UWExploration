@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/env python3
 
 # Standard dependencies
 import sys
@@ -263,7 +263,7 @@ class auv_pf(object):
         # Normalize weights
         weights /= weights.sum()
         #  print "weights"
-        print weights
+        print (weights)
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -271,7 +271,7 @@ class auv_pf(object):
         else:
             N_eff = 1/np.sum(np.square(weights))
 
-        print "N_eff ", N_eff
+        print ("N_eff ", N_eff)
         #  print "Missed meas ", self.miss_meas
         if self.miss_meas < self.pc/2.:
             self.stats.publish(np.float32(N_eff)) 

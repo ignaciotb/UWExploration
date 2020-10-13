@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import numpy as np
 from auvlib.data_tools import gsf_data, std_data, csv_data, xyz_data

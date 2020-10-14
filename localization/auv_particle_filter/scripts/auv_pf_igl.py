@@ -156,6 +156,32 @@ class auv_pf(object):
         self.update_rviz()
         rospy.spin()
 
+    def sample_gp(self, p, R):
+        h = 30.
+        b = h * np.cos(self.mbes_angle/2.)
+        n = 50
+
+        # Triangle vertices 
+        Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))
+        Rxmax = rotation_matrix(self.mbes_angle/2., (1,0,0))
+        Rxmin = np.matmul(R, Rxmin[0:3, 0:3])
+        Rxmax = np.matmul(R, Rxmax[0:3, 0:3])
+        
+        p2 = p + Rxmax[:,2] * b
+        p3 = p + Rxmin[:,2] * b
+        
+        # Sampling step
+        i_range = np.linalg.norm(p3 - p2)/n
+        print (i_range)
+
+        direcc = ((p3-p2)/np.linalg.norm(p3-p2)) 
+        sampling_points = []
+        for i in range(0, n):
+            sampling_points.append(p2 + direcc * i_range * i)
+
+        return sampling_points
+
+
     def mbes_as_cb(self, goal):
 
         print("MBES sim goal received")
@@ -171,11 +197,12 @@ class auv_pf(object):
         # Rotate pitch 90 degrees for MBES z axis to point downwards
         R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm() 
         
+        # Test sampling points
+#        mbes_res = self.sample_gp(p, r[0:3, 0:3])
+
         # Sim ping
-        #  print np.asarray(p)
-        #  print r[0:3, 0:3].dot(R)
         mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3, 0:3].dot(R),
-                                            goal.beams_num.data, self.mbes_angle) 
+                                           goal.beams_num.data, self.mbes_angle) 
         
         # Pack result
         result = MbesSimResult()

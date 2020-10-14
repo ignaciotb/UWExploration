@@ -156,31 +156,57 @@ class auv_pf(object):
         self.update_rviz()
         rospy.spin()
 
-    def sample_gp(self, p, R):
-        h = 30.
+    def gp_sampling_points(self, p, R):
+        h = 30. # Depth of the field of view
         b = h * np.cos(self.mbes_angle/2.)
-        n = 50
+        n = 3  # Number of sampling points
 
         # Triangle vertices 
-        Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))
-        Rxmax = rotation_matrix(self.mbes_angle/2., (1,0,0))
-        Rxmin = np.matmul(R, Rxmin[0:3, 0:3])
-        Rxmax = np.matmul(R, Rxmax[0:3, 0:3])
+        Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))[0:3, 0:3]
+        Rxmax = rotation_matrix(self.mbes_angle/2., (1,0,0))[0:3, 0:3]
+        Rxmin = np.matmul(R, Rxmin)
+        Rxmax = np.matmul(R, Rxmax)
         
-        p2 = p + Rxmax[:,2] * b
-        p3 = p + Rxmin[:,2] * b
+        p2 = p + Rxmax[:,2]/np.linalg.norm(Rxmax[:,2]) * b
+        p3 = p + Rxmin[:,2]/np.linalg.norm(Rxmin[:,2]) * b
         
         # Sampling step
         i_range = np.linalg.norm(p3 - p2)/n
-        print (i_range)
 
-        direcc = ((p3-p2)/np.linalg.norm(p3-p2)) 
+        # Across ping direction
+        direc = ((p3-p2)/np.linalg.norm(p3-p2)) 
         sampling_points = []
         for i in range(0, n):
-            sampling_points.append(p2 + direcc * i_range * i)
+            sampling_points.append(p2 + direc * i_range * i)
 
         return sampling_points
 
+    def gp_ray_tracing(self, p, R, points, beams_num):
+        # Create beams directions
+        angle_step = self.mbes_angle/beams_num
+        beams_dir = []
+        for i in range(0, beams_num):
+            roll_step = rotation_matrix(-self.mbes_angle/2. + angle_step * i, (1,0,0))[0:3, 0:3]
+            rot = np.matmul(R, roll_step)[:,2]
+            beams_dir.append(rot/np.linalg.norm(rot))
+
+        # This can be faster
+        exp_meas = []
+        for m in range(len(beams_dir)):
+            # No need to iterate over all the points for each beam
+            for i in range(1, len(points)):
+                v1 = p - points[i-1]
+                v2 = points[i] - points[i-1]
+                v3 = [beams_dir[m][0], beams_dir[m][2], -beams_dir[m][1]]
+
+                t1 = np.linalg.norm(np.cross(v2, v1))/v2.dot(v3)
+                if (t1 > 0):
+                    t2 = v1.dot(v3)/v2.dot(v3)
+                    if(t2 > 0 and t2 < 1):
+                        exp_meas.append(p + beams_dir[m] * t1)
+                        break
+        
+        return exp_meas
 
     def mbes_as_cb(self, goal):
 
@@ -198,11 +224,13 @@ class auv_pf(object):
         R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm() 
         
         # Test sampling points
-#        mbes_res = self.sample_gp(p, r[0:3, 0:3])
+        mbes_res = self.gp_sampling_points(p, r[0:3, 0:3])
 
+        mbes_res = self.gp_ray_tracing(p, r[0:3, 0:3], mbes_res, goal.beams_num.data)
+        
         # Sim ping
-        mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3, 0:3].dot(R),
-                                           goal.beams_num.data, self.mbes_angle) 
+#        mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3, 0:3].dot(R),
+#                                           goal.beams_num.data, self.mbes_angle) 
         
         # Pack result
         result = MbesSimResult()

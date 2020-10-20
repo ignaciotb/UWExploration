@@ -18,19 +18,20 @@ from tf.transformations import quaternion_matrix, quaternion_from_matrix
 from tf.transformations import rotation_matrix, rotation_from_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
-from std_msgs.msg import Header
-from sensor_msgs import point_cloud2
-
 import sensor_msgs.point_cloud2 as pc2
 
 # For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
-from auv_particle_igl import Particle, matrix_from_tf, pcloud2ranges
+from auv_particle_gp import Particle, matrix_from_tf, pcloud2ranges
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
+# Auvlib
 from auvlib.bathy_maps import base_draper
 from auvlib.data_tools import csv_data
+
+# gpytorch
+from bathy_gps import process, gp
 
 class auv_pf(object):
 
@@ -134,7 +135,11 @@ class auv_pf(object):
         data = np.load(mesh_path)
         V, F, bounds = data['V'], data['F'], data['bounds'] 
         print("Mesh loaded")
-        
+
+        # Load GP
+        gp_path = rospy.get_param("~gp_path", 'gp.path')
+        self.gp = gp.SVGP.load(500, gp_path)
+
         # Create draper
         self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
         self.draper.set_ray_tracing_enabled(False)            
@@ -148,9 +153,9 @@ class auv_pf(object):
         rospy.spin()
 
     def gp_sampling_points(self, p, R):
-        h = 30. # Depth of the field of view
+        h = 40. # Depth of the field of view
         b = h * np.cos(self.mbes_angle/2.)
-        n = 3  # Number of sampling points
+        n = 100  # Number of sampling points
 
         # Triangle vertices 
         Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))[0:3, 0:3]
@@ -170,15 +175,16 @@ class auv_pf(object):
         for i in range(0, n):
             sampling_points.append(p2 + direc * i_range * i)
 
-        return sampling_points
+        return np.asarray(sampling_points)
 
-    def gp_ray_tracing(self, p, R, points, beams_num):
+    def gp_ray_tracing(self, points, beams_num):
         # Create beams directions
         angle_step = self.mbes_angle/beams_num
         beams_dir = []
         for i in range(0, beams_num):
-            roll_step = rotation_matrix(-self.mbes_angle/2. + angle_step * i, (1,0,0))[0:3, 0:3]
-            rot = np.matmul(R, roll_step)[:,2]
+            roll_step = rotation_matrix(-self.mbes_angle/2.
+                                        + angle_step * i, (1,0,0))[0:3, 0:3]
+            rot = roll_step[:,2]
             beams_dir.append(rot/np.linalg.norm(rot))
 
         # This can be faster
@@ -186,18 +192,18 @@ class auv_pf(object):
         for m in range(len(beams_dir)):
             # No need to iterate over all the points for each beam
             for i in range(1, len(points)):
-                v1 = p - points[i-1]
+                v1 = -points[i-1]
                 v2 = points[i] - points[i-1]
-                v3 = [beams_dir[m][0], beams_dir[m][2], -beams_dir[m][1]]
+                v3 = [beams_dir[m][0], -beams_dir[m][2], beams_dir[m][1]]
 
                 t1 = np.linalg.norm(np.cross(v2, v1))/v2.dot(v3)
                 if (t1 > 0):
                     t2 = v1.dot(v3)/v2.dot(v3)
                     if(t2 > 0 and t2 < 1):
-                        exp_meas.append(p + beams_dir[m] * t1)
+                        exp_meas.append(beams_dir[m] * t1)
                         break
         
-        return exp_meas
+        return np.asarray(exp_meas)
 
     def mbes_as_cb(self, goal):
 
@@ -211,18 +217,43 @@ class auv_pf(object):
                                  goal.mbes_pose.transform.rotation.z,
                                  goal.mbes_pose.transform.rotation.z])
 
-        # Rotate pitch 90 degrees for MBES z axis to point downwards
-        R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm() 
+        # Rotate roll 90 degrees for MBES x axis to point downwards
+        r_mbes = r[0:3, 0:3]
+        R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
+        r_base = r_mbes.dot(R)
         
         # Test sampling points
-        mbes_res = self.gp_sampling_points(p, r[0:3, 0:3])
+        gp_sampling = self.gp_sampling_points(p, r_base)
 
-        mbes_res = self.gp_ray_tracing(p, r[0:3, 0:3], mbes_res, goal.beams_num.data)
+        # Sample GP here
+        mu, sigma = self.gp.sample(gp_sampling[:, 0:2])
+        mu_array = np.array([mu])
         
+        # Concatenate sampling points x,y with sampled z
+        mbes_gp = np.concatenate((gp_sampling[:, 0:2], mu_array.T), axis=1)
+        #  print(mbes_gp)
+
+        # Transform points to MBES frame to perform ray tracing on 2D
+        rot_inv = r_mbes.transpose()
+        p_inv = rot_inv.dot(p)
+        mbes_gp = [rot_inv.dot(beam) - p_inv for beam in mbes_gp]
+        #  print("---")
+        #  print(mbes_gp)
+
+        # Perform raytracing over segments between GP sampled points
+        mbes_res = self.gp_ray_tracing(mbes_gp, goal.beams_num.data)
+        #  print(mbes_res)
+        
+        # Transform back to map frame
+        mbes_res = [r_mbes.dot(beam) + p for beam in mbes_res]
+        #  print(mbes_res)
+
         # Sim ping
-#        mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3, 0:3].dot(R),
-#                                           goal.beams_num.data, self.mbes_angle) 
-        
+        mbes = self.draper.project_mbes(np.asarray(p), r_mbes.dot(R),
+                                        goal.beams_num.data, self.mbes_angle) 
+        #  print(mbes)
+        #  print("---")
+
         # Pack result
         result = MbesSimResult()
 
@@ -233,7 +264,7 @@ class auv_pf(object):
                   PointField('y', 4, PointField.FLOAT32, 1),
                   PointField('z', 8, PointField.FLOAT32, 1)]
 
-        result.sim_mbes = point_cloud2.create_cloud(header, fields, mbes_res)
+        result.sim_mbes = pc2.create_cloud(header, fields, mbes_res)
         self.as_ping.set_succeeded(result)
 
         self.latest_mbes = result.sim_mbes 

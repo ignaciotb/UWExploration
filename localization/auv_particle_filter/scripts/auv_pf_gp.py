@@ -1,21 +1,16 @@
 #!/usr/bin/env python3
 
 # Standard dependencies
-import sys
-import os
 import math
 import rospy
 import numpy as np
-import tf
 import tf2_ros
-from scipy.special import logsumexp # For log weights
 from scipy.spatial.transform import Rotation as rot
 
-from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Transform, Quaternion, TransformStamped, PoseStamped, Pose
+from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from actionlib_msgs.msg import GoalStatus
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Header
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
@@ -119,10 +114,6 @@ class auv_pf(object):
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
         self.avg_pub = rospy.Publisher(avg_pose_top, PoseWithCovarianceStamped, queue_size=10)
-
-        # Establish subscription to mbes pings message
-        #  mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        #  rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_callback)
 
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')

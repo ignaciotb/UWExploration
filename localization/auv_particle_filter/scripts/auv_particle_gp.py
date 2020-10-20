@@ -1,31 +1,22 @@
 #!/usr/bin/env python3
 
 # Standard dependencies
-import sys
-import os
 import math
 import rospy
 import numpy as np
-import tf
-import tf2_ros
 from scipy.stats import multivariate_normal
 from scipy.ndimage.filters import gaussian_filter
 
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import Quaternion, Transform, TransformStamped
-from actionlib_msgs.msg import GoalStatus
+from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Quaternion, Transform
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 from tf.transformations import rotation_matrix, rotation_from_matrix
 
-# For sim mbes action client
-import actionlib
-#  from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
-from geometry_msgs.msg import PoseStamped, Pose
 
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header

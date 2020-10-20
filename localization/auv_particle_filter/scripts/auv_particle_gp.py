@@ -160,14 +160,14 @@ class Particle(object):
 
                 # Gaussian blur to pings
                 #  mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.5)
-                mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.5)
+                #  mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.5)
 
-                #  print len(mbes_i_ranges)
-                #  print len(mbes_meas_sampled)
+                #  print (len(mbes_i_ranges))
+                #  print (len(mbes_meas_sampled))
                 #  print mbes_i_ranges
                 #  print mbes_meas_sampled
                 #  print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
-                #  print mbes_i_ranges - mbes_meas_sampled
+                #  print (mbes_i_ranges - mbes_meas_sampled)
 
                 # Update particle weights
                 self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
@@ -225,7 +225,7 @@ class Particle(object):
         #  p[1] = translation_from_matrix(self.trans_mat)[1]
         #  p[2] = translation_from_matrix(self.trans_mat)[2]
         angle, direc, point = rotation_from_matrix(self.trans_mat)
-        R = rotation_matrix(angle, direc, point)
+        R = rotation_matrix(angle, direc, point)[0:3, 0:3]
         
         return (p, R)
 

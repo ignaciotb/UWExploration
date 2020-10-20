@@ -155,7 +155,7 @@ class auv_pf(object):
     def gp_sampling(self, p, R):
         h = 40. # Depth of the field of view
         b = h * np.cos(self.mbes_angle/2.)
-        n = 100  # Number of sampling points
+        n = 60  # Number of sampling points
 
         # Triangle vertices 
         Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))[0:3, 0:3]
@@ -203,10 +203,10 @@ class auv_pf(object):
                                         + angle_step * i, (1,0,0))[0:3, 0:3]
             rot = roll_step[:,2]
             beams_dir.append(rot/np.linalg.norm(rot))
-
+        
         # This can be faster
         exp_meas = []
-        for m in range(len(beams_dir)):
+        for m in range(0, len(beams_dir)):
             # No need to iterate over all the points for each beam
             for i in range(1, len(gp_samples)):
                 v1 = -gp_samples[i-1]
@@ -222,7 +222,6 @@ class auv_pf(object):
         
         # Transform back to map frame
         mbes_gp = np.asarray(exp_meas)
-
         mbes_gp = [r_mbes.dot(beam) + p for beam in mbes_gp]
         #  print(mbes_res)
 
@@ -230,7 +229,7 @@ class auv_pf(object):
 
     def mbes_as_cb(self, goal):
 
-        print("MBES sim goal received")
+        #  print("MBES sim goal received")
         # Unpack goal
         p_auv = [goal.mbes_pose.transform.translation.x, 
              goal.mbes_pose.transform.translation.y, 
@@ -251,11 +250,9 @@ class auv_pf(object):
         mbes_gp = self.gp_ray_tracing(r_mbes, p_auv, gp_samples, goal.beams_num.data)
         #  print(mbes_gp)
         
-        # Sim ping
-        mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
-                                        goal.beams_num.data, self.mbes_angle) 
-        #  print(mbes)
-        #  print("---")
+        # IGL sim ping
+        #  mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
+                                        #  goal.beams_num.data, self.mbes_angle)
 
         # Pack result
         result = MbesSimResult()
@@ -307,12 +304,24 @@ class auv_pf(object):
         
         # Measurement update of each particle
         for i in range(0, self.pc):
-            p, r = self.particles[i].get_p_pose();
+            p_part, r_mbes = self.particles[i].get_p_pose();
+            
+            # Rotate roll 180 degrees for base frame
+            R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
+            r_base = r_mbes.dot(R)
+            
+            # Test sampling points
+            gp_samples = self.gp_sampling(p_part, r_base)
+
+            # Perform raytracing over segments between GP sampled points
+            mbes_gp = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)        
+            # MBES sim on IGL
             # Rotate pitch 90 degrees for MBES z axis to point downwards
-            R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm() 
-            mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3,0:3].dot(R),
-                                                self.beams_num, self.mbes_angle) 
-            self.particles[i].meas_update(mbes_res, mbes_meas_ranges, True)
+            #  R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm()
+            #  mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3,0:3].dot(R),
+                                                #  self.beams_num, self.mbes_angle)
+            
+            self.particles[i].meas_update(mbes_gp, mbes_meas_ranges, True)
         
         weights = []
         for i in range(self.pc):
@@ -342,7 +351,7 @@ class auv_pf(object):
         # Normalize weights
         weights /= weights.sum()
         #  print "weights"
-        print (weights)
+        #  print (weights)
 
         N_eff = self.pc
         if weights.sum() == 0.:

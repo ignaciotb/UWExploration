@@ -102,31 +102,30 @@ class Particle(object):
     def compute_weight(self, exp_mbes, real_mbes_ranges, got_result):
         if got_result:
             # Predict mbes ping given current particle pose and m 
-            mbes_i_ranges = list2ranges(exp_mbes, self.trans_mat)
+            exp_mbes_ranges = list2ranges(exp_mbes, self.trans_mat)
 
-            if len(mbes_i_ranges) > 0:
+            if len(exp_mbes_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
                 idx = np.round(np.linspace(0, len(real_mbes_ranges) - 1,
                                            self.beams_num)).astype(int)
                 mbes_meas_sampled = real_mbes_ranges[idx]
                 
                 # Gaussian blur to pings
-                #  mbes_i_ranges = gaussian_filter(mbes_i_ranges, sigma=0.5)
+                #  exp_mbes_ranges = gaussian_filter(exp_mbes_ranges, sigma=0.5)
                 #  mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.5)
 
-                #  print (len(mbes_i_ranges))
+                #  print (len(exp_mbes_ranges))
                 #  print (len(mbes_meas_sampled))
-                #  print (mbes_i_ranges)
+                #  print (exp_mbes_ranges)
                 #  print (mbes_meas_sampled)
-                #  print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
-                #  print (mbes_i_ranges - mbes_meas_sampled)
+                #  print (exp_mbes_ranges - mbes_meas_sampled)
 
                 # Update particle weights
-                self.w = self.weight_mv(mbes_meas_sampled, mbes_i_ranges)
+                self.w = self.weight_mv(mbes_meas_sampled, exp_mbes_ranges)
                 #  print "MV ", self.w
-                #  self.w = self.weight_avg(mbes_meas_sampled, mbes_i_ranges)
+                #  self.w = self.weight_avg(mbes_meas_sampled, exp_mbes_ranges)
                 #  print "Avg ", self.w
-                #  self.w = self.weight_grad(mbes_meas_sampled, mbes_i_ranges)
+                #  self.w = self.weight_grad(mbes_meas_sampled, exp_mbes_ranges)
                 #  print "Gradient", self.w
             else:
                 self.w = 1.e-50

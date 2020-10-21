@@ -332,9 +332,7 @@ class auv_pf(object):
         for p in pc2.read_points(point_cloud, 
                                  field_names = ("x", "y", "z"), skip_nans=True):
             ranges.append(np.linalg.norm(p[-2:]))
-            #  if cnt == 0:
-                #  print "Beam 0 original ", p
-            #  cnt += 1
+        
         return np.asarray(ranges)
 
     def resample(self, weights):

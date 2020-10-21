@@ -46,6 +46,7 @@
 			<include file="$(find auv_particle_filter)/launch/auv_pf.launch" >
 				<arg name="mode" value="$(arg mode)"/>
 				<arg name="filter" value="$(arg filter)"/>
+				<arg name="namespace" value="$(arg namespace)"/>
 				<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
 				<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
 			</include>
@@ -119,8 +120,8 @@
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="add_mini" value="$(arg add_mini)" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
-<!-- 				<param name="start_mission_ping_num" value="6200" />
-				<param name="end_mission_ping_num" value="10000" /> -->
+				<param name="start_mission_ping_num" value="1200" />
+				<param name="end_mission_ping_num" value="10000" />
 			</node>
 		</group>
 

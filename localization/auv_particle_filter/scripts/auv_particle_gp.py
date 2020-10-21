@@ -6,6 +6,7 @@ import rospy
 import numpy as np
 from scipy.stats import multivariate_normal
 from scipy.ndimage.filters import gaussian_filter
+from scipy.spatial.transform import Rotation as rot
 
 from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import Quaternion, Transform
@@ -81,10 +82,7 @@ class Particle(object):
         roll_t = ((rot_t[0]) + 2 * np.pi) % (2 * np.pi)
         pitch_t = ((rot_t[1]) + 2 * np.pi) % (2 * np.pi)
         yaw_t = ((rot_t[2]) + 2 * np.pi) % (2 * np.pi)
-
-        self.p_pose[3] = roll_t
-        self.p_pose[4] = pitch_t
-        self.p_pose[5] = yaw_t
+        self.p_pose[3:6] = [roll_t, pitch_t, yaw_t]
 
         # Linear motion
         vel_p = np.array([odom_t.twist.twist.linear.x,
@@ -102,7 +100,7 @@ class Particle(object):
     def compute_weight(self, exp_mbes, real_mbes_ranges, got_result):
         if got_result:
             # Predict mbes ping given current particle pose and m 
-            exp_mbes_ranges = list2ranges(exp_mbes, self.trans_mat)
+            exp_mbes_ranges = self.list2ranges(exp_mbes)
 
             if len(exp_mbes_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
@@ -144,7 +142,6 @@ class Particle(object):
             rospy.logwarn("missing pings!")
             w_i = 1.e-50
         return w_i
-     
         
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
@@ -167,25 +164,44 @@ class Particle(object):
             w_i = 1.e-50
         return w_i
     
-    def get_p_pose(self):
-        # Find particle's mbes pose without broadcasting/listening to tf transforms
-        particle_tf = Transform()
-        particle_tf.translation.x = self.p_pose[0]
-        particle_tf.translation.y = self.p_pose[1]
-        particle_tf.translation.z = self.p_pose[2]
-        particle_tf.rotation = Quaternion(*quaternion_from_euler(self.p_pose[3],
-                                                                 self.p_pose[4],
-                                                                 self.p_pose[5]))
-        mat_part = matrix_from_tf(particle_tf)
-        self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
-
-        p = translation_from_matrix(self.trans_mat)
-        angle, direc, point = rotation_from_matrix(self.trans_mat)
-        R = rotation_matrix(angle, direc, point)[0:3, 0:3]
+    def get_p_mbes_pose(self):
+        # Find particle's mbes_frame pose 
+        t_particle = translation_matrix(self.p_pose[0:3])
+        r_particle = rot.from_euler('xyz', self.p_pose[3:6], degrees=False)
+        q_particle = quaternion_matrix(r_particle.as_quat())
+        mat = np.dot(t_particle, q_particle)
         
-        return (p, R)
+        trans_mat = self.m2o_tf_mat.dot(mat.dot(self.mbes_tf_mat))
+
+        self.p = translation_from_matrix(trans_mat)
+        angle, direc, point = rotation_from_matrix(trans_mat)
+        self.R = rotation_matrix(angle, direc, point)[0:3, 0:3]
+        
+        return (self.p, self.R)
+
+    # To compute beam ranges from pings in the map frame
+    def list2ranges(self, points):
+        rot_inv = self.R.transpose()
+        t_inv = rot_inv.dot(self.p)
+
+        ranges = []
+        for p in points:
+            p_part = rot_inv.dot(p) - t_inv
+            ranges.append(np.linalg.norm(p_part[-2:]))
+
+        return np.asarray(ranges)
 
     
+# To compute beam ranges from pings in the mbes frame
+def pcloud2ranges(point_cloud):
+    ranges = []
+    for p in pc2.read_points(point_cloud, 
+                             field_names = ("x", "y", "z"), skip_nans=True):
+        ranges.append(np.linalg.norm(p[-2:]))
+
+    return np.asarray(ranges)
+
+# Create PointCloud2 msg out of ping    
 def pack_cloud(frame, mbes):
     mbes_pcloud = PointCloud2()
     header = Header()
@@ -199,48 +215,8 @@ def pack_cloud(frame, mbes):
 
     return mbes_pcloud 
 
-def list2ranges(points, tf_mat):
-    angle, direc, point = rotation_from_matrix(tf_mat)
-    R = rotation_matrix(angle, direc, point)
-    rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
-
-    t = translation_from_matrix(tf_mat)
-    t_inv = rot_inv.dot(t)
-
-    ranges = []
-    for p in points:
-        p_part = rot_inv.dot(p) - t_inv
-        ranges.append(np.linalg.norm(p_part[-2:]))
-
-    return np.asarray(ranges)
-
-
-def pcloud2ranges(point_cloud, tf_mat):
-    #  angle, direc, point = rotation_from_matrix(tf_mat)
-    #  R = rotation_matrix(angle, direc, point)
-    #  rot_inv = R[0:3,0:3].transpose()
-    #  t = translation_from_matrix(tf_mat)
-    #  t_inv = rot_inv.dot(t)
-    
-    ranges = []
-    for p in pc2.read_points(point_cloud, 
-                             field_names = ("x", "y", "z"), skip_nans=True):
-        ranges.append(np.linalg.norm(p[-2:]))
-
-    return np.asarray(ranges)
-
 
 def matrix_from_tf(transform):
-    """
-    Converts a geometry_msgs/Transform or
-    geometry_msgs/TransformStamped into a 4x4
-    transformation matrix
-
-    :param transform: Transform from parent->child frame
-    :type transform: geometry_msgs/Transform(Stamped)
-    :return: Transform as 4x4 matrix
-    :rtype: Numpy array (4x4)
-    """
     if transform._type == 'geometry_msgs/TransformStamped':
         transform = transform.transform
 

@@ -216,18 +216,16 @@ def list2ranges(points, tf_mat):
 
 
 def pcloud2ranges(point_cloud, tf_mat):
-    angle, direc, point = rotation_from_matrix(tf_mat)
-    R = rotation_matrix(angle, direc, point)
-    rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
-
-    t = translation_from_matrix(tf_mat)
-    t_inv = rot_inv.dot(t)
-
+    #  angle, direc, point = rotation_from_matrix(tf_mat)
+    #  R = rotation_matrix(angle, direc, point)
+    #  rot_inv = R[0:3,0:3].transpose()
+    #  t = translation_from_matrix(tf_mat)
+    #  t_inv = rot_inv.dot(t)
+    
     ranges = []
     for p in pc2.read_points(point_cloud, 
                              field_names = ("x", "y", "z"), skip_nans=True):
-        p_part = rot_inv.dot(p) - t_inv
-        ranges.append(np.linalg.norm(p_part[-2:]))
+        ranges.append(np.linalg.norm(p[-2:]))
 
     return np.asarray(ranges)
 

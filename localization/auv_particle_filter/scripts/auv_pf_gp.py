@@ -163,7 +163,7 @@ class auv_pf(object):
         rospy.spin()
 
     def gp_sampling(self, p, R):
-        h = 40. # Depth of the field of view
+        h = 80. # Depth of the field of view
         b = h * np.cos(self.mbes_angle/2.)
         n = 60  # Number of sampling points
 
@@ -241,8 +241,8 @@ class auv_pf(object):
                                     goal.mbes_pose.transform.rotation.z,
                                     goal.mbes_pose.transform.rotation.w])[0:3, 0:3]
 
-        # Rotate roll 180 degrees for base frame
-        R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
+        # Compute base_frame from mbes_frame
+        R = self.base2mbes_mat.transpose()[0:3,0:3]
         r_base = r_mbes.dot(R)
                 
         # IGL sim ping
@@ -283,31 +283,30 @@ class auv_pf(object):
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
-        particle_tf = Transform()
-        particle_tf.translation = odom.pose.pose.position
-        particle_tf.rotation = odom.pose.pose.orientation
-        tf_mat = matrix_from_tf(particle_tf)
+        auv_tf = Transform()
+        auv_tf.translation = odom.pose.pose.position
+        auv_tf.rotation = odom.pose.pose.orientation
+        tf_mat = matrix_from_tf(auv_tf)
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
         real_mbes_ranges = pcloud2ranges(real_mbes, m2auv)
 
         # Measurement update of each particle
-        R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
+        R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
-            # Rotate roll 180 degrees for base frame
+            # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_pose();
             r_base = r_mbes.dot(R)
             
             # Sample GP points
-            #  gp_samples = self.gp_sampling(p_part, r_base)
+            gp_samples = self.gp_sampling(p_part, r_base)
 
-            #  # Perform raytracing over segments between GP sampled points
-            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            # Perform raytracing over segments between GP sampled points
+            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
             #  Rotate pitch 90 degrees for MBES z axis to point downwards
-            R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
-                                                self.beams_num, self.mbes_angle)
+            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
+                                                #  self.beams_num, self.mbes_angle)
             
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)

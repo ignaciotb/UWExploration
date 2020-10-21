@@ -320,6 +320,7 @@ void BathymapConstructor::publishMeas(int ping_num){
         }
     //    std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
 
+        std::reverse(mbes_i_pcl_filt->points.begin(), mbes_i_pcl_filt->points.end());
         pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
         mbes_i.header.frame_id = mbes_frame_;
         mbes_i.header.stamp = time_now_;

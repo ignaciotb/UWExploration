@@ -243,16 +243,9 @@ class auv_pf(object):
         R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
         r_base = r_mbes.dot(R)
         
-        # Test sampling points
-        gp_samples = self.gp_sampling(p_auv, r_base)
-
-        # Perform raytracing over segments between GP sampled points
-        mbes_gp = self.gp_ray_tracing(r_mbes, p_auv, gp_samples, goal.beams_num.data)
-        #  print(mbes_gp)
-        
         # IGL sim ping
-        #  mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
-                                        #  goal.beams_num.data, self.mbes_angle)
+        mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
+                                        goal.beams_num.data, self.mbes_angle)
 
         # Pack result
         result = MbesSimResult()
@@ -263,7 +256,7 @@ class auv_pf(object):
                   PointField('y', 4, PointField.FLOAT32, 1),
                   PointField('z', 8, PointField.FLOAT32, 1)]
 
-        result.sim_mbes = pc2.create_cloud(header, fields, mbes_gp)
+        result.sim_mbes = pc2.create_cloud(header, fields, mbes)
         self.as_ping.set_succeeded(result)
 
         self.latest_mbes = result.sim_mbes 
@@ -311,17 +304,17 @@ class auv_pf(object):
             r_base = r_mbes.dot(R)
             
             # Test sampling points
-            gp_samples = self.gp_sampling(p_part, r_base)
-
-            # Perform raytracing over segments between GP sampled points
-            mbes_gp = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)        
+            #  gp_samples = self.gp_sampling(p_part, r_base)
+#
+            #  # Perform raytracing over segments between GP sampled points
+            #  mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
             # MBES sim on IGL
             # Rotate pitch 90 degrees for MBES z axis to point downwards
-            #  R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm()
-            #  mbes_res = self.draper.project_mbes(np.asarray(p), r[0:3,0:3].dot(R),
-                                                #  self.beams_num, self.mbes_angle)
+            R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm()
+            mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
+                                                self.beams_num, self.mbes_angle)
             
-            self.particles[i].meas_update(mbes_gp, mbes_meas_ranges, True)
+            self.particles[i].meas_update(mbes, mbes_meas_ranges, True)
         
         weights = []
         for i in range(self.pc):

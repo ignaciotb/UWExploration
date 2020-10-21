@@ -116,8 +116,8 @@ class Particle(object):
 
                 #  print (len(mbes_i_ranges))
                 #  print (len(mbes_meas_sampled))
-                #  print mbes_i_ranges
-                #  print mbes_meas_sampled
+                #  print (mbes_i_ranges)
+                #  print (mbes_meas_sampled)
                 #  print "mean diff ", abs((mbes_i_ranges - mbes_meas_sampled).mean())
                 #  print (mbes_i_ranges - mbes_meas_sampled)
 

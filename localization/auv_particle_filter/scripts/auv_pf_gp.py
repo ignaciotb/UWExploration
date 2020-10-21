@@ -239,7 +239,7 @@ class auv_pf(object):
         r_mbes = quaternion_matrix([goal.mbes_pose.transform.rotation.x,
                                     goal.mbes_pose.transform.rotation.y,
                                     goal.mbes_pose.transform.rotation.z,
-                                    goal.mbes_pose.transform.rotation.z])[0:3, 0:3]
+                                    goal.mbes_pose.transform.rotation.w])[0:3, 0:3]
 
         # Rotate roll 180 degrees for base frame
         R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
@@ -285,7 +285,7 @@ class auv_pf(object):
         # Compute AUV MBES ping ranges
         particle_tf = Transform()
         particle_tf.translation = odom.pose.pose.position
-        particle_tf.rotation    = odom.pose.pose.orientation
+        particle_tf.rotation = odom.pose.pose.orientation
         tf_mat = matrix_from_tf(particle_tf)
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
         real_mbes_ranges = pcloud2ranges(real_mbes, m2auv)
@@ -299,18 +299,17 @@ class auv_pf(object):
             
             # Sample GP points
             #  gp_samples = self.gp_sampling(p_part, r_base)
-#
+
             #  # Perform raytracing over segments between GP sampled points
             #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
-     #
                    
             # MBES sim on IGL
             #  Rotate pitch 90 degrees for MBES z axis to point downwards
-            R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm()
+            R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
                                                 self.beams_num, self.mbes_angle)
             
-            #  # Publish (for visualization)
+            # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
 

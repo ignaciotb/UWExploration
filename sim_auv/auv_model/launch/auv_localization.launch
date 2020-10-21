@@ -2,7 +2,7 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-    <arg name="mode" default="sim"/>
+    <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
 
@@ -12,15 +12,17 @@
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="101"/>	
-	<arg name="mbes_open_angle" value="1.5708" />
+	<arg name="n_beams_mbes" default="30"/>	
+	<arg name="mbes_open_angle" value="1.308" />
+	<!-- For lost targets -->
+	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
 	<!-- Car detection parameters -->
     <arg name="detection" default="False"/>
     <arg name="add_mini" default="False"/>
     
     <!-- Particle filter -->
-    <arg name="particle_filter" default="False"/>
+    <arg name="particle_filter" default="True"/>
     <arg name="filter" default="pf"/>
 
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
@@ -45,7 +47,7 @@
 				<arg name="mode" value="$(arg mode)"/>
 				<arg name="filter" value="$(arg filter)"/>
 				<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
-				<arg name="mbes_open_angle" value="1.5708" />
+				<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
 			</include>
 		</group>
 

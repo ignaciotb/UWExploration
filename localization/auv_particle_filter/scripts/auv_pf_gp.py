@@ -7,7 +7,7 @@ import numpy as np
 import tf2_ros
 from scipy.spatial.transform import Rotation as rot
 
-from geometry_msgs.msg import PoseArray, PoseWithCovarianceStamped
+from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Header
@@ -23,12 +23,14 @@ import sensor_msgs.point_cloud2 as pc2
 # For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
-from auv_particle_gp import Particle, matrix_from_tf, pcloud2ranges
+from auv_particle_gp import Particle, matrix_from_tf, pcloud2ranges, pack_cloud
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
 # Auvlib
 from auvlib.bathy_maps import base_draper
 from auvlib.data_tools import csv_data
+
+from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
 from bathy_gps import process, gp
@@ -41,7 +43,6 @@ class auv_pf(object):
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
-        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
@@ -83,20 +84,13 @@ class auv_pf(object):
         cov_list = list(cov_string.split(", "))
         self.res_noise_cov = list(map(float, cov_list))
 
-
         # Initialize list of particles
         self.particles = np.empty(self.pc, dtype=object)
 
         for i in range(self.pc):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
-                                         process_cov=motion_cov, map_frame=self.map_frame,
-                                         odom_frame=odom_frame, meas_as=meas_model_as,
-                                         pc_mbes_top=mbes_pc_top)
-
-        #Initialize an ac per particle for the mbes updates
-        self.ac_mbes = np.empty(self.pc, dtype=object)
-        self.nr_of_callbacks = 0
+                                         process_cov=motion_cov)
 
         self.time = None
         self.old_time = None
@@ -127,6 +121,9 @@ class auv_pf(object):
         self.stats = rospy.Publisher('/pf/n_eff', Float32, queue_size=10)
         rospy.loginfo("Particle filter class successfully created")
 
+        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
+        self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
+        
         # Load mesh
         print("Loading data")
         svp_path = rospy.get_param('~sound_velocity_prof')
@@ -136,19 +133,32 @@ class auv_pf(object):
         V, F, bounds = data['V'], data['F'], data['bounds'] 
         print("Mesh loaded")
 
-        # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(500, gp_path)
-
         # Create draper
         self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
         self.draper.set_ray_tracing_enabled(False)            
         print("draper created")
  
+        # Load GP
+        gp_path = rospy.get_param("~gp_path", 'gp.path')
+        self.gp = gp.SVGP.load(500, gp_path)
+
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
                                                     execute_cb=self.mbes_as_cb)
+
+        # Subscription to real mbes pings 
+        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
         
+        # Create expected MBES beams directions
+        angle_step = self.mbes_angle/self.beams_num
+        self.beams_dir = []
+        for i in range(0, self.beams_num):
+            roll_step = rotation_matrix(-self.mbes_angle/2.
+                                        + angle_step * i, (1,0,0))[0:3, 0:3]
+            rot = roll_step[:,2]
+            self.beams_dir.append(rot/np.linalg.norm(rot))
+
         self.update_rviz()
         rospy.spin()
 
@@ -180,9 +190,9 @@ class auv_pf(object):
         mu_array = np.array([mu])
         
         # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(sampling_points)[:, 0:2], mu_array.T), axis=1)
+        mbes_gp = np.concatenate((np.asarray(sampling_points)[:, 0:2], 
+                                  mu_array.T), axis=1)
         #  print(mbes_gp)
-        
         return mbes_gp
 
 
@@ -192,71 +202,59 @@ class auv_pf(object):
         rot_inv = r_mbes.transpose()
         p_inv = rot_inv.dot(p)
         gp_samples = [rot_inv.dot(beam) - p_inv for beam in gp_samples]
-        #  print("---")
-        #  print(mbes_gp)
-
-       # Create beams directions
-        angle_step = self.mbes_angle/beams_num
-        beams_dir = []
-        for i in range(0, beams_num):
-            roll_step = rotation_matrix(-self.mbes_angle/2.
-                                        + angle_step * i, (1,0,0))[0:3, 0:3]
-            rot = roll_step[:,2]
-            beams_dir.append(rot/np.linalg.norm(rot))
         
-        # This can be faster
+        # TODO: this can be faster
         exp_meas = []
-        for m in range(0, len(beams_dir)):
+        for m in range(0, len(self.beams_dir)):
             # No need to iterate over all the points for each beam
             for i in range(1, len(gp_samples)):
                 v1 = -gp_samples[i-1]
                 v2 = gp_samples[i] - gp_samples[i-1]
-                v3 = [beams_dir[m][0], -beams_dir[m][2], beams_dir[m][1]]
+                v3 = [self.beams_dir[m][0], -self.beams_dir[m][2], self.beams_dir[m][1]]
 
                 t1 = np.linalg.norm(np.cross(v2, v1))/v2.dot(v3)
                 if (t1 > 0):
                     t2 = v1.dot(v3)/v2.dot(v3)
                     if(t2 > 0 and t2 < 1):
-                        exp_meas.append(beams_dir[m] * t1)
+                        exp_meas.append(self.beams_dir[m] * t1)
                         break
         
         # Transform back to map frame
         mbes_gp = np.asarray(exp_meas)
         mbes_gp = [r_mbes.dot(beam) + p for beam in mbes_gp]
-        #  print(mbes_res)
 
         return mbes_gp
 
+    def mbes_real_cb(self, msg):
+        self.latest_mbes = msg
+
+    # Action server to simulate MBES for the sim AUV
     def mbes_as_cb(self, goal):
 
         #  print("MBES sim goal received")
         # Unpack goal
         p_auv = [goal.mbes_pose.transform.translation.x, 
-             goal.mbes_pose.transform.translation.y, 
-             goal.mbes_pose.transform.translation.z]
+                 goal.mbes_pose.transform.translation.y, 
+                 goal.mbes_pose.transform.translation.z]
         r_mbes = quaternion_matrix([goal.mbes_pose.transform.rotation.x,
-                                 goal.mbes_pose.transform.rotation.y,
-                                 goal.mbes_pose.transform.rotation.z,
-                                 goal.mbes_pose.transform.rotation.z])[0:3, 0:3]
+                                    goal.mbes_pose.transform.rotation.y,
+                                    goal.mbes_pose.transform.rotation.z,
+                                    goal.mbes_pose.transform.rotation.z])[0:3, 0:3]
 
         # Rotate roll 180 degrees for base frame
         R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
         r_base = r_mbes.dot(R)
-        
+                
         # IGL sim ping
         mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
                                         goal.beams_num.data, self.mbes_angle)
 
-        # Pack result
-        result = MbesSimResult()
-        header = Header()
-        header.stamp = rospy.Time.now()
-        header.frame_id = self.map_frame
-        fields = [PointField('x', 0, PointField.FLOAT32, 1),
-                  PointField('y', 4, PointField.FLOAT32, 1),
-                  PointField('z', 8, PointField.FLOAT32, 1)]
+        #  mbes[:, -2] = gaussian_filter(mbes[:,-2], sigma=0.5)
 
-        result.sim_mbes = pc2.create_cloud(header, fields, mbes)
+        # Pack result
+        mbes_cloud = pack_cloud(self.map_frame, mbes)
+        result = MbesSimResult()
+        result.sim_mbes = mbes_cloud
         self.as_ping.set_succeeded(result)
 
         self.latest_mbes = result.sim_mbes 
@@ -266,6 +264,7 @@ class auv_pf(object):
         if self.old_time and self.time > self.old_time:
             # Motion prediction
             self.predict(odom_msg)    
+            
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
@@ -278,50 +277,50 @@ class auv_pf(object):
         self.old_time = self.time
 
     def predict(self, odom_t):
-        #  dt = 0.1
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
 
-    def update(self, meas_mbes, odom):
+    def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
         particle_tf = Transform()
         particle_tf.translation = odom.pose.pose.position
         particle_tf.rotation    = odom.pose.pose.orientation
         tf_mat = matrix_from_tf(particle_tf)
         m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
-        
-        mbes_meas_ranges = pcloud2ranges(meas_mbes, m2auv)
+        real_mbes_ranges = pcloud2ranges(real_mbes, m2auv)
 
-        self.pf_mbes_pub.publish(meas_mbes)
-        
         # Measurement update of each particle
+        R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
         for i in range(0, self.pc):
-            p_part, r_mbes = self.particles[i].get_p_pose();
-            
             # Rotate roll 180 degrees for base frame
-            R = rot.from_euler("zyx", [0., 0., np.pi]).as_dcm() 
+            p_part, r_mbes = self.particles[i].get_p_pose();
             r_base = r_mbes.dot(R)
             
-            # Test sampling points
+            # Sample GP points
             #  gp_samples = self.gp_sampling(p_part, r_base)
 #
             #  # Perform raytracing over segments between GP sampled points
-            #  mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+     #
+                   
             # MBES sim on IGL
-            # Rotate pitch 90 degrees for MBES z axis to point downwards
+            #  Rotate pitch 90 degrees for MBES z axis to point downwards
             R = rot.from_euler("zyx", [0, np.pi, 0.]).as_dcm()
-            mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
                                                 self.beams_num, self.mbes_angle)
             
-            self.particles[i].meas_update(mbes, mbes_meas_ranges, True)
+            #  # Publish (for visualization)
+            mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
+            self.pcloud_pub.publish(mbes_pcloud)
+
+            self.particles[i].compute_weight(exp_mbes, real_mbes_ranges, True)
         
         weights = []
         for i in range(self.pc):
             weights.append(self.particles[i].w)
 
         self.miss_meas = weights.count(1.e-50)
-
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
         weights_array += 1.e-30
@@ -331,7 +330,8 @@ class auv_pf(object):
     def ping2ranges(self, point_cloud):
         ranges = []
         cnt = 0
-        for p in pc2.read_points(point_cloud, field_names = ("x", "y", "z"), skip_nans=True):
+        for p in pc2.read_points(point_cloud, 
+                                 field_names = ("x", "y", "z"), skip_nans=True):
             ranges.append(np.linalg.norm(p[-2:]))
             #  if cnt == 0:
                 #  print "Beam 0 original ", p
@@ -343,7 +343,6 @@ class auv_pf(object):
         #  print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        #  print "weights"
         #  print (weights)
 
         N_eff = self.pc
@@ -379,14 +378,13 @@ class auv_pf(object):
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):
             # Faster to do separately than using deepcopy()
-            self.particles[lost[i]].p_pose.position.x = self.particles[dupes[i]].p_pose.position.x
-            self.particles[lost[i]].p_pose.position.y = self.particles[dupes[i]].p_pose.position.y
-            self.particles[lost[i]].p_pose.position.z = self.particles[dupes[i]].p_pose.position.z
-            self.particles[lost[i]].p_pose.orientation.x = self.particles[dupes[i]].p_pose.orientation.x
-            self.particles[lost[i]].p_pose.orientation.y = self.particles[dupes[i]].p_pose.orientation.y
-            self.particles[lost[i]].p_pose.orientation.z = self.particles[dupes[i]].p_pose.orientation.z
-            self.particles[lost[i]].p_pose.orientation.w = self.particles[dupes[i]].p_pose.orientation.w
-
+            self.particles[lost[i]].p_pose[0] = self.particles[dupes[i]].p_pose[0]
+            self.particles[lost[i]].p_pose[1] = self.particles[dupes[i]].p_pose[1]
+            self.particles[lost[i]].p_pose[2] = self.particles[dupes[i]].p_pose[2]
+            self.particles[lost[i]].p_pose[3] = self.particles[dupes[i]].p_pose[3]
+            self.particles[lost[i]].p_pose[4] = self.particles[dupes[i]].p_pose[4]
+            self.particles[lost[i]].p_pose[5] = self.particles[dupes[i]].p_pose[5]
+    
     def average_pose(self, pose_list):
 
         poses_array = np.array(pose_list)
@@ -431,8 +429,17 @@ class auv_pf(object):
         self.poses.poses = []
         pose_list = []
         for i in range(self.pc):
-            self.poses.poses.append(self.particles[i].p_pose)
-            pose_vec = self.particles[i].get_pose_vec()
+            pose_i = Pose()
+            pose_i.position.x = self.particles[i].p_pose[0]
+            pose_i.position.y = self.particles[i].p_pose[1]
+            pose_i.position.z = self.particles[i].p_pose[2]
+            pose_i.orientation = Quaternion(*quaternion_from_euler(
+                self.particles[i].p_pose[3],
+                self.particles[i].p_pose[4],
+                self.particles[i].p_pose[5]))
+
+            self.poses.poses.append(pose_i)
+            pose_vec = self.particles[i].p_pose
             pose_list.append(pose_vec)
         # Publish particles with time odometry was received
         self.poses.header.stamp = rospy.Time.now()

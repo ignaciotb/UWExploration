@@ -16,9 +16,9 @@ from decimal import *
 
 p = configargparse.ArgumentParser()
 p.add('-c', '--config_filepath', required=False, is_config_file=True, help='Path to config file.')
-p.add_argument('--mbes_path', type=str, default='/home/torroba18/Downloads/post_deployment/mbes_pings.cereal')
-p.add_argument('--svp_path', type=str, default='/home/torroba18/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp')
-p.add_argument('--cloud_path', type=str, default='/home/torroba18/Downloads/post_deployment/KTH_Post_Deployment_AVG_WGS84UTM32N_RH200_50cm.xyz',
+p.add_argument('--mbes_path', type=str, default='/home/torroba/Downloads/post_deployment/mbes_pings.cereal')
+p.add_argument('--svp_path', type=str, default='/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp')
+p.add_argument('--cloud_path', type=str, default='/home/torroba/Downloads/post_deployment/KTH_Post_Deployment_AVG_WGS84UTM32N_RH200_50cm.xyz',
                help='Options are "sine" (all sine activations) and "mixed" (first layer sine, other layers tanh)')
 opt = p.parse_args()
 

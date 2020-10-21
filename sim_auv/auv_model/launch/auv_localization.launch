@@ -12,7 +12,7 @@
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="n_beams_mbes" default="101"/>	
 	<arg name="mbes_open_angle" value="1.5708" />
 
 	<!-- Car detection parameters -->
@@ -101,7 +101,7 @@
 				<param name="mbes_pings" value="/gt/mbes_pings" />
 				<param name="map_pcl" value="/gt/map" />
 				<param name="debug_pings" value="debug/mbes_pings" />
-				<param name="sim_pings" value="/sim/mbes_pings" />
+				<param name="mbes_pings_topic" value="/real/mbes_pings" />
 				<param name="world_frame" value="world" />
 				<param name="map_frame" value="map" />
 				<param name="odom_frame" value="odom" />

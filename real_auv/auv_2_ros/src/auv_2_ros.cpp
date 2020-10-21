@@ -29,7 +29,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top,5);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 1);
 
-    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
+    // ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
 
     ping_cnt_ = first_ping_;
 
@@ -146,9 +146,9 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
     survey_finished_ = false;
 
-    while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
-        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for action server");
-    }
+    // while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
+    //     ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for action server");
+    // }
 
     ROS_INFO("Initialized auv_2_ros");
 }
@@ -225,17 +225,17 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     this->publishOdom(odom_ping_i, euler);
 
     if(ping_cnt_ == first_ping_ && add_mini_){
-        std::string mini_name = "/home/torroba18/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
+        std::string mini_name = "/home/torroba/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }
 
 //    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < last_ping_ && !survey_finished_){
         this->publishMeas(ping_cnt_);
-        if(change_detection_){
-            this->publishExpectedMeas();
-        }
-        ping_cnt_ += 1;
+        // if(change_detection_){
+        //     this->publishExpectedMeas();
+        // }
+        // ping_cnt_ += 1;
     }
     if(ping_cnt_ == last_ping_ && !survey_finished_){
         ROS_INFO_STREAM("Survey finished");
@@ -244,6 +244,8 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         msg.data = true;
         enable_pub_.publish(msg);
     }
+
+    ping_cnt_++;
 }
 
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){
@@ -311,12 +313,12 @@ void BathymapConstructor::publishMeas(int ping_num){
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
 
     // Sample down pings to a fix size
-    if (mbes_i_pcl->points.size() >= 500){
+    if (mbes_i_pcl->points.size() > 500){
         mbes_i_pcl->points.resize(500);
         for(int i=0; i<beams_num_-1; i++){
-            mbes_i_pcl_filt->points.push_back(mbes_i_pcl->points.at(round((500.0-1.0)*i/beams_num_-1)));
+            mbes_i_pcl_filt->points.push_back(mbes_i_pcl->points.at(round((500.0-1.0)*i/(beams_num_-1))));
         }
-//        std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
+    //    std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
 
         pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
         mbes_i.header.frame_id = mbes_frame_;
@@ -332,6 +334,7 @@ void BathymapConstructor::publishMeas(int ping_num){
     test_pub_.publish (mbes_i_map);
 }
 
+// I don't think this is necessary
 void BathymapConstructor::publishExpectedMeas(){
 
 //        clock_t tStart = clock();

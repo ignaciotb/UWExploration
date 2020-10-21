@@ -11,13 +11,13 @@
   <!-- [x, y, z, roll, pitch, yaw] -->
   <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.01]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
-  <arg name="resampling_noise_covariance" default="[2, 2, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_covariance"  default="0.2"/>
+  <arg name="resampling_noise_covariance" default="[5, 5, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="measurement_covariance"  default="0.3"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
-  <arg name="mbes_pings_topic"                  default="/real/mbes_pings"/>
+  <arg name="mbes_pings_topic"                  default="/gt/mbes_pings"/>
   <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>

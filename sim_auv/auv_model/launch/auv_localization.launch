@@ -20,13 +20,13 @@
     <arg name="add_mini" default="False"/>
     
     <!-- Particle filter -->
-    <arg name="particle_filter" default="True"/>
+    <arg name="particle_filter" default="False"/>
     <arg name="filter" default="pf"/>
 
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- Real data  -->
-    <arg name="path" default="/media/torroba18/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/>
+    <arg name="path" default="/media/torroba/Seagate Expansion Drive/MMTDatasets/LostTargets/Ping_Processed/5-Products/MBES_GSF/Post_Deployment_PROCESSED"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
@@ -101,7 +101,7 @@
 				<param name="mbes_pings" value="/gt/mbes_pings" />
 				<param name="map_pcl" value="/gt/map" />
 				<param name="debug_pings" value="debug/mbes_pings" />
-				<param name="mbes_pings_topic" value="/real/mbes_pings" />
+				<param name="mbes_pings_topic" value="/gt/mbes_pings" />
 				<param name="world_frame" value="world" />
 				<param name="map_frame" value="map" />
 				<param name="odom_frame" value="odom" />

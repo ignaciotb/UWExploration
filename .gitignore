@@ -24,4 +24,7 @@ install/*
 
 *.cereal
 
+# RVIZ
+*.rviz
+
 .vscode/*

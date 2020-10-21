@@ -41,6 +41,7 @@ class auv_pf(object):
         # Read necessary parameters
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
+        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
@@ -248,11 +249,15 @@ class auv_pf(object):
         # IGL sim ping
         mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
                                         goal.beams_num.data, self.mbes_angle)
+        
+        rot_inv = r_mbes.transpose()
+        p_inv = rot_inv.dot(p_auv)
+        mbes = [rot_inv.dot(beam) - p_inv for beam in mbes]
 
         #  mbes[:, -2] = gaussian_filter(mbes[:,-2], sigma=0.5)
 
         # Pack result
-        mbes_cloud = pack_cloud(self.map_frame, mbes)
+        mbes_cloud = pack_cloud(self.mbes_frame, mbes)
         result = MbesSimResult()
         result.sim_mbes = mbes_cloud
         self.as_ping.set_succeeded(result)
@@ -283,18 +288,13 @@ class auv_pf(object):
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
-        auv_tf = Transform()
-        auv_tf.translation = odom.pose.pose.position
-        auv_tf.rotation = odom.pose.pose.orientation
-        tf_mat = matrix_from_tf(auv_tf)
-        m2auv = np.matmul(self.m2o_mat, np.matmul(tf_mat, self.base2mbes_mat))
-        real_mbes_ranges = pcloud2ranges(real_mbes, m2auv)
+        real_mbes_ranges = pcloud2ranges(real_mbes)
 
         # Measurement update of each particle
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
-            p_part, r_mbes = self.particles[i].get_p_pose();
+            p_part, r_mbes = self.particles[i].get_p_mbes_pose();
             r_base = r_mbes.dot(R)
             
             # Sample GP points
@@ -304,7 +304,6 @@ class auv_pf(object):
             exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            #  Rotate pitch 90 degrees for MBES z axis to point downwards
             #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
                                                 #  self.beams_num, self.mbes_angle)
             

@@ -52,7 +52,7 @@ public:
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
 
-    void publishExpectedMeas();
+    // void publishExpectedMeas();
 
     void addMiniCar(std::string& mini_name);
 

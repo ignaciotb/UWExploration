@@ -108,10 +108,7 @@ class Particle(object):
                                            self.beams_num)).astype(int)
                 mbes_meas_sampled = real_mbes_ranges[idx]
                 
-                # Gaussian blur to pings
-                #  exp_mbes_ranges = gaussian_filter(exp_mbes_ranges, sigma=0.5)
-                #  mbes_meas_sampled = gaussian_filter(mbes_meas_sampled, sigma=0.5)
-
+                # For debugging
                 #  print (len(exp_mbes_ranges))
                 #  print (len(mbes_meas_sampled))
                 #  print (exp_mbes_ranges)
@@ -179,25 +176,21 @@ class Particle(object):
         
         return (self.p, self.R)
 
-    # To compute beam ranges from pings in the map frame
+    # Extract the z coordinate from exp pings (in map frame)
     def list2ranges(self, points):
-        rot_inv = self.R.transpose()
-        t_inv = rot_inv.dot(self.p)
-
         ranges = []
         for p in points:
-            p_part = rot_inv.dot(p) - t_inv
-            ranges.append(np.linalg.norm(p_part[-2:]))
+            ranges.append(p[2])
 
         return np.asarray(ranges)
 
     
-# To compute beam ranges from pings in the mbes frame
+# Extract the z coordinate from real pings (in map frame)
 def pcloud2ranges(point_cloud):
     ranges = []
     for p in pc2.read_points(point_cloud, 
                              field_names = ("x", "y", "z"), skip_nans=True):
-        ranges.append(np.linalg.norm(p[-2:]))
+        ranges.append(p[2])
 
     return np.asarray(ranges)
 

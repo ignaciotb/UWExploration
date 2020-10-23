@@ -52,7 +52,7 @@
       <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
       <param name="mesh_path" value="$(find auv_particle_filter)/meshes/mesh.npz" />       
-      <param name="gp_path" value="$(find auv_particle_filter)/meshes/svgp.pth" />       
+      <param name="gp_path" value="$(find auv_particle_filter)/meshes/svgp.pth" />    <!--Only needed for GPs-->   
       <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />       
     </node>
 

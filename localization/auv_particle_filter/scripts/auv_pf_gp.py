@@ -24,7 +24,7 @@ import sensor_msgs.point_cloud2 as pc2
 # For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
-from auv_particle_gp import Particle, matrix_from_tf, pcloud2ranges, pack_cloud
+from auv_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
 # Auvlib
@@ -298,15 +298,15 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
             
             # Sample GP points
-            #  gp_samples = self.gp_sampling(p_part, r_base)
-#
-            #  # Perform raytracing over segments between GP sampled points
-            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            gp_samples = self.gp_sampling(p_part, r_base)
+
+            # Perform raytracing over segments between GP sampled points
+            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
+                                                #  self.beams_num, self.mbes_angle)
+            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)

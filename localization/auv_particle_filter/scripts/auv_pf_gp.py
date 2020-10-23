@@ -6,6 +6,7 @@ import rospy
 import numpy as np
 import tf2_ros
 from scipy.spatial.transform import Rotation as rot
+from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
@@ -232,7 +233,6 @@ class auv_pf(object):
     # Action server to simulate MBES for the sim AUV
     def mbes_as_cb(self, goal):
 
-        #  print("MBES sim goal received")
         # Unpack goal
         p_auv = [goal.mbes_pose.transform.translation.x, 
                  goal.mbes_pose.transform.translation.y, 
@@ -241,23 +241,17 @@ class auv_pf(object):
                                     goal.mbes_pose.transform.rotation.y,
                                     goal.mbes_pose.transform.rotation.z,
                                     goal.mbes_pose.transform.rotation.w])[0:3, 0:3]
-
-        # Compute base_frame from mbes_frame
-        R = self.base2mbes_mat.transpose()[0:3,0:3]
-        r_base = r_mbes.dot(R)
                 
         # IGL sim ping
-        mbes = self.draper.project_mbes(np.asarray(p_auv), r_base,
+        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
+        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
+        mbes = self.draper.project_mbes(np.asarray(p_auv), r_mbes.dot(R_flip),
                                         goal.beams_num.data, self.mbes_angle)
         
-        rot_inv = r_mbes.transpose()
-        p_inv = rot_inv.dot(p_auv)
-        mbes = [rot_inv.dot(beam) - p_inv for beam in mbes]
-
-        #  mbes[:, -2] = gaussian_filter(mbes[:,-2], sigma=0.5)
-
+        mbes = mbes[::-1] # Reverse beams for same order as real pings
+        
         # Pack result
-        mbes_cloud = pack_cloud(self.mbes_frame, mbes)
+        mbes_cloud = pack_cloud(self.map_frame, mbes)
         result = MbesSimResult()
         result.sim_mbes = mbes_cloud
         self.as_ping.set_succeeded(result)
@@ -289,24 +283,31 @@ class auv_pf(object):
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
         real_mbes_ranges = pcloud2ranges(real_mbes)
-
-        # Measurement update of each particle
+        #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
+        
+        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual 
+        # sensor direction
+        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
+        
+        # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
+        # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_mbes_pose();
-            r_base = r_mbes.dot(R)
+            r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
             
             # Sample GP points
-            gp_samples = self.gp_sampling(p_part, r_base)
-
-            # Perform raytracing over segments between GP sampled points
-            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            #  gp_samples = self.gp_sampling(p_part, r_base)
+#
+            #  # Perform raytracing over segments between GP sampled points
+            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R),
-                                                #  self.beams_num, self.mbes_angle)
-            
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
@@ -338,7 +339,7 @@ class auv_pf(object):
         #  print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        #  print (weights)
+        print (weights)
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -353,7 +354,7 @@ class auv_pf(object):
         
         # Resampling?
         if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
-            indices = residual_resample(weights)
+            indices = stratified_resample(weights)
             #  print "Resampling "
             #  print indices
             keep = list(set(indices))
@@ -373,12 +374,7 @@ class auv_pf(object):
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):
             # Faster to do separately than using deepcopy()
-            self.particles[lost[i]].p_pose[0] = self.particles[dupes[i]].p_pose[0]
-            self.particles[lost[i]].p_pose[1] = self.particles[dupes[i]].p_pose[1]
-            self.particles[lost[i]].p_pose[2] = self.particles[dupes[i]].p_pose[2]
-            self.particles[lost[i]].p_pose[3] = self.particles[dupes[i]].p_pose[3]
-            self.particles[lost[i]].p_pose[4] = self.particles[dupes[i]].p_pose[4]
-            self.particles[lost[i]].p_pose[5] = self.particles[dupes[i]].p_pose[5]
+            self.particles[lost[i]].p_pose = self.particles[dupes[i]].p_pose
     
     def average_pose(self, pose_list):
 

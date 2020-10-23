@@ -283,7 +283,7 @@ class auv_pf(object):
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
         real_mbes_ranges = pcloud2ranges(real_mbes)
-        #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
+        real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=4)
         
         # The sensor frame on IGL needs to have the z axis pointing opposite from the actual 
         # sensor direction
@@ -298,15 +298,15 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
             
             # Sample GP points
-            gp_samples = self.gp_sampling(p_part, r_base)
-
-            # Perform raytracing over segments between GP sampled points
-            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            #  gp_samples = self.gp_sampling(p_part, r_base)
+#
+            #  # Perform raytracing over segments between GP sampled points
+            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
-                                                #  self.beams_num, self.mbes_angle)
-            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
@@ -339,7 +339,7 @@ class auv_pf(object):
         #  print "-------------"
         # Normalize weights
         weights /= weights.sum()
-        print (weights)
+        #  print (weights)
 
         N_eff = self.pc
         if weights.sum() == 0.:

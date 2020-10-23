@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 # Standard dependencies
 import sys
@@ -22,15 +22,10 @@ from tf.transformations import rotation_matrix, rotation_from_matrix
 
 # For sim mbes action client
 import actionlib
-#  from auv_2_ros.msg import MbesSimGoal, MbesSimAction
+from auv_2_ros.msg import MbesSimGoal, MbesSimAction
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from geometry_msgs.msg import PoseStamped, Pose
-
-from sensor_msgs.msg import PointCloud2, PointField
-from std_msgs.msg import Header
-from sensor_msgs import point_cloud2
-
 
 class Particle(object):
     def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.],
@@ -52,6 +47,10 @@ class Particle(object):
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
+
+        # Initialize connection to MbesSim action server
+        self.ac_mbes = actionlib.SimpleActionClient(meas_as, MbesSimAction)
+        self.ac_mbes.wait_for_server()
 
         self.pcloud_pub = rospy.Publisher(pc_mbes_top, PointCloud2, queue_size=10)
         self.pose_pub = rospy.Publisher('/pf/particles', PoseStamped, queue_size=10)
@@ -147,24 +146,16 @@ class Particle(object):
     def meas_update(self, mbes_res, mbes_meas_ranges, got_result):
         if got_result:
             # Predict mbes ping given current particle pose and m 
-            mbes_i_ranges = list2ranges(mbes_res, self.trans_mat)
+            mbes_i_ranges = pcloud2ranges(mbes_res.sim_mbes, self.trans_mat)
 
             if len(mbes_i_ranges) > 0:
                 # Before calculating weights, make sure both meas have same length
-                idx = np.round(np.linspace(0, len(mbes_meas_ranges) - 1,
-                                           self.beams_num)).astype(int)
+                idx = np.round(np.linspace(0, len(mbes_meas_ranges) - 1, self.beams_num+1)).astype(int)
                 mbes_meas_sampled = mbes_meas_ranges[idx]
-                
                 # Publish (for visualization)
                 mbes_pcloud = PointCloud2()
-                header = Header()
-                header.stamp = rospy.Time.now()
-                header.frame_id = self.map_frame
-                fields = [PointField('x', 0, PointField.FLOAT32, 1),
-                          PointField('y', 4, PointField.FLOAT32, 1),
-                          PointField('z', 8, PointField.FLOAT32, 1)]
-
-                mbes_pcloud = point_cloud2.create_cloud(header, fields, mbes_res)
+                mbes_pcloud = mbes_res.sim_mbes
+                mbes_pcloud.header.frame_id = self.map_frame
                 self.pcloud_pub.publish(mbes_pcloud)
 
                 # Gaussian blur to pings
@@ -221,8 +212,8 @@ class Particle(object):
             #  w_i = 1./self.p_num
             w_i = 1.e-50
         return w_i
-    
-    def get_p_pose(self):
+
+    def get_mbes_goal(self):
         # Find particle's mbes pose without broadcasting/listening to tf transforms
         particle_tf = Transform()
         particle_tf.translation = self.p_pose.position
@@ -230,15 +221,60 @@ class Particle(object):
         mat_part = matrix_from_tf(particle_tf)
         self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
 
-        p = translation_from_matrix(self.trans_mat)
-        #  p[1] = translation_from_matrix(self.trans_mat)[1]
-        #  p[2] = translation_from_matrix(self.trans_mat)[2]
-        angle, direc, point = rotation_from_matrix(self.trans_mat)
-        R = rotation_matrix(angle, direc, point)
-        
-        return (p, R)
+        trans = TransformStamped()
+        trans.transform.translation.x = translation_from_matrix(self.trans_mat)[0]
+        trans.transform.translation.y = translation_from_matrix(self.trans_mat)[1]
+        trans.transform.translation.z = translation_from_matrix(self.trans_mat)[2]
+        trans.transform.rotation = Quaternion(*quaternion_from_matrix(self.trans_mat))
 
-        
+        # Build MbesSimGoal to send to action server
+        mbes_goal = MbesSimGoal()
+        mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.header.seq = self.index
+        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
+        mbes_goal.mbes_pose.transform = trans.transform
+        mbes_goal.beams_num.data = self.beams_num
+
+        return mbes_goal
+
+    def predict_meas(self, pose_t, beams_num):
+
+        # Find particle's mbes pose without broadcasting/listening to tf transforms
+        particle_tf = Transform()
+        particle_tf.translation = pose_t.position
+        particle_tf.rotation    = pose_t.orientation
+        mat_part = matrix_from_tf(particle_tf)
+        self.trans_mat = self.m2o_tf_mat.dot(mat_part.dot(self.mbes_tf_mat))
+
+        trans = TransformStamped()
+        trans.transform.translation.x = translation_from_matrix(self.trans_mat)[0]
+        trans.transform.translation.y = translation_from_matrix(self.trans_mat)[1]
+        trans.transform.translation.z = translation_from_matrix(self.trans_mat)[2]
+        trans.transform.rotation = Quaternion(*quaternion_from_matrix(self.trans_mat))
+
+        # Build MbesSimGoal to send to action server
+        mbes_goal = MbesSimGoal()
+        mbes_goal.mbes_pose.header.frame_id = self.map_frame
+        mbes_goal.mbes_pose.header.stamp = rospy.Time.now()
+        mbes_goal.mbes_pose.transform = trans.transform
+        mbes_goal.beams_num.data = beams_num
+
+        # Get result from action server
+        self.ac_mbes.send_goal(mbes_goal)
+        mbes_pcloud = PointCloud2()
+        if self.ac_mbes.wait_for_result(rospy.Duration(0.03)):
+            mbes_res = self.ac_mbes.get_result()
+
+            # Pack result into PointCloud2
+            mbes_pcloud = mbes_res.sim_mbes
+            mbes_pcloud.header.frame_id = self.map_frame
+            got_result = True
+        else:
+            got_result = False
+
+        return (got_result, mbes_pcloud)
+
+
     def get_pose_vec(self):
         """
         Returns a list of particle pose elements
@@ -263,22 +299,6 @@ class Particle(object):
         pose_vec.append(yaw)
 
         return pose_vec
-
-def list2ranges(points, tf_mat):
-    angle, direc, point = rotation_from_matrix(tf_mat)
-    R = rotation_matrix(angle, direc, point)
-    rot_inv = R[np.ix_([0,1,2],[0,1,2])].transpose()
-
-    t = translation_from_matrix(tf_mat)
-    t_inv = rot_inv.dot(t)
-
-    ranges = []
-    for p in points:
-        p_part = rot_inv.dot(p) - t_inv
-        ranges.append(np.linalg.norm(p_part[-2:]))
-
-    return np.asarray(ranges)
-
 
 def pcloud2ranges(point_cloud, tf_mat):
     angle, direc, point = rotation_from_matrix(tf_mat)

@@ -6,14 +6,15 @@
   <arg name="filter" default="pf"/>
   <arg name="n_beams_mbes" default="1"/>
   <arg name="mbes_open_angle" default="1.5708"/>
+	<arg name="namespace" default="auv"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="30"/>
+  <arg name="particle_count"                    default="50"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.01]"/>
+  <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
-  <arg name="resampling_noise_covariance" default="[5, 5, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_covariance"  default="0.5"/>
+  <arg name="resampling_noise_covariance" default="[3, 3, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="measurement_covariance"  default="1"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>

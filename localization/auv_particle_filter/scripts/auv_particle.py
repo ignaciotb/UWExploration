@@ -51,23 +51,6 @@ class Particle(object):
         noisy_pose = current_pose + np.sqrt(noise_cov).dot(np.random.randn(6,1)).T
         self.p_pose = noisy_pose[0]
 
-
-    # TODO: implement full matrix to avoid matmul and speed up
-    def fullRotation(self, roll, pitch, yaw):
-        rot_z = np.array([[np.cos(yaw), -np.sin(yaw), 0.0],
-                          [np.sin(yaw), np.cos(yaw), 0.0],
-                          [0., 0., 1]])
-        rot_y = np.array([[np.cos(pitch), 0.0, np.sin(pitch)],
-                          [0., 1., 0.],
-                          [-np.sin(pitch), np.cos(pitch), 0.0]])
-        rot_x = np.array([[1., 0., 0.],
-                          [0., np.cos(roll), -np.sin(roll)],
-                          [0., np.sin(roll), np.cos(roll)]])
-
-        rot_t = np.matmul(rot_z, np.matmul(rot_y, rot_x))
-        return rot_t
-
-
     def motion_pred(self, odom_t, dt):
         # Generate noise
         noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 6)).flatten()
@@ -89,7 +72,7 @@ class Particle(object):
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
 
-        rot_mat_t = self.fullRotation(roll_t, pitch_t, yaw_t)
+        rot_mat_t = rot.from_euler("xyz", [roll_t,pitch_t, yaw_t]).as_dcm()
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
 
         self.p_pose[0] += step_t[0]

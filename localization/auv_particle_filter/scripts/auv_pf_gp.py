@@ -142,7 +142,7 @@ class auv_pf(object):
  
         # Load GP
         gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(500, gp_path)
+        self.gp = gp.SVGP.load(1000, gp_path)
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
@@ -385,33 +385,19 @@ class auv_pf(object):
         self.avg_pose.pose.pose.position.z = ave_pose[2]
         roll  = ave_pose[3]
         pitch = ave_pose[4]
-        """
-        Average of yaw angles creates
-        issues when heading towards pi because pi and
-        negative pi are next to eachother, but average
-        out to zero (opposite direction of heading)
-        """
-        yaws = poses_array[:,5]
-        #  print yaws
-        if np.abs(yaws).min() > math.pi/2:
-            yaws[yaws < 0] += 2*math.pi
-        yaw = yaws.mean()
 
-        #  yaw = ((yaw) + 2 * np.pi) % (2 * np.pi)
-        #  for yaw_i in yaws:
-            #  yaw_i = (yaw_i + np.pi) % (2 * np.pi) - np.pi
-        #  yaw = (yaws.mean() + np.pi) % (2 * np.pi) - np.pi
-
-        self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll, pitch, yaw))
+        # Wrap up yaw between -pi and pi        
+        poses_array[:,5] = [(yaw + np.pi) % (2 * np.pi) - np.pi 
+                             for yaw in  poses_array[:,5]]
+        yaw = np.mean(poses_array[:,5])
+        
+        self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll,
+                                                                                pitch,
+                                                                                yaw))
         self.avg_pose.header.stamp = rospy.Time.now()
         self.avg_pub.publish(self.avg_pose)
 
-        # Hacky way to get the expected MBES ping from avg pose of PF
-        # TODO: do this properly :d
-        #  (got_result, pf_ping)= self.particles[0].predict_meas(self.avg_pose.pose.pose,
-                                                              #  self.beams_real)
-        #  if got_result:
-            #  self.pf_mbes_pub.publish(pf_ping)
+        # TODO: exp meas from average pose of the PF, for change detection
 
 
     # TODO: publish markers instead of poses
@@ -430,8 +416,8 @@ class auv_pf(object):
                 self.particles[i].p_pose[5]))
 
             self.poses.poses.append(pose_i)
-            pose_vec = self.particles[i].p_pose
-            pose_list.append(pose_vec)
+            pose_list.append(self.particles[i].p_pose)
+        
         # Publish particles with time odometry was received
         self.poses.header.stamp = rospy.Time.now()
         self.pf_pub.publish(self.poses)

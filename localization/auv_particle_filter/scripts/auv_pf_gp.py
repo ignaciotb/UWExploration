@@ -3,6 +3,7 @@
 # Standard dependencies
 import math
 import rospy
+import sys
 import numpy as np
 import tf2_ros
 from scipy.spatial.transform import Rotation as rot
@@ -140,10 +141,12 @@ class auv_pf(object):
         self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
         self.draper.set_ray_tracing_enabled(False)            
         print("draper created")
+        print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
         gp_path = rospy.get_param("~gp_path", 'gp.path')
         self.gp = gp.SVGP.load(1000, gp_path)
+        print("Size of GP: ", sys.getsizeof(self.gp))        
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
@@ -165,7 +168,9 @@ class auv_pf(object):
         # Shift for fast ray tracing in 2D
         beams = np.asarray(self.beams_dir)
         n_beams = len(self.beams_dir)
-        self.beams_dir_2d = np.concatenate((beams[:,0].reshape(n_beams,1), np.roll(beams[:, 1:3], 1, axis=1).reshape(n_beams,2)), axis=1)
+        self.beams_dir_2d = np.concatenate((beams[:,0].reshape(n_beams,1), 
+                                            np.roll(beams[:, 1:3], 1, 
+                                                    axis=1).reshape(n_beams,2)), axis=1)
 
         self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
@@ -191,10 +196,14 @@ class auv_pf(object):
 
         # Across ping direction
         direc = ((p3-p2)/np.linalg.norm(p3-p2)) 
-        sampling_points = []
-        for i in range(0, n):
-            sampling_points.append(p2 + direc * i_range * i)
+        
+        #  start = time.time()
+        p2s = np.full((n, len(p2)), p2)
+        direcs = np.full((n, len(direc)), direc)
+        i_ranges = np.full((1,n), i_range)*(np.asarray(range(0,n)))
+        sampling_points = p2s + i_ranges.reshape(n, 1)*direcs
 
+        #  print("Duration ", time.time() - start)
         # Sample GP here
         mu, sigma = self.gp.sample(np.asarray(sampling_points)[:, 0:2])
         mu_array = np.array([mu])
@@ -208,7 +217,6 @@ class auv_pf(object):
 
     def gp_ray_tracing(self, r_mbes, p, gp_samples, beams_num):
 
-        start = time.time()
         
         # Transform points to MBES frame to perform ray tracing on 2D
         rot_inv = r_mbes.transpose()
@@ -216,36 +224,21 @@ class auv_pf(object):
         gp_samples = np.dot(rot_inv, gp_samples.T)
         gp_samples = np.subtract(gp_samples.T, p_inv)
 
-        # TODO: this can be faster
         exp_meas = []
         for m in range(0, len(self.beams_dir)):
-            # No need to iterate over all the points for each beam
-            #  for i in range(1, len(gp_samples)):
-                #  v1 = -gp_samples[i-1]
-                #  v2 = gp_samples[i] - gp_samples[i-1]
-                #  v3 = [self.beams_dir[m][0], -self.beams_dir[m][2], self.beams_dir[m][1]]
-#
-                #  t1 = np.linalg.norm(np.cross(v2, v1))/v2.dot(v3)
-                #  if (t1 > 0):
-                    #  t2 = v1.dot(v3)/v2.dot(v3)
-                    #  if(t2 > 0 and t2 < 1):
-                        #  exp_meas.append(self.beams_dir[m] * t1)
-                        #  break
-
             # Compute ray tracing of ray m against all points
-            v3 = np.full((len(gp_samples), 3), self.beams_dir_2d[m])
-            v1 = -np.roll(gp_samples, 1, axis=0)
+            v1 = -np.roll(gp_samples, 1, axis=0) # The first component should be discarded
             v2 = gp_samples + v1
-
+            v3 = np.full((len(gp_samples), 3), self.beams_dir_2d[m])
             inner23 = np.einsum('ii->i', v2.dot(v3.T))
-            t1 = (np.cross(v2, v1)/
-                  inner23.reshape(len(gp_samples),1))
-            t1 = np.sum(np.abs(t1)**2,axis=-1)**(1./2)
-            
+                        
             t2 = np.einsum('ii->i', v1.dot(v3.T))/inner23
-            candidates = np.where(t1>0)
             hits = np.where((t2>=0) & (t2 <= 1))
             if len(hits)>0:
+                t1 = (np.cross(v2, v1)/
+                      inner23.reshape(len(gp_samples),1))
+                t1 = np.sum(np.abs(t1)**2,axis=-1)**(1./2)
+                # First result discarded here (hits[0][0])
                 if t1[hits[0][1]] > 0:
                     exp_meas.append(self.beams_dir[m] * t1[hits[0][1]])
 
@@ -253,9 +246,7 @@ class auv_pf(object):
         mbes_gp = np.asarray(exp_meas)
         mbes_gp = np.dot(r_mbes, mbes_gp.T)
         mbes_gp = np.add(mbes_gp.T, p)
-        #  mbes_gp = [r_mbes.dot(beam) + p for beam in mbes_gp]
 
-        print("Duration ", time.time() - start)
         return mbes_gp
 
     def mbes_real_cb(self, msg):
@@ -329,15 +320,15 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
             
             # Sample GP points
-            #  gp_samples = self.gp_sampling(p_part, r_base)
-#
-            #  # Perform raytracing over segments between GP sampled points
-            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            gp_samples = self.gp_sampling(p_part, r_base)
+
+            # Perform raytracing over segments between GP sampled points
+            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
+                                                #  self.beams_num, self.mbes_angle)
+            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)

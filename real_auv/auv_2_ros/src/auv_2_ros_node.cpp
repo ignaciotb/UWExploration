@@ -20,6 +20,7 @@ int main(int argc, char** argv){
     map_constructor->init(auv_path);
     ros::Timer timer1 = nh.createTimer(ros::Duration(rate), &BathymapConstructor::broadcastTf, map_constructor);
 
+    ros::Duration(5.0).sleep(); // TODO: make it wait for the PF
     ros::spin();
     ros::waitForShutdown();
 

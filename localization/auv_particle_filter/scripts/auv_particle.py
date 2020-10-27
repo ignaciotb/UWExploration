@@ -152,10 +152,8 @@ class Particle(object):
         mat = np.dot(t_particle, q_particle)
         
         trans_mat = self.m2o_tf_mat.dot(mat.dot(self.mbes_tf_mat))
-
-        self.p = translation_from_matrix(trans_mat)
-        angle, direc, point = rotation_from_matrix(trans_mat)
-        self.R = rotation_matrix(angle, direc, point)[0:3, 0:3]
+        self.p = trans_mat[0:3, 3]
+        self.R = trans_mat[0:3, 0:3]
         
         return (self.p, self.R)
 

@@ -97,7 +97,7 @@ class auv_pf(object):
                                          process_cov=motion_cov)
 
         self.time = None
-        self.old_time = None
+        self.old_time = None 
         self.pred_odom = None
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
@@ -113,10 +113,6 @@ class auv_pf(object):
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
         self.avg_pub = rospy.Publisher(avg_pose_top, PoseWithCovarianceStamped, queue_size=10)
-
-        # Establish subscription to odometry message (intentionally last)
-        odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_callback)
 
         # Expected meas of PF outcome at every time step
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
@@ -156,6 +152,10 @@ class auv_pf(object):
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
         
+        # Establish subscription to odometry message (intentionally last)
+        odom_top = rospy.get_param("~odometry_topic", 'odom')
+        rospy.Subscriber(odom_top, Odometry, self.odom_callback)
+
         # Create expected MBES beams directions
         angle_step = self.mbes_angle/self.beams_num
         self.beams_dir = []
@@ -256,7 +256,7 @@ class auv_pf(object):
     def mbes_as_cb(self, goal):
 
         # Unpack goal
-        p_auv = [goal.mbes_pose.transform.translation.x, 
+        p_mbes = [goal.mbes_pose.transform.translation.x, 
                  goal.mbes_pose.transform.translation.y, 
                  goal.mbes_pose.transform.translation.z]
         r_mbes = quaternion_matrix([goal.mbes_pose.transform.rotation.x,
@@ -267,7 +267,7 @@ class auv_pf(object):
         # IGL sim ping
         # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
         R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
-        mbes = self.draper.project_mbes(np.asarray(p_auv), r_mbes.dot(R_flip),
+        mbes = self.draper.project_mbes(np.asarray(p_mbes), r_mbes.dot(R_flip),
                                         goal.beams_num.data, self.mbes_angle)
         
         mbes = mbes[::-1] # Reverse beams for same order as real pings

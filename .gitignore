@@ -22,9 +22,12 @@ install/*
 # Images
 *.png
 
+# Pointclouds
+*.npz
 *.cereal
 
 # RVIZ
 *.rviz
 
+*.code*
 .vscode/*

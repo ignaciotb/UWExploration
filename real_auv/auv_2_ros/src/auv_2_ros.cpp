@@ -313,19 +313,25 @@ void BathymapConstructor::publishMeas(int ping_num){
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
 
     // Sample down pings to a fix size
-    if (traj_pings_.at(ping_num).submap_pcl_.points.size() > 500){
-        traj_pings_.at(ping_num).submap_pcl_.points.resize(500);
-        for(int i=0; i<beams_num_-1; i++){
-            mbes_i_pcl_filt->points.push_back(traj_pings_.at(ping_num).submap_pcl_.points.at(round((500.0-1.0)*i/(beams_num_-1))));
-        }
-    //    std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
+    // if (traj_pings_.at(ping_num).submap_pcl_.points.size() > 500){
+    //     traj_pings_.at(ping_num).submap_pcl_.points.resize(500);
+    //     for(int i=0; i<beams_num_-1; i++){
+    //         mbes_i_pcl_filt->points.push_back(traj_pings_.at(ping_num).submap_pcl_.points.at(round((500.0-1.0)*i/(beams_num_-1))));
+    //     }
+    // //    std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
 
-        std::reverse(mbes_i_pcl_filt->points.begin(), mbes_i_pcl_filt->points.end());
-        pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
-        mbes_i.header.frame_id = map_frame_;
-        mbes_i.header.stamp = time_now_;
-        ping_pub_.publish(mbes_i);
-    }
+    //     std::reverse(mbes_i_pcl_filt->points.begin(), mbes_i_pcl_filt->points.end());
+    //     pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
+    //     mbes_i.header.frame_id = map_frame_;
+    //     mbes_i.header.stamp = time_now_;
+    //     ping_pub_.publish(mbes_i);
+    // }
+
+    std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
+    pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
+    mbes_i.header.frame_id = mbes_frame_;
+    mbes_i.header.stamp = time_now_;
+    ping_pub_.publish(mbes_i);
 
     // Original ping (for debugging)
     *mbes_i_pcl_map = traj_pings_.at(ping_num).submap_pcl_;

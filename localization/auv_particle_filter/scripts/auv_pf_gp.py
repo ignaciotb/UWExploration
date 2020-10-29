@@ -150,9 +150,9 @@ class auv_pf(object):
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
-        #  gp_path = rospy.get_param("~gp_path", 'gp.path')
-        #  self.gp = gp.SVGP.load(1000, gp_path)
-        #  print("Size of GP: ", sys.getsizeof(self.gp))
+        gp_path = rospy.get_param("~gp_path", 'gp.path')
+        self.gp = gp.SVGP.load(1000, gp_path)
+        print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
@@ -174,7 +174,7 @@ class auv_pf(object):
                                         + angle_step * i, (1,0,0))[0:3, 0:3]
             rot = roll_step[:,2]
             self.beams_dir.append(rot/np.linalg.norm(rot))
-
+        
         # Shift for fast ray tracing in 2D
         beams = np.asarray(self.beams_dir)
         n_beams = len(self.beams_dir)
@@ -188,8 +188,8 @@ class auv_pf(object):
         rospy.spin()
 
     def gp_sampling(self, p, R):
-        h = 80. # Depth of the field of view
-        b = h * np.cos(self.mbes_angle/2.)
+        h = 100. # Depth of the field of view
+        b = h / np.cos(self.mbes_angle/2.)
         n = 60  # Number of sampling points
 
         # Triangle vertices 
@@ -226,7 +226,6 @@ class auv_pf(object):
 
 
     def gp_ray_tracing(self, r_mbes, p, gp_samples, beams_num):
-
         
         # Transform points to MBES frame to perform ray tracing on 2D
         rot_inv = r_mbes.transpose()
@@ -319,8 +318,8 @@ class auv_pf(object):
             self.particles[i].motion_pred(odom_t, dt)
 
     def update(self, real_mbes, odom):
-        # Compute AUV MBES ping ranges
-        #  print("odom z ", self.m2o_mat[2,3] + odom.pose.pose.position.z)
+        # Compute AUV MBES ping ranges in the map frame
+        # We only work with z, so we transform them mbes --> map
         real_ranges = pcloud2ranges(real_mbes, self.m2o_mat[2,3] + odom.pose.pose.position.z)
 
         # Processing of real pings here
@@ -329,7 +328,9 @@ class auv_pf(object):
                                            self.beams_num)).astype(int)
         real_mbes_ranges = real_ranges[idx]
         
-        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
+        # The sensor frame on IGL needs to have the z axis pointing 
+        # opposite from the actual sensor direction. However the gp ray tracing
+        # needs the opposite.
         R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
         
         # To transform from base to mbes
@@ -338,19 +339,19 @@ class auv_pf(object):
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_mbes_pose();
-            r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
+            r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
             
             # Sample GP points
-            #  gp_samples = self.gp_sampling(p_part, r_base)
-#
-            #  # Perform raytracing over segments between GP sampled points
-            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            gp_samples = self.gp_sampling(p_part, r_base)
+
+            # Perform raytracing over segments between GP sampled points
+            exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
-
+            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                #  self.beams_num, self.mbes_angle)
+            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)

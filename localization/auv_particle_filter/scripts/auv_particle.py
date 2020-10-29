@@ -84,7 +84,7 @@ class Particle(object):
     def compute_weight(self, exp_mbes, real_mbes_ranges):
         # Predict mbes ping given current particle pose and m 
         exp_mbes_ranges = self.list2ranges(exp_mbes)
-        exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
+        #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
 
         if len(exp_mbes_ranges) > 0:
             # For debugging

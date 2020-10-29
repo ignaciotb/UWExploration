@@ -1,20 +1,25 @@
 <?xml version="1.0" ?>
 <launch>
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin"/>
+	<arg name="debug" default="0"/>
+	<arg name="dataset" default="overnight_2020"/>
 
-  <arg name="mode"       default="sim"/>
-  <arg name="debug_mode" default="True"/> <!-- bool -->
+  <!-- MBES sensor -->
+	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="mbes_open_angle" value="2.250" />
+  
   <arg name="filter" default="pf"/>
-  <arg name="n_beams_mbes" default="1"/>
-  <arg name="mbes_open_angle" default="1.5708"/>
-	<arg name="namespace" default="auv"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="50"/>
+  <arg name="particle_count"                    default="100"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
   <arg name="init_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[3, 3, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_covariance"  default="1"/>
+  <arg name="measurement_std"  default="1"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
@@ -25,19 +30,11 @@
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
 
-<!-- <node pkg="rosbag" type="record" name="rosbag_record_node" args="record -a"/>  -->
-
-    <!-- <node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
-      <param name="map_cloud_path"  value="/home/torroba/Downloads/post_deployment/KTH_Post_Deployment_AVG_WGS84UTM32N_RH200_50cm.xyz" />
-      <param name="pings_path"  value="/home/torroba/Downloads/post_deployment/mbes_pings.cereal" />
-      <param name="map_frame" value="map" />
-    </node> -->
-
     <node type="auv_pf_gp.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
       <param name="init_covariance"                  value="$(arg init_covariance)" />
       <param name="resampling_noise_covariance"                  value="$(arg resampling_noise_covariance)" />
-      <param name="measurement_covariance"                  value="$(arg measurement_covariance)" />
+      <param name="measurement_std"                  value="$(arg measurement_std)" />
       <param name="motion_covariance"                       value="$(arg motion_covariance)" />
       <param name="map_frame"                               value="$(arg map_frame)" />
       <param name="odom_frame"                               value="$(arg odom_frame)" />
@@ -52,10 +49,21 @@
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
-      <param name="mesh_path" value="$(find auv_particle_filter)/meshes/mesh.npz" />       
-      <param name="gp_path" value="$(find auv_particle_filter)/meshes/svgp.pth" />    <!--Only needed for GPs-->   
-      <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />       
+      <param name="mesh_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/mesh.npz" />       
+      <param name="gp_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
+      <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
+      <param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />       
     </node>
+
+    <!-- UW environment -->
+    <include file="$(find auv_model)/launch/auv_localization.launch" >
+      <arg name="mode" value="$(arg mode)"/>
+      <arg name="filter" value="$(arg filter)"/>
+      <arg name="namespace" value="$(arg namespace)"/>
+      <arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
+      <arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+      <arg name="dataset" value="$(arg dataset)" />
+    </include>
 
 </launch>
 

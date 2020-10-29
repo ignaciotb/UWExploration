@@ -30,7 +30,7 @@ from resampling import residual_resample, naive_resample, systematic_resample, s
 
 # Auvlib
 from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data
+from auvlib.data_tools import csv_data, all_data, std_data
 
 from scipy.ndimage.filters import gaussian_filter
 
@@ -57,11 +57,11 @@ class auv_pf(object):
         try:
             rospy.loginfo("Waiting for transforms")
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
-                                                rospy.Time(0), rospy.Duration(20))
+                                                rospy.Time(0), rospy.Duration(35))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
 
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
-                                               rospy.Time(0), rospy.Duration(20))
+                                               rospy.Time(0), rospy.Duration(35))
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
             rospy.loginfo("Transforms locked - pf node")
@@ -69,7 +69,7 @@ class auv_pf(object):
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
         # Read covariance values
-        meas_cov = float(rospy.get_param('~measurement_covariance', 0.01))
+        meas_std = float(rospy.get_param('~measurement_std', 0.01))
         cov_string = rospy.get_param('~motion_covariance')
         cov_string = cov_string.replace('[','')
         cov_string = cov_string.replace(']','')
@@ -93,12 +93,13 @@ class auv_pf(object):
 
         for i in range(self.pc):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
-                                         self.m2o_mat, init_cov=init_cov, meas_cov=meas_cov,
+                                         self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
 
         self.time = None
         self.old_time = None 
         self.pred_odom = None
+        self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
@@ -125,10 +126,14 @@ class auv_pf(object):
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
         
         # Load mesh
-        print("Loading data")
         svp_path = rospy.get_param('~sound_velocity_prof')
         mesh_path = rospy.get_param('~mesh_path')
-        sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
+        
+        if svp_path.split('.')[1] != 'cereal':
+            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
+        else:
+            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
+
         data = np.load(mesh_path)
         V, F, bounds = data['V'], data['F'], data['bounds'] 
         print("Mesh loaded")
@@ -136,13 +141,18 @@ class auv_pf(object):
         # Create draper
         self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
         self.draper.set_ray_tracing_enabled(False)            
+        data = None
+        V = None
+        F = None
+        bounds = None 
+        sound_speeds = None
         print("draper created")
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))        
+        #  gp_path = rospy.get_param("~gp_path", 'gp.path')
+        #  self.gp = gp.SVGP.load(1000, gp_path)
+        #  print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
@@ -174,7 +184,7 @@ class auv_pf(object):
 
         self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
-        self.update_rviz()
+        #  self.update_rviz()
         rospy.spin()
 
     def gp_sampling(self, p, R):
@@ -267,13 +277,19 @@ class auv_pf(object):
         # IGL sim ping
         # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
         R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
-        mbes = self.draper.project_mbes(np.asarray(p_mbes), r_mbes.dot(R_flip),
+        mbes = self.draper.project_mbes(np.asarray(p_mbes), r_mbes,
                                         goal.beams_num.data, self.mbes_angle)
         
         mbes = mbes[::-1] # Reverse beams for same order as real pings
         
+        # Transform points to MBES frame (same frame than real pings)
+        rot_inv = r_mbes.transpose()
+        p_inv = rot_inv.dot(p_mbes)
+        mbes = np.dot(rot_inv, mbes.T)
+        mbes = np.subtract(mbes.T, p_inv)
+
         # Pack result
-        mbes_cloud = pack_cloud(self.map_frame, mbes)
+        mbes_cloud = pack_cloud(self.mbes_frame, mbes)
         result = MbesSimResult()
         result.sim_mbes = mbes_cloud
         self.as_ping.set_succeeded(result)
@@ -304,11 +320,16 @@ class auv_pf(object):
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges
-        real_mbes_ranges = pcloud2ranges(real_mbes)
-        real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=4)
+        #  print("odom z ", self.m2o_mat[2,3] + odom.pose.pose.position.z)
+        real_ranges = pcloud2ranges(real_mbes, self.m2o_mat[2,3] + odom.pose.pose.position.z)
+
+        # Processing of real pings here
+        #  real_ranges = gaussian_filter1d(real_ranges , sigma=10)
+        idx = np.round(np.linspace(0, len(real_ranges)-1,
+                                           self.beams_num)).astype(int)
+        real_mbes_ranges = real_ranges[idx]
         
-        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual 
-        # sensor direction
+        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
         R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
         
         # To transform from base to mbes
@@ -320,30 +341,32 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link 
             
             # Sample GP points
-            gp_samples = self.gp_sampling(p_part, r_base)
-
-            # Perform raytracing over segments between GP sampled points
-            exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
+            #  gp_samples = self.gp_sampling(p_part, r_base)
+#
+            #  # Perform raytracing over segments between GP sampled points
+            #  exp_mbes = self.gp_ray_tracing(r_mbes, p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes.dot(R_flip),
-                                                #  self.beams_num, self.mbes_angle)
-            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
 
-            self.particles[i].compute_weight(exp_mbes, real_mbes_ranges, True)
+            self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
         
         weights = []
         for i in range(self.pc):
             weights.append(self.particles[i].w)
 
-        self.miss_meas = weights.count(1.e-50)
+        # Number of particles that missed some beams 
+        # (if too many it would mess up the resampling)
+        self.miss_meas = weights.count(0.0)
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
-        weights_array += 1.e-30
+        weights_array += 1.e-100
 
         return weights_array
 
@@ -355,13 +378,18 @@ class auv_pf(object):
             ranges.append(np.linalg.norm(p[-2:]))
         
         return np.asarray(ranges)
+    
+    def moving_average(self, a, n=3) :
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
 
     def resample(self, weights):
 
         #  print "-------------"
         # Normalize weights
-        weights /= weights.sum()
         #  print (weights)
+        weights /= weights.sum()
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -369,13 +397,17 @@ class auv_pf(object):
         else:
             N_eff = 1/np.sum(np.square(weights))
 
+        self.n_eff_mask.pop(0)
+        self.n_eff_mask.append(N_eff)
         print ("N_eff ", N_eff)
-        #  print "Missed meas ", self.miss_meas
+
+        print ("Missed meas ", self.miss_meas)
         if self.miss_meas < self.pc/2.:
             self.stats.publish(np.float32(N_eff)) 
         
         # Resampling?
-        if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
+        if self.moving_average(self.n_eff_mask, 3) < self.pc/2. and self.miss_meas < self.pc/2.:
+        #  if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
             indices = stratified_resample(weights)
             #  print "Resampling "
             #  print indices

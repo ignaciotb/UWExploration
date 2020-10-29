@@ -7,6 +7,7 @@ import numpy as np
 from scipy.stats import multivariate_normal
 from scipy.ndimage.filters import gaussian_filter
 from scipy.spatial.transform import Rotation as rot
+from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import Quaternion, Transform
@@ -26,7 +27,7 @@ from sensor_msgs import point_cloud2
 
 class Particle(object):
     def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix,
-                 init_cov=[0.,0.,0.,0.,0.,0.], meas_cov=0.01,
+                 init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
                  process_cov=[0.,0.,0.,0.,0.,0.]):
 
         self.p_num = p_num
@@ -38,7 +39,7 @@ class Particle(object):
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
-        self.meas_cov = meas_cov
+        self.meas_cov = meas_std**2
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
@@ -80,37 +81,29 @@ class Particle(object):
         # Seems to be a problem when integrating depth from Ping vessel, so we just read it
         self.p_pose[2] = odom_t.pose.pose.position.z
 
-    def compute_weight(self, exp_mbes, real_mbes_ranges, got_result):
-        if got_result:
-            # Predict mbes ping given current particle pose and m 
-            exp_mbes_ranges = self.list2ranges(exp_mbes)
+    def compute_weight(self, exp_mbes, real_mbes_ranges):
+        # Predict mbes ping given current particle pose and m 
+        exp_mbes_ranges = self.list2ranges(exp_mbes)
+        exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
 
-            if len(exp_mbes_ranges) > 0:
-                # Before calculating weights, make sure both meas have same length
-                idx = np.round(np.linspace(0, len(real_mbes_ranges) - 1,
-                                           self.beams_num)).astype(int)
-                mbes_meas_sampled = real_mbes_ranges[idx]
-                
-                # For debugging
-                #  print (len(exp_mbes_ranges))
-                #  print (len(mbes_meas_sampled))
-                #  print (exp_mbes_ranges)
-                #  print (mbes_meas_sampled)
-                #  print (exp_mbes_ranges - mbes_meas_sampled)
+        if len(exp_mbes_ranges) > 0:
+            # For debugging
+            #  print (len(exp_mbes_ranges))
+            #  print (len(real_mbes_ranges))
+            #  print (exp_mbes_ranges)
+            #  print (real_mbes_ranges)
+            #  print (exp_mbes_ranges - real_mbes_ranges)
 
-                # Update particle weights
-                self.w = self.weight_mv(mbes_meas_sampled, exp_mbes_ranges)
-                #  print "MV ", self.w
-                #  self.w = self.weight_avg(mbes_meas_sampled, exp_mbes_ranges)
-                #  print "Avg ", self.w
-                #  self.w = self.weight_grad(mbes_meas_sampled, exp_mbes_ranges)
-                #  print "Gradient", self.w
-            else:
-                self.w = 1.e-50
+            # Update particle weights
+            self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
+            #  print "MV ", self.w
+            #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
+            #  print "Avg ", self.w
+            #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
+            #  print "Gradient", self.w
         else:
-            #  rospy.logwarn("Particle did not get meas")
-            self.w = 1.e-50
-
+            self.w = 0.0
+            rospy.logwarn("Range of exp meas equals zero")
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
@@ -120,7 +113,7 @@ class Particle(object):
                                           cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1.e-50
+            w_i = 0.0
         return w_i
         
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -129,7 +122,7 @@ class Particle(object):
                                           cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 1.e-50
+            w_i = 0.0
         return w_i
       
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
@@ -141,7 +134,7 @@ class Particle(object):
         else:
             rospy.logwarn("missing pings!")
             #  w_i = 1./self.p_num
-            w_i = 1.e-50
+            w_i = 0.0
         return w_i
     
     def get_p_mbes_pose(self):
@@ -167,11 +160,11 @@ class Particle(object):
 
     
 # Extract the z coordinate from real pings (in map frame)
-def pcloud2ranges(point_cloud):
+def pcloud2ranges(point_cloud, p_map_mbes_z):
     ranges = []
     for p in pc2.read_points(point_cloud, 
                              field_names = ("x", "y", "z"), skip_nans=True):
-        ranges.append(p[2])
+        ranges.append(p_map_mbes_z + p[2])
 
     return np.asarray(ranges)
 

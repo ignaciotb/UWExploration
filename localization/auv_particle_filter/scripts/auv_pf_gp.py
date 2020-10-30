@@ -188,9 +188,9 @@ class auv_pf(object):
         rospy.spin()
 
     def gp_sampling(self, p, R):
-        h = 100. # Depth of the field of view
+        h = 80. # Depth of the field of view
         b = h / np.cos(self.mbes_angle/2.)
-        n = 60  # Number of sampling points
+        n = 80  # Number of sampling points
 
         # Triangle vertices 
         Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))[0:3, 0:3]
@@ -213,7 +213,6 @@ class auv_pf(object):
         i_ranges = np.full((1,n), i_range)*(np.asarray(range(0,n)))
         sampling_points = p2s + i_ranges.reshape(n, 1)*direcs
 
-        #  print("Duration ", time.time() - start)
         # Sample GP here
         mu, sigma = self.gp.sample(np.asarray(sampling_points)[:, 0:2])
         mu_array = np.array([mu])
@@ -226,31 +225,46 @@ class auv_pf(object):
 
 
     def gp_ray_tracing(self, r_mbes, p, gp_samples, beams_num):
-        
+                
         # Transform points to MBES frame to perform ray tracing on 2D
         rot_inv = r_mbes.transpose()
         p_inv = rot_inv.dot(p)
         gp_samples = np.dot(rot_inv, gp_samples.T)
         gp_samples = np.subtract(gp_samples.T, p_inv)
+        
+        # Without for loop version
+        start = time.time()
+        n = len(gp_samples)
+        M = len(self.beams_dir)
+        v1 = -np.roll(gp_samples, 1, axis=0)
+        v1_vec = np.tile(v1, (M,1))
+        v2_vec = np.tile(gp_samples + v1, (M,1))
+        v3_vec = np.repeat(self.beams_dir_2d, len(gp_samples), axis=0)
+
+        inner23_vec = np.einsum('ij, ij->i', v2_vec, v3_vec)
+        t2_vec = np.einsum('ij, ij->i', v1_vec, v3_vec)/inner23_vec
+        t2_vec = t2_vec.reshape(M, n)
+
+        hits_vec = np.asarray(np.where((t2_vec[0]>=0) & (t2_vec[0]<=1))[0][1]).reshape(1,1)
+        for m in range(1, M):
+            new = np.asarray(np.where((t2_vec[m]>=0) & (t2_vec[m] <= 1))[0][1]).reshape(1,1)
+            hits_vec = np.concatenate((hits_vec, new), 0)
+
+        #  rows, cols = np.where((t2_vec[0]>=0) & (t2_vec[0]<=1))
+
+        t1_vec = (np.cross(v2_vec, v1_vec)/inner23_vec.reshape(M*len(gp_samples),1))
+        t1_vec = np.sum(np.abs(t1_vec)**2,axis=-1)**(1./2)
+        t1_vec = t1_vec.reshape(M, n)
 
         exp_meas = []
-        for m in range(0, len(self.beams_dir)):
-            # Compute ray tracing of ray m against all points
-            v1 = -np.roll(gp_samples, 1, axis=0) # The first component should be discarded
-            v2 = gp_samples + v1
-            v3 = np.full((len(gp_samples), 3), self.beams_dir_2d[m])
-            inner23 = np.einsum('ii->i', v2.dot(v3.T))
-                        
-            t2 = np.einsum('ii->i', v1.dot(v3.T))/inner23
-            hits = np.where((t2>=0) & (t2 <= 1))
-            if len(hits)>0:
-                t1 = (np.cross(v2, v1)/
-                      inner23.reshape(len(gp_samples),1))
-                t1 = np.sum(np.abs(t1)**2,axis=-1)**(1./2)
-                # First result discarded here (hits[0][0])
-                if t1[hits[0][1]] > 0:
-                    exp_meas.append(self.beams_dir[m] * t1[hits[0][1]])
+        for m in range(M):
+            if len(hits_vec[m]) > 0:
+                if t1_vec[m, hits_vec[m]] > 0:
+                    exp_meas.append(self.beams_dir[m] * t1_vec[m, hits_vec[m]])
 
+        print("Duration mat", time.time() - start)
+        print("----")
+        
         # Transform back to map frame
         mbes_gp = np.asarray(exp_meas)
         mbes_gp = np.dot(r_mbes, mbes_gp.T)

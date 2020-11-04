@@ -12,7 +12,7 @@ from scipy.ndimage import gaussian_filter1d
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header, Float64MultiArray
+from std_msgs.msg import Float32, Header, Bool
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
@@ -56,20 +56,7 @@ class auv_pf(object):
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(tfBuffer)
-        try:
-            rospy.loginfo("Waiting for transforms")
-            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
-                                                rospy.Time(0), rospy.Duration(35))
-            self.base2mbes_mat = matrix_from_tf(mbes_tf)
-
-            m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
-                                               rospy.Time(0), rospy.Duration(35))
-            self.m2o_mat = matrix_from_tf(m2o_tf)
-
-            rospy.loginfo("Transforms locked - pf node")
-        except:
-            rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
-
+        
         # Read covariance values
         meas_std = float(rospy.get_param('~measurement_std', 0.01))
         cov_string = rospy.get_param('~motion_covariance')
@@ -90,16 +77,7 @@ class auv_pf(object):
         cov_list = list(cov_string.split(", "))
         self.res_noise_cov = list(map(float, cov_list))
 
-        # Initialize list of particles
-        self.particles = np.empty(self.pc, dtype=object)
-
-        for i in range(self.pc):
-            self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
-                                         self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
-                                         process_cov=motion_cov)
-
-        self.time = rospy.Time.now().to_sec()
-        self.old_time = rospy.Time.now().to_sec()
+        # Global variables
         self.pred_odom = None
         self.n_eff_filt = 0.
         self.n_eff_mask = [self.pc]*3
@@ -123,7 +101,6 @@ class auv_pf(object):
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
         self.stats = rospy.Publisher('/pf/stats', numpy_msg(Floats), queue_size=10)
-        rospy.loginfo("Particle filter class successfully created")
 
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
@@ -159,7 +136,7 @@ class auv_pf(object):
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb, auto_start=True)
+                                                    execute_cb=self.mbes_as_cb, auto_start=False)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -187,9 +164,46 @@ class auv_pf(object):
 
         self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
-        #  self.update_rviz()
-        rospy.spin()
+        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.synch_pub = rospy.Publisher(synch_top, Bool, queue_size=10)
+        msg = Bool()
+        msg.data = True
+        
+        try:
+            rospy.loginfo("Waiting for transforms")
+            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
+                                                rospy.Time(0), rospy.Duration(35))
+            self.base2mbes_mat = matrix_from_tf(mbes_tf)
 
+            m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
+                                               rospy.Time(0), rospy.Duration(35))
+            self.m2o_mat = matrix_from_tf(m2o_tf)
+
+            rospy.loginfo("Transforms locked - pf node")
+        except:
+            rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
+
+        # Initialize list of particles
+        self.particles = np.empty(self.pc, dtype=object)
+
+        for i in range(self.pc):
+            self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
+                                         self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
+                                         process_cov=motion_cov)
+
+        #  self.update_rviz()
+        rospy.loginfo("Particle filter class successfully created")
+        self.synch_pub.publish(msg)
+
+        # Start timing now
+        self.time = rospy.Time.now().to_sec()
+        self.old_time = rospy.Time.now().to_sec()
+
+
+        rospy.spin()
+        
+        
     def gp_sampling(self, p, R):
         h = 100. # Depth of the field of view
         b = h / np.cos(self.mbes_angle/2.)
@@ -341,7 +355,7 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                #  self.resample(weights)
+                self.resample(weights)
                 self.update_rviz()
                 self.publish_stats(odom_msg)
 
@@ -360,6 +374,7 @@ class auv_pf(object):
 
         # Beams in real mbes frame
         real_mbes_full = pcloud2ranges_full(real_mbes)
+        #  print(real_mbes_full)
 
         # Processing of real pings here
         #  real_ranges = gaussian_filter1d(real_ranges , sigma=10)

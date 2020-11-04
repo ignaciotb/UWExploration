@@ -58,6 +58,7 @@ public:
 
     void initMiniFrames(std::vector<Vector3d> &minis_poses);
 
+    void synchCB(const std_msgs::BoolConstPtr& synch_msg);
 
 private:
     std::string node_name_;
@@ -68,6 +69,7 @@ private:
     ros::Publisher test_pub_;
     ros::Publisher odom_pub_;
     ros::Publisher enable_pub_;
+    ros::Subscriber pf_synch_sub_;
 
     actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
 
@@ -97,7 +99,7 @@ private:
 
     std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, mini_frame_;
 
-    bool survey_finished_, change_detection_, add_mini_;
+    bool start_replay_, survey_finished_, change_detection_, add_mini_;
     int ping_cnt_;
     int ping_total_;
     int beams_num_;

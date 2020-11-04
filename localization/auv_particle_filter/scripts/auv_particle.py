@@ -98,9 +98,9 @@ class Particle(object):
             # Update particle weights
             #  self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
             #  print ("MV ", self.w)
-            #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
+            self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
             #  print "Avg ", self.w
-            self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
+            #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
             #  print ("Gradient", self.w)
         else:
             self.w = 0.0

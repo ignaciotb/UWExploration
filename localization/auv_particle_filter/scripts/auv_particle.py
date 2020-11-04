@@ -84,7 +84,7 @@ class Particle(object):
     def compute_weight(self, exp_mbes, real_mbes_ranges):
         # Predict mbes ping given current particle pose and m 
         exp_mbes_ranges = self.list2ranges(exp_mbes)
-        #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
+        exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
 
         if len(exp_mbes_ranges) > 0:
             # For debugging
@@ -93,14 +93,15 @@ class Particle(object):
             #  print (exp_mbes_ranges)
             #  print (real_mbes_ranges)
             #  print (exp_mbes_ranges - real_mbes_ranges)
+            #  print (np.linalg.norm(exp_mbes_ranges - real_mbes_ranges))
 
             # Update particle weights
-            self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
-            #  print "MV ", self.w
+            #  self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
+            #  print ("MV ", self.w)
             #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
             #  print "Avg ", self.w
-            #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
-            #  print "Gradient", self.w
+            self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
+            #  print ("Gradient", self.w)
         else:
             self.w = 0.0
             rospy.logwarn("Range of exp meas equals zero")

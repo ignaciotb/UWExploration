@@ -12,7 +12,9 @@ from scipy.ndimage import gaussian_filter1d
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header
+from std_msgs.msg import Float32, Header, Float64MultiArray
+from rospy_tutorials.msg import Floats
+from rospy.numpy_msg import numpy_msg
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
@@ -96,8 +98,8 @@ class auv_pf(object):
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
 
-        self.time = None
-        self.old_time = None 
+        self.time = rospy.Time.now().to_sec()
+        self.old_time = rospy.Time.now().to_sec()
         self.pred_odom = None
         self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
@@ -119,7 +121,7 @@ class auv_pf(object):
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
-        self.stats = rospy.Publisher('/pf/n_eff', Float32, queue_size=10)
+        self.stats = rospy.Publisher('/pf/stats', numpy_msg(Floats), queue_size=10)
         rospy.loginfo("Particle filter class successfully created")
 
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
@@ -156,7 +158,7 @@ class auv_pf(object):
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb)
+                                                    execute_cb=self.mbes_as_cb, auto_start=True)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -188,7 +190,7 @@ class auv_pf(object):
         rospy.spin()
 
     def gp_sampling(self, p, R):
-        h = 80. # Depth of the field of view
+        h = 100. # Depth of the field of view
         b = h / np.cos(self.mbes_angle/2.)
         n = 80  # Number of sampling points
 
@@ -250,10 +252,12 @@ class auv_pf(object):
             new = np.asarray(np.where((t2_vec[m]>=0) & (t2_vec[m] <= 1))[0][1]).reshape(1,1)
             hits_vec = np.concatenate((hits_vec, new), 0)
 
+        # TODO: optimize
         #  rows, cols = np.where((t2_vec[0]>=0) & (t2_vec[0]<=1))
 
         t1_vec = (np.cross(v2_vec, v1_vec)/inner23_vec.reshape(M*len(gp_samples),1))
-        t1_vec = np.sum(np.abs(t1_vec)**2,axis=-1)**(1./2)
+        # TODO: This one can be faster too
+        t1_vec = np.sqrt(np.sum(t1_vec**2,axis=-1))
         t1_vec = t1_vec.reshape(M, n)
 
         exp_meas = []
@@ -262,8 +266,8 @@ class auv_pf(object):
                 if t1_vec[m, hits_vec[m]] > 0:
                     exp_meas.append(self.beams_dir[m] * t1_vec[m, hits_vec[m]])
 
-        print("Duration mat", time.time() - start)
-        print("----")
+        #  print("Duration mat", time.time() - start)
+        #  print("----")
         
         # Transform back to map frame
         mbes_gp = np.asarray(exp_meas)
@@ -324,6 +328,7 @@ class auv_pf(object):
                 self.resample(weights)
 
             self.update_rviz()
+            self.publish_stats(odom_msg)
         self.old_time = self.time
 
     def predict(self, odom_t):
@@ -337,7 +342,7 @@ class auv_pf(object):
         real_ranges = pcloud2ranges(real_mbes, self.m2o_mat[2,3] + odom.pose.pose.position.z)
 
         # Processing of real pings here
-        #  real_ranges = gaussian_filter1d(real_ranges , sigma=10)
+        real_ranges = gaussian_filter1d(real_ranges , sigma=10)
         idx = np.round(np.linspace(0, len(real_ranges)-1,
                                            self.beams_num)).astype(int)
         real_mbes_ranges = real_ranges[idx]
@@ -356,15 +361,15 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
             
             # Sample GP points
-            gp_samples = self.gp_sampling(p_part, r_base)
-
-            # Perform raytracing over segments between GP sampled points
-            exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part, gp_samples, self.beams_num)
+            #  gp_samples = self.gp_sampling(p_part, r_base)
+#
+            #  # Perform raytracing over segments between GP sampled points
+            #  exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part, gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                #  self.beams_num, self.mbes_angle)
-            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
@@ -384,6 +389,26 @@ class auv_pf(object):
         weights_array += 1.e-100
 
         return weights_array
+    
+    def publish_stats(self, gt_odom):
+        # Send statistics for visualization
+        stats = np.array([self.n_eff_filt,
+                          self.pc/2.,
+                          gt_odom.pose.pose.position.x,
+                          gt_odom.pose.pose.position.y,
+                          gt_odom.pose.pose.position.z,
+                          self.avg_pose.pose.pose.position.x,
+                          self.avg_pose.pose.pose.position.y,
+                          self.avg_pose.pose.pose.position.z,
+                          self.cov[0,0],
+                          self.cov[0,1],
+                          self.cov[0,2],
+                          self.cov[1,1],
+                          self.cov[1,2],
+                         self.cov[2,2]], dtype=np.float32)
+
+        self.stats.publish(stats) 
+
 
     def ping2ranges(self, point_cloud):
         ranges = []
@@ -414,16 +439,16 @@ class auv_pf(object):
 
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
+        self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         print ("N_eff ", N_eff)
 
         print ("Missed meas ", self.miss_meas)
-        if self.miss_meas < self.pc/2.:
-            self.stats.publish(np.float32(N_eff)) 
-        
+        #  if self.miss_meas < self.pc/2.:
+                
         # Resampling?
-        if self.moving_average(self.n_eff_mask, 3) < self.pc/2. and self.miss_meas < self.pc/2.:
+        if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
         #  if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
-            indices = stratified_resample(weights)
+            indices = residual_resample(weights)
             #  print "Resampling "
             #  print indices
             keep = list(set(indices))
@@ -465,6 +490,17 @@ class auv_pf(object):
                                                                                 yaw))
         self.avg_pose.header.stamp = rospy.Time.now()
         self.avg_pub.publish(self.avg_pose)
+        
+        # Calculate covariance
+        self.cov = np.zeros((3, 3))
+
+        for i in range(self.pc):
+            dx = (poses_array[i, 0:3] - ave_pose[0:3])
+            self.cov += np.diag(dx*dx.T) 
+            self.cov[0,1] += dx[0]*dx[1] 
+            self.cov[0,2] += dx[0]*dx[2] 
+            self.cov[1,2] += dx[1]*dx[2] 
+        self.cov /= self.pc
 
         # TODO: exp meas from average pose of the PF, for change detection
 

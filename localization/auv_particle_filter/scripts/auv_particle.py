@@ -72,7 +72,7 @@ class Particle(object):
         vel_p = np.array([odom_t.twist.twist.linear.x,
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
-
+        
         rot_mat_t = rot.from_euler("xyz", [roll_t,pitch_t, yaw_t]).as_dcm()
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
 
@@ -139,7 +139,7 @@ class Particle(object):
         return w_i
     
     def get_p_mbes_pose(self):
-        # Find particle's mbes_frame pose 
+        # Find particle's mbes_frame pose in the map frame 
         t_particle = translation_matrix(self.p_pose[0:3])
         r_particle = rot.from_euler('xyz', self.p_pose[3:6], degrees=False)
         q_particle = quaternion_matrix(r_particle.as_quat())
@@ -169,6 +169,14 @@ def pcloud2ranges(point_cloud, p_map_mbes_z):
 
     return np.asarray(ranges)
 
+def pcloud2ranges_full(point_cloud):
+    ranges = []
+    for p in pc2.read_points(point_cloud, 
+                             field_names = ("x", "y", "z"), skip_nans=True):
+        ranges.append(p)
+
+    return np.asarray(ranges)
+
 # Create PointCloud2 msg out of ping    
 def pack_cloud(frame, mbes):
     mbes_pcloud = PointCloud2()
@@ -183,6 +191,17 @@ def pack_cloud(frame, mbes):
 
     return mbes_pcloud 
 
+def matrix_from_pose(pose):
+    trans = np.array([pose.position.x, 
+             pose.position.y,
+             pose.position.z])
+
+    rot_mat = rot.from_quat([pose.orientation.x,
+                         pose.orientation.y,
+                         pose.orientation.z,
+                         pose.orientation.w]).as_dcm()
+    
+    return (trans, rot_mat) 
 
 def matrix_from_tf(transform):
     if transform._type == 'geometry_msgs/TransformStamped':

@@ -27,7 +27,7 @@ import sensor_msgs.point_cloud2 as pc2
 # For sim mbes action client
 import actionlib
 from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
-from auv_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud
+from auv_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
 # Auvlib
@@ -101,6 +101,7 @@ class auv_pf(object):
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
         self.pred_odom = None
+        self.n_eff_filt = 0.
         self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
@@ -276,6 +277,21 @@ class auv_pf(object):
 
         return mbes_gp
 
+    def gp_meas_model(self, real_mbes, p_part, r_base):
+        # Transform beams to particle mbes frame and compute map coordinates
+        real_mbes = np.dot(r_base, real_mbes.T)
+        real_mbes = np.add(real_mbes.T, p_part)
+
+        # Sample GP here
+        mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
+        mu_array = np.array([mu])
+        
+        # Concatenate sampling points x,y with sampled z
+        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
+                                  mu_array.T), axis=1)
+
+        return mbes_gp
+
     def mbes_real_cb(self, msg):
         self.latest_mbes = msg
 
@@ -325,10 +341,10 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                self.resample(weights)
+                #  self.resample(weights)
+                self.update_rviz()
+                self.publish_stats(odom_msg)
 
-            self.update_rviz()
-            self.publish_stats(odom_msg)
         self.old_time = self.time
 
     def predict(self, odom_t):
@@ -336,16 +352,21 @@ class auv_pf(object):
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
 
+    
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
         # We only work with z, so we transform them mbes --> map
-        real_ranges = pcloud2ranges(real_mbes, self.m2o_mat[2,3] + odom.pose.pose.position.z)
+        #  real_ranges = pcloud2ranges(real_mbes, self.m2o_mat[2,3] + odom.pose.pose.position.z)
+
+        # Beams in real mbes frame
+        real_mbes_full = pcloud2ranges_full(real_mbes)
 
         # Processing of real pings here
-        real_ranges = gaussian_filter1d(real_ranges , sigma=10)
-        idx = np.round(np.linspace(0, len(real_ranges)-1,
+        #  real_ranges = gaussian_filter1d(real_ranges , sigma=10)
+        idx = np.round(np.linspace(0, len(real_mbes_full)-1,
                                            self.beams_num)).astype(int)
-        real_mbes_ranges = real_ranges[idx]
+        #  real_mbes_ranges = real_ranges[idx]
+        real_mbes_full = real_mbes_full[idx]
         
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
@@ -361,15 +382,20 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
             
             # Sample GP points
+            exp_mbes = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
+
+            # Second GP sampling method
             #  gp_samples = self.gp_sampling(p_part, r_base)
-#
+
             #  # Perform raytracing over segments between GP sampled points
-            #  exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part, gp_samples, self.beams_num)
+            #  exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
+                                           #  gp_samples, self.beams_num)
                    
             # MBES sim on IGL
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                #  self.beams_num, self.mbes_angle)
+            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)

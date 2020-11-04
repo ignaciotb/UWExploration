@@ -70,9 +70,8 @@
 
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="$(find auv_particle_filter)/meshes/$(arg dataset)/pcl.npy" />
-			<!-- <param name="map_gp_path"  value="$(find auv_particle_filter)/meshes/$(arg dataset)/posterior.npy"/> -->
-			<param name="map_gp_path"  value=""/>
+			<param name="map_cloud_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
+			<param name="map_gp_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/svgp_1000_0.01.npy"/>
 			<param name="map_frame" value="map" />
 			<param name="use_pings_cloud" type= "bool" value="True" />
 		</node>
@@ -122,7 +121,7 @@
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="add_mini" value="$(arg add_mini)" />
-				<param name="start_mission_ping_num" value="1000" />
+				<param name="start_mission_ping_num" value="18000" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
 				<!-- <param name="end_mission_ping_num" value="72000" /> -->
 			</node>

@@ -4,7 +4,9 @@
 BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string gt_pings_top, debug_pings_top, mbes_as_name, gt_odom_top, sim_pings_top, enable_top;
+    std::string gt_pings_top, debug_pings_top, mbes_as_name, gt_odom_top,
+    sim_pings_top, enable_top, synch_name;
+
     nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
     nh_->param<std::string>("debug_pings", debug_pings_top, "/debug_pings");
@@ -17,27 +19,36 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mini_link", mini_frame_, "mini_link");
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
     nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
+    nh_->param<std::string>("synch_topic", synch_name, "/pf/synch");
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
     nh_->param<int>("n_beams_mbes", beams_num_, 100);
     nh_->param<int>("start_mission_ping_num", first_ping_, 0);
     nh_->param<int>("end_mission_ping_num", last_ping_, 0);
 
-    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 1);
+    ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 100);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 1);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 1);
-    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top,5);
+    odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 100);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 1);
-
+    pf_synch_sub_ = nh_->subscribe(synch_name, 1, &BathymapConstructor::synchCB, this);
     // ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
 
     ping_cnt_ = first_ping_;
 
     time_now_ = ros::Time::now();
-    time_prev_ = ros::Time::now();
+    start_replay_ = false;
+
 }
 
 BathymapConstructor::~BathymapConstructor(){
+
+}
+
+void BathymapConstructor::synchCB(const std_msgs::BoolConstPtr& synch_msg){
+    std::cout << "Synch signal received" << std::endl;
+    start_replay_ = synch_msg->data;
+    time_prev_ = ros::Time::now();
 
 }
 
@@ -85,6 +96,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         ros::Duration(1.0).sleep();
     }
     tf::transformTFToEigen(tf_mbes_base_, mbes_base_mat_);
+    std::cout << "Mbes to base " << mbes_base_mat_.matrix() << std::endl;
 
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
@@ -159,6 +171,18 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
     //     ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for action server");
     // }
+
+    // Set init prev odom--> base transform. Always zero since base starts on top of odom
+    prev_base_link_.header.frame_id = odom_frame_;
+    prev_base_link_.child_frame_id = base_frame_;
+    prev_base_link_.header.stamp = time_now_;                              
+    prev_base_link_.transform.translation.x = 0;
+    prev_base_link_.transform.translation.y = 0;
+    prev_base_link_.transform.translation.z = 0;
+    prev_base_link_.transform.rotation.x = 0;
+    prev_base_link_.transform.rotation.y = 0;
+    prev_base_link_.transform.rotation.z = 0;
+    prev_base_link_.transform.rotation.w = 1;
 
     ROS_INFO("Initialized auv_2_ros");
 }

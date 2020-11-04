@@ -108,7 +108,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_mbes_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
 
     // World to map transform (setting the map where the base started the survey)
-    world_map_tf_ = world_mbes_tf_ * mbes_base_mat_;
+    world_map_tf_ = world_mbes_tf_;// * mbes_base_mat_;
 
     // If the last ping is not set, replay the full mission
     last_ping_= (last_ping_ == 0)? ping_total_:last_ping_;
@@ -142,7 +142,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_mbes_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();
 
     // Map to odom transform (setting the odom where the base starts replying the survey)
-    map_odom_tf_ = map_mbes_tf_ * mbes_base_mat_;
+    map_odom_tf_ = map_mbes_tf_;// * mbes_base_mat_;
 
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
@@ -158,7 +158,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
     map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
 
-    std::cout << "Map to odom tf " << std::endl;
+    // std::cout << "Map to odom tf " << std::endl;
     std::cout << map_odom_tf_.translation().transpose() << std::endl;
     std::cout << euler.transpose() << std::endl;
 
@@ -236,13 +236,19 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         static_broadcaster_.sendTransform(mini_frame);
     }
 
+    // Don't start survey until PF is up
+    if(start_replay_ != true){
+        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for PF to send synch signal");
+        return;
+    }
+
     // BR odom-->base at time t
     new_base_link_.header.frame_id = odom_frame_;
     new_base_link_.child_frame_id = base_frame_;
     new_base_link_.header.stamp = time_now_;
     Eigen::Isometry3d odom_base_t = map_odom_tf_.inverse() * 
-                                    traj_pings_.at(ping_cnt_).submap_tf_.cast<double>()*
-                                    mbes_base_mat_;
+                                    traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();//*
+                                    // mbes_base_mat_;
                                    
     Eigen::Vector3d odom_ping_i = odom_base_t.translation();
     new_base_link_.transform.translation.x = odom_ping_i[0];
@@ -337,10 +343,6 @@ void BathymapConstructor::publishMeas(int ping_num){
     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_filt(new PointCloudT);
     PointCloudT::Ptr mbes_i_pcl_map(new PointCloudT);
-
-    tf::Transform tf_mbes_odom;
-    tf::transformMsgToTF(new_base_link_.transform, tf_mbes_odom);
-    tf_mbes_odom.mult(tf_mbes_base_, tf_mbes_odom.inverse());
 
     // Transformation map-->mbes
     tf::Transform tf_odom_base;

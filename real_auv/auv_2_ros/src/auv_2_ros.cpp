@@ -74,12 +74,29 @@ void BathymapConstructor::initMiniFrames(std::vector<Eigen::Vector3d>& minis_pos
 
 void BathymapConstructor::init(const boost::filesystem::path auv_path){
 
+    // MBES to base transform
+    try {
+        tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
+        tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
+        ROS_INFO("Locked transform base --> sensor");
+    }
+    catch(tf::TransformException &exception) {
+        ROS_ERROR("%s", exception.what());
+        ros::Duration(1.0).sleep();
+    }
+    tf::transformTFToEigen(tf_mbes_base_, mbes_base_mat_);
+
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
     ping_total_ = std_pings.size();
     std::cout << "Number of pings in survey " << ping_total_ << std::endl;
     traj_pings_ = parsePingsAUVlib(std_pings);
-    map_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
+    
+    // World to mbes transform
+    world_mbes_tf_ = traj_pings_.at(0).submap_tf_.cast<double>();
+
+    // World to map transform (setting the map where the base started the survey)
+    world_map_tf_ = world_mbes_tf_ * mbes_base_mat_;
 
     // If the last ping is not set, replay the full mission
     last_ping_= (last_ping_ == 0)? ping_total_:last_ping_;
@@ -90,11 +107,11 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Store world --> map tf
     world_map_tfmsg_.header.frame_id = world_frame_;
     world_map_tfmsg_.child_frame_id = map_frame_;
-    world_map_tfmsg_.transform.translation.x = map_tf_.translation()[0];
-    world_map_tfmsg_.transform.translation.y = map_tf_.translation()[1];
-    world_map_tfmsg_.transform.translation.z = map_tf_.translation()[2];
+    world_map_tfmsg_.transform.translation.x = world_map_tf_.translation()[0];
+    world_map_tfmsg_.transform.translation.y = world_map_tf_.translation()[1];
+    world_map_tfmsg_.transform.translation.z = world_map_tf_.translation()[2];
     tf2::Quaternion quatw2m;
-    Eigen::Vector3d euler = map_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    Eigen::Vector3d euler = world_map_tf_.linear().matrix().eulerAngles(0, 1, 2);
     quatw2m.setRPY(euler[0], euler[1], euler[2]);
     quatw2m.normalize();
     world_map_tfmsg_.transform.rotation.x = quatw2m.x();
@@ -109,15 +126,18 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
     initMiniFrames(minis_poses);
 
-    // Store map --> odom tf
-    odom_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();
+    // Store map --> mbes tf
+    map_mbes_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();
+
+    // Map to odom transform (setting the odom where the base starts replying the survey)
+    map_odom_tf_ = map_mbes_tf_ * mbes_base_mat_;
 
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
-    map_odom_tfmsg_.transform.translation.x = odom_tf_.translation()[0];
-    map_odom_tfmsg_.transform.translation.y = odom_tf_.translation()[1];
-    map_odom_tfmsg_.transform.translation.z = odom_tf_.translation()[2];
-    euler = odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    map_odom_tfmsg_.transform.translation.x = map_odom_tf_.translation()[0];
+    map_odom_tfmsg_.transform.translation.y = map_odom_tf_.translation()[1];
+    map_odom_tfmsg_.transform.translation.z = map_odom_tf_.translation()[2];
+    euler = map_odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
     tf::Quaternion quatm2o;
     quatm2o.setRPY(euler[0], euler[1], euler[2]);
     quatm2o.normalize();
@@ -127,22 +147,12 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
 
     std::cout << "Map to odom tf " << std::endl;
-    std::cout << odom_tf_.translation().transpose() << std::endl;
+    std::cout << map_odom_tf_.translation().transpose() << std::endl;
     std::cout << euler.transpose() << std::endl;
 
     tf::Transform tf_map_odom;
     tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
     tf_odom_map_ = tf_map_odom.inverse();
-
-    try {
-        tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
-        tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
-        ROS_INFO("Locked transform base --> sensor");
-    }
-    catch(tf::TransformException &exception) {
-        ROS_ERROR("%s", exception.what());
-        ros::Duration(1.0).sleep();
-    }
 
     survey_finished_ = false;
 
@@ -202,18 +212,20 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         static_broadcaster_.sendTransform(mini_frame);
     }
 
-    // BR odom-->base frames
+    // BR odom-->base at time t
     new_base_link_.header.frame_id = odom_frame_;
     new_base_link_.child_frame_id = base_frame_;
     new_base_link_.header.stamp = time_now_;
-    Eigen::Vector3d odom_ping_i = (odom_tf_.inverse() *
-                                   traj_pings_.at(ping_cnt_).submap_tf_.translation().cast<double>());
+    Eigen::Isometry3d odom_base_t = map_odom_tf_.inverse() * 
+                                    traj_pings_.at(ping_cnt_).submap_tf_.cast<double>()*
+                                    mbes_base_mat_;
+                                   
+    Eigen::Vector3d odom_ping_i = odom_base_t.translation();
     new_base_link_.transform.translation.x = odom_ping_i[0];
     new_base_link_.transform.translation.y = odom_ping_i[1];
     new_base_link_.transform.translation.z = odom_ping_i[2];
     tf::Quaternion quato2p;
-    Eigen::Vector3d euler = (traj_pings_.at(ping_cnt_).submap_tf_.linear().matrix().cast<double>() *
-             odom_tf_.linear().matrix().inverse()).eulerAngles(0, 1, 2);
+    Eigen::Vector3d euler = (odom_base_t.linear().matrix()).eulerAngles(0, 1, 2);
     quato2p.setRPY(euler[0], euler[1], euler[2]);
     quato2p.normalize();
     new_base_link_.transform.rotation.x = quato2p.x();
@@ -306,11 +318,13 @@ void BathymapConstructor::publishMeas(int ping_num){
     tf::transformMsgToTF(new_base_link_.transform, tf_mbes_odom);
     tf_mbes_odom.mult(tf_mbes_base_, tf_mbes_odom.inverse());
 
-    // Latest tf mbes-->map
-    tf::Transform tf_mbes_map;
-    tf_mbes_map.mult(tf_mbes_odom, tf_odom_map_);
-
-    pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_mbes_map);
+    // Transformation map-->mbes
+    tf::Transform tf_odom_base;
+    tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
+    tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
+    
+    // Publish pings in MBES frame
+    pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_map_mbes.inverse());
 
     // Sample down pings to a fix size
     // if (traj_pings_.at(ping_num).submap_pcl_.points.size() > 500){

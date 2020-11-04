@@ -76,10 +76,13 @@ private:
     tf2_ros::TransformBroadcaster br_;
     std::vector<geometry_msgs::TransformStamped> pings_tf_;
 
-    Eigen::Isometry3d map_tf_;
-    Eigen::Isometry3d odom_tf_;
+    Eigen::Isometry3d world_mbes_tf_;
+    Eigen::Isometry3d world_map_tf_;
+    Eigen::Isometry3d map_odom_tf_;
+    Eigen::Isometry3d map_mbes_tf_;
 //    Eigen::Isometry3d mini_tf_;
-
+    Eigen::Isometry3d mbes_base_mat_;
+    
     SubmapsVec maps_gt_;
     SubmapsVec traj_pings_;
 

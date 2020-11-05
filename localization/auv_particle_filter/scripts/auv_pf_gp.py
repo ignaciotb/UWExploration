@@ -136,8 +136,9 @@ class auv_pf(object):
         print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
+        sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb, auto_start=False)
+                                                    execute_cb=self.mbes_as_cb, auto_start=True)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -188,23 +189,27 @@ class auv_pf(object):
 
         # Initialize list of particles
         self.particles = np.empty(self.pc, dtype=object)
-
         for i in range(self.pc):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
 
-        #  self.update_rviz()
+        # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
         self.synch_pub.publish(msg)
         
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
-        self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
+        self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
 
         # Start timing now
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
+
+        # Create particle to compute DR
+        self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
+                                    self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
+                                    process_cov=motion_cov)
 
         rospy.spin()
 
@@ -374,6 +379,9 @@ class auv_pf(object):
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
 
+        # Predict DR
+        self.dr_particle.motion_pred(odom_t, dt)
+
     
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -441,6 +449,7 @@ class auv_pf(object):
     
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
+        p_odom = self.dr_particle.p_pose
         stats = np.array([self.n_eff_filt,
                           self.pc/2.,
                           gt_odom.pose.pose.position.x,
@@ -449,6 +458,9 @@ class auv_pf(object):
                           self.avg_pose.pose.pose.position.x,
                           self.avg_pose.pose.pose.position.y,
                           self.avg_pose.pose.pose.position.z,
+                          p_odom[0],
+                          p_odom[1],
+                          p_odom[2],
                           self.cov[0,0],
                           self.cov[0,1],
                           self.cov[0,2],

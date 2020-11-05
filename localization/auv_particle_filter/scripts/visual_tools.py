@@ -23,7 +23,8 @@ class PFStatsVisualization(object):
         self.survey_name = rospy.get_param('~survey_name', 'survey')
         
         self.filter_cnt = 1
-        self.filt_vec = np.zeros((14,1))
+        self.datagram_size = 17
+        self.filt_vec = np.zeros((self.datagram_size,1))
         self.img = plt.imread(self.path_img)
 
         # Map to odom transform to plot AUV pose on top of image
@@ -94,18 +95,19 @@ class PFStatsVisualization(object):
    
     def stat_cb(self, stat_msg):
 
-        data_t = stat_msg.data.copy().reshape(14,1)
+        data_t = stat_msg.data.copy().reshape(self.datagram_size,1)
         # Rotate AUV trajectory to place wrt odom in the image
         data_t[2:5] = self.m2o_mat[0:3,0:3].dot(data_t[2:5])
         data_t[5:8] = self.m2o_mat[0:3,0:3].dot(data_t[5:8])
+        data_t[8:11] = self.m2o_mat[0:3,0:3].dot(data_t[8:11])
         
         # Reconstruct 3x3 covariance matrix
         # Not account for z values atm
         cov_mat = np.zeros((3,3))
-        cov_mat[np.triu_indices(3, 0)] = np.asarray(data_t[8:14]).reshape(1,6)
+        cov_mat[np.triu_indices(3, 0)] = np.asarray(data_t[11:17]).reshape(1,6)
         cov_mat[1,0] = cov_mat[0,1]
         cov_mat = (self.m2o_mat[0:3,0:3].transpose().dot(cov_mat)).dot(self.m2o_mat[0:3,0:3])
-        data_t[8:14] = cov_mat[np.triu_indices(3)].reshape(6,1)
+        data_t[11:17] = cov_mat[np.triu_indices(3)].reshape(6,1)
 
         self.filt_vec = np.hstack((self.filt_vec, data_t))
         self.filter_cnt += 1
@@ -134,9 +136,12 @@ class PFStatsVisualization(object):
                      self.filt_vec[3,:], "-k")
 
             plt.plot(self.filt_vec[5,:],
-                     self.filt_vec[6,:], "-r")
+                     self.filt_vec[6,:], "-b")
 
-            self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[8:14,-1])
+            plt.plot(self.filt_vec[8,:],
+                     self.filt_vec[9,:], "-r")
+
+            self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
             plt.pause(0.001)
 

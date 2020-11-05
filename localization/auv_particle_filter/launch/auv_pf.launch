@@ -53,8 +53,20 @@
       <param name="mesh_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/mesh.npz" />       
       <param name="gp_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
       <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
+      <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />       
+      <param name="pf_stats_top" value="/stats/pf_data" />       
     </node>
+
+    <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
+      <param name="pf_stats_top" value="/stats/pf_data" />       
+      <param name="map_frame" value="$(arg map_frame)" />       
+      <param name="odom_frame" value="$(arg odom_frame)" />       
+      <param name="survey_finished_top" value="/gt/survey_finished" />       
+      <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
+      <param name="survey_name" value="overnight_20"/>
+    </node>
+
 
     <!-- UW environment -->
     <include file="$(find auv_model)/launch/auv_localization.launch" >

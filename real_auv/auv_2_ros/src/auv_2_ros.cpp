@@ -96,8 +96,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         ros::Duration(1.0).sleep();
     }
     tf::transformTFToEigen(tf_mbes_base_, mbes_base_mat_);
-    std::cout << "Mbes to base " << mbes_base_mat_.matrix() << std::endl;
-
+    
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
     ping_total_ = std_pings.size();
@@ -111,7 +110,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tf_ = world_mbes_tf_;// * mbes_base_mat_;
 
     // If the last ping is not set, replay the full mission
-    last_ping_= (last_ping_ == 0)? ping_total_:last_ping_;
+    last_ping_= (last_ping_ == 0)? ping_total_-1:last_ping_;
 
     std::cout << "First ping " << first_ping_ << std::endl;
     std::cout << "Last ping " << last_ping_ << std::endl;
@@ -159,8 +158,8 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
 
     // std::cout << "Map to odom tf " << std::endl;
-    std::cout << map_odom_tf_.translation().transpose() << std::endl;
-    std::cout << euler.transpose() << std::endl;
+    // std::cout << map_odom_tf_.translation().transpose() << std::endl;
+    // std::cout << euler.transpose() << std::endl;
 
     tf::Transform tf_map_odom;
     tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
@@ -278,16 +277,18 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         //     this->publishExpectedMeas();
         // }
         // ping_cnt_ += 1;
+        ping_cnt_++;
     }
+    
     if(ping_cnt_ == last_ping_ && !survey_finished_){
         ROS_INFO_STREAM("Survey finished");
         survey_finished_ = true;
         std_msgs::Bool msg;
         msg.data = true;
         enable_pub_.publish(msg);
+        ros::shutdown();
     }
 
-    ping_cnt_++;
 }
 
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){

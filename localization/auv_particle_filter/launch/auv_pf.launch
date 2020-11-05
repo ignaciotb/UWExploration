@@ -55,7 +55,8 @@
       <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />       
-      <param name="pf_stats_top" value="/stats/pf_data" />       
+      <param name="pf_stats_top" value="/stats/pf_data" />  
+      <param name="mbes_sim_as" value="/mbes_sim_server" />     
     </node>
 
     <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">

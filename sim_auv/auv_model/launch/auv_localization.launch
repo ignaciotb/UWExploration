@@ -121,10 +121,11 @@
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="add_mini" value="$(arg add_mini)" />
-				<param name="start_mission_ping_num" value="18000" />
 				<param name="synch_topic" value="/$(arg filter)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
-				<!-- <param name="end_mission_ping_num" value="72000" /> -->
+      			<param name="survey_finished_top" value="/gt/survey_finished" />       
+				<param name="start_mission_ping_num" value="80754" />
+				<!-- <param name="end_mission_ping_num" value="18010" /> -->
 			</node>
 		</group>
 

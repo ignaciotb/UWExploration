@@ -100,7 +100,8 @@ class auv_pf(object):
         pf_mbes_top = rospy.get_param("~average_mbes_topic", '/avg_mbes')
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
-        self.stats = rospy.Publisher('/pf/stats', numpy_msg(Floats), queue_size=10)
+        stats_top = rospy.get_param('~pf_stats_top', 'stats')
+        self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
@@ -169,7 +170,8 @@ class auv_pf(object):
         self.synch_pub = rospy.Publisher(synch_top, Bool, queue_size=10)
         msg = Bool()
         msg.data = True
-        
+
+        # Transforms from auv_2_ros
         try:
             rospy.loginfo("Waiting for transforms")
             mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
@@ -195,15 +197,21 @@ class auv_pf(object):
         #  self.update_rviz()
         rospy.loginfo("Particle filter class successfully created")
         self.synch_pub.publish(msg)
+        
+        finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
+        self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
+        self.survey_finished = False
 
         # Start timing now
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
 
-
         rospy.spin()
-        
-        
+
+    def synch_cb(self, finished_msg):
+        rospy.loginfo("PF node: Survey finished received") 
+        #  rospy.signal_shutdown("Survey finished")
+
     def gp_sampling(self, p, R):
         h = 100. # Depth of the field of view
         b = h / np.cos(self.mbes_angle/2.)
@@ -572,7 +580,7 @@ class auv_pf(object):
 
 if __name__ == '__main__':
 
-    rospy.init_node('auv_pf')
+    rospy.init_node('auv_pf', disable_signals=False)
     try:
         auv_pf()
     except rospy.ROSInterruptException:

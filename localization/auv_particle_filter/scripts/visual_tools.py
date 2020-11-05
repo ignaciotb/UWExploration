@@ -7,6 +7,7 @@ import math
 
 from scipy.spatial.transform import Rotation as Rot
 from rospy_tutorials.msg import Floats
+from std_msgs.msg import Bool
 from rospy.numpy_msg import numpy_msg
 import tf2_ros
 from auv_particle import matrix_from_tf
@@ -14,12 +15,12 @@ from auv_particle import matrix_from_tf
 class PFStatsVisualization(object):
     
     def __init__(self):
-        #  self.dvl_sub = rospy.Subscriber('/sam/core/dvl', DVL, self.dvl_cb)
-        self.dvl_sub = rospy.Subscriber('/pf/stats', numpy_msg(Floats), self.stat_cb)
-        #  self.path_img = rospy.get_param('~background_img_path')
-        self.path_img = '/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png'
+        stats_top = rospy.get_param('~pf_stats_top', 'stats')
+        self.stats_sub = rospy.Subscriber(stats_top, numpy_msg(Floats), self.stat_cb)
+        self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self.survey_name = rospy.get_param('~survey_name', 'survey')
         
         self.filter_cnt = 1
         self.filt_vec = np.zeros((14,1))
@@ -35,9 +36,19 @@ class PFStatsVisualization(object):
             self.m2o_mat = matrix_from_tf(m2o_tf)
             rospy.loginfo("Transforms locked - stats node")
         except:
-            rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
+            rospy.logerr("Stats node: Could not lookup transforms")
+        
+        # When the survey is finished, save the data to disk
+        finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
+        self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
+        self.survey_finished = False
 
         rospy.spin()
+
+    def synch_cb(self, finished_msg):
+        self.survey_finished = finished_msg.data
+        np.savez(self.survey_name+".npz", full_dataset=self.filt_vec.tolist())
+        rospy.loginfo("Stats node: Survey finished received")
 
 
     def plot_covariance_ellipse(self, xEst, PEst):  # pragma: no cover
@@ -84,7 +95,7 @@ class PFStatsVisualization(object):
     def stat_cb(self, stat_msg):
 
         data_t = stat_msg.data.copy().reshape(14,1)
-        # Rotate AUV trajectory to place wrt odom
+        # Rotate AUV trajectory to place wrt odom in the image
         data_t[2:5] = self.m2o_mat[0:3,0:3].dot(data_t[2:5])
         data_t[5:8] = self.m2o_mat[0:3,0:3].dot(data_t[5:8])
         
@@ -129,10 +140,13 @@ class PFStatsVisualization(object):
 
             plt.pause(0.001)
 
+            if self.survey_finished:
+                plt.savefig(self.survey_name+"_tracks.png")
+
 
 
 if __name__ == "__main__":
-    rospy.init_node("dvl_visual")
+    rospy.init_node("pf_statistics", disable_signals=False)
     try:
         PFStatsVisualization()
     except rospy.ROSInterruptException:

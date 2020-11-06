@@ -39,10 +39,11 @@ class Particle(object):
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
-        self.meas_cov = meas_std**2
+        self.meas_cov = np.diag([meas_std**2]*beams_num)
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
+        #  self.gp_sigmas = np.array([])
 
         self.add_noise(init_cov)
 
@@ -88,24 +89,23 @@ class Particle(object):
 
         if len(exp_mbes_ranges) > 0:
             # For debugging
-            #  print (len(exp_mbes_ranges))
-            #  print (len(real_mbes_ranges))
             #  print (exp_mbes_ranges)
             #  print (real_mbes_ranges)
             #  print (exp_mbes_ranges - real_mbes_ranges)
+            #  print(np.gradient(exp_mbes_ranges) - np.gradient(real_mbes_ranges))
+
+            #  print(self.meas_cov)
             #  print (np.linalg.norm(exp_mbes_ranges - real_mbes_ranges))
+            #  print (np.linalg.norm(np.gradient(real_mbes_ranges) - np.gradient(exp_mbes_ranges)))
 
             # Update particle weights
             #  self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
-            #  print ("MV ", self.w)
-            self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
-            #  print "Avg ", self.w
-            #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
-            #  print ("Gradient", self.w)
+            #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
+            self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
         else:
             self.w = 0.0
             rospy.logwarn("Range of exp meas equals zero")
-
+    
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             grad_meas = np.gradient(mbes_meas_ranges)
@@ -131,7 +131,7 @@ class Particle(object):
             #  w_i = 1./self.p_num
             #  for i in range(len(mbes_sim_ranges)):
             w_i = math.exp(-(((mbes_sim_ranges
-                               - mbes_meas_ranges)**2).mean())/(2*self.meas_cov))
+                               - mbes_meas_ranges)**2).mean())/(2*self.meas_cov[0,0]))
         else:
             rospy.logwarn("missing pings!")
             #  w_i = 1./self.p_num

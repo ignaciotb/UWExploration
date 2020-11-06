@@ -312,12 +312,13 @@ class auv_pf(object):
         # Sample GP here
         mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
         mu_array = np.array([mu])
+        sigma_array = np.array([sigma])
         
         # Concatenate sampling points x,y with sampled z
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
                                   mu_array.T), axis=1)
-
-        return mbes_gp
+        #  print(sigma)
+        return mbes_gp, sigma
 
     def mbes_real_cb(self, msg):
         self.latest_mbes = msg
@@ -398,6 +399,7 @@ class auv_pf(object):
                                            self.beams_num)).astype(int)
         #  real_mbes_ranges = real_ranges[idx]
         real_mbes_full = real_mbes_full[idx]
+        real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
         
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
@@ -411,19 +413,16 @@ class auv_pf(object):
             # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_mbes_pose();
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-            
-            # Sample GP points
-            exp_mbes = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
+            # First GP meas model
+            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            #  self.particles[i].meas_cov = np.diag(exp_sigs)
 
-            # Second GP sampling method
+            # Second GP meas model
             #  gp_samples = self.gp_sampling(p_part, r_base)
-
-            #  # Perform raytracing over segments between GP sampled points
             #  exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
                                            #  gp_samples, self.beams_num)
                    
-            # MBES sim on IGL
+            # IGL-based meas model
             #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                 #  self.beams_num, self.mbes_angle)
             #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings

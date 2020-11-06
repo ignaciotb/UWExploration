@@ -44,6 +44,8 @@ class PFStatsVisualization(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
 
+        self.cov_traces = [0.]
+
         rospy.spin()
 
     def synch_cb(self, finished_msg):
@@ -108,27 +110,18 @@ class PFStatsVisualization(object):
         cov_mat[1,0] = cov_mat[0,1]
         cov_mat = (self.m2o_mat[0:3,0:3].transpose().dot(cov_mat)).dot(self.m2o_mat[0:3,0:3])
         data_t[11:17] = cov_mat[np.triu_indices(3)].reshape(6,1)
+        self.cov_traces.append(np.trace(cov_mat))
 
         self.filt_vec = np.hstack((self.filt_vec, data_t))
         self.filter_cnt += 1
         if self.filter_cnt > 0:
-            # for stopping simulation with the esc key.
+            
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
-            # Plot N_eff
-            #  plt.subplot(2, 1, 1)
-            #  plt.cla()
-            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                     #  self.filt_vec[0,:], "-k")
-            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                     #  self.filt_vec[1,:], "-b")
-           #
-            #  plt.grid(True)
-            
-            # Plot x,y from odom and PF
+            # Plot x,y from GT, odom and PF
+            #  Center image on odom frame
             plt.cla()
-            # Center image on odom frame
             plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
                                          -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
             #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
@@ -143,7 +136,31 @@ class PFStatsVisualization(object):
 
             self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
-            plt.pause(0.001)
+            # Plot error between DR and GT
+            #  plt.subplot(3, 1, 1)
+            #  plt.cla()
+            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                     #  np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2, axis=0)),
+                     #  "-k")
+            #  plt.grid(True)
+            #
+            #  # Error between PF and GT
+            #  plt.subplot(3, 1, 2)
+            #  plt.cla()
+            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                     #  np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[5:7,:])**2, axis=0)),
+                     #  "-b")
+#
+            #  plt.grid(True)
+            #
+            #  # Plot trace of cov matrix
+            #  plt.subplot(3, 1, 3)
+            #  plt.cla()
+            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                     #  np.asarray(self.cov_traces), "-k")
+            #  plt.grid(True)
+
+            plt.pause(0.0001)
 
             if self.survey_finished:
                 plt.savefig(self.survey_name+"_tracks.png")

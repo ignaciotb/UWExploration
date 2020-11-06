@@ -29,12 +29,12 @@
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- Real data  -->
-    <arg name="path" default="/media/torroba/Seagate Expansion Drive/HuginDatasets/BornoSMaRC202006/200615_overnight/EM2040/section"/>
+    <arg name="path" default="/media/torroba/Seagate Expansion Drive/HuginDatasets/BornoSMaRC202006/200615_overnight/EM2040/map"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="50.0"/>
-	<arg name="y" default="-100.0"/>
+	<arg name="x" default="-100.0"/>
+	<arg name="y" default="-300.0"/>
 	<arg name="z" default="-10.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
@@ -124,7 +124,7 @@
 				<param name="synch_topic" value="/$(arg filter)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="80754" />
+				<param name="start_mission_ping_num" value="18000" />
 				<!-- <param name="end_mission_ping_num" value="18010" /> -->
 			</node>
 		</group>

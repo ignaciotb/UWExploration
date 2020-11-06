@@ -19,7 +19,7 @@
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_std"  default="0.4"/>
+  <arg name="measurement_std"  default="3"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
@@ -66,7 +66,9 @@
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
       <param name="survey_name" value="overnight_20"/>
-    </node>
+      <param name="mbes_pings_topic" value="$(arg mbes_pings_topic)" />
+      <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
+   </node>
 
 
     <!-- UW environment -->

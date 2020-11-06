@@ -391,14 +391,13 @@ class auv_pf(object):
 
         # Beams in real mbes frame
         real_mbes_full = pcloud2ranges_full(real_mbes)
-        #  print(real_mbes_full)
 
         # Processing of real pings here
-        #  real_ranges = gaussian_filter1d(real_ranges , sigma=10)
         idx = np.round(np.linspace(0, len(real_mbes_full)-1,
                                            self.beams_num)).astype(int)
         #  real_mbes_ranges = real_ranges[idx]
         real_mbes_full = real_mbes_full[idx]
+        # Transform depths from mbes to map frame
         real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
         
         # The sensor frame on IGL needs to have the z axis pointing 
@@ -413,9 +412,11 @@ class auv_pf(object):
             # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_mbes_pose();
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+
             # First GP meas model
             exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            #  self.particles[i].meas_cov = np.diag(exp_sigs)
+            self.particles[i].meas_cov = np.diag(exp_sigs)
+            print(exp_sigs)
 
             # Second GP meas model
             #  gp_samples = self.gp_sampling(p_part, r_base)
@@ -428,6 +429,12 @@ class auv_pf(object):
             #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
+            # Transform points to MBES frame (same frame than real pings)
+            #  rot_inv = r_mbes.transpose()
+            #  p_inv = rot_inv.dot(p_part)
+            #  mbes = np.dot(rot_inv, exp_mbes.T)
+            #  mbes = np.subtract(mbes.T, p_inv)
+            #  mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
             mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
 

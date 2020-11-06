@@ -11,6 +11,9 @@ from std_msgs.msg import Bool
 from rospy.numpy_msg import numpy_msg
 import tf2_ros
 from auv_particle import matrix_from_tf
+from sensor_msgs.msg import PointCloud2
+import message_filters
+import sensor_msgs.point_cloud2 as pc2
 
 class PFStatsVisualization(object):
     
@@ -21,7 +24,24 @@ class PFStatsVisualization(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
-        
+
+        # Real mbes pings subscriber
+        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
+
+        # PF ping subscriber
+        pf_pings_top = rospy.get_param("~particle_sim_mbes_topic", 'pf_mbes_pings')
+
+        self.real_pings_sub = message_filters.Subscriber(mbes_pings_top, PointCloud2)
+        self.pf_pings_sub = message_filters.Subscriber(pf_pings_top, PointCloud2)
+        self.ts = message_filters.ApproximateTimeSynchronizer([self.real_pings_sub,
+                                                               self.pf_pings_sub],
+                                                              20,
+                                                              slop=20.0,
+                                                              allow_headerless=False)
+
+        self.ts.registerCallback(self.ping_cb)
+        self.pings_vec = np.zeros((1,4))
+
         self.filter_cnt = 1
         self.datagram_size = 17
         self.filt_vec = np.zeros((self.datagram_size,1))
@@ -47,6 +67,22 @@ class PFStatsVisualization(object):
         self.cov_traces = [0.]
 
         rospy.spin()
+
+    def ping_cb(self, real_ping, pf_ping):
+        real_meas = self.ping_to_array(real_ping)
+        pf_meas = self.ping_to_array(pf_ping)
+        
+        idx = np.round(np.linspace(0, np.size(real_meas, 0)-1,
+                                   np.size(pf_meas, 0))).astype(int)
+        real_meas = real_meas[idx, :]
+        self.pings_vec = np.hstack((real_meas, pf_meas))
+
+    def ping_to_array(self, point_cloud):
+        ranges = []
+        for p in pc2.read_points(point_cloud, 
+                                 field_names = ("x", "y", "z"), skip_nans=True):
+            ranges.append(p[1:3])
+        return np.asarray(ranges)
 
     def synch_cb(self, finished_msg):
         self.survey_finished = finished_msg.data
@@ -120,45 +156,58 @@ class PFStatsVisualization(object):
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            #  Center image on odom frame
-            plt.cla()
-            plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
-                                         -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
-            #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
-            plt.plot(self.filt_vec[2,:],
-                     self.filt_vec[3,:], "-k")
+            if True:
+                plt.cla()
+                #  Center image on odom frame
+                plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
+                                             -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
+                #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
+                plt.plot(self.filt_vec[2,:],
+                         self.filt_vec[3,:], "-k")
 
-            plt.plot(self.filt_vec[5,:],
-                     self.filt_vec[6,:], "-b")
+                plt.plot(self.filt_vec[5,:],
+                         self.filt_vec[6,:], "-b")
 
-            plt.plot(self.filt_vec[8,:],
-                     self.filt_vec[9,:], "-r")
+                plt.plot(self.filt_vec[8,:],
+                         self.filt_vec[9,:], "-r")
 
-            self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
+                self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
-            # Plot error between DR and GT
-            #  plt.subplot(3, 1, 1)
-            #  plt.cla()
-            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                     #  np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2, axis=0)),
-                     #  "-k")
-            #  plt.grid(True)
-            #
-            #  # Error between PF and GT
-            #  plt.subplot(3, 1, 2)
-            #  plt.cla()
-            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                     #  np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[5:7,:])**2, axis=0)),
-                     #  "-b")
-#
-            #  plt.grid(True)
-            #
-            #  # Plot trace of cov matrix
-            #  plt.subplot(3, 1, 3)
-            #  plt.cla()
-            #  plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                     #  np.asarray(self.cov_traces), "-k")
-            #  plt.grid(True)
+            # Plot error between DR PF and GT
+            if False:
+                plt.subplot(3, 1, 1)
+                plt.cla()
+                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                         np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2,
+                                        axis=0)), "-k")
+                plt.grid(True)
+
+                # Error between PF and GT
+                plt.subplot(3, 1, 2)
+                plt.cla()
+                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                         np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[5:7,:])**2,
+                                        axis=0)), "-b")
+
+                plt.grid(True)
+
+                # Plot trace of cov matrix
+                plt.subplot(3, 1, 3)
+                plt.cla()
+                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                         np.asarray(self.cov_traces), "-k")
+                plt.grid(True)
+
+            # Plot real pings vs expected meas
+            if False:
+                plt.subplot(1, 1, 1)
+                plt.cla()
+                plt.plot(self.pings_vec[:,0],
+                         self.pings_vec[:,1], "-k")
+                plt.plot(self.pings_vec[:,2],
+                         self.pings_vec[:,3], "-b")
+
+                plt.grid(True)
 
             plt.pause(0.0001)
 

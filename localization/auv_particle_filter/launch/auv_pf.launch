@@ -14,8 +14,10 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="80"/>
+  <arg name="particle_count"                    default="100"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
+  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
@@ -66,7 +68,7 @@
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
       <param name="survey_name" value="overnight_20"/>
-      <param name="mbes_pings_topic" value="$(arg mbes_pings_topic)" />
+      <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
    </node>
 

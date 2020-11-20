@@ -40,7 +40,7 @@ class PFStatsVisualization(object):
                                                               allow_headerless=False)
 
         self.ts.registerCallback(self.ping_cb)
-        self.pings_vec = np.zeros((1,4))
+        self.pings_vec = np.zeros((1,6))
 
         self.filter_cnt = 1
         self.datagram_size = 17
@@ -81,7 +81,7 @@ class PFStatsVisualization(object):
         ranges = []
         for p in pc2.read_points(point_cloud, 
                                  field_names = ("x", "y", "z"), skip_nans=True):
-            ranges.append(p[1:3])
+            ranges.append(p)
         return np.asarray(ranges)
 
     def synch_cb(self, finished_msg):
@@ -156,7 +156,7 @@ class PFStatsVisualization(object):
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            if True:
+            if False:
                 plt.cla()
                 #  Center image on odom frame
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
@@ -199,15 +199,28 @@ class PFStatsVisualization(object):
                 plt.grid(True)
 
             # Plot real pings vs expected meas
-            if False:
+            if True:
                 plt.subplot(1, 1, 1)
                 plt.cla()
-                plt.plot(self.pings_vec[:,0],
-                         self.pings_vec[:,1], "-k")
-                plt.plot(self.pings_vec[:,2],
-                         self.pings_vec[:,3], "-b")
+                plt.plot(self.pings_vec[:,1],
+                         self.pings_vec[:,2], "-k")
+                plt.plot(self.pings_vec[:,4],
+                         self.pings_vec[:,5], "-b")
+
+                # For debugging
+                #  print (self.pings_vec[:, 2])
+                #  print (self.pings_vec[:, 5])
+                #  print (self.pings_vec[:, 2] - self.pings_vec[:, 5])
+                #  print (np.linalg.norm(self.pings_vec[:, 2] - self.pings_vec[:, 5]))
+                #  print(np.gradient(exp_mbes_ranges) - np.gradient(real_mbes_ranges))
+
+                #  print(self.meas_cov)
+                #  print (np.linalg.norm(exp_mbes_ranges - real_mbes_ranges))
+                #  print (np.linalg.norm(np.gradient(real_mbes_ranges)
+                #  - np.gradient(exp_mbes_ranges)))
 
                 plt.grid(True)
+            
 
             plt.pause(0.0001)
 

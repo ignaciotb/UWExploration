@@ -124,8 +124,8 @@
 				<param name="synch_topic" value="/$(arg filter)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="18000" />
-				<!-- <param name="end_mission_ping_num" value="18010" /> -->
+				<param name="start_mission_ping_num" value="19000" />
+				<!-- <param name="end_mission_ping_num" value="28000" /> -->
 			</node>
 		</group>
 

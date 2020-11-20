@@ -415,8 +415,8 @@ class auv_pf(object):
 
             # First GP meas model
             exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            self.particles[i].meas_cov = np.diag(exp_sigs)
-            print(exp_sigs)
+            #  self.particles[i].meas_cov = np.diag(exp_sigs)
+            #  print(exp_sigs)
 
             # Second GP meas model
             #  gp_samples = self.gp_sampling(p_part, r_base)
@@ -430,12 +430,13 @@ class auv_pf(object):
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
-            #  rot_inv = r_mbes.transpose()
-            #  p_inv = rot_inv.dot(p_part)
-            #  mbes = np.dot(rot_inv, exp_mbes.T)
-            #  mbes = np.subtract(mbes.T, p_inv)
-            #  mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-            mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
+            rot_inv = r_mbes.transpose()
+            p_inv = rot_inv.dot(p_part)
+            mbes = np.dot(rot_inv, exp_mbes.T)
+            mbes = np.subtract(mbes.T, p_inv)
+            mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+            
+            #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
 
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
@@ -449,7 +450,7 @@ class auv_pf(object):
         self.miss_meas = weights.count(0.0)
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
-        weights_array += 1.e-100
+        weights_array += 1.e-200
 
         return weights_array
     
@@ -492,8 +493,6 @@ class auv_pf(object):
         return ret[n - 1:] / n
 
     def resample(self, weights):
-
-        #  print "-------------"
         # Normalize weights
         #  print (weights)
         weights /= weights.sum()
@@ -508,16 +507,12 @@ class auv_pf(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         print ("N_eff ", N_eff)
-
         print ("Missed meas ", self.miss_meas)
-        #  if self.miss_meas < self.pc/2.:
                 
         # Resampling?
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
         #  if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
             indices = residual_resample(weights)
-            #  print "Resampling "
-            #  print indices
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]
             dupes = indices[:].tolist()
@@ -529,8 +524,6 @@ class auv_pf(object):
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
 
-        #  else:
-            #  rospy.loginfo('Number of effective particles high - not resampling')
 
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):
@@ -560,7 +553,6 @@ class auv_pf(object):
         
         # Calculate covariance
         self.cov = np.zeros((3, 3))
-
         for i in range(self.pc):
             dx = (poses_array[i, 0:3] - ave_pose[0:3])
             self.cov += np.diag(dx*dx.T) 

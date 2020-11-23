@@ -138,7 +138,7 @@ class auv_pf(object):
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb, auto_start=True)
+                                                    execute_cb=self.mbes_as_cb, auto_start=False)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')

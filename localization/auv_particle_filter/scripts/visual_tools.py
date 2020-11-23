@@ -89,8 +89,7 @@ class PFStatsVisualization(object):
         np.savez(self.survey_name+".npz", full_dataset=self.filt_vec.tolist())
         rospy.loginfo("Stats node: Survey finished received")
 
-
-    def plot_covariance_ellipse(self, xEst, PEst):  # pragma: no cover
+    def plot_covariance_ellipse(self, xEst, PEst, k):  # pragma: no cover
         #  Pxy = PEst.reshape(3,3)
         cov_mat = np.zeros((3,3))
         cov_mat[np.triu_indices(3, 0)] = np.asarray(PEst).reshape(1,6)
@@ -111,12 +110,12 @@ class PFStatsVisualization(object):
         # numbers extremely close to 0 (~10^-20), catch these cases and set
         # the respective variable to 0
         try:
-            a = math.sqrt(eig_val[big_ind])
+            a = k * math.sqrt(eig_val[big_ind])
         except ValueError:
             a = 0
 
         try:
-            b = math.sqrt(eig_val[small_ind])
+            b = k * math.sqrt(eig_val[small_ind])
         except ValueError:
             b = 0
 
@@ -128,7 +127,8 @@ class PFStatsVisualization(object):
 
         px = np.array(fx[:, 0] + xEst[0]).flatten()
         py = np.array(fx[:, 1] + xEst[1]).flatten()
-        plt.plot(px, py, "--r")
+
+        return px, py
 
    
     def stat_cb(self, stat_msg):
@@ -156,7 +156,7 @@ class PFStatsVisualization(object):
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            if False:
+            if True:
                 plt.cla()
                 #  Center image on odom frame
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
@@ -171,7 +171,9 @@ class PFStatsVisualization(object):
                 plt.plot(self.filt_vec[8,:],
                          self.filt_vec[9,:], "-r")
 
-                self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
+                px, py = self.plot_covariance_ellipse(self.filt_vec[5:7,-1], 
+                                                      self.filt_vec[11:17,-1], 3)
+                plt.plot(px, py, "--r")
 
             # Plot error between DR PF and GT
             if False:
@@ -199,7 +201,7 @@ class PFStatsVisualization(object):
                 plt.grid(True)
 
             # Plot real pings vs expected meas
-            if True:
+            if False:
                 plt.subplot(1, 1, 1)
                 plt.cla()
                 plt.plot(self.pings_vec[:,1],

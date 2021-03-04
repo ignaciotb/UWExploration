@@ -37,7 +37,7 @@ from auvlib.data_tools import csv_data, all_data, std_data
 from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
-from bathy_gps import process, gp
+from bathy_gps import gp
 import time 
 
 class rbpf_slam(object):

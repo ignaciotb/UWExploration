@@ -8,13 +8,13 @@
 	<arg name="dataset" default="overnight_2020"/>
 
 	<!-- Rates for simulating missions  -->
-    <arg name="odom_rate" default="0.1"/> <!-- 0.1 -->
-	<arg name="meas_rate" default="0.5"/> <!-- 0.5 -->
+    <arg name="odom_rate" default="0.1"/> <!-- 0.1 --> <!-- how often odom is re-calculated?-->
+	<arg name="meas_rate" default="0.5"/> <!-- 0.5 --> <!-- how often "the white line appear" meaning, how often we take measurement-->
     <arg name="replay_rate" default="0.2"/> <!-- 0.2 -->
 	
-	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	<!--100 -->
-	<arg name="mbes_open_angle" default="2.308" /> <!--2.308 -->
+	<!-- MBES sensor--> 
+	<arg name="n_beams_mbes" default="100"/>	<!--100 --> <!-- NOT USED NOW-->
+	<arg name="mbes_open_angle" default="2.308" /> <!--2.308 --> <!-- NOT USED NOW-->
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 

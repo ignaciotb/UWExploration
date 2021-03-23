@@ -131,6 +131,8 @@ class rbpf_slam(object):
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
+        # need every particle to create its own gp 
+        # using incomming pings instead of loading data 
         gp_path = rospy.get_param("~gp_path", 'gp.path')
         self.gp = gp.SVGP.load(1000, gp_path)
         print("Size of GP: ", sys.getsizeof(self.gp))

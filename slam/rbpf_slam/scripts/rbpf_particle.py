@@ -97,6 +97,48 @@ class Particle(object):
             self.w = 0.0
             rospy.logwarn("Range of exp meas equals zero")
     
+    def compute_GP_weight(self, exp_mbes, real_mbes_ranges, real_mbes_GP_pred, got_result):
+        if got_result:
+            # Predict mbes ping given current particle pose and m
+            exp_mbes_ranges = self.list2ranges(exp_mbes)
+
+            if len(exp_mbes_ranges) > 0:
+                # Before calculating weights, make sure both meas have same length
+                idx = np.round(np.linspace(0, len(exp_mbes_ranges) - 1,
+                                            len(real_mbes_ranges))).astype(int)
+                mbes_sim_sampled = exp_mbes_ranges[idx]
+
+                self.w = self.weight_gps(real_mbes_ranges, mbes_sim_sampled, real_mbes_GP_pred)
+
+            else:
+                self.w = 1.e-50
+        else:
+            #  rospy.logwarn("Particle did not get meas")
+            self.w = 1.e-50
+
+    def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
+        if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check
+
+            # time_start = time.time()
+
+            # Run gpytorch regression on sim data
+            print("\nTraining GP on particle: ", self.index)
+            observed_pred_sim = mbes_gpytorch_regression(mbes_sim_ranges)
+            # print("\nsim train time (s): ", time.time() - train_sim_start, "\n")
+
+            # Calculate KL divergence
+            kl_div = KLgp_div(real_mbes_GP_pred, observed_pred_sim)
+            w_i = 1. / kl_div
+
+            # print("\nTotal weight time (s): ", time.time() - time_start, "\n")
+            print('kl_div:    {}'.format(kl_div, precision=3))
+            print('gp weight: {}'.format(w_i, precision=3))
+        else:
+            rospy.logwarn("missing pings!")
+            w_i = 1.e-50
+
+        return w_i
+
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             grad_meas = np.gradient(mbes_meas_ranges)

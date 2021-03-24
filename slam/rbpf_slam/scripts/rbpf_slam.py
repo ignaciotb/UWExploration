@@ -196,6 +196,8 @@ class rbpf_slam(object):
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
 
+        gp_path = rospy.get_param("~gp_path", 'gp.path')
+        
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
         self.synch_pub.publish(msg)
@@ -214,6 +216,8 @@ class rbpf_slam(object):
                                     process_cov=motion_cov)
 
         rospy.spin()
+
+
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 
@@ -323,6 +327,10 @@ class rbpf_slam(object):
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
+        # load the generated pointcloud
+        cloud = np.load('../../data/pcl_33_over.npy')
+        inputs = cloud[:,[0,1]]
+        targets = cloud[:,2]
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
@@ -338,6 +346,10 @@ class rbpf_slam(object):
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                 self.beams_num, self.mbes_angle)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+
+
+            # tmp_Ping = pingGP(self.particles[0]) # Create a gp object
+            self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
@@ -351,6 +363,7 @@ class rbpf_slam(object):
             self.pcloud_pub.publish(mbes_pcloud)
 
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
+            # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
         weights = []
         for i in range(self.pc):
@@ -497,6 +510,134 @@ class rbpf_slam(object):
         self.poses.header.stamp = rospy.Time.now()
         self.pf_pub.publish(self.poses)
         self.average_pose(pose_list)
+
+
+class GP_mbes:
+    # -------------- Global constants ------------------------------------:
+    # MBES parameters
+    beam_width = math.pi/180.*60.
+    nbr_beams = 512
+    # ---------------------------------------------------------------------
+
+    def __init__(self, ping, draper):
+        self.ping = ping
+        self.R = rot.from_euler("zyx", [ping.heading_, ping.pitch_, ping.roll_ ]).as_dcm()
+
+        ext_calib_R = rot.from_euler("zyx", [ping.heading_, ping.pitch_, ping.roll_  + 0.6]).as_dcm()
+        ext_calib_t = ping.pos_ + [10, -20, 0]
+
+        # Extract real MBES ping data
+        self.depth = draper.project_altimeter(ping.pos_)
+        self.mbes_points = np.asarray(ping.beams)
+        # Simulate points with extrnal calibration values
+        self.sim_points = draper.project_mbes(ext_calib_t, ext_calib_R, self.nbr_beams, self.beam_width)
+        # self.sim_points = draper.project_mbes(ping.pos_, self.R, self.nbr_beams, self.beam_width)
+        self.mbes_points_auv_frame = '' # transform_ping_points(self.mbes_points)
+        self.sim_points_auv_frame = '' # transform_ping_points(self.sim_points)
+
+    def Training_data(self):
+        # Beams distributed along seafloor - AUV's y axis
+        self.train_x_mbes = torch.Tensor(list(self.mbes_points_auv_frame[:, 1]))
+        self.train_x_sim = torch.Tensor(list(self.sim_points_auv_frame[:, 1]))
+        # Depth data - AUV's z axis
+        self.train_y_mbes = torch.Tensor(list(self.mbes_points_auv_frame[:, 2]))
+        self.train_y_sim = torch.Tensor(list(self.sim_points_auv_frame[:, 2]))
+
+    # Returns MBES points in the AUV's reference frame
+    # CHECK IF neccecary 
+    def transform_ping_points(self, points):
+        """
+        Returns a ping's MBES points (along the seafloor)
+        in the AUV's reference frame
+
+        :param points: MBES ping points to transform [x, y, z]
+        :type points: numpy array: shape(N,3)
+        :param ping_pose: MBES ping pose from 'auvlib.data_tools.std_data.mbes_ping'
+        :type ping_pose: numpy array: shape(3,)
+        :param R: AUV 3x3 rotation matrix
+        :type R: numpy array: shape(3,3)
+
+        :return: Transformed MBES points [x,y,z]
+        :rtype: Numpy array (nbr_pointsx3)
+        """
+
+        # 4x4 transformation matrix (tf: auv -> world)
+        tf_world_auv = np.eye(4)
+        tf_world_auv[:3,:] = np.concatenate((self.R, np.array([[self.ping.pos_[0], self.ping.pos_[1], self.ping.pos_[2]]]).T), axis=1)
+        tf_auv_world = np.linalg.inv(tf_world_auv)
+
+        # Multiply 4x4 tf: auv -> world with points to get points in AUV frame
+        temp_points = np.transpose(np.hstack((points,np.ones((points.shape[0],1)))))
+        points_auv_frame = np.transpose(np.dot(tf_auv_world, temp_points))[:,:3]
+
+        return points_auv_frame
+    
+    # Run regression (all lumped into one function for now)
+    def run_gpytorch_regression(train_x, train_y): #, training_point_count, max_training_iter_count, noise_threshold, loss_threshold):
+        """
+        Run regression (all lumped into one function for now)
+        """
+        # %matplotlib inline
+        # %load_ext autoreload
+        # %autoreload 2
+
+        # initialize likelihood and model
+        likelihood = gpytorch.likelihoods.GaussianLikelihood()
+        model = ExactGPModel(train_x, train_y, likelihood)
+
+        # this is for running the notebook in our testing framework
+        import os
+        smoke_test = ('CI' in os.environ)
+        max_train_iter = 2 if smoke_test else max_training_iter_count
+
+        # Find optimal model hyperparameters
+        model.train()
+        likelihood.train()
+
+        # Use the adam optimizer
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
+
+        # "Loss" for GPs - the marginal log likelihood
+        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+
+        i = 0 # init iteration count
+        loss_val = 999. # init loss value for convergence w/ large value
+
+        # Train until convergence
+        # while loss_val >= loss_threshold:
+        while model.likelihood.noise.item() >= noise_threshold:
+            # Zero gradients from previous iteration
+            optimizer.zero_grad()
+            # Output from model
+            output = model(train_x)
+            # Calc loss and backprop gradients
+            loss = -mll(output, train_y)
+            loss.backward()
+            if (i+1) % 10 == 0:
+                print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.4f' % (
+                    i + 1, max_train_iter, loss.item(),
+                    model.covar_module.base_kernel.lengthscale.item(),
+                    model.likelihood.noise.item()
+                ))
+            optimizer.step()
+
+            # Update iteration / convergence tracking
+            loss_val = loss.item()
+            i += 1
+            if i > max_train_iter:
+                break
+
+        # Get into evaluation (predictive posterior) mode
+        model.eval()
+        likelihood.eval()
+
+        # Test points are regularly spaced on range of y-axis
+        # Make predictions by feeding model through likelihood
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():  # To use LOVE 
+            test_x = torch.linspace(min(train_x), max(train_x), training_point_count)
+            observed_pred = likelihood(model(test_x))
+
+        return test_x, observed_pred
 
 
 if __name__ == '__main__':

@@ -3,6 +3,7 @@
 # Standard dependencies
 import math
 import rospy
+import random
 import sys
 import numpy as np
 import tf2_ros
@@ -325,36 +326,28 @@ class rbpf_slam(object):
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
-        # load the generated pointcloud
-        # cloud = np.load('../../data/pcl_33_over.npy')
-        # inputs = cloud[:,[0,1]]
-        # targets = cloud[:,2]
+        # Choose random particle
+        gp_idx = random.randint(0,self.pc)
+        
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
             p_part, r_mbes = self.particles[i].get_p_mbes_pose();
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-
-            # GP meas model
-            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            #  self.particles[i].meas_cov = np.diag(exp_sigs)
-            #  print(exp_sigs)
                    
             # IGL-based meas model
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                 self.beams_num, self.mbes_angle)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
+            # GP meas model
+            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            self.particles[i].meas_cov = np.diag(exp_sigs)
+            #  print(exp_sigs)
 
             # find input and target
-            targets = real_mbes_ranges # (n,)
+            targets = real_mbes_full # (n,)
             inputs = exp_mbes[:,0:2] # (n,2)
-            # if inputs.shape[0] == targets.shape[0]:
-            #     rospy.loginfo("SAME SIZE")
-            #     rospy.loginfo(inputs.shape)
-            #     rospy.loginfo(" X and Y !!")
-            # rospy.loginfo("TEST DONE")
-            self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
@@ -366,7 +359,8 @@ class rbpf_slam(object):
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
-
+            if i == gp_idx:
+                self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
@@ -382,7 +376,7 @@ class rbpf_slam(object):
         weights_array += 1.e-200
 
         return weights_array
-    
+
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
         p_odom = self.dr_particle.p_pose

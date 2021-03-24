@@ -96,7 +96,7 @@ class Particle(object):
             #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
             #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
         else:
-            self.w = 0.0
+            self.w = 1.e-50 #0.0
             rospy.logwarn("Range of exp meas equals zero")
     
     def compute_GP_weight(self, exp_mbes, real_mbes_ranges, real_mbes_GP_pred):
@@ -157,7 +157,7 @@ class Particle(object):
                                           cov=self.meas_cov)
         else:
             rospy.logwarn("missing pings!")
-            w_i = 0.0
+            w_i = 1.e-50 #0.0
         return w_i
       
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):

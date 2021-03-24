@@ -195,8 +195,6 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
@@ -328,9 +326,9 @@ class rbpf_slam(object):
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         # load the generated pointcloud
-        cloud = np.load('../../data/pcl_33_over.npy')
-        inputs = cloud[:,[0,1]]
-        targets = cloud[:,2]
+        # cloud = np.load('../../data/pcl_33_over.npy')
+        # inputs = cloud[:,[0,1]]
+        # targets = cloud[:,2]
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
@@ -338,7 +336,7 @@ class rbpf_slam(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # GP meas model
-            #  exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
             #  self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
                    
@@ -348,7 +346,14 @@ class rbpf_slam(object):
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
 
-            # tmp_Ping = pingGP(self.particles[0]) # Create a gp object
+            # find input and target
+            targets = real_mbes_ranges # (n,)
+            inputs = exp_mbes[:,0:2] # (n,2)
+            # if inputs.shape[0] == targets.shape[0]:
+            #     rospy.loginfo("SAME SIZE")
+            #     rospy.loginfo(inputs.shape)
+            #     rospy.loginfo(" X and Y !!")
+            # rospy.loginfo("TEST DONE")
             self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             
             # Publish (for visualization)

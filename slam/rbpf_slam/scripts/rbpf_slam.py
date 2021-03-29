@@ -282,7 +282,7 @@ class rbpf_slam(object):
             # Motion prediction
             self.predict(odom_msg)    
             
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    # How often to resample, if a new measurement
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
@@ -341,13 +341,13 @@ class rbpf_slam(object):
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # GP meas model
-            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            self.particles[i].meas_cov = np.diag(exp_sigs)
+            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
 
             # find input and target
-            targets = real_mbes_full # (n,)
-            inputs = exp_mbes[:,0:2] # (n,2)
+            # rospy.loginfo("A B S")
+            # rospy.loginfo(abs(real_mbes_ranges))
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
@@ -356,17 +356,24 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+
+            if tao_hyper >= tao_relearn:
+                targets = real_mbes_ranges # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
+                inputs = mbes[:,0:2] # (n,2)
+                self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+
+            # rospy.loginfo("MAYBE MBES??")
+            # rospy.loginfo(inputs.shape)
+            
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
-            if i == gp_idx:
-                self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
         weights = []
         for i in range(self.pc):
-            weights.append(self.particles[i].w)
+            weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
 
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)

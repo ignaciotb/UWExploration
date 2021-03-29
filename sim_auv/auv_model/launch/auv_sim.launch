@@ -9,7 +9,7 @@
 
 	<!-- Rates for simulating missions  -->
     <arg name="odom_rate" default="0.1"/> <!-- 0.1 --> <!-- how often odom is re-calculated?-->
-	<arg name="meas_rate" default="0.5"/> <!-- 0.5 --> <!-- how often "the white line appear" meaning, how often we take measurement-->
+	<arg name="meas_rate" default="2.0"/> <!-- 0.5 --> <!-- how often "the white line appear" meaning, how often we take measurement-->
     <arg name="replay_rate" default="0.2"/> <!-- 0.2 -->
 	
 	<!-- MBES sensor--> 

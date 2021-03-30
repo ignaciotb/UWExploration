@@ -53,6 +53,7 @@ class rbpf_slam(object):
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
+        self.tao_relearn = rospy.get_param("~tao_relearn", 1)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -322,13 +323,25 @@ class rbpf_slam(object):
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
         # needs the opposite.
-        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
+        # R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         # Choose random particle
-        gp_idx = random.randint(0,self.pc)
-        
+        # gp_idx = random.randint(0,self.pc)
+        tao_hyperparam = self.latest_mbes.header.stamp.to_sec() - self.prev_mbes.header.stamp.to_sec()
+        prev_exist = False
+        print("PREV   ", int(self.prev_mbes.header.stamp.to_sec()))
+        if int(self.prev_mbes.header.stamp.to_sec()) != 0:
+            prev_exist = True
+        # print("LATEST DATA")
+        # print(self.latest_mbes.data)
+        # rospy.loginfo("LATEST STAMP ")
+        # rospy.loginfo(self.latest_mbes.header.stamp)
+        # rospy.loginfo("PREV STAMP ")
+        # rospy.loginfo(self.prev_mbes.header.stamp)
+        # rospy.loginfo("HYPER !! ")
+        # rospy.loginfo(tao_hyperparam)
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
@@ -356,8 +369,11 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+            hej = mbes_pcloud.header.stamp.to_sec
 
-            if tao_hyper >= tao_relearn:
+            if prev_exist and int(tao_hyperparam) >= self.tao_relearn:
+                print("HYPER ")
+                print(tao_hyperparam)
                 targets = real_mbes_ranges # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
                 inputs = mbes[:,0:2] # (n,2)
                 self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)

@@ -84,6 +84,7 @@ class rbpf_slam(object):
         self.n_eff_filt = 0.
         self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
+        self.count_mbes = 0
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
         self.poses.header.frame_id = odom_frame
@@ -197,6 +198,7 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
+            self.particles[i].gp = gp.SVGP.load(1000, gp_path)
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
@@ -276,6 +278,7 @@ class rbpf_slam(object):
         self.as_ping.set_succeeded(result)
 
         self.latest_mbes = result.sim_mbes 
+        self.count_mbes += 1
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -285,6 +288,7 @@ class rbpf_slam(object):
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    # How often to resample, if a new measurement
                 # Measurement update if new one received
+                # print("Going into update :")
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
                 
@@ -329,11 +333,12 @@ class rbpf_slam(object):
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         # Choose random particle
         # gp_idx = random.randint(0,self.pc)
-        tao_hyperparam = self.latest_mbes.header.stamp.to_sec() - self.prev_mbes.header.stamp.to_sec()
-        prev_exist = False
-        print("PREV   ", int(self.prev_mbes.header.stamp.to_sec()))
-        if int(self.prev_mbes.header.stamp.to_sec()) != 0:
-            prev_exist = True
+        # tao_hyperparam = self.latest_mbes.header.stamp.to_sec() - self.prev_mbes.header.stamp.to_sec()
+        # prev_exist = False
+        # print("PREV   ", int(self.prev_mbes.header.stamp.to_sec()))
+        # if int(self.prev_mbes.header.stamp.to_sec()) != 0:
+        #     prev_exist = True
+        print("number of pings sent out is ", self.count_mbes)
         # print("LATEST DATA")
         # print(self.latest_mbes.data)
         # rospy.loginfo("LATEST STAMP ")
@@ -351,12 +356,12 @@ class rbpf_slam(object):
             # IGL-based meas model
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                 self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # GP meas model
-            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
+            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # find input and target
             # rospy.loginfo("A B S")
@@ -369,13 +374,14 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-            hej = mbes_pcloud.header.stamp.to_sec
+            # hej = mbes_pcloud.header.stamp.to_sec
 
-            if prev_exist and int(tao_hyperparam) >= self.tao_relearn:
-                print("HYPER ")
-                print(tao_hyperparam)
+            if self.count_mbes > 10:
+            # # if prev_exist and int(tao_hyperparam) >= self.tao_relearn:
+            # #     print("HYPER ")
+            # #     print(tao_hyperparam)
                 targets = real_mbes_ranges # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
-                inputs = mbes[:,0:2] # (n,2)
+                inputs = exp_mbes[:,0:2] # (n,2)
                 self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
 
             # rospy.loginfo("MAYBE MBES??")

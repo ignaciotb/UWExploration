@@ -45,7 +45,7 @@ class Particle(object):
         self.w = 0.
         self.log_w = 0.
         #  self.gp_sigmas = np.array([])
-        self.gp = SVGP(1000) # initialise GP with 1000 inducing points
+        # self.gp = SVGP(1000) # initialise GP with 1000 inducing points
 
         self.add_noise(init_cov)
 

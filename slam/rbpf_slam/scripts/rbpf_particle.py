@@ -44,6 +44,7 @@ class Particle(object):
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
+        self.inputs =  np.empty((1,2)) #[[0]*2]*1
         #  self.gp_sigmas = np.array([])
         # self.gp = SVGP(1000) # initialise GP with 1000 inducing points
 

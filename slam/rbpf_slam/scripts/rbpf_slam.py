@@ -57,7 +57,7 @@ class rbpf_slam(object):
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
-        self.record_data = rospy.get_param("~record_data", 10)
+        self.record_data = rospy.get_param("~record_data", 1)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -94,6 +94,9 @@ class rbpf_slam(object):
         self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
+        self.targets = np.empty((1,))
+        
+
 
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
@@ -329,8 +332,9 @@ class rbpf_slam(object):
 
     def recordData2gp(self):
         root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/'
-        dir_name = ('results_' + str(time.gmtime().tm_year) + '_' + str(time.gmtime().tm_mon) + '_' + str(time.gmtime().tm_mday) + '___'
-                    + str(time.gmtime().tm_hour) + '_' + str(time.gmtime().tm_min) + '_' + str(time.gmtime().tm_sec) + '/')
+        dir_name = 'results/'
+        # dir_name = ('results_' + str(time.gmtime().tm_year) + '_' + str(time.gmtime().tm_mon) + '_' + str(time.gmtime().tm_mday) + '___'
+        #             + str(time.gmtime().tm_hour) + '_' + str(time.gmtime().tm_min) + '_' + str(time.gmtime().tm_sec) + '/')
         if root_folder[-1] != '/':
             dir_name = '/' + dir_name
 
@@ -364,15 +368,16 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         okay = False
+        self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         if self.count_mbes % self.record_data == 0: 
             okay = True
             # print('  saved target  ')
             # print(real_mbes_ranges)
             # print('end target ')
             # targets =PointCloud2(data=real_mbes_ranges)
-            targets = real_mbes_ranges  # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
+            # targets = real_mbes_ranges  # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
             # self.target_pub.publish(targets)
-            np.save(self.targets_file, targets)
+            # np.save(self.targets_file, targets)
         
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
@@ -428,10 +433,12 @@ class rbpf_slam(object):
 
             
             # ----------- record input data --------
-            if okay:
+            
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
-                inputs = exp_mbes[:,0:2]  # (n,2)
-                np.save(self.inputs_file[i], inputs)
+            self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,0:2], axis=0)  # (n,2)
+            if okay:
+                # inputs = exp_mbes[:,0:2] 
+                np.save(self.inputs_file[i], self.particles[i].inputs)
                 # self.input_pub.publish(inputs)
                 # self.train_gp_pub.publish(self.particles[i], inputs, targets, i)
                 # self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
@@ -448,6 +455,8 @@ class rbpf_slam(object):
         
         if okay:
             print('\nData recorded.\n')
+            print('Size target:  {} \n Size input: {} \n'.format(self.targets.shape, self.particles[0].inputs.shape))
+            np.save(self.targets_file, self.targets)
 
         weights = []
         for i in range(self.pc):

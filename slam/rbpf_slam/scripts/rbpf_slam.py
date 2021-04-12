@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # Standard dependencies
+import os
 import math
 import rospy
 import random
@@ -41,6 +42,9 @@ from scipy.ndimage.filters import gaussian_filter
 from bathy_gps import gp
 import time 
 
+# train gps simultaneously as rbpf slam is run
+# from train_pf_gp import Train_gps
+
 class rbpf_slam(object):
 
     def __init__(self):
@@ -53,7 +57,7 @@ class rbpf_slam(object):
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
-        self.tao_relearn = rospy.get_param("~tao_relearn", 1)
+        self.record_data = rospy.get_param("~record_data", 10)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -144,6 +148,17 @@ class rbpf_slam(object):
         sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
                                                     execute_cb=self.mbes_as_cb, auto_start=True)
+
+        # Publish to record data
+        self.recordData2gp()
+        self.target_pub = rospy.Publisher('/target_top', numpy_msg(Floats), queue_size=10)
+        self.input_pub = rospy.Publisher('/input_top',numpy_msg(Floats), queue_size=10)
+        
+        # Publish to train gps
+        # self.train_gp_pub = rospy.Publisher('/gps2train', PointCloud2, queue_size=1)
+        # Subscription to trained gps
+        # train_gp_topic = rospy.get_param('~train_gp_topic', '/trained_gps')
+        # rospy.Subscriber(train_gp_topic, PointCloud2, self.train_gp_cb)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -245,6 +260,11 @@ class rbpf_slam(object):
     def mbes_real_cb(self, msg):
         self.latest_mbes = msg
 
+    # def train_gp_cb(self, msg):
+    #     idx = msg.idx
+    #     trained_particle = msg.particle
+    #     self.particles[idx] = trained_particle
+
     # Action server to simulate MBES for the sim AUV
     def mbes_as_cb(self, goal):
 
@@ -307,6 +327,24 @@ class rbpf_slam(object):
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
 
+    def recordData2gp(self):
+        root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/'
+        dir_name = ('results_' + str(time.gmtime().tm_year) + '_' + str(time.gmtime().tm_mon) + '_' + str(time.gmtime().tm_mday) + '___'
+                    + str(time.gmtime().tm_hour) + '_' + str(time.gmtime().tm_min) + '_' + str(time.gmtime().tm_sec) + '/')
+        if root_folder[-1] != '/':
+            dir_name = '/' + dir_name
+
+        storage_path = root_folder + dir_name
+        input_path = storage_path + 'particles/'
+        if not os.path.exists(input_path):
+            os.makedirs(input_path)
+        if not os.path.exists(storage_path):
+            os.makedirs(storage_path)
+        
+        self.targets_file = storage_path + 'target_gp.npy'
+        self.inputs_file = [None]*self.pc
+        for i in range(0, self.pc):
+            self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
     
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -324,6 +362,18 @@ class rbpf_slam(object):
         # Transform depths from mbes to map frame
         real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
         
+        # -------------- record target data ------------
+        okay = False
+        if self.count_mbes % self.record_data == 0: 
+            okay = True
+            # print('  saved target  ')
+            # print(real_mbes_ranges)
+            # print('end target ')
+            # targets =PointCloud2(data=real_mbes_ranges)
+            targets = real_mbes_ranges  # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
+            # self.target_pub.publish(targets)
+            np.save(self.targets_file, targets)
+        
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
         # needs the opposite.
@@ -338,7 +388,7 @@ class rbpf_slam(object):
         # print("PREV   ", int(self.prev_mbes.header.stamp.to_sec()))
         # if int(self.prev_mbes.header.stamp.to_sec()) != 0:
         #     prev_exist = True
-        print("number of pings sent out is ", self.count_mbes)
+        # print("number of pings sent out is ", self.count_mbes)
         # print("LATEST DATA")
         # print(self.latest_mbes.data)
         # rospy.loginfo("LATEST STAMP ")
@@ -350,7 +400,7 @@ class rbpf_slam(object):
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
-            p_part, r_mbes = self.particles[i].get_p_mbes_pose();
+            p_part, r_mbes = self.particles[i].get_p_mbes_pose()
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
                    
             # IGL-based meas model
@@ -358,8 +408,8 @@ class rbpf_slam(object):
                                                 self.beams_num, self.mbes_angle)
 
             # GP meas model
-            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            self.particles[i].meas_cov = np.diag(exp_sigs)
+            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
@@ -376,13 +426,16 @@ class rbpf_slam(object):
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
             # hej = mbes_pcloud.header.stamp.to_sec
 
-            if self.count_mbes > 10:
-            # # if prev_exist and int(tao_hyperparam) >= self.tao_relearn:
-            # #     print("HYPER ")
-            # #     print(tao_hyperparam)
-                targets = real_mbes_ranges # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
-                inputs = exp_mbes[:,0:2] # (n,2)
-                self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+            
+            # ----------- record input data --------
+            if okay:
+                # inputs = PointCloud2(data=exp_mbes[:,0:2])
+                inputs = exp_mbes[:,0:2]  # (n,2)
+                np.save(self.inputs_file[i], inputs)
+                # self.input_pub.publish(inputs)
+                # self.train_gp_pub.publish(self.particles[i], inputs, targets, i)
+                # self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+                # print("trained particle number ", i)
 
             # rospy.loginfo("MAYBE MBES??")
             # rospy.loginfo(inputs.shape)
@@ -393,6 +446,9 @@ class rbpf_slam(object):
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
+        if okay:
+            print('\nData recorded.\n')
+
         weights = []
         for i in range(self.pc):
             weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.

@@ -12,7 +12,7 @@
 	<arg name="mbes_open_angle" value="2.250" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- GP -->
-	<arg name="tao_relearn" default="3.0"/> <!--Threshold for how often to train gps. --> 
+	<arg name="record_data" default="200"/> <!-- After how many pings tp record the data --> 
   
   <arg name="filter" default="pf"/>
 
@@ -34,6 +34,7 @@
   <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
+  <!-- <arg name="train_gp_topic"                    default="/trained_gps" -->
 
     <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />

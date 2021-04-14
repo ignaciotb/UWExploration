@@ -154,8 +154,8 @@ class rbpf_slam(object):
 
         # Publish to record data
         self.recordData2gp()
-        self.target_pub = rospy.Publisher('/target_top', numpy_msg(Floats), queue_size=10)
-        self.input_pub = rospy.Publisher('/input_top',numpy_msg(Floats), queue_size=10)
+        # self.target_pub = rospy.Publisher('/target_top', numpy_msg(Floats), queue_size=10)
+        # self.input_pub = rospy.Publisher('/input_top',numpy_msg(Floats), queue_size=10)
         
         # Publish to train gps
         # self.train_gp_pub = rospy.Publisher('/gps2train', PointCloud2, queue_size=1)
@@ -263,11 +263,6 @@ class rbpf_slam(object):
     def mbes_real_cb(self, msg):
         self.latest_mbes = msg
 
-    # def train_gp_cb(self, msg):
-    #     idx = msg.idx
-    #     trained_particle = msg.particle
-    #     self.particles[idx] = trained_particle
-
     # Action server to simulate MBES for the sim AUV
     def mbes_as_cb(self, goal):
 
@@ -340,15 +335,22 @@ class rbpf_slam(object):
 
         storage_path = root_folder + dir_name
         input_path = storage_path + 'particles/'
-        if not os.path.exists(input_path):
-            os.makedirs(input_path)
+        # xy_path = storage_path + 'xy/'
         if not os.path.exists(storage_path):
             os.makedirs(storage_path)
+        # if not os.path.exists(xy_path):
+        #     os.makedirs(xy_path)
+        if not os.path.exists(input_path):
+            os.makedirs(input_path)
+        
         
         self.targets_file = storage_path + 'target_gp.npy'
         self.inputs_file = [None]*self.pc
+        # self.pxy_file = [None]*self.pc
+
         for i in range(0, self.pc):
             self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
+            # self.pxy_file[i] = xy_path + 'xy' + str(i) + '.npy'
     
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -371,6 +373,7 @@ class rbpf_slam(object):
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         if self.count_mbes % self.record_data == 0: 
             okay = True
+            # self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
             # print('  saved target  ')
             # print(real_mbes_ranges)
             # print('end target ')
@@ -436,9 +439,15 @@ class rbpf_slam(object):
             
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
             self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,0:2], axis=0)  # (n,2)
-            if okay:
+            # saving old x,y poses in a new array to plot later
+            # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
+            # if okay:
+                # self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,0:2], axis=0)  # (n,2)
+                # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
+
                 # inputs = exp_mbes[:,0:2] 
-                np.save(self.inputs_file[i], self.particles[i].inputs)
+                # np.save(self.inputs_file[i], self.particles[i].inputs)
+                # np.save(self.pxy_file[i], self.particles[i].xy)
                 # self.input_pub.publish(inputs)
                 # self.train_gp_pub.publish(self.particles[i], inputs, targets, i)
                 # self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
@@ -453,10 +462,16 @@ class rbpf_slam(object):
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
-        if okay:
-            print('\nData recorded.\n')
+        if okay: #self.count_mbes == 100: #okay:
             print('Size target:  {} \n Size input: {} \n'.format(self.targets.shape, self.particles[0].inputs.shape))
             np.save(self.targets_file, self.targets)
+            for i in range(0, 1):
+                np.save(self.inputs_file[i], self.particles[i].inputs)
+                # np.save(self.pxy_file[i], self.particles[i].xy)
+
+            print('\nData recorded.\n')
+            # print('shape mbes ')
+            # print(mbes.shape)
 
         weights = []
         for i in range(self.pc):

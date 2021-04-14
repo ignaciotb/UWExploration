@@ -94,7 +94,7 @@ class rbpf_slam(object):
         self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
-        self.targets = np.empty((1,))
+        self.targets = np.zeros((1,))
         
 
 
@@ -326,7 +326,7 @@ class rbpf_slam(object):
         self.dr_particle.motion_pred(odom_t, dt)
 
     def recordData2gp(self):
-        root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/'
+        root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/'
         dir_name = 'results/'
         # dir_name = ('results_' + str(time.gmtime().tm_year) + '_' + str(time.gmtime().tm_mon) + '_' + str(time.gmtime().tm_mday) + '___'
         #             + str(time.gmtime().tm_hour) + '_' + str(time.gmtime().tm_min) + '_' + str(time.gmtime().tm_sec) + '/')
@@ -334,22 +334,22 @@ class rbpf_slam(object):
             dir_name = '/' + dir_name
 
         storage_path = root_folder + dir_name
-        input_path = storage_path + 'particles/'
+        # input_path = storage_path + 'particles/'
         # xy_path = storage_path + 'xy/'
         if not os.path.exists(storage_path):
             os.makedirs(storage_path)
         # if not os.path.exists(xy_path):
         #     os.makedirs(xy_path)
-        if not os.path.exists(input_path):
-            os.makedirs(input_path)
+        # if not os.path.exists(input_path):
+        #     os.makedirs(input_path)
         
         
-        self.targets_file = storage_path + 'target_gp.npy'
-        self.inputs_file = [None]*self.pc
+        self.cloud_file = storage_path + 'ping_cloud.npy'
+        # self.inputs_file = [None]*self.pc
         # self.pxy_file = [None]*self.pc
 
-        for i in range(0, self.pc):
-            self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
+        # for i in range(0, self.pc):
+        #     self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
             # self.pxy_file[i] = xy_path + 'xy' + str(i) + '.npy'
     
     def update(self, real_mbes, odom):
@@ -370,6 +370,7 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         okay = False
+        # new_data[:,2] = real_mbes_ranges
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         if self.count_mbes % self.record_data == 0: 
             okay = True
@@ -438,7 +439,8 @@ class rbpf_slam(object):
             # ----------- record input data --------
             
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
-            self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,0:2], axis=0)  # (n,2)
+            self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,3)
+            # self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes, axis=0)  # (n,3)
             # saving old x,y poses in a new array to plot later
             # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
             # if okay:
@@ -463,15 +465,18 @@ class rbpf_slam(object):
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
         if okay: #self.count_mbes == 100: #okay:
-            print('Size target:  {} \n Size input: {} \n'.format(self.targets.shape, self.particles[0].inputs.shape))
-            np.save(self.targets_file, self.targets)
-            for i in range(0, 1):
-                np.save(self.inputs_file[i], self.particles[i].inputs)
+            # print('Size target:  {} \n Size input: {} \n'.format(self.targets.shape, self.particles[0].inputs.shape))
+            # np.save(self.targets_file, self.targets)
+            # for i in range(0, 1):
+            cloud_arr = np.zeros((len(self.targets),3))
+            cloud_arr[:,:2] = self.particles[0].cloud
+            cloud_arr[:,2] = self.targets
+            np.save(self.cloud_file, cloud_arr)
                 # np.save(self.pxy_file[i], self.particles[i].xy)
 
             print('\nData recorded.\n')
-            # print('shape mbes ')
-            # print(mbes.shape)
+            print('shape cloud ')
+            print(cloud_arr.shape)
 
         weights = []
         for i in range(self.pc):

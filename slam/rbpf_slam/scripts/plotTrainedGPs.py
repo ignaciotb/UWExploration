@@ -8,6 +8,31 @@ import numpy as np
 import os
 
 # --------------- learning the basics ----------------
+def learn_basic():
+    hej = np.array([[0, 1], [3, 4], [2,5],[0, 1], [3, 4], [2,5]])
+    da = np.zeros((6,))
+    # da = np.array([[1], [2], [3], [4], [5], [6]])
+    print('shape of hej \n', hej.shape)
+    print(hej)
+    print('shape of da \n', da.shape)
+    print(da)
+    print(len(da))
+    new = np.zeros((len(da),3))
+    new[:,:2] = hej
+    print(new)
+    print('\n now add da \n')
+    new[:,2] = da
+    print(new)
+    print('shape of new \n', new.shape)
+
+
+    # da = np.append(da, da, axis=0)
+    # print('shape of da \n', da.shape)
+    # print(da)
+    hej = np.insert(hej, da, axis=1)
+    # hej = np.append(hej, [[da]], axis=0)
+    print('shape of hej \n', hej.shape)
+    print(hej)
 # hej = 1
 # da = 1
 # new = np.empty((1,2))
@@ -112,4 +137,5 @@ def plot_fit(x,y,mu,var, m_y='k-o', m_mu='b-<', l_y='true', l_mu='predicted', le
 
 if __name__ == '__main__':
     # gp_data()
-    test_plot()
+    learn_basic()
+    # test_plot()

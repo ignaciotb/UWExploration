@@ -13,6 +13,7 @@
 
   <!-- GP -->
 	<arg name="record_data" default="100"/> <!-- After how many pings tp record the data --> 
+  <arg name="n_inducing" default="300"/> <!-- Number of inducing points and optimisation samples -->
   
   <arg name="filter" default="pf"/>
 
@@ -38,15 +39,16 @@
 
     <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-      <param name="init_covariance"                  value="$(arg init_covariance)" />
-      <param name="resampling_noise_covariance"                  value="$(arg resampling_noise_covariance)" />
-      <param name="measurement_std"                  value="$(arg measurement_std)" />
+      <param name="init_covariance"                         value="$(arg init_covariance)" />
+      <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
+      <param name="measurement_std"                         value="$(arg measurement_std)" />
       <param name="motion_covariance"                       value="$(arg motion_covariance)" />
       <param name="map_frame"                               value="$(arg map_frame)" />
-      <param name="odom_frame"                               value="$(arg odom_frame)" />
-			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-			<param name="synch_topic" value="$(arg filter)/synch" />
-      <param name="record_data"                       value="$(arg record_data)" />
+      <param name="odom_frame"                              value="$(arg odom_frame)" />
+			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
+			<param name="synch_topic"                             value="$(arg filter)/synch" />
+      <param name="record_data"                             value="$(arg record_data)" />
+      <param name="n_inducing"                              value="$(arg n_inducing)" />
 
       <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
@@ -64,6 +66,12 @@
       <param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
       <param name="mbes_sim_as" value="/mbes_sim_server" />     
+    </node>
+
+    <node type="train_pf_gp.py" pkg="rbpf_slam" name="train_pf_gp" output="screen" >
+      <param name="n_inducing"                              value="$(arg n_inducing)" />
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
+      <param name="data_path"                               value="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
     </node>
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">

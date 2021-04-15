@@ -2,6 +2,7 @@
 
 import rospy
 import torch
+import time
 from sensor_msgs.msg import PointCloud2
 import matplotlib.pyplot as plt
 from bathy_gps.gp import SVGP
@@ -10,26 +11,35 @@ import os
 from auvlib.data_tools import benchmark
 from auvlib.data_tools import std_data, xyz_data
 from scipy.spatial.transform import Rotation as rot
+from std_msgs.msg import Float32, Header, Bool, Float32MultiArray, ByteMultiArray
+from rospy_tutorials.msg import Floats
+from rospy.numpy_msg import numpy_msg
 
 # train in a new node to save time 
 class Train_gps():
 
-    def __init__(self):
-        # --------- old --------
-        # Create publisher
-        # self.pub = rospy.Publisher('/trained_gps', PointCloud2, queue_size=1)
+    def __init__(self):        
+        # ---------------- trying to publish / subscribe ------------ 
+        # rospy.init_node('Train_gps', anonymous=False)
+        self.pc = rospy.get_param('~particle_count', 10) # Particle Count
+        self.n_inducing = rospy.get_param("~n_inducing", 300) # Number of inducing points and optimisation samples 
+        self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
+        self.firstFit = [True] * self.pc # len of particles
+        self.count_training = [0] * self.pc # len of particles
         # Subscribe to particles
-        # rospy.Subscriber('/gps2train', PointCloud2, self.cb)
-        # root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/'
-        # self.gp_path = root + 'svgp.pth'
-        # ----------------------
-        
-        self.data_path = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
-        # _, _, self.names = next(os.walk(self.data_path + 'particles/'))
-        self.pc = 1 #len(self.names)
-        self.particle = np.empty(self.pc, dtype=object)
-        self.n = 300
-        self.trainNplot()
+        rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=10)
+        time.sleep(5)
+        print('Patiently waiting for data...')
+        rospy.spin()
+
+
+        # --------------- working on its own -------------
+        # self.data_path = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
+        # # _, _, self.names = next(os.walk(self.data_path + 'particles/'))
+        # self.pc = 1 #len(self.names)
+        # self.particle = np.empty(self.pc, dtype=object)
+        # self.n = 300
+        # self.trainNplot()
         # print(names)
 
 
@@ -80,6 +90,50 @@ class Train_gps():
 
         bm.print_summary()
 
+    def cb(self, msg):
+        # print('hello')
+        # print('this is the size ', msg.data.shape)
+        arr = msg.data
+        idx = int(arr[-1]) # Particle index
+        print('\ntraining particle ', idx)
+        arr = np.delete(arr, -1)
+        n = int(arr.shape[0] / 3)
+        cloud = arr.reshape(n,3)
+        # print(cloud.shape)
+
+        inputs = cloud[:,[0,1]]
+        targets = cloud[:,2]
+        # print('inputs shape ', inputs.shape)
+        # print('targets  shape ', targets.shape)
+        # print(targets)
+        self.trainGP(inputs, targets, idx)
+
+    def trainGP(self, inputs, targets, idx):
+        if self.firstFit[idx]: # Only enter ones
+            self.firstFit[idx] = False 
+            gp = SVGP(self.n_inducing)
+            # train each particles gp
+            gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+            # save a plot of the gps
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            # save the path to train again
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp.save(gp_path)
+        
+        else: # second or more time to retrain gp
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp = SVGP.load(self.n_inducing, gp_path)
+            # train each particles gp
+            gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+            # save a plot of the gps
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            # save the path to train again
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp.save(gp_path)
+        
+        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        self.count_training[idx] +=1 # to save plots
+
 class create_particle():
     def __init__(self, n):
         self.gp = SVGP(n) 
@@ -88,10 +142,14 @@ class create_particle():
 
 
 
-
-
 if __name__ == '__main__':
-    working = Train_gps()
-    print('\ntraining done')
-    print('\nnow time for rms\n')
+    rospy.init_node('Train_gps_node', disable_signals=False)
+    try:
+        Train_gps()
+    except rospy.ROSInterruptException:
+        rospy.logerr("Couldn't launch rbpf_node")
+        pass
+    # Train_gps()
+    # print('\ntraining done')
+    # print('\nnow time for rms\n')
     # working.rms()

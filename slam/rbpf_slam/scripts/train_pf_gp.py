@@ -28,7 +28,7 @@ class Train_gps():
         # _, _, self.names = next(os.walk(self.data_path + 'particles/'))
         self.pc = 1 #len(self.names)
         self.particle = np.empty(self.pc, dtype=object)
-        self.n = 1000
+        self.n = 300
         self.trainNplot()
         # print(names)
 
@@ -44,13 +44,14 @@ class Train_gps():
             print(len(inputs))
             print(len(targets))
 
-            self.particle[i].gp.fit(inputs, targets, n_samples=1000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+            # n_samples need to be smaller than self.n, if max_iter is too large it will lead to overfitting
+            self.particle[i].gp.fit(inputs, targets, n_samples= int(self.n/2), max_iter=int(self.n/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             print('\nParticle {} done ({} in total) \n'.format(i, self.pc))
             self.particle[i].gp.plot(inputs, targets, self.data_path + 'training.png', n=100, n_contours=100 )
             gp_path = self.data_path + 'svgp.pth'
-            self.particle[i].gp.save(gp_path)
+            # self.particle[i].gp.save(gp_path)
             # save the posterior point cloud
-            self.plot_and_save_posterior(inputs, targets, gp_path)
+            # self.plot_and_save_posterior(inputs, targets, gp_path)
 
     def plot_and_save_posterior(self, inputs, targets, path):
         x = inputs[:,0]
@@ -91,5 +92,6 @@ class create_particle():
 
 if __name__ == '__main__':
     working = Train_gps()
+    print('\ntraining done')
     print('\nnow time for rms\n')
-    working.rms()
+    # working.rms()

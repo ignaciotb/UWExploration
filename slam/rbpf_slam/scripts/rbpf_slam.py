@@ -14,7 +14,7 @@ from scipy.ndimage import gaussian_filter1d
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header, Bool
+from std_msgs.msg import Float32, Header, Bool, Float32MultiArray, ByteMultiArray
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
@@ -25,6 +25,7 @@ from tf.transformations import rotation_matrix, rotation_from_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
+from cv_bridge import CvBridge
 
 # For sim mbes action client
 import actionlib
@@ -58,6 +59,7 @@ class rbpf_slam(object):
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         self.record_data = rospy.get_param("~record_data", 1)
+        self.n_inducing = rospy.get_param("~n_inducing", 300)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -95,6 +97,8 @@ class rbpf_slam(object):
         self.avg_pose = PoseWithCovarianceStamped()
         self.avg_pose.header.frame_id = odom_frame
         self.targets = np.zeros((1,))
+        self.firstFit = True
+        self.count_training = 0
         
 
 
@@ -154,15 +158,9 @@ class rbpf_slam(object):
 
         # Publish to record data
         self.recordData2gp()
-        # self.target_pub = rospy.Publisher('/target_top', numpy_msg(Floats), queue_size=10)
-        # self.input_pub = rospy.Publisher('/input_top',numpy_msg(Floats), queue_size=10)
-        
-        # Publish to train gps
-        # self.train_gp_pub = rospy.Publisher('/gps2train', PointCloud2, queue_size=1)
-        # Subscription to trained gps
-        # train_gp_topic = rospy.get_param('~train_gp_topic', '/trained_gps')
-        # rospy.Subscriber(train_gp_topic, PointCloud2, self.train_gp_cb)
-
+        train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
+        self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=10)
+ 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
@@ -216,7 +214,7 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-            self.particles[i].gp = gp.SVGP.load(1000, gp_path)
+            self.particles[i].gp = gp.SVGP(self.n_inducing)
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
@@ -333,18 +331,18 @@ class rbpf_slam(object):
         if root_folder[-1] != '/':
             dir_name = '/' + dir_name
 
-        storage_path = root_folder + dir_name
+        self.storage_path = root_folder + dir_name
         # input_path = storage_path + 'particles/'
         # xy_path = storage_path + 'xy/'
-        if not os.path.exists(storage_path):
-            os.makedirs(storage_path)
+        if not os.path.exists(self.storage_path):
+            os.makedirs(self.storage_path)
         # if not os.path.exists(xy_path):
         #     os.makedirs(xy_path)
         # if not os.path.exists(input_path):
         #     os.makedirs(input_path)
         
         
-        self.cloud_file = storage_path + 'ping_cloud.npy'
+        self.cloud_file = self.storage_path + 'ping_cloud.npy'
         # self.inputs_file = [None]*self.pc
         # self.pxy_file = [None]*self.pc
 
@@ -352,6 +350,42 @@ class rbpf_slam(object):
         #     self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
             # self.pxy_file[i] = xy_path + 'xy' + str(i) + '.npy'
     
+    def trainGP(self):
+        if self.firstFit: # Only enter ones
+            self.firstFit = False 
+            for i in range(0,self.pc):
+                inputs = self.particles[i].cloud
+                # train each particles gp
+                self.particles[i].gp.fit(inputs, self.targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+                # save a plot of the gps
+                self.particles[i].gp.plot(inputs, self.targets, self.storage_path + 'particle' + str(i) + 'training' + str(self.count_training) + '.png', n=100, n_contours=100 )
+                # save the path to train again
+                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
+                self.particles[i].gp.save(gp_path)
+                # empty arrays
+                self.particles[i].cloud = np.zeros((1,2))
+        
+        else: # second or more time to retrain gp
+            for i in range(0, self.pc):
+                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
+                self.particles[i].gp = gp.SVGP.load(self.n_inducing, gp_path)
+                inputs = self.particles[i].cloud
+                 # train each particles gp
+                self.particles[i].gp.fit(inputs, self.targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+                # save a plot of the gps
+                self.particles[i].gp.plot(inputs, self.targets, self.storage_path + 'particle' + str(i) + 'training' + str(self.count_training) + '.png', n=100, n_contours=100 )
+                # save the path to train again
+                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
+                self.particles[i].gp.save(gp_path)
+                # empty arrays
+                self.particles[i].cloud = np.zeros((1,2))
+        
+        self.count_training +=1 # to save plots
+        # empty array
+        self.targets = np.zeros((1,))
+        rospy.loginfo('... GP training successful')
+
+
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
         # We only work with z, so we transform them mbes --> map
@@ -370,14 +404,10 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         okay = False
-        # new_data[:,2] = real_mbes_ranges
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         if self.count_mbes % self.record_data == 0: 
             okay = True
             # self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
-            # print('  saved target  ')
-            # print(real_mbes_ranges)
-            # print('end target ')
             # targets =PointCloud2(data=real_mbes_ranges)
             # targets = real_mbes_ranges  # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
             # self.target_pub.publish(targets)
@@ -390,22 +420,7 @@ class rbpf_slam(object):
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
-        # Choose random particle
-        # gp_idx = random.randint(0,self.pc)
-        # tao_hyperparam = self.latest_mbes.header.stamp.to_sec() - self.prev_mbes.header.stamp.to_sec()
-        # prev_exist = False
-        # print("PREV   ", int(self.prev_mbes.header.stamp.to_sec()))
-        # if int(self.prev_mbes.header.stamp.to_sec()) != 0:
-        #     prev_exist = True
-        # print("number of pings sent out is ", self.count_mbes)
-        # print("LATEST DATA")
-        # print(self.latest_mbes.data)
-        # rospy.loginfo("LATEST STAMP ")
-        # rospy.loginfo(self.latest_mbes.header.stamp)
-        # rospy.loginfo("PREV STAMP ")
-        # rospy.loginfo(self.prev_mbes.header.stamp)
-        # rospy.loginfo("HYPER !! ")
-        # rospy.loginfo(tao_hyperparam)
+
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
@@ -419,12 +434,7 @@ class rbpf_slam(object):
             # GP meas model
             # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
             # self.particles[i].meas_cov = np.diag(exp_sigs)
-            #  print(exp_sigs)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
-
-            # find input and target
-            # rospy.loginfo("A B S")
-            # rospy.loginfo(abs(real_mbes_ranges))
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
@@ -433,13 +443,11 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-            # hej = mbes_pcloud.header.stamp.to_sec
-
             
             # ----------- record input data --------
             
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
-            self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,3)
+            self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
             # self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes, axis=0)  # (n,3)
             # saving old x,y poses in a new array to plot later
             # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
@@ -452,31 +460,34 @@ class rbpf_slam(object):
                 # np.save(self.pxy_file[i], self.particles[i].xy)
                 # self.input_pub.publish(inputs)
                 # self.train_gp_pub.publish(self.particles[i], inputs, targets, i)
-                # self.particles[i].gp.fit(inputs, targets, n_samples=6000, max_iter=1000, learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
-                # print("trained particle number ", i)
-
-            # rospy.loginfo("MAYBE MBES??")
-            # rospy.loginfo(inputs.shape)
-            
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
-        if okay: #self.count_mbes == 100: #okay:
-            # print('Size target:  {} \n Size input: {} \n'.format(self.targets.shape, self.particles[0].inputs.shape))
+        if okay: 
             # np.save(self.targets_file, self.targets)
-            # for i in range(0, 1):
-            cloud_arr = np.zeros((len(self.targets),3))
-            cloud_arr[:,:2] = self.particles[0].cloud
-            cloud_arr[:,2] = self.targets
-            np.save(self.cloud_file, cloud_arr)
+            print('\nData recorded.\n')
+            rospy.loginfo('Training gps... ')
+            for i in range(0, self.pc):
+                cloud_arr = np.zeros((len(self.targets),3))
+                cloud_arr[:,:2] = self.particles[i].cloud
+                cloud_arr[:,2] = self.targets
+                cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
+                cloud_arr = np.append(cloud_arr, i) # insert particle index
+                msg = Floats()
+                msg.data = cloud_arr
+
+                # np.save(self.cloud_file, cloud_arr)
                 # np.save(self.pxy_file[i], self.particles[i].xy)
 
-            print('\nData recorded.\n')
-            print('shape cloud ')
-            print(cloud_arr.shape)
+                # self.trainGP()
+                self.gp_pub.publish(msg)
+                
+                # empty arrays
+                self.particles[i].cloud = np.zeros((1,2))
+            self.targets = np.zeros((1,))
 
         weights = []
         for i in range(self.pc):
@@ -543,8 +554,8 @@ class rbpf_slam(object):
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
-        print ("N_eff ", N_eff)
-        print ("Missed meas ", self.miss_meas)
+        # print ("N_eff ", N_eff)
+        # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
@@ -625,132 +636,6 @@ class rbpf_slam(object):
         self.average_pose(pose_list)
 
 
-class GP_mbes:
-    # -------------- Global constants ------------------------------------:
-    # MBES parameters
-    beam_width = math.pi/180.*60.
-    nbr_beams = 512
-    # ---------------------------------------------------------------------
-
-    def __init__(self, ping, draper):
-        self.ping = ping
-        self.R = rot.from_euler("zyx", [ping.heading_, ping.pitch_, ping.roll_ ]).as_dcm()
-
-        ext_calib_R = rot.from_euler("zyx", [ping.heading_, ping.pitch_, ping.roll_  + 0.6]).as_dcm()
-        ext_calib_t = ping.pos_ + [10, -20, 0]
-
-        # Extract real MBES ping data
-        self.depth = draper.project_altimeter(ping.pos_)
-        self.mbes_points = np.asarray(ping.beams)
-        # Simulate points with extrnal calibration values
-        self.sim_points = draper.project_mbes(ext_calib_t, ext_calib_R, self.nbr_beams, self.beam_width)
-        # self.sim_points = draper.project_mbes(ping.pos_, self.R, self.nbr_beams, self.beam_width)
-        self.mbes_points_auv_frame = '' # transform_ping_points(self.mbes_points)
-        self.sim_points_auv_frame = '' # transform_ping_points(self.sim_points)
-
-    def Training_data(self):
-        # Beams distributed along seafloor - AUV's y axis
-        self.train_x_mbes = torch.Tensor(list(self.mbes_points_auv_frame[:, 1]))
-        self.train_x_sim = torch.Tensor(list(self.sim_points_auv_frame[:, 1]))
-        # Depth data - AUV's z axis
-        self.train_y_mbes = torch.Tensor(list(self.mbes_points_auv_frame[:, 2]))
-        self.train_y_sim = torch.Tensor(list(self.sim_points_auv_frame[:, 2]))
-
-    # Returns MBES points in the AUV's reference frame
-    # CHECK IF neccecary 
-    def transform_ping_points(self, points):
-        """
-        Returns a ping's MBES points (along the seafloor)
-        in the AUV's reference frame
-
-        :param points: MBES ping points to transform [x, y, z]
-        :type points: numpy array: shape(N,3)
-        :param ping_pose: MBES ping pose from 'auvlib.data_tools.std_data.mbes_ping'
-        :type ping_pose: numpy array: shape(3,)
-        :param R: AUV 3x3 rotation matrix
-        :type R: numpy array: shape(3,3)
-
-        :return: Transformed MBES points [x,y,z]
-        :rtype: Numpy array (nbr_pointsx3)
-        """
-
-        # 4x4 transformation matrix (tf: auv -> world)
-        tf_world_auv = np.eye(4)
-        tf_world_auv[:3,:] = np.concatenate((self.R, np.array([[self.ping.pos_[0], self.ping.pos_[1], self.ping.pos_[2]]]).T), axis=1)
-        tf_auv_world = np.linalg.inv(tf_world_auv)
-
-        # Multiply 4x4 tf: auv -> world with points to get points in AUV frame
-        temp_points = np.transpose(np.hstack((points,np.ones((points.shape[0],1)))))
-        points_auv_frame = np.transpose(np.dot(tf_auv_world, temp_points))[:,:3]
-
-        return points_auv_frame
-    
-    # Run regression (all lumped into one function for now)
-    def run_gpytorch_regression(train_x, train_y): #, training_point_count, max_training_iter_count, noise_threshold, loss_threshold):
-        """
-        Run regression (all lumped into one function for now)
-        """
-        # %matplotlib inline
-        # %load_ext autoreload
-        # %autoreload 2
-
-        # initialize likelihood and model
-        likelihood = gpytorch.likelihoods.GaussianLikelihood()
-        model = ExactGPModel(train_x, train_y, likelihood)
-
-        # this is for running the notebook in our testing framework
-        import os
-        smoke_test = ('CI' in os.environ)
-        max_train_iter = 2 if smoke_test else max_training_iter_count
-
-        # Find optimal model hyperparameters
-        model.train()
-        likelihood.train()
-
-        # Use the adam optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
-
-        # "Loss" for GPs - the marginal log likelihood
-        mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-
-        i = 0 # init iteration count
-        loss_val = 999. # init loss value for convergence w/ large value
-
-        # Train until convergence
-        # while loss_val >= loss_threshold:
-        while model.likelihood.noise.item() >= noise_threshold:
-            # Zero gradients from previous iteration
-            optimizer.zero_grad()
-            # Output from model
-            output = model(train_x)
-            # Calc loss and backprop gradients
-            loss = -mll(output, train_y)
-            loss.backward()
-            if (i+1) % 10 == 0:
-                print('Iter %d/%d - Loss: %.3f   lengthscale: %.3f   noise: %.4f' % (
-                    i + 1, max_train_iter, loss.item(),
-                    model.covar_module.base_kernel.lengthscale.item(),
-                    model.likelihood.noise.item()
-                ))
-            optimizer.step()
-
-            # Update iteration / convergence tracking
-            loss_val = loss.item()
-            i += 1
-            if i > max_train_iter:
-                break
-
-        # Get into evaluation (predictive posterior) mode
-        model.eval()
-        likelihood.eval()
-
-        # Test points are regularly spaced on range of y-axis
-        # Make predictions by feeding model through likelihood
-        with torch.no_grad(), gpytorch.settings.fast_pred_var():  # To use LOVE 
-            test_x = torch.linspace(min(train_x), max(train_x), training_point_count)
-            observed_pred = likelihood(model(test_x))
-
-        return test_x, observed_pred
 
 
 if __name__ == '__main__':

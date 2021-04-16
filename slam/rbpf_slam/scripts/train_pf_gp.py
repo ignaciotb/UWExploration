@@ -29,7 +29,7 @@ class Train_gps():
         # Subscribe to particles
         rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=10)
         time.sleep(5)
-        print('Patiently waiting for data...')
+        rospy.loginfo('Patiently waiting for data...')
         rospy.spin()
 
 

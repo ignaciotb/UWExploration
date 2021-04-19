@@ -19,15 +19,19 @@ from rospy.numpy_msg import numpy_msg
 class Train_gps():
 
     def __init__(self):        
-        # ---------------- trying to publish / subscribe ------------ 
-        # rospy.init_node('Train_gps', anonymous=False)
+        # ---------------- publish / subscribe ------------ 
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.n_inducing = rospy.get_param("~n_inducing", 300) # Number of inducing points and optimisation samples 
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
         self.firstFit = [True] * self.pc # len of particles
         self.count_training = [0] * self.pc # len of particles
+        self.gp_obj = np.empty(self.pc, dtype=object)
+        for i in range(0,self.pc):
+            self.gp_obj[i] = create_particle(self.n_inducing)
         # Subscribe to particles
         rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=10)
+        # Publish variance and mean
+        self.meanvar_pub = rospy.Publisher('/gp_meanvar', numpy_msg(Floats),queue_size=10)
         time.sleep(5)
         rospy.loginfo('Patiently waiting for data...')
         rospy.spin()
@@ -71,9 +75,9 @@ class Train_gps():
         gp.save_posterior(self.n, min(x), max(x), min(y), max(y), self.data_path + 'posterior.npy', verbose=False)
 
 
-    def rms(self):
-        gp_cloud = np.load(self.data_path + 'posterior.npy')
-        ping_cloud = np.load(self.data_path + 'ping_cloud.npy')
+    def rms(self, ping_cloud):
+        gp_cloud = np.load(self.storage_path + 'posterior.npy')
+        # ping_cloud =  np.load(self.data_path + 'ping_cloud.npy')
 
         cloud = [ping_cloud, gp_cloud[:,0:3]]
 
@@ -91,22 +95,17 @@ class Train_gps():
         bm.print_summary()
 
     def cb(self, msg):
-        # print('hello')
-        # print('this is the size ', msg.data.shape)
         arr = msg.data
         idx = int(arr[-1]) # Particle index
         print('\ntraining particle ', idx)
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 3)
         cloud = arr.reshape(n,3)
-        # print(cloud.shape)
-
         inputs = cloud[:,[0,1]]
         targets = cloud[:,2]
-        # print('inputs shape ', inputs.shape)
-        # print('targets  shape ', targets.shape)
-        # print(targets)
-        self.trainGP(inputs, targets, idx)
+
+        # self.trainGP(inputs, targets, idx)
+        self.train2(inputs, targets, idx)
 
     def trainGP(self, inputs, targets, idx):
         if self.firstFit[idx]: # Only enter ones
@@ -130,6 +129,34 @@ class Train_gps():
             # save the path to train again
             gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
             gp.save(gp_path)
+        
+        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        self.count_training[idx] +=1 # to save plots
+
+    def train2(self, inputs, targets, idx):
+        # train each particles gp
+        self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+        # save a plot of the gps
+        # self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+        # print('\n ... saving the posterior...')
+        # x = inputs[:,0]
+        # y = inputs[:,1]
+        # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+
+        #  publish results ---------
+        mean, variance = self.gp_obj[idx].gp.sample(inputs)
+        arr = np.zeros((len(mean),2))
+        arr[:,0] = mean
+        arr[:,1] = variance
+        arr = arr.reshape(len(mean)*2, 1)
+        arr = np.append(arr, idx) # insert particle index
+        msg = Floats()
+        msg.data = arr
+        self.meanvar_pub.publish(msg)
+
+        # print('mean ', mean.shape)
+        # print('variance ', variance.shape)
+        # print('arr ', arr.shape)
         
         print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
         self.count_training[idx] +=1 # to save plots

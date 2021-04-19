@@ -60,6 +60,7 @@ class rbpf_slam(object):
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         self.record_data = rospy.get_param("~record_data", 1)
         self.n_inducing = rospy.get_param("~n_inducing", 300)
+        self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -98,6 +99,7 @@ class rbpf_slam(object):
         self.avg_pose.header.frame_id = odom_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
+        self.gpCalculated = False
         self.count_training = 0
         
 
@@ -160,7 +162,9 @@ class rbpf_slam(object):
         self.recordData2gp()
         train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
         self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=10)
- 
+        # Subscribe to gp variance and mean
+        rospy.Subscriber('/gp_meanvar', numpy_msg(Floats), self.gp_meanvar_cb, queue_size=10)
+
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
@@ -256,7 +260,7 @@ class rbpf_slam(object):
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
                                   mu_array.T), axis=1)
         #  print(sigma)
-        return mbes_gp, sigma
+        return mbes_gp, sigma, mu
 
     def mbes_real_cb(self, msg):
         self.latest_mbes = msg
@@ -331,18 +335,18 @@ class rbpf_slam(object):
         if root_folder[-1] != '/':
             dir_name = '/' + dir_name
 
-        self.storage_path = root_folder + dir_name
+        storage_path = root_folder + dir_name
         # input_path = storage_path + 'particles/'
         # xy_path = storage_path + 'xy/'
-        if not os.path.exists(self.storage_path):
-            os.makedirs(self.storage_path)
+        if not os.path.exists(storage_path):
+            os.makedirs(storage_path)
         # if not os.path.exists(xy_path):
         #     os.makedirs(xy_path)
         # if not os.path.exists(input_path):
         #     os.makedirs(input_path)
         
         
-        self.cloud_file = self.storage_path + 'ping_cloud.npy'
+        self.cloud_file = storage_path + 'ping_cloud.npy'
         # self.inputs_file = [None]*self.pc
         # self.pxy_file = [None]*self.pc
 
@@ -385,6 +389,47 @@ class rbpf_slam(object):
         self.targets = np.zeros((1,))
         rospy.loginfo('... GP training successful')
 
+    def gp_meanvar_cb(self, msg):
+        arr = msg.data
+        idx = int(arr[-1]) # Particle index
+        print('\ncalculating likelihood of particle ', idx)
+        arr = np.delete(arr, -1)
+        n = int(arr.shape[0] / 2)
+        cloud = arr.reshape(n,2)
+        mu_est = cloud[:,0]
+        sigma_est = cloud[:,1]
+        self.calculateLikelihood( mu_est, sigma_est, idx)
+    
+    def calculateLikelihood(self, mu_est, sigma_est,idx):
+        # for i in range(0, self.pc):
+            
+            # gp_cloud = np.load(self.storage_path + 'particle' + str(i) + 'posterior.npy')
+            # mu_est = gp_cloud[:,2]
+            # sigma_est = gp_cloud[:,3]
+        # mu_obs = np.load(self.storage_path + 'particle' + str(idx) + 'mu.npy')
+        # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
+        
+        # collect data
+        mu_obs = self.particles[idx].mu_list[0]
+        sigma_obs = self.particles[idx].sigma_list[0]
+        # pop the latesed used
+        self.particles[idx].mu_list.pop(0)
+        self.particles[idx].sigma_list.pop(0)
+
+        # print('mu est ', mu_est.shape)
+        # print('mu obs', mu_obs.shape)
+        # print('sigma_est', sigma_est.shape)
+        # print('sigma_obs', sigma_obs.shape)
+
+        # divide the equation into subtasks
+        mu = np.power( mu_est - mu_obs, 2)
+        sigma = np.power(sigma_obs,2) + np.power(sigma_est,2)
+        lkhood1 =  -0.5 * mu / sigma
+        lkhood2 = np.sqrt(2 * np.pi * sigma)
+        # calculate the likelihood
+        lkhood = np.exp(lkhood1) / lkhood2
+        print('lkhood is:')
+        print(np.sum(lkhood)/len(lkhood))
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -432,9 +477,12 @@ class rbpf_slam(object):
                                                 self.beams_num, self.mbes_angle)
 
             # GP meas model
-            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
+            exp_mbes, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            self.particles[i].meas_cov = np.diag(exp_sigs)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            # print('exp mbes ', exp_mbes.shape)
+            # print('exp_sigs ', exp_sigs.shape)
+            # print('mu ', mu_obs.shape)
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
@@ -448,6 +496,9 @@ class rbpf_slam(object):
             
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
             self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
+            self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs)
+            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs)
+
             # self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes, axis=0)  # (n,3)
             # saving old x,y poses in a new array to plot later
             # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
@@ -463,6 +514,13 @@ class rbpf_slam(object):
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
+            # if okay:
+            #     try:
+            #         self.calculateLikelihood()
+            #     except Exception as e:
+            #         print('\ndidnt work because: \n')
+            #         print(e)
+            #         pass
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
         
@@ -476,9 +534,21 @@ class rbpf_slam(object):
                 cloud_arr[:,2] = self.targets
                 cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
                 cloud_arr = np.append(cloud_arr, i) # insert particle index
+                for _ in range(3):
+                    cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
                 msg = Floats()
                 msg.data = cloud_arr
 
+                # save observation data to compare
+                self.particles[i].mu_obs = np.delete(self.particles[i].mu_obs, 0)
+                self.particles[i].sigma_obs = np.delete(self.particles[i].sigma_obs, 0)
+                self.particles[i].mu_list.append(self.particles[i].mu_obs)
+                self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
+
+                # fname = self.storage_path + 'particle' + str(i) + 'mu.npy'
+                # np.save(fname, self.particles[i].mu_obs)
+                # fname = self.storage_path + 'particle' + str(i) + 'sigma.npy' 
+                # np.save(fname, self.particles[i].sigma_obs)
                 # np.save(self.cloud_file, cloud_arr)
                 # np.save(self.pxy_file[i], self.particles[i].xy)
 
@@ -487,6 +557,8 @@ class rbpf_slam(object):
                 
                 # empty arrays
                 self.particles[i].cloud = np.zeros((1,2))
+                self.particles[i].mu_obs = np.zeros((1,))
+                self.particles[i].sigma_obs = np.zeros((1,))
             self.targets = np.zeros((1,))
 
         weights = []

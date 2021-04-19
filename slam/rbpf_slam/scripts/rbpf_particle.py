@@ -46,7 +46,10 @@ class Particle(object):
         self.log_w = 0.
         self.cloud =  np.zeros((1,2)) #[[0]*2]*1
         # self.xy =  np.empty((1,2))
-        #  self.gp_sigmas = np.array([])
+        self.sigma_obs = np.zeros((1,))
+        self.mu_obs = np.zeros((1,))
+        self.sigma_list = []
+        self.mu_list = []
         # self.gp = SVGP(1000) # initialise GP with 1000 inducing points
 
         self.add_noise(init_cov)

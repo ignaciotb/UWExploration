@@ -390,9 +390,9 @@ class rbpf_slam(object):
         rospy.loginfo('... GP training successful')
 
     def gp_meanvar_cb(self, msg):
+        # rospy.loginfo('calculating likelihood ...')
         arr = msg.data
         idx = int(arr[-1]) # Particle index
-        print('\ncalculating likelihood of particle ', idx)
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 2)
         cloud = arr.reshape(n,2)
@@ -410,6 +410,7 @@ class rbpf_slam(object):
         # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
         
         # collect data
+        # print('\n {} In line for particle {} \n'.format(len(self.particles[idx].mu_list), idx))
         mu_obs = self.particles[idx].mu_list[0]
         sigma_obs = self.particles[idx].sigma_list[0]
         # pop the latesed used
@@ -430,8 +431,8 @@ class rbpf_slam(object):
         lkhood = np.exp(lkhood1) / lkhood2
         self.particles[idx].w = np.sum(lkhood)/len(lkhood) # particle weight?
         self.pw[idx] = self.particles[idx].w 
-        # print('lkhood is:')
-        print(np.sum(lkhood)/len(lkhood))
+        # print('likelihood of particle ', idx)
+        # print(np.sum(lkhood)/len(lkhood))
 
         # when to resample
         if idx == self.pc - 1: # all particles weighted
@@ -533,7 +534,7 @@ class rbpf_slam(object):
         
         if okay: 
             # np.save(self.targets_file, self.targets)
-            print('\nData recorded.\n')
+            # print('\nData recorded.\n')
             rospy.loginfo('Training gps... ')
             for i in range(0, self.pc):
                 cloud_arr = np.zeros((len(self.targets),3))
@@ -623,9 +624,9 @@ class rbpf_slam(object):
 
     def resample(self, weights):
         # Normalize weights
-        print('\nresampling\n')
+        rospy.loginfo('resampling')
         weights /= weights.sum()
-        print(weights)
+        # print(weights)
 
 
         N_eff = self.pc

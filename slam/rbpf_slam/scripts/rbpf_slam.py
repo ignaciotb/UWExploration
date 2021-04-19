@@ -99,8 +99,8 @@ class rbpf_slam(object):
         self.avg_pose.header.frame_id = odom_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
-        self.gpCalculated = False
         self.count_training = 0
+        self.pw = [1.e-50] * self.pc # Start with almost zero weight
         
 
 
@@ -309,11 +309,11 @@ class rbpf_slam(object):
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    # How often to resample, if a new measurement
                 # Measurement update if new one received
                 # print("Going into update :")
-                weights = self.update(self.latest_mbes, odom_msg)
+                self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
                 
                 # Particle resampling
-                self.resample(weights)
+                # self.resample(weights)
                 self.update_rviz()
                 self.publish_stats(odom_msg)
 
@@ -428,8 +428,15 @@ class rbpf_slam(object):
         lkhood2 = np.sqrt(2 * np.pi * sigma)
         # calculate the likelihood
         lkhood = np.exp(lkhood1) / lkhood2
-        print('lkhood is:')
+        self.particles[idx].w = np.sum(lkhood)/len(lkhood) # particle weight?
+        self.pw[idx] = self.particles[idx].w 
+        # print('lkhood is:')
         print(np.sum(lkhood)/len(lkhood))
+
+        # when to resample
+        if idx == self.pc - 1: # all particles weighted
+            weights_array = np.asarray(self.pw)
+            self.resample(weights_array)
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -561,18 +568,20 @@ class rbpf_slam(object):
                 self.particles[i].sigma_obs = np.zeros((1,))
             self.targets = np.zeros((1,))
 
-        weights = []
-        for i in range(self.pc):
-            weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
+        # weights = []
+        # print('\n\n NEW WWWW \n\n')
+        # for i in range(self.pc):
+        #     weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
+        #     print(self.particles[i].w)
 
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
-        self.miss_meas = weights.count(0.0)
-        weights_array = np.asarray(weights)
-        # Add small non-zero value to avoid hitting zero
-        weights_array += 1.e-200
+        # self.miss_meas = weights.count(0.0)
+        # weights_array = np.asarray(weights)
+        # # Add small non-zero value to avoid hitting zero
+        # weights_array += 1.e-200
 
-        return weights_array
+        # return weights_array
 
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
@@ -614,8 +623,10 @@ class rbpf_slam(object):
 
     def resample(self, weights):
         # Normalize weights
-        #  print (weights)
+        print('\nresampling\n')
         weights /= weights.sum()
+        print(weights)
+
 
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -626,11 +637,11 @@ class rbpf_slam(object):
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
-        # print ("N_eff ", N_eff)
+        print ("N_eff ", N_eff)
         # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
+        if self.n_eff_filt < self.pc/2. : #and self.miss_meas < self.pc/2.:
         #  if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
             indices = residual_resample(weights)
             keep = list(set(indices))

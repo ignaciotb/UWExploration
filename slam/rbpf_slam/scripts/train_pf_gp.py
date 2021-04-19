@@ -142,6 +142,8 @@ class Train_gps():
         # x = inputs[:,0]
         # y = inputs[:,1]
         # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        self.count_training[idx] +=1 # to save plots
 
         #  publish results ---------
         mean, variance = self.gp_obj[idx].gp.sample(inputs)
@@ -158,8 +160,7 @@ class Train_gps():
         # print('variance ', variance.shape)
         # print('arr ', arr.shape)
         
-        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
-        self.count_training[idx] +=1 # to save plots
+        
 
 class create_particle():
     def __init__(self, n):

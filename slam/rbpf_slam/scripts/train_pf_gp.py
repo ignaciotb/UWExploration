@@ -143,7 +143,11 @@ class Train_gps():
         # x = inputs[:,0]
         # y = inputs[:,1]
         # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-        print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+        if self.count_training[idx] < len(self.numbers):
+            print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+        else:
+            print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
+
         self.count_training[idx] +=1 # to save plots
 
         #  publish results ---------

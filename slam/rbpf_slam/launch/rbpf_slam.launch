@@ -9,17 +9,17 @@
 
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
-	<arg name="mbes_open_angle" value="2.250" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+	<arg name="mbes_open_angle" value="1.250" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- GP -->
-	<arg name="record_data" default="50"/> <!-- After how many pings tp record the data --> 
-  <arg name="n_inducing"  default="300"/> <!-- Number of inducing points and optimisation samples -->
+	<arg name="record_data" default="20"/> <!-- After how many pings tp record the data --> 
+  <arg name="n_inducing"  default="200"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="5"/> <!--50 -->
+  <arg name="particle_count"                    default="8"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
   <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->

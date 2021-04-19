@@ -25,6 +25,7 @@ class Train_gps():
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
         self.firstFit = [True] * self.pc # len of particles
         self.count_training = [0] * self.pc # len of particles
+        self.numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
         self.gp_obj = np.empty(self.pc, dtype=object)
         for i in range(0,self.pc):
             self.gp_obj[i] = create_particle(self.n_inducing)
@@ -97,7 +98,7 @@ class Train_gps():
     def cb(self, msg):
         arr = msg.data
         idx = int(arr[-1]) # Particle index
-        print('\ntraining particle ', idx)
+        print('training particle ', idx)
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 3)
         cloud = arr.reshape(n,3)
@@ -135,14 +136,14 @@ class Train_gps():
 
     def train2(self, inputs, targets, idx):
         # train each particles gp
-        self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
+        self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
         # save a plot of the gps
         # self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
         # print('\n ... saving the posterior...')
         # x = inputs[:,0]
         # y = inputs[:,1]
         # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
         self.count_training[idx] +=1 # to save plots
 
         #  publish results ---------

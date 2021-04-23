@@ -399,37 +399,34 @@ class rbpf_slam(object):
         mu_est = cloud[:,0]
         sigma_est = cloud[:,1]
         self.calculateLikelihood( mu_est, sigma_est, idx)
+
+    #  def is_pos_semi_def(self, x):
+    #     return np.all(np.linalg.eigvals(x) >= 0)
     
-    def calculateLikelihood(self, mu_est, sigma_est,idx):
-        # for i in range(0, self.pc):
-            
-            # gp_cloud = np.load(self.storage_path + 'particle' + str(i) + 'posterior.npy')
-            # mu_est = gp_cloud[:,2]
-            # sigma_est = gp_cloud[:,3]
-        # mu_obs = np.load(self.storage_path + 'particle' + str(idx) + 'mu.npy')
-        # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
-        
+    def calculateLikelihood(self, mu_est, sigma_est, idx):        
         # collect data
-        # print('\n {} In line for particle {} \n'.format(len(self.particles[idx].mu_list), idx))
         mu_obs = self.particles[idx].mu_list[0]
         sigma_obs = self.particles[idx].sigma_list[0]
         # pop the latesed used
         self.particles[idx].mu_list.pop(0)
         self.particles[idx].sigma_list.pop(0)
-
-        # print('mu est ', mu_est.shape)
-        # print('mu obs', mu_obs.shape)
-        # print('sigma_est', sigma_est.shape)
-        # print('sigma_obs', sigma_obs.shape)
-
+        dim = len(mu_est) # Dimension
+        mu = mu_est - mu_obs
+        sigma = sigma_est + sigma_obs # sigma_est^2 + sigma_obs ^2
+        # convert sigma to a matrix
+        sigma = np.diag(sigma)
         # divide the equation into subtasks
-        mu = np.power( mu_est - mu_obs, 2)
-        sigma = np.power(sigma_obs,2) + np.power(sigma_est,2)
-        lkhood1 =  -0.5 * mu / sigma
-        lkhood2 = np.sqrt(2 * np.pi * sigma)
+        nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
+        print('nom is ', nom)
+        denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
+        print('denom is ', denom)
         # calculate the likelihood
-        lkhood = np.exp(lkhood1) / lkhood2
-        self.particles[idx].w = np.sum(lkhood)/len(lkhood) # particle weight?
+        lkhood = np.exp (nom) / denom
+        print('likelihood of particle ', idx)
+        # print(lkhood)
+        # convert likelihood into weight
+        self.particles[idx].w = lkhood # np.sum(lkhood)/len(lkhood) # particle weight?
+        print(self.particles[idx].w)
         self.pw[idx] = self.particles[idx].w 
         # print('likelihood of particle ', idx)
         # print(np.sum(lkhood)/len(lkhood))
@@ -438,6 +435,28 @@ class rbpf_slam(object):
         if idx == self.pc - 1: # all particles weighted
             weights_array = np.asarray(self.pw)
             self.resample(weights_array)
+        
+        # for i in range(0, self.pc):
+            # gp_cloud = np.load(self.storage_path + 'particle' + str(i) + 'posterior.npy')
+            # mu_est = gp_cloud[:,2]
+            # sigma_est = gp_cloud[:,3]
+        # mu_obs = np.load(self.storage_path + 'particle' + str(idx) + 'mu.npy')
+        # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
+
+        # sigma_obs = np.diag(sigma_obs)
+        # sigma_est = np.diag(sigma_est)
+        # print('mu est ', mu_est.shape)
+        # print('mu obs', mu_obs.shape)
+        # print('sigma_est', sigma_est.shape)
+        # print('sigma_obs', sigma_obs.shape)
+        # divide the equation into subtasks --------------- try 1
+        # mu = np.power( mu_est - mu_obs, 2)
+        # sigma = np.power(sigma_obs,2) + np.power(sigma_est,2)
+        # lkhood1 =  -0.5 * mu / sigma
+        # lkhood2 = np.sqrt(2 * np.pi * sigma)
+        # lkhood = np.exp(lkhood1) / lkhood2 # -------------------------
+        # print("\nPositive semi-def check: sigma_est: ",  self.is_pos_semi_def(sigma_est))
+        # print(  "Positive semi-def check: sigma_obs: ", self.is_pos_semi_def(sigma_obs))
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame

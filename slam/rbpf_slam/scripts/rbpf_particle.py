@@ -104,23 +104,6 @@ class Particle(object):
             self.w = 1.e-50 #0.0
             rospy.logwarn("Range of exp meas equals zero")
     
-    def compute_GP_weight(self, exp_mbes, real_mbes_ranges, real_mbes_GP_pred):
-        # Predict mbes ping given current particle pose and m
-        exp_mbes_ranges = self.list2ranges(exp_mbes)
-
-        if len(exp_mbes_ranges) > 0:
-            # Before calculating weights, make sure both meas have same length
-            idx = np.round(np.linspace(0, len(exp_mbes_ranges) - 1,
-                                        len(real_mbes_ranges))).astype(int)
-            mbes_sim_sampled = exp_mbes_ranges[idx]
-
-            self.w = self.weight_gps(real_mbes_ranges, mbes_sim_sampled, real_mbes_GP_pred)
-
-        else:
-            self.w = 1.e-50
-        # else:
-        #     #  rospy.logwarn("Particle did not get meas")
-        #     self.w = 1.e-50
 
     def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check

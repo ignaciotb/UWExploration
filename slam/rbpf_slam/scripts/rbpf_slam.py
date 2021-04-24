@@ -400,45 +400,60 @@ class rbpf_slam(object):
         cloud = arr.reshape(n,2)
         mu_est = cloud[:,0]
         sigma_est = cloud[:,1]
-        self.calculateLikelihood( mu_est, sigma_est, idx)
+        self.calculateLikelihood( mu_est, sigma_est, idx, logLkhood=True)
 
     #  def is_pos_semi_def(self, x):
     #     return np.all(np.linalg.eigvals(x) >= 0)
     
-    def calculateLikelihood(self, mu_est, sigma_est, idx):        
+    def calculateLikelihood(self, mu_est, sigma_est, idx, logLkhood):        
         # collect data
         mu_obs = self.particles[idx].mu_list[0]
         sigma_obs = self.particles[idx].sigma_list[0]
         # pop the latesed used
         self.particles[idx].mu_list.pop(0)
         self.particles[idx].sigma_list.pop(0)
-
-        if self.firstFit:
-            self.firstFit = False # only need to calculate ones
-            self.dim = len(mu_est) # Dimension
-            print('dim ', self.dim)
-            self.power2dim = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
-            print('dower to dim ', self.power2dim)
-
         # divide the equation into subtasks
         mu = mu_est - mu_obs
         sigma = sigma_est + sigma_obs # sigma_est^2 + sigma_obs ^2
         # convert sigma to a matrix
         sigma = np.diag(sigma)
-        
-        nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
-        print('nominator is ', nom)
-        # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
-        # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
-        sign, detSigma = np.linalg.slogdet(sigma)
-        print('sign and det sigma ',sign, detSigma)
-        denom = self.power2dim * np.sqrt(detSigma)
-        # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
-        print('denominator is ', denom)
-        # calculate the likelihood
-        lkhood = np.exp (nom) / denom
+
+        if logLkhood:
+            if self.firstFit:
+                self.firstFit = False # only need to calculate ones
+                self.dim = len(mu_est) # Dimension
+                print('dim ', self.dim)
+                self.power2dim =  self.dim * np.log (2 * np.pi) 
+                print('dower to dim ', self.power2dim)
+
+            nom = np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu))
+            _, detSigma = np.linalg.slogdet(sigma)
+            logdetSigma = np.log(detSigma)
+            lkhood = -0.5 * (nom + self.power2dim + logdetSigma)
+            print('log likelihood  ', lkhood)
+            lkhood = np.exp(lkhood)
+
+        else:
+            if self.firstFit:
+                self.firstFit = False # only need to calculate ones
+                self.dim = len(mu_est) # Dimension
+                print('dim ', self.dim)
+                self.power2dim = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
+                print('dower to dim ', self.power2dim)
+
+            nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
+            print('nominator is ', nom)
+            # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
+            # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
+            sign, detSigma = np.linalg.slogdet(sigma)
+            print('sign and det sigma ',sign, detSigma)
+            denom = self.power2dim * np.sqrt(detSigma)
+            # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
+            print('denominator is ', denom)
+            # calculate the likelihood
+            lkhood = np.exp (nom) / denom
+
         print('likelihood of particle ', idx)
-        # print(lkhood)
         # convert likelihood into weight
         self.particles[idx].w = lkhood  # particle weight?
         print(self.particles[idx].w)
@@ -491,7 +506,7 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         okay = False
-        self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
+        self.targets = np.append(self.targets, real_mbes_full[:,2], axis=0)
         if self.count_mbes % self.record_data == 0: 
             okay = True
             # self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
@@ -517,11 +532,12 @@ class rbpf_slam(object):
             # IGL-based meas model
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                 self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # GP meas model
             exp_mbes, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
             self.particles[i].meas_cov = np.diag(exp_sigs)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            
             # print('exp mbes ', exp_mbes.shape)
             # print('exp_sigs ', exp_sigs.shape)
             # print('mu ', mu_obs.shape)
@@ -533,13 +549,19 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+            # print(mbes)
+
+            # # transform sigma
+            # sigs_mbes = np.dot(rot_inv, exp_sigs.T)
+            # sigs_mbes = np.subtract(sigs_mbes.T, p_inv)
+            # print(sigs_mbes)
             
             # ----------- record input data --------
             
                 # inputs = PointCloud2(data=exp_mbes[:,0:2])
-            self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
+            self.particles[i].cloud = np.append(self.particles[i].cloud, mbes[:,:2], axis=0)  # (n,2)
             self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs)
-            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs)
+            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mbes[:,2])# mu_obs)
 
             # self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes, axis=0)  # (n,3)
             # saving old x,y poses in a new array to plot later
@@ -556,16 +578,7 @@ class rbpf_slam(object):
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
-            # if okay:
-            #     try:
-            #         self.calculateLikelihood()
-            #     except Exception as e:
-            #         print('\ndidnt work because: \n')
-            #         print(e)
-            #         pass
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
-            # self.particles[i].compute_GP_weight(exp_mbes, real_mbes_ranges)
-        
         if okay: 
             # np.save(self.targets_file, self.targets)
             # print('\nData recorded.\n')

@@ -43,6 +43,9 @@ from scipy.ndimage.filters import gaussian_filter
 from bathy_gps import gp
 import time 
 
+# For large numbers 
+from mpmath import mpf
+
 # train gps simultaneously as rbpf slam is run
 # from train_pf_gp import Train_gps
 
@@ -159,7 +162,7 @@ class rbpf_slam(object):
                                                     execute_cb=self.mbes_as_cb, auto_start=True)
 
         # Publish to record data
-        self.recordData2gp()
+        # self.recordData2gp()
         train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
         self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=10)
         # Subscribe to gp variance and mean
@@ -390,7 +393,6 @@ class rbpf_slam(object):
         rospy.loginfo('... GP training successful')
 
     def gp_meanvar_cb(self, msg):
-        # rospy.loginfo('calculating likelihood ...')
         arr = msg.data
         idx = int(arr[-1]) # Particle index
         arr = np.delete(arr, -1)
@@ -410,30 +412,43 @@ class rbpf_slam(object):
         # pop the latesed used
         self.particles[idx].mu_list.pop(0)
         self.particles[idx].sigma_list.pop(0)
-        dim = len(mu_est) # Dimension
+
+        if self.firstFit:
+            self.firstFit = False # only need to calculate ones
+            self.dim = len(mu_est) # Dimension
+            print('dim ', self.dim)
+            self.power2dim = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
+            print('dower to dim ', self.power2dim)
+
+        # divide the equation into subtasks
         mu = mu_est - mu_obs
         sigma = sigma_est + sigma_obs # sigma_est^2 + sigma_obs ^2
         # convert sigma to a matrix
         sigma = np.diag(sigma)
-        # divide the equation into subtasks
+        
         nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
-        print('nom is ', nom)
-        denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
-        print('denom is ', denom)
+        print('nominator is ', nom)
+        # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
+        # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
+        sign, detSigma = np.linalg.slogdet(sigma)
+        print('sign and det sigma ',sign, detSigma)
+        denom = self.power2dim * np.sqrt(detSigma)
+        # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
+        print('denominator is ', denom)
         # calculate the likelihood
         lkhood = np.exp (nom) / denom
         print('likelihood of particle ', idx)
         # print(lkhood)
         # convert likelihood into weight
-        self.particles[idx].w = lkhood # np.sum(lkhood)/len(lkhood) # particle weight?
+        self.particles[idx].w = lkhood  # particle weight?
         print(self.particles[idx].w)
         self.pw[idx] = self.particles[idx].w 
-        # print('likelihood of particle ', idx)
-        # print(np.sum(lkhood)/len(lkhood))
 
         # when to resample
         if idx == self.pc - 1: # all particles weighted
             weights_array = np.asarray(self.pw)
+            # Add small non-zero value to avoid hitting zero
+            weights_array += 1.e-200
             self.resample(weights_array)
         
         # for i in range(0, self.pc):

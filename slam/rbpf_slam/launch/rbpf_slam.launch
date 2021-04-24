@@ -19,13 +19,13 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="2"/> <!--50 -->
+  <arg name="particle_count"                    default="4"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/>
+  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
   <!-- <arg name="resampling_noise_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/> -->
-  <!-- <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/> -->
-  <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/> -->
+  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/> 
   <arg name="measurement_std"  default="3"/>
 

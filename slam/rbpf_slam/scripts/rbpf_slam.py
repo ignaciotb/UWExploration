@@ -102,6 +102,7 @@ class rbpf_slam(object):
         self.avg_pose.header.frame_id = odom_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
+        self.time2resample = False
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
         
@@ -423,38 +424,39 @@ class rbpf_slam(object):
                 self.firstFit = False # only need to calculate ones
                 self.dim = len(mu_est) # Dimension
                 print('dim ', self.dim)
-                self.power2dim =  self.dim * np.log (2 * np.pi) 
-                print('dower to dim ', self.power2dim)
+                self.norm_const =  self.dim * np.log (2 * np.pi) 
+                print('dower to dim ', self.norm_const)
 
             nom = np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu))
             _, detSigma = np.linalg.slogdet(sigma)
             logdetSigma = np.log(detSigma)
-            lkhood = -0.5 * (nom + self.power2dim + logdetSigma)
-            print('log likelihood  ', lkhood)
-            lkhood = np.exp(lkhood)
+            lkhood = -0.5 * (nom + self.norm_const + logdetSigma)
+            lkhood = 1/lkhood # since it's negative, the highest negative value should have the lowest weight
+            # print('log likelihood  ', lkhood)
+            # lkhood = np.exp(lkhood)
 
         else:
             if self.firstFit:
                 self.firstFit = False # only need to calculate ones
                 self.dim = len(mu_est) # Dimension
                 print('dim ', self.dim)
-                self.power2dim = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
-                print('dower to dim ', self.power2dim)
+                self.norm_const = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
+                print('dower to dim ', self.norm_const)
 
             nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
-            print('nominator is ', nom)
+            # print('nominator is ', nom)
             # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
             # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
             sign, detSigma = np.linalg.slogdet(sigma)
-            print('sign and det sigma ',sign, detSigma)
-            denom = self.power2dim * np.sqrt(detSigma)
+            # print('sign and det sigma ',sign, detSigma)
+            denom = self.norm_const * np.sqrt(detSigma)
             # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
-            print('denominator is ', denom)
+            # print('denominator is ', denom)
             # calculate the likelihood
             lkhood = np.exp (nom) / denom
 
         print('likelihood of particle ', idx)
-        # convert likelihood into weight
+        # convert likelihood into weigh
         self.particles[idx].w = lkhood  # particle weight?
         print(self.particles[idx].w)
         self.pw[idx] = self.particles[idx].w 
@@ -673,7 +675,8 @@ class rbpf_slam(object):
         # Normalize weights
         rospy.loginfo('resampling')
         weights /= weights.sum()
-        # print(weights)
+        print('should I resample? ', self.time2resample)
+        print(weights)
 
 
         N_eff = self.pc
@@ -686,11 +689,13 @@ class rbpf_slam(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         print ("N_eff ", N_eff)
+        print('n_eff_filt ', self.n_eff_filt)
         # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        if self.n_eff_filt < self.pc/2. : #and self.miss_meas < self.pc/2.:
+        # if self.n_eff_filt < self.pc/2. : #and self.miss_meas < self.pc/2.:
         #  if N_eff < self.pc/2. and self.miss_meas < self.pc/2.:
+        if self.time2resample:
             indices = residual_resample(weights)
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]
@@ -703,6 +708,8 @@ class rbpf_slam(object):
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
 
+        # resample every other time
+        self.time2resample = not self.time2resample
 
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):

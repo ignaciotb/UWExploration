@@ -98,7 +98,7 @@ class Train_gps():
     def cb(self, msg):
         arr = msg.data
         idx = int(arr[-1]) # Particle index
-        print('training particle ', idx)
+        # print('training particle ', idx)
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 3)
         cloud = arr.reshape(n,3)
@@ -136,26 +136,31 @@ class Train_gps():
 
     def train2(self, inputs, targets, idx):
         # train each particles gp
-        self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
-        # save a plot of the gps
-        # self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
-        # print('\n ... saving the posterior...')
-        # x = inputs[:,0]
-        # y = inputs[:,1]
-        # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-        if self.count_training[idx] < len(self.numbers):
-            print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
-        else:
-            print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        try:
+            self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+            # save a plot of the gps
+            # self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            # print('\n ... saving the posterior...')
+            # x = inputs[:,0]
+            # y = inputs[:,1]
+            # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+            # if self.count_training[idx] < len(self.numbers):
+            #     print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+            # else:
+            #     print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
 
-        self.count_training[idx] +=1 # to save plots
+            self.count_training[idx] +=1 # to save plots
 
-        #  publish results ---------
-        mean, variance = self.gp_obj[idx].gp.sample(inputs)
-        arr = np.zeros((len(mean),2))
-        arr[:,0] = mean
-        arr[:,1] = variance
-        arr = arr.reshape(len(mean)*2, 1)
+            #  publish results ---------
+            mean, variance = self.gp_obj[idx].gp.sample(inputs)
+            arr = np.zeros((len(mean),2))
+            arr[:,0] = mean
+            arr[:,1] = variance
+            arr = arr.reshape(len(mean)*2, 1)    
+        except:
+            print('gitter..')
+            arr = np.array([0, 0])
+            
         arr = np.append(arr, idx) # insert particle index
         msg = Floats()
         msg.data = arr

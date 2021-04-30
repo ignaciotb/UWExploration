@@ -44,15 +44,18 @@ class Particle(object):
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
+        self.add_noise(init_cov)
+        # for the gp and likelihood
         self.cloud =  np.zeros((1,2)) #[[0]*2]*1
-        # self.xy =  np.empty((1,2))
         self.sigma_obs = np.zeros((1,))
         self.mu_obs = np.zeros((1,))
         self.sigma_list = []
         self.mu_list = []
-        # self.gp = SVGP(1000) # initialise GP with 1000 inducing points
+        # for the ancestry tree
+        self.trajectory_path = np.zeros((1,6))
+        self.children = []
+        self.parent = None
 
-        self.add_noise(init_cov)
 
     def add_noise(self, noise):
         noise_cov =np.diag(noise)

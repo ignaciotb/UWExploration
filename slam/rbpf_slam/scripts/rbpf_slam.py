@@ -94,7 +94,7 @@ class rbpf_slam(object):
         self.n_eff_filt = 0.
         self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
-        self.count_mbes = 0
+        self.count_pings = 0
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
         self.poses.header.frame_id = odom_frame
@@ -106,6 +106,7 @@ class rbpf_slam(object):
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
         self.resample_th = 1 / self.pc - 0.1 # when to resample
+        self.observations = np.zeros((1,3)) # for ancestry tree
         
 
 
@@ -223,7 +224,8 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-            self.particles[i].gp = gp.SVGP(self.n_inducing)
+            # self.particles[i].gp = gp.SVGP(self.n_inducing) # doing this in another node to save time
+            self.particles[i].ID = i
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
@@ -303,7 +305,7 @@ class rbpf_slam(object):
         self.as_ping.set_succeeded(result)
 
         self.latest_mbes = result.sim_mbes 
-        self.count_mbes += 1
+        self.count_pings += 1
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -396,17 +398,21 @@ class rbpf_slam(object):
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
-        idx = int(arr[-1]) # Particle index
+        p_id = int(arr[-1]) # Particle ID
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 2)
         cloud = arr.reshape(n,2)
         mu_est = cloud[:,0]
         sigma_est = cloud[:,1]
+        for i in range(0, self.pc):
+            if self.particles[i].ID == p_id: # from resampling, the order can shift, better to look at the id instead of list index
+                idx = i
+                if i != p_id: # to keep track of when (if) the resampling changes the order 
+                    print('particle {} have id {}'.format(i, p_id))
+                break
         self.calculateLikelihood( mu_est, sigma_est, idx, logLkhood=True)
 
-    #  def is_pos_semi_def(self, x):
-    #     return np.all(np.linalg.eigvals(x) >= 0)
-    
+
     def calculateLikelihood(self, mu_est, sigma_est, idx, logLkhood):        
         # collect data
         mu_obs = self.particles[idx].mu_list[0]
@@ -451,7 +457,7 @@ class rbpf_slam(object):
                 # print('nominator is ', nom)
                 # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
                 # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
-                sign, detSigma = np.linalg.slogdet(sigma)
+                _, detSigma = np.linalg.slogdet(sigma)
                 # print('sign and det sigma ',sign, detSigma)
                 denom = self.norm_const * np.sqrt(detSigma)
                 # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
@@ -460,13 +466,13 @@ class rbpf_slam(object):
                 lkhood = np.exp (nom) / denom
 
         except ValueError:
-            print('Value error')
+            print('Likelihood = 0.0')
             lkhood = 0.0
 
         # print('likelihood of particle ', idx)
         # convert likelihood into weigh
         self.particles[idx].w = lkhood  # particle weight?
-        # print(self.particles[idx].w)
+        # print(self.particles[idx].w)id
         self.pw[idx] = self.particles[idx].w 
 
         # when to resample
@@ -484,21 +490,6 @@ class rbpf_slam(object):
         # mu_obs = np.load(self.storage_path + 'particle' + str(idx) + 'mu.npy')
         # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
 
-        # sigma_obs = np.diag(sigma_obs)
-        # sigma_est = np.diag(sigma_est)
-        # print('mu est ', mu_est.shape)
-        # print('mu obs', mu_obs.shape)
-        # print('sigma_est', sigma_est.shape)
-        # print('sigma_obs', sigma_obs.shape)
-        # divide the equation into subtasks --------------- try 1
-        # mu = np.power( mu_est - mu_obs, 2)
-        # sigma = np.power(sigma_obs,2) + np.power(sigma_est,2)
-        # lkhood1 =  -0.5 * mu / sigma
-        # lkhood2 = np.sqrt(2 * np.pi * sigma)
-        # lkhood = np.exp(lkhood1) / lkhood2 # -------------------------
-        # print("\nPositive semi-def check: sigma_est: ",  self.is_pos_semi_def(sigma_est))
-        # print(  "Positive semi-def check: sigma_obs: ", self.is_pos_semi_def(sigma_obs))
-
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
         # We only work with z, so we transform them mbes --> map
@@ -506,6 +497,9 @@ class rbpf_slam(object):
 
         # Beams in real mbes frame
         real_mbes_full = pcloud2ranges_full(real_mbes)
+        obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
+        self.observations = np.append(self.observations, obs, axis=0) # for later comparison
+        # print('obs shape ', self.observations.shape)
 
         # Processing of real pings here
         idx = np.round(np.linspace(0, len(real_mbes_full)-1,
@@ -518,14 +512,10 @@ class rbpf_slam(object):
         # -------------- record target data ------------
         okay = False
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
-        if self.count_mbes % self.record_data == 0: 
+        if self.count_pings % self.record_data == 0: 
+            # print('ping count ', self.count_pings)
             okay = True
-            # self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
-            # targets =PointCloud2(data=real_mbes_ranges)
-            # targets = real_mbes_ranges  # (n,) need to be real_mbes_ranges and not real_mbes_full for the mll(...) to work
-            # self.target_pub.publish(targets)
-            # np.save(self.targets_file, targets)
-        
+
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
         # needs the opposite.
@@ -549,10 +539,6 @@ class rbpf_slam(object):
             exp_mbes, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
             self.particles[i].meas_cov = np.diag(exp_sigs)
             
-            # print('exp mbes ', exp_mbes.shape)
-            # print('exp_sigs ', exp_sigs.shape)
-            # print('mu ', mu_obs.shape)
-            
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)
             rot_inv = r_mbes.transpose()
@@ -560,36 +546,21 @@ class rbpf_slam(object):
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-            # print(mbes)
-
-            # # transform sigma
-            # sigs_mbes = np.dot(rot_inv, exp_sigs.T)
-            # sigs_mbes = np.subtract(sigs_mbes.T, p_inv)
-            # print(sigs_mbes)
             
             # ----------- record input data --------
-            
-                # inputs = PointCloud2(data=exp_mbes[:,0:2])
             self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
             self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs)
             self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs) #exp_mbes[:,2])# mu_obs)
-
-            # self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes, axis=0)  # (n,3)
+            trajectory = np.array([[self.particles[i].p_pose[0], self.particles[i].p_pose[1], self.particles[i].p_pose[2], self.particles[i].p_pose[3], self.particles[i].p_pose[4], self.particles[i].p_pose[5] ]])
+            self.particles[i].trajectory_path = np.append(self.particles[i].trajectory_path, trajectory, axis=0) #save the trajectory for later use
+            # print('trajectory shape ', self.particles[i].trajectory_path.shape)
             # saving old x,y poses in a new array to plot later
             # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
-            # if okay:
-                # self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,0:2], axis=0)  # (n,2)
-                # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
-
-                # inputs = exp_mbes[:,0:2] 
-                # np.save(self.inputs_file[i], self.particles[i].inputs)
-                # np.save(self.pxy_file[i], self.particles[i].xy)
-                # self.input_pub.publish(inputs)
-                # self.train_gp_pub.publish(self.particles[i], inputs, targets, i)
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
             self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
+
         if okay: 
             # np.save(self.targets_file, self.targets)
             # print('\nData recorded.\n')
@@ -599,11 +570,13 @@ class rbpf_slam(object):
                 cloud_arr[:,:2] = self.particles[i].cloud
                 cloud_arr[:,2] = self.targets
                 cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
-                cloud_arr = np.append(cloud_arr, i) # insert particle index
+                cloud_arr = np.append(cloud_arr, self.particles[i].ID) # insert particle ID
                 for _ in range(3):
                     cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
                 msg = Floats()
                 msg.data = cloud_arr
+                # self.trainGP()
+                self.gp_pub.publish(msg)
 
                 # save observation data to compare
                 self.particles[i].mu_obs = np.delete(self.particles[i].mu_obs, 0)
@@ -618,8 +591,6 @@ class rbpf_slam(object):
                 # np.save(self.cloud_file, cloud_arr)
                 # np.save(self.pxy_file[i], self.particles[i].xy)
 
-                # self.trainGP()
-                self.gp_pub.publish(msg)
                 
                 # empty arrays
                 self.particles[i].cloud = np.zeros((1,2))
@@ -701,9 +672,9 @@ class rbpf_slam(object):
         print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
+        # if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
         # if N_eff < self.pc-1: #. and self.miss_meas < self.pc/2.:
-        # if self.time2resample:
+        if self.time2resample:
         # if any(t < self.resample_th for t in weights):
             rospy.loginfo('resampling')
             indices = residual_resample(weights)
@@ -713,13 +684,27 @@ class rbpf_slam(object):
             for i in keep:
                 dupes.remove(i)
 
+            self.ancestry_tree(lost, dupes) # save parent and children
             self.reassign_poses(lost, dupes)
             # Add noise to particles
             for i in range(self.pc):
+                print('particle {} have parent {} and children {}'.format(i, self.particles[i].parent, self.particles[i].children ))
                 self.particles[i].add_noise(self.res_noise_cov)
 
         # resample every other time
-        # self.time2resample = not self.time2resample
+        self.time2resample = not self.time2resample
+
+    def ancestry_tree(self, lost, dupes):
+        print('how many dupes: ', dupes)
+        print('how many lost: ', lost)
+        for i in range(len(lost)):
+            self.particles[lost[i]].parent = self.particles[dupes[i]].ID
+            self.particles[dupes[i]].children.append(self.particles[lost[i]])
+
+        # merge parent and child if only one child
+        # for i in range(self.pc):
+        #     if len(self.particles[i].children) == 1:
+        #         self.particles[i] = self.particles[i].children[0]
 
     def reassign_poses(self, lost, dupes):
         for i in range(len(lost)):

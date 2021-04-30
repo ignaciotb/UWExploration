@@ -97,62 +97,64 @@ class Train_gps():
 
     def cb(self, msg):
         arr = msg.data
-        idx = int(arr[-1]) # Particle index
-        # print('training particle ', idx)
+        p_id = int(arr[-1]) # Particle ID
+        # print('training particle ', p_id)
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 3)
         cloud = arr.reshape(n,3)
         inputs = cloud[:,[0,1]]
         targets = cloud[:,2]
 
-        # self.trainGP(inputs, targets, idx)
-        self.train2(inputs, targets, idx)
+        # self.train2(inputs, targets, p_id)
+        self.trainGP(inputs, targets, p_id)
 
-    def trainGP(self, inputs, targets, idx):
-        if self.firstFit[idx]: # Only enter ones
-            self.firstFit[idx] = False 
+    def train2(self, inputs, targets, p_id):
+        if self.firstFit[p_id]: # Only enter ones
+            self.firstFit[p_id] = False 
             gp = SVGP(self.n_inducing)
             # train each particles gp
             gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             # save a plot of the gps
-            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
             # save the path to train again
-            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
             gp.save(gp_path)
         
         else: # second or more time to retrain gp
-            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
             gp = SVGP.load(self.n_inducing, gp_path)
             # train each particles gp
             gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             # save a plot of the gps
-            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
             # save the path to train again
-            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
             gp.save(gp_path)
         
-        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
-        self.count_training[idx] +=1 # to save plots
+        print('\n... done with particle {} training {} '.format(p_id , self.count_training[p_id]))
+        self.count_training[p_id] +=1 # to save plots
 
-    def train2(self, inputs, targets, idx):
+    def trainGP(self, inputs, targets, p_id):
         # train each particles gp
         try:
-            self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
-            # save a plot of the gps
-            # self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            self.gp_obj[p_id].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+            if self.count_training[p_id] > 0 and self.count_training[p_id] % 10 == 0:
+                # save a plot of the gps
+                # rospy.loginfo('Saving a plot of the gps')
+                self.gp_obj[p_id].gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
             # print('\n ... saving the posterior...')
             # x = inputs[:,0]
             # y = inputs[:,1]
-            # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-            # if self.count_training[idx] < len(self.numbers):
-            #     print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+            # self.gp_obj[p_id].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(p_id) + 'posterior.npy', verbose=False)
+            # if self.count_training[p_id] < len(self.numbers):
+            #     print('... done with particle {} training {} '.format(p_id , self.numbers[self.count_training[p_id]]))
             # else:
-            #     print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
+            #     print('... done with particle {} training {} '.format(p_id , self.count_training[p_id]))
 
-            self.count_training[idx] +=1 # to save plots
+            self.count_training[p_id] +=1 # to save plots
 
             #  publish results ---------
-            mean, variance = self.gp_obj[idx].gp.sample(inputs)
+            mean, variance = self.gp_obj[p_id].gp.sample(inputs)
             arr = np.zeros((len(mean),2))
             arr[:,0] = mean
             arr[:,1] = variance
@@ -161,15 +163,10 @@ class Train_gps():
             print('gitter..')
             arr = np.array([0, 0])
             
-        arr = np.append(arr, idx) # insert particle index
+        arr = np.append(arr, p_id) # insert particle index
         msg = Floats()
         msg.data = arr
         self.meanvar_pub.publish(msg)
-
-        # print('mean ', mean.shape)
-        # print('variance ', variance.shape)
-        # print('arr ', arr.shape)
-        
         
 
 class create_particle():

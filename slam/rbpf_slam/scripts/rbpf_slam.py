@@ -49,6 +49,14 @@ from mpmath import mpf
 # train gps simultaneously as rbpf slam is run
 # from train_pf_gp import Train_gps
 
+class atree():
+    def __init__(self, ID, parent, trajectory, observations):
+        self.ID = ID
+        self.parent = parent
+        self.trajectory = trajectory
+        self.observations = observations
+        self.children = []
+
 class rbpf_slam(object):
 
     def __init__(self):
@@ -102,11 +110,16 @@ class rbpf_slam(object):
         self.avg_pose.header.frame_id = odom_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
+        self.one_time = True
         self.time2resample = False
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
         self.resample_th = 1 / self.pc - 0.1 # when to resample
-        self.observations = np.zeros((1,3)) # for ancestry tree
+        # for ancestry tree
+        self.observations = np.zeros((1,3)) 
+        self.p_ID = 0
+        self.tree_list = []
+
         
 
 
@@ -225,7 +238,8 @@ class rbpf_slam(object):
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
             # self.particles[i].gp = gp.SVGP(self.n_inducing) # doing this in another node to save time
-            self.particles[i].ID = i
+            self.particles[i].ID = self.p_ID
+            self.p_ID += 1
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
@@ -398,18 +412,18 @@ class rbpf_slam(object):
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
-        p_id = int(arr[-1]) # Particle ID
+        idx = int(arr[-1]) # Particle ID
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 2)
         cloud = arr.reshape(n,2)
         mu_est = cloud[:,0]
         sigma_est = cloud[:,1]
-        for i in range(0, self.pc):
-            if self.particles[i].ID == p_id: # from resampling, the order can shift, better to look at the id instead of list index
-                idx = i
-                if i != p_id: # to keep track of when (if) the resampling changes the order 
-                    print('particle {} have id {}'.format(i, p_id))
-                break
+        # for i in range(0, self.pc):
+        #     if self.particles[i].ID == p_id: # from resampling, the order can shift, better to look at the id instead of list index
+        #         idx = i
+        #         if i != p_id: # to keep track of when (if) the resampling changes the order 
+        #             print('particle {} have id {}'.format(i, p_id))
+        #         break
         self.calculateLikelihood( mu_est, sigma_est, idx, logLkhood=True)
 
 
@@ -570,7 +584,7 @@ class rbpf_slam(object):
                 cloud_arr[:,:2] = self.particles[i].cloud
                 cloud_arr[:,2] = self.targets
                 cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
-                cloud_arr = np.append(cloud_arr, self.particles[i].ID) # insert particle ID
+                cloud_arr = np.append(cloud_arr, i) # insert particle index
                 for _ in range(3):
                     cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
                 msg = Floats()
@@ -667,9 +681,9 @@ class rbpf_slam(object):
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
-        print ("N_eff ", N_eff)
-        print('n_eff_filt ', self.n_eff_filt)
-        print ("Missed meas ", self.miss_meas)
+        # print ("N_eff ", N_eff)
+        # print('n_eff_filt ', self.n_eff_filt)
+        # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
         # if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
@@ -686,20 +700,45 @@ class rbpf_slam(object):
 
             self.ancestry_tree(lost, dupes) # save parent and children
             self.reassign_poses(lost, dupes)
+            # check if ancestry tree works
+            for p in self.tree_list:
+                print('particle {} have parent {} and children {} '.format(p.ID, p.parent, p.children, )) #p.trajectory.shape, p.observations.shape ))
             # Add noise to particles
             for i in range(self.pc):
-                print('particle {} have parent {} and children {}'.format(i, self.particles[i].parent, self.particles[i].children ))
                 self.particles[i].add_noise(self.res_noise_cov)
+                # clear data
+                self.particles[i].trajectory_path = np.zeros((1,6))
+            self.observations = np.zeros((1,3))
 
         # resample every other time
         self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
+        if self.one_time:
+            self.one_time = False
+            for i in range(self.pc):
+                particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path, self.observations )
+                self.tree_list.append(particle_tree) # ID = index
         print('how many dupes: ', dupes)
         print('how many lost: ', lost)
         for i in range(len(lost)):
-            self.particles[lost[i]].parent = self.particles[dupes[i]].ID
-            self.particles[dupes[i]].children.append(self.particles[lost[i]])
+            self.particles[lost[i]].ID = self.p_ID
+            # idx_lost = self.particles[lost[i]].ID
+            idx_child = self.p_ID
+            idx_parent = self.particles[dupes[i]].ID
+            particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path, self.observations )
+            self.tree_list.append(particle_tree)
+            self.tree_list[idx_parent].children.append(idx_child)
+            self.p_ID += 1
+            
+
+        # for i in range(self.pc):
+        #     particle_tree = atree(self.p_ID, self.particles[dupes[i]].ID, self.particles[lost[i]].trajectory, self.observations )
+        #     self.tree_list.append(particle_tree)
+        #     self.particles[lost[i]].ID = self.p_ID
+        # particle_tree = atree(self.p_ID, self.particles[dupes[i]].ID, self.particles[lost[i]].trajectory, self.observations )
+        # self.tree_list.append(particle_tree)
+        # self.p_ID += 1
 
         # merge parent and child if only one child
         # for i in range(self.pc):

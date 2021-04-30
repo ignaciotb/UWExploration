@@ -138,10 +138,10 @@ class Train_gps():
         # train each particles gp
         try:
             self.gp_obj[p_id].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
-            if self.count_training[p_id] > 0 and self.count_training[p_id] % 10 == 0:
-                # save a plot of the gps
-                # rospy.loginfo('Saving a plot of the gps')
-                self.gp_obj[p_id].gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
+            # if self.count_training[p_id] > 0 and self.count_training[p_id] % 10 == 0:
+            #     # save a plot of the gps
+            #     # rospy.loginfo('Saving a plot of the gps')
+            #     self.gp_obj[p_id].gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
             # print('\n ... saving the posterior...')
             # x = inputs[:,0]
             # y = inputs[:,1]

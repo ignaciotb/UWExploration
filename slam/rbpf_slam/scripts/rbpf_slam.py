@@ -703,6 +703,9 @@ class rbpf_slam(object):
             # check if ancestry tree works
             for p in self.tree_list:
                 print('particle {} have parent {} and children {} '.format(p.ID, p.parent, p.children, )) #p.trajectory.shape, p.observations.shape ))
+                # save for plot
+                np.save(self.storage_path +'tr_path/' + 'ID' + str(p.ID) + 'tr.npy', p.trajectory)
+                np.save(self.storage_path + 'obs_path/'+ 'ID' + str(p.ID) + 'obs.npy', p.observations)
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
@@ -714,6 +717,11 @@ class rbpf_slam(object):
         self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
+        # remove first row 
+        self.observations = np.delete(self.observations, 0, 0)
+        for i in range(self.pc):
+            self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
+        
         if self.one_time:
             self.one_time = False
             for i in range(self.pc):
@@ -730,15 +738,6 @@ class rbpf_slam(object):
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1
-            
-
-        # for i in range(self.pc):
-        #     particle_tree = atree(self.p_ID, self.particles[dupes[i]].ID, self.particles[lost[i]].trajectory, self.observations )
-        #     self.tree_list.append(particle_tree)
-        #     self.particles[lost[i]].ID = self.p_ID
-        # particle_tree = atree(self.p_ID, self.particles[dupes[i]].ID, self.particles[lost[i]].trajectory, self.observations )
-        # self.tree_list.append(particle_tree)
-        # self.p_ID += 1
 
         # merge parent and child if only one child
         # for i in range(self.pc):

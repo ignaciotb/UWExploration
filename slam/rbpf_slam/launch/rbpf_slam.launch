@@ -8,18 +8,19 @@
 	<arg name="dataset" default="overnight_2020"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
-	<arg name="mbes_open_angle" value="1.250" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+	<arg name="n_beams_mbes" default="25"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
+	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- GP -->
 	<arg name="record_data" default="10"/> <!-- After how many pings tp record the data --> 
   <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
+  <arg name="queue_size"  default="50"/> <!-- to pub/sub to gp training -->
   
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="10"/> <!--50 -->
+  <arg name="particle_count"                    default="50"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
   <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
@@ -52,6 +53,7 @@
       <param name="record_data"                             value="$(arg record_data)" />
       <param name="n_inducing"                              value="$(arg n_inducing)" />
       <param name="data_path"                               value="$(arg data_path)" />
+      <param name="queue_size"                              value="$(arg queue_size)" />
 
       <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
@@ -75,6 +77,7 @@
       <param name="n_inducing"                              value="$(arg n_inducing)" />
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
       <param name="data_path"                               value="$(arg data_path)" />
+      <param name="queue_size"                              value="$(arg queue_size)" />
     </node>
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">

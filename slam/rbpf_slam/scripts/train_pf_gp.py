@@ -23,20 +23,24 @@ class Train_gps():
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.n_inducing = rospy.get_param("~n_inducing", 300) # Number of inducing points and optimisation samples 
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
+        qz = rospy.get_param("~queue_size", 10) # to pub/sub to gp training
+
         self.firstFit = [True] * self.pc # len of particles
         self.count_training = [0] * self.pc # len of particles
         self.numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
         self.gp_obj = np.empty(self.pc, dtype=object)
         for i in range(0,self.pc):
             self.gp_obj[i] = create_particle(self.n_inducing)
+
+        if not os.path.exists(self.storage_path + 'gp_plot/'):
+            os.makedirs(self.storage_path + 'gp_plot/')
         # Subscribe to particles
-        rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=10)
+        rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=qz)
         # Publish variance and mean
-        self.meanvar_pub = rospy.Publisher('/gp_meanvar', numpy_msg(Floats),queue_size=10)
+        self.meanvar_pub = rospy.Publisher('/gp_meanvar', numpy_msg(Floats),queue_size=qz)
         time.sleep(5)
         rospy.loginfo('Patiently waiting for data...')
         rospy.spin()
-
 
         # --------------- working on its own -------------
         # self.data_path = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
@@ -48,6 +52,53 @@ class Train_gps():
         # print(names)
 
 
+    def cb(self, msg):
+            arr = msg.data
+            idx = int(arr[-1]) # Particle index
+            # print('training particle ', idx)
+            arr = np.delete(arr, -1)
+            n = int(arr.shape[0] / 3)
+            cloud = arr.reshape(n,3)
+            inputs = cloud[:,[0,1]]
+            targets = cloud[:,2]
+            self.trainGP(inputs, targets, idx)
+
+    def trainGP(self, inputs, targets, idx):
+        # train each particles gp
+        try:
+            self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+            if (idx < 1) and self.count_training[idx] % 10 == 0:
+                # save a plot of the gps every 10th training of the first and second particle
+                rospy.loginfo('Saving a plot of the gps')
+                self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_plot/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            # print('\n ... saving the posterior...')
+            # x = inputs[:,0]
+            # y = inputs[:,1]
+            # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+            # if self.count_training[idx] < len(self.numbers):
+            #     print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+            # else:
+            #     print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
+
+            self.count_training[idx] +=1 # to save plots
+
+            #  publish results ---------
+            mean, variance = self.gp_obj[idx].gp.sample(inputs)
+            arr = np.zeros((len(mean),2))
+            arr[:,0] = mean
+            arr[:,1] = variance
+            arr = arr.reshape(len(mean)*2, 1)    
+        except:
+            rospy.loginfo('gitter..')
+            arr = np.array([0, 0])
+            
+        arr = np.append(arr, idx) # insert particle index
+        msg = Floats()
+        msg.data = arr
+        self.meanvar_pub.publish(msg)
+            
+
+# ----------- not used now ---------------
     def trainNplot(self):
         # train particles gps
         cloud = np.load(self.data_path + 'ping_cloud.npy')
@@ -68,6 +119,7 @@ class Train_gps():
             # save the posterior point cloud
             # self.plot_and_save_posterior(inputs, targets, gp_path)
 
+# ----------- not used now ---------------
     def plot_and_save_posterior(self, inputs, targets, path):
         x = inputs[:,0]
         y = inputs[:,1]
@@ -75,7 +127,7 @@ class Train_gps():
         gp.plot(inputs, targets, self.data_path + 'posterior.png')
         gp.save_posterior(self.n, min(x), max(x), min(y), max(y), self.data_path + 'posterior.npy', verbose=False)
 
-
+# ----------- not used now ---------------
     def rms(self, ping_cloud):
         gp_cloud = np.load(self.storage_path + 'posterior.npy')
         # ping_cloud =  np.load(self.data_path + 'ping_cloud.npy')
@@ -95,86 +147,38 @@ class Train_gps():
 
         bm.print_summary()
 
-    def cb(self, msg):
-        arr = msg.data
-        p_id = int(arr[-1]) # Particle ID
-        # print('training particle ', p_id)
-        arr = np.delete(arr, -1)
-        n = int(arr.shape[0] / 3)
-        cloud = arr.reshape(n,3)
-        inputs = cloud[:,[0,1]]
-        targets = cloud[:,2]
-
-        # self.train2(inputs, targets, p_id)
-        self.trainGP(inputs, targets, p_id)
-
-    def train2(self, inputs, targets, p_id):
-        if self.firstFit[p_id]: # Only enter ones
-            self.firstFit[p_id] = False 
+# ----------- not used now ---------------
+    def train2(self, inputs, targets, idx):
+        if self.firstFit[idx]: # Only enter ones
+            self.firstFit[idx] = False 
             gp = SVGP(self.n_inducing)
             # train each particles gp
             gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             # save a plot of the gps
-            gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
             # save the path to train again
-            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
             gp.save(gp_path)
         
         else: # second or more time to retrain gp
-            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
             gp = SVGP.load(self.n_inducing, gp_path)
             # train each particles gp
             gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
             # save a plot of the gps
-            gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
+            gp.plot(inputs, targets, self.storage_path + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
             # save the path to train again
-            gp_path = self.storage_path + 'svgp_particle' + str(p_id) + '.pth'
+            gp_path = self.storage_path + 'svgp_particle' + str(idx) + '.pth'
             gp.save(gp_path)
         
-        print('\n... done with particle {} training {} '.format(p_id , self.count_training[p_id]))
-        self.count_training[p_id] +=1 # to save plots
+        print('\n... done with particle {} training {} '.format(idx , self.count_training[idx]))
+        self.count_training[idx] +=1 # to save plots
 
-    def trainGP(self, inputs, targets, p_id):
-        # train each particles gp
-        try:
-            self.gp_obj[p_id].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
-            # if self.count_training[p_id] > 0 and self.count_training[p_id] % 10 == 0:
-            #     # save a plot of the gps
-            #     # rospy.loginfo('Saving a plot of the gps')
-            #     self.gp_obj[p_id].gp.plot(inputs, targets, self.storage_path + 'particle' + str(p_id) + 'training' + str(self.count_training[p_id]) + '.png', n=100, n_contours=100 )
-            # print('\n ... saving the posterior...')
-            # x = inputs[:,0]
-            # y = inputs[:,1]
-            # self.gp_obj[p_id].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(p_id) + 'posterior.npy', verbose=False)
-            # if self.count_training[p_id] < len(self.numbers):
-            #     print('... done with particle {} training {} '.format(p_id , self.numbers[self.count_training[p_id]]))
-            # else:
-            #     print('... done with particle {} training {} '.format(p_id , self.count_training[p_id]))
-
-            self.count_training[p_id] +=1 # to save plots
-
-            #  publish results ---------
-            mean, variance = self.gp_obj[p_id].gp.sample(inputs)
-            arr = np.zeros((len(mean),2))
-            arr[:,0] = mean
-            arr[:,1] = variance
-            arr = arr.reshape(len(mean)*2, 1)    
-        except:
-            print('gitter..')
-            arr = np.array([0, 0])
-            
-        arr = np.append(arr, p_id) # insert particle index
-        msg = Floats()
-        msg.data = arr
-        self.meanvar_pub.publish(msg)
-        
+    
 
 class create_particle():
     def __init__(self, n):
         self.gp = SVGP(n) 
-        # self.gp = SVGP.load(1000, gp_path)
-
-
 
 
 if __name__ == '__main__':

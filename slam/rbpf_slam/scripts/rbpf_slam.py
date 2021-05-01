@@ -72,6 +72,7 @@ class rbpf_slam(object):
         self.record_data = rospy.get_param("~record_data", 1)
         self.n_inducing = rospy.get_param("~n_inducing", 300)
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
+        qz = rospy.get_param("~queue_size", 10) # to pub/sub to gp training
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -119,6 +120,10 @@ class rbpf_slam(object):
         self.observations = np.zeros((1,3)) 
         self.p_ID = 0
         self.tree_list = []
+
+        # creating dir if missing
+        self.create_dir('tr_path/')
+        self.create_dir('obs_path/')
 
         
 
@@ -180,9 +185,9 @@ class rbpf_slam(object):
         # Publish to record data
         # self.recordData2gp()
         train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
-        self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=10)
+        self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=qz)
         # Subscribe to gp variance and mean
-        rospy.Subscriber('/gp_meanvar', numpy_msg(Floats), self.gp_meanvar_cb, queue_size=10)
+        rospy.Subscriber('/gp_meanvar', numpy_msg(Floats), self.gp_meanvar_cb, queue_size=qz)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -348,6 +353,7 @@ class rbpf_slam(object):
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
 
+# ----------- not used now ---------------
     def recordData2gp(self):
         root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/'
         dir_name = 'results/'
@@ -366,7 +372,6 @@ class rbpf_slam(object):
         # if not os.path.exists(input_path):
         #     os.makedirs(input_path)
         
-        
         self.cloud_file = storage_path + 'ping_cloud.npy'
         # self.inputs_file = [None]*self.pc
         # self.pxy_file = [None]*self.pc
@@ -375,6 +380,7 @@ class rbpf_slam(object):
         #     self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
             # self.pxy_file[i] = xy_path + 'xy' + str(i) + '.npy'
     
+# ----------- not used now ---------------
     def trainGP(self):
         if self.firstFit: # Only enter ones
             self.firstFit = False 
@@ -665,6 +671,10 @@ class rbpf_slam(object):
         ret[n:] = ret[n:] - ret[:-n]
         return ret[n - 1:] / n
 
+    def create_dir(self, name): 
+        if not os.path.exists(self.storage_path + name):
+            os.makedirs(self.storage_path + name)
+
     def resample(self, weights):
         # Normalize weights
         weights /= weights.sum()
@@ -700,12 +710,12 @@ class rbpf_slam(object):
 
             self.ancestry_tree(lost, dupes) # save parent and children
             self.reassign_poses(lost, dupes)
-            # check if ancestry tree works
-            for p in self.tree_list:
-                print('particle {} have parent {} and children {} '.format(p.ID, p.parent, p.children, )) #p.trajectory.shape, p.observations.shape ))
-                # save for plot
-                np.save(self.storage_path +'tr_path/' + 'ID' + str(p.ID) + 'tr.npy', p.trajectory)
-                np.save(self.storage_path + 'obs_path/'+ 'ID' + str(p.ID) + 'obs.npy', p.observations)
+            
+            # check if ancestry tree works with the print
+            # for p in self.tree_list:
+                # print('particle {} have parent {} and children {} '.format(p.ID, p.parent, p.children, )) 
+                # np.save(self.storage_path +'tr_path/' + 'ID' + str(p.ID) + 'tr.npy', p.trajectory)
+                # np.save(self.storage_path + 'obs_path/'+ 'ID' + str(p.ID) + 'obs.npy', p.observations)
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
@@ -717,27 +727,35 @@ class rbpf_slam(object):
         self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
-        # remove first row 
+        # remove first row, only zeros from when the arrays were created 
         self.observations = np.delete(self.observations, 0, 0)
         for i in range(self.pc):
             self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
         
-        if self.one_time:
+        if self.one_time: # for the first particles, created at start
             self.one_time = False
             for i in range(self.pc):
                 particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path, self.observations )
+                # save trajectory for plot
+                np.save(self.storage_path +'tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
+                np.save(self.storage_path + 'obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
                 self.tree_list.append(particle_tree) # ID = index
+
         print('how many dupes: ', dupes)
         print('how many lost: ', lost)
+
         for i in range(len(lost)):
             self.particles[lost[i]].ID = self.p_ID
-            # idx_lost = self.particles[lost[i]].ID
             idx_child = self.p_ID
             idx_parent = self.particles[dupes[i]].ID
             particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path, self.observations )
+            # save trajectory for plot
+            np.save(self.storage_path +'tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
+            np.save(self.storage_path + 'obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
-            self.p_ID += 1
+            self.p_ID += 1 # all particles have their own unique ID
+        rospy.loginfo('Saving trajectory')
 
         # merge parent and child if only one child
         # for i in range(self.pc):
@@ -750,7 +768,6 @@ class rbpf_slam(object):
             self.particles[lost[i]].p_pose = self.particles[dupes[i]].p_pose
     
     def average_pose(self, pose_list):
-
         poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
         self.avg_pose.pose.pose.position.x = ave_pose[0]

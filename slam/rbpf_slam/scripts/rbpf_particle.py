@@ -47,6 +47,7 @@ class Particle(object):
         self.add_noise(init_cov)
         # for the gp and likelihood
         self.cloud =  np.zeros((1,2)) #[[0]*2]*1
+        self.save_map = np.zeros((1,3))
         self.sigma_obs = np.zeros((1,))
         self.mu_obs = np.zeros((1,))
         self.sigma_list = []

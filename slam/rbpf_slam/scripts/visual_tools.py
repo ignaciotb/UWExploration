@@ -225,7 +225,7 @@ class PFStatsVisualization(object):
             plt.pause(0.0001)
 
             if self.survey_finished:
-                plt.savefig(self.survey_name+"_tracks.png")
+                plt.savefig(self.survey_name + "_tracks.png")
 
 
 

@@ -59,8 +59,8 @@ def mapping(plot_type):
     n = len(name_est)
     fig = plt.figure()
     # ax1 = fig.axes(projection='3d')
-    ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-    ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+    ax1 = fig.add_subplot(1, 2, 1)#, projection='3d')
+    ax2 = fig.add_subplot(1, 2, 2)#, projection='3d')
     for i in range(n): 
         pm = np.load(map_path + 'est_map/' + name_est[i])
         X = pm[:,0]
@@ -71,9 +71,13 @@ def mapping(plot_type):
         y = rm[:,1]
         z = rm[:,2]
 
+        # debug
+        # print('exp ', Y)
+        # print('real ', y)
+
         if plot_type == 'scatter':
-            ax1.scatter(X, Y, Z, c=Z, cmap='viridis', linewidth=0.5)
-            ax2.scatter(x, y, z, c=z, cmap='viridis', linewidth=0.5)
+            ax1.scatter(X, Y, c=Z, cmap='viridis', linewidth=0.5)
+            ax2.scatter(x, y, c=z, cmap='viridis', linewidth=0.5)
         elif plot_type == 'surf':
             ax1.plot_trisurf(X, Y, Z, cmap='viridis', edgecolor='none')
             ax2.plot_trisurf(x, y, z, cmap='viridis', edgecolor='none')
@@ -82,14 +86,19 @@ def mapping(plot_type):
                             cmap='viridis', edgecolor='none')
             ax2.plot_surface(x, y, z, rstride=1, cstride=1,
                             cmap='viridis', edgecolor='none')
-        ax1.set_title('RBPF map')
-        ax2.set_title('Real map')
+        # plt.show()
 
     # xx, yy = np.meshgrid(x_tr, y_tr, sparse=True)
     # z = np.sin(xx**2 + yy**2) / (xx**2 + yy**2)
     # h = plt.contourf(x_tr,y_tr,z)
-    plt.xlabel('x axis (m)')
-    plt.ylabel('y axis (m)')
+    ax1.set_title('RBPF map')
+    ax2.set_title('Real map')
+    ax1.set_xlabel('x axis (m)')
+    ax1.set_ylabel('y axis (m)')
+    # ax1.set_zlabel('z axis (m)')
+    # ax2.set_zlabel('z axis (m)')
+    ax2.set_xlabel('x axis (m)')
+    ax2.set_ylabel('y axis (m)')
     plt.show()
 
 # def err():

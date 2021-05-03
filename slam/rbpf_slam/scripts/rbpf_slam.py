@@ -115,15 +115,21 @@ class rbpf_slam(object):
         self.time2resample = False
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
-        self.resample_th = 1 / self.pc - 0.1 # when to resample
+        # self.resample_th = 1 / self.pc - 0.1 # when to resample
         # for ancestry tree
         self.observations = np.zeros((1,3)) 
+        self.mapping= np.zeros((1,3)) 
         self.p_ID = 0
         self.tree_list = []
+        # self.resample_nr = 0
 
         # creating dir if missing
-        self.create_dir('tr_path/')
-        self.create_dir('obs_path/')
+        self.create_dir('localization/')
+        self.create_dir('mapping/')
+        self.create_dir('localization/tr_path/')
+        self.create_dir('localization/obs_path/')
+        self.create_dir('mapping/est_map/')
+        self.create_dir('mapping/real_map/')
 
         
 
@@ -475,8 +481,6 @@ class rbpf_slam(object):
 
                 nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
                 # print('nominator is ', nom)
-                # sq1 = np.power( mpf(2 * np.pi) , dim) # mpf can handle large float numbers
-                # sq1 = np.exp(dim * np.log(2*np.pi)) # x^y = e^(y ln x)
                 _, detSigma = np.linalg.slogdet(sigma)
                 # print('sign and det sigma ',sign, detSigma)
                 denom = self.norm_const * np.sqrt(detSigma)
@@ -492,7 +496,6 @@ class rbpf_slam(object):
         # print('likelihood of particle ', idx)
         # convert likelihood into weigh
         self.particles[idx].w = lkhood  # particle weight?
-        # print(self.particles[idx].w)id
         self.pw[idx] = self.particles[idx].w 
 
         # when to resample
@@ -517,10 +520,6 @@ class rbpf_slam(object):
 
         # Beams in real mbes frame
         real_mbes_full = pcloud2ranges_full(real_mbes)
-        obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
-        self.observations = np.append(self.observations, obs, axis=0) # for later comparison
-        # print('obs shape ', self.observations.shape)
-
         # Processing of real pings here
         idx = np.round(np.linspace(0, len(real_mbes_full)-1,
                                            self.beams_num)).astype(int)
@@ -531,7 +530,10 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         okay = False
+        obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
+        self.observations = np.append(self.observations, obs, axis=0) # for later comparison
+        self.mapping = np.append(self.mapping, real_mbes_full, axis=0) # for later comparison
         if self.count_pings % self.record_data == 0: 
             # print('ping count ', self.count_pings)
             okay = True
@@ -569,6 +571,7 @@ class rbpf_slam(object):
             
             # ----------- record input data --------
             self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
+            self.particles[i].save_map = np.append(self.particles[i].save_map, exp_mbes, axis=0)  # (n,3)
             self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs)
             self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs) #exp_mbes[:,2])# mu_obs)
             trajectory = np.array([[self.particles[i].p_pose[0], self.particles[i].p_pose[1], self.particles[i].p_pose[2], self.particles[i].p_pose[3], self.particles[i].p_pose[4], self.particles[i].p_pose[5] ]])
@@ -680,8 +683,6 @@ class rbpf_slam(object):
         weights /= weights.sum()
         # print('should I resample? ', self.time2resample)
         # print(weights)
-
-
         N_eff = self.pc
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
@@ -711,17 +712,14 @@ class rbpf_slam(object):
             self.ancestry_tree(lost, dupes) # save parent and children
             self.reassign_poses(lost, dupes)
             
-            # check if ancestry tree works with the print
-            # for p in self.tree_list:
-                # print('particle {} have parent {} and children {} '.format(p.ID, p.parent, p.children, )) 
-                # np.save(self.storage_path +'tr_path/' + 'ID' + str(p.ID) + 'tr.npy', p.trajectory)
-                # np.save(self.storage_path + 'obs_path/'+ 'ID' + str(p.ID) + 'obs.npy', p.observations)
             # Add noise to particles
             for i in range(self.pc):
                 self.particles[i].add_noise(self.res_noise_cov)
                 # clear data
                 self.particles[i].trajectory_path = np.zeros((1,6))
+                self.particles[i].save_map = np.zeros((1,3))
             self.observations = np.zeros((1,3))
+            self.mapping = np.zeros((1,3))
 
         # resample every other time
         self.time2resample = not self.time2resample
@@ -729,16 +727,24 @@ class rbpf_slam(object):
     def ancestry_tree(self, lost, dupes):
         # remove first row, only zeros from when the arrays were created 
         self.observations = np.delete(self.observations, 0, 0)
+        self.mapping = np.delete(self.mapping, 0, 0)
         for i in range(self.pc):
             self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
+            self.particles[i].save_map = np.delete(self.particles[i].save_map, 0, 0)
         
         if self.one_time: # for the first particles, created at start
             self.one_time = False
             for i in range(self.pc):
                 particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path, self.observations )
+                particle_tree.mapping = self.particles[i].save_map
+                particle_tree.real_map = self.mapping
                 # save trajectory for plot
-                np.save(self.storage_path +'tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
-                np.save(self.storage_path + 'obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
+                # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
+                np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
+                np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
+                np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
+                np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
+                # print('Shape observation {} , shape trajectory {} '.format(particle_tree.observations.shape, particle_tree.trajectory.shape))
                 self.tree_list.append(particle_tree) # ID = index
 
         print('how many dupes: ', dupes)
@@ -749,13 +755,20 @@ class rbpf_slam(object):
             idx_child = self.p_ID
             idx_parent = self.particles[dupes[i]].ID
             particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path, self.observations )
+            particle_tree.mapping = self.particles[i].save_map
+            particle_tree.real_map = self.mapping
             # save trajectory for plot
-            np.save(self.storage_path +'tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
-            np.save(self.storage_path + 'obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
+            # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
+            np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
+            np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
+            np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
+            np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
+            # print('Shape observation {} , shape trajectory {} '.format(particle_tree.observations.shape, particle_tree.trajectory.shape))
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1 # all particles have their own unique ID
         rospy.loginfo('Saving trajectory')
+        # self.resample_nr += 1
 
         # merge parent and child if only one child
         # for i in range(self.pc):

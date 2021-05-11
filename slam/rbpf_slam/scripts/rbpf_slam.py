@@ -424,7 +424,7 @@ class rbpf_slam(object):
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
-        idx = int(arr[-1]) # Particle ID
+        idx = int(arr[-1]) # Particle idx
         arr = np.delete(arr, -1)
         n = int(arr.shape[0] / 2)
         cloud = arr.reshape(n,2)
@@ -534,6 +534,7 @@ class rbpf_slam(object):
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         self.observations = np.append(self.observations, obs, axis=0) # for later comparison
         self.mapping = np.append(self.mapping, real_mbes_full, axis=0) # for later comparison
+        # print(real_mbes_full[:,0])
         if self.count_pings % self.record_data == 0: 
             # print('ping count ', self.count_pings)
             okay = True
@@ -582,7 +583,7 @@ class rbpf_slam(object):
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
-            self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
+            # self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
 
         if okay: 
             # np.save(self.targets_file, self.targets)
@@ -693,14 +694,12 @@ class rbpf_slam(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         # print ("N_eff ", N_eff)
-        # print('n_eff_filt ', self.n_eff_filt)
-        # print ("Missed meas ", self.miss_meas)
+        print('n_eff_filt ', self.n_eff_filt)
+        print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        # if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
-        # if N_eff < self.pc-1: #. and self.miss_meas < self.pc/2.:
-        if self.time2resample:
-        # if any(t < self.resample_th for t in weights):
+        if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
+        # if self.time2resample:
             rospy.loginfo('resampling')
             indices = residual_resample(weights)
             keep = list(set(indices))
@@ -722,7 +721,7 @@ class rbpf_slam(object):
             self.mapping = np.zeros((1,3))
 
         # resample every other time
-        self.time2resample = not self.time2resample
+        # self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
         # remove first row, only zeros from when the arrays were created 

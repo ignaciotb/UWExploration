@@ -46,15 +46,14 @@ class Particle(object):
         self.log_w = 0.
         self.add_noise(init_cov)
         # for the gp and likelihood
-        self.cloud =  np.zeros((1,2)) #[[0]*2]*1
+        self.inputs =  np.zeros((1,2)) #[[0]*2]*1
         self.save_map = np.zeros((1,3))
-        self.sigma_obs = np.zeros((1,))
-        self.mu_obs = np.zeros((1,))
+        self.sigma_obs = []
+        self.mu_obs = []
         self.sigma_list = []
         self.mu_list = []
         # for the ancestry tree
         self.trajectory_path = np.zeros((1,6))
-        self.children = []
         self.parent = None
 
 

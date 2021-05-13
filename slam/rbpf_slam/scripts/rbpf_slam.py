@@ -73,6 +73,7 @@ class rbpf_slam(object):
         self.n_inducing = rospy.get_param("~n_inducing", 300)
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
         qz = rospy.get_param("~queue_size", 10) # to pub/sub to gp training
+        self.l_max = rospy.get_param("~l_max", 30.)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -121,6 +122,7 @@ class rbpf_slam(object):
         self.mapping= np.zeros((1,3)) 
         self.p_ID = 0
         self.tree_list = []
+        self.time4regression = False
         # self.resample_nr = 0
 
         # creating dir if missing
@@ -177,8 +179,6 @@ class rbpf_slam(object):
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
-        # need every particle to create its own gp 
-        # using incomming pings instead of loading data 
         gp_path = rospy.get_param("~gp_path", 'gp.path')
         self.gp = gp.SVGP.load(1000, gp_path)
         print("Size of GP: ", sys.getsizeof(self.gp))
@@ -291,7 +291,10 @@ class rbpf_slam(object):
         # Concatenate sampling points x,y with sampled z
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
                                   mu_array.T), axis=1)
-        #  print(sigma)
+        # print('\n\n mu ', mu)
+        # time.sleep(2)
+        # print('\n\ sigma ', sigma)
+        # time.sleep(2)
         return mbes_gp, sigma, mu
 
     def mbes_real_cb(self, msg):
@@ -338,11 +341,14 @@ class rbpf_slam(object):
             # Motion prediction
             self.predict(odom_msg)    
             
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    # How often to resample, if a new measurement
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
-                # print("Going into update :")
                 self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
+
+                # regression        
+                if self.time4regression:
+                    self.regression()
                 
                 # Particle resampling
                 # self.resample(weights)
@@ -448,8 +454,8 @@ class rbpf_slam(object):
         self.particles[idx].sigma_list.pop(0)
         try:
             # divide the equation into subtasks
-            mu = mu_est - mu_obs
-            sigma = sigma_est + sigma_obs # sigma_est^2 + sigma_obs ^2
+            mu = np.asarray(mu_est) - np.asarray(mu_obs)
+            sigma = np.asarray(sigma_est) + np.asarray(sigma_obs) # sigma_est^2 + sigma_obs ^2
             # convert sigma to a matrix
             sigma = np.diag(sigma)
 
@@ -571,56 +577,53 @@ class rbpf_slam(object):
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
             
             # ----------- record input data --------
-            self.particles[i].cloud = np.append(self.particles[i].cloud, exp_mbes[:,:2], axis=0)  # (n,2)
+            self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,:2], axis=0)  # (n,2)
             self.particles[i].save_map = np.append(self.particles[i].save_map, exp_mbes, axis=0)  # (n,3)
-            self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs)
-            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs) #exp_mbes[:,2])# mu_obs)
+            self.particles[i].sigma_obs.append(exp_sigs)
+            self.particles[i].mu_obs.append(mu_obs) #exp_mbes[:,2])# mu_obs)
             trajectory = np.array([[self.particles[i].p_pose[0], self.particles[i].p_pose[1], self.particles[i].p_pose[2], self.particles[i].p_pose[3], self.particles[i].p_pose[4], self.particles[i].p_pose[5] ]])
             self.particles[i].trajectory_path = np.append(self.particles[i].trajectory_path, trajectory, axis=0) #save the trajectory for later use
-            # print('trajectory shape ', self.particles[i].trajectory_path.shape)
-            # saving old x,y poses in a new array to plot later
-            # self.particles[i].xy = np.append(self.particles[i].xy , [[self.particles[i].p_pose[0],self.particles[i].p_pose[1]]], axis=0)
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
             # self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
 
-        if okay: 
-            # np.save(self.targets_file, self.targets)
-            # print('\nData recorded.\n')
-            rospy.loginfo('Training gps... ')
-            for i in range(0, self.pc):
-                cloud_arr = np.zeros((len(self.targets),3))
-                cloud_arr[:,:2] = self.particles[i].cloud
-                cloud_arr[:,2] = self.targets
-                cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
-                cloud_arr = np.append(cloud_arr, i) # insert particle index
-                for _ in range(3):
-                    cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
-                msg = Floats()
-                msg.data = cloud_arr
-                # self.trainGP()
-                self.gp_pub.publish(msg)
+            if np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))) > self.l_max:
+                print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
+                print('min is ', np.min(abs(np.asarray(self.particles[i].mu_obs))))
+                print('the value is: ', np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))))
+                self.time4regression = True 
 
-                # save observation data to compare
-                self.particles[i].mu_obs = np.delete(self.particles[i].mu_obs, 0)
-                self.particles[i].sigma_obs = np.delete(self.particles[i].sigma_obs, 0)
-                self.particles[i].mu_list.append(self.particles[i].mu_obs)
-                self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
+        
+        # if okay: 
+        #     # np.save(self.targets_file, self.targets)
+        #     # print('\nData recorded.\n')
+        #     rospy.loginfo('Training gps... ')
+        #     for i in range(0, self.pc):
+        #         cloud_arr = np.zeros((len(self.targets),3))
+        #         cloud_arr[:,:2] = self.particles[i].cloud
+        #         cloud_arr[:,2] = self.targets
+        #         cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
+        #         cloud_arr = np.append(cloud_arr, i) # insert particle index
+        #         for _ in range(3):
+        #             cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
+        #         msg = Floats()
+        #         msg.data = cloud_arr
+        #         # self.trainGP()
+        #         self.gp_pub.publish(msg)
 
-                # fname = self.storage_path + 'particle' + str(i) + 'mu.npy'
-                # np.save(fname, self.particles[i].mu_obs)
-                # fname = self.storage_path + 'particle' + str(i) + 'sigma.npy' 
-                # np.save(fname, self.particles[i].sigma_obs)
-                # np.save(self.cloud_file, cloud_arr)
-                # np.save(self.pxy_file[i], self.particles[i].xy)
+        #         # save observation data to compare
+        #         self.particles[i].mu_obs = np.delete(self.particles[i].mu_obs, 0)
+        #         self.particles[i].sigma_obs = np.delete(self.particles[i].sigma_obs, 0)
+        #         self.particles[i].mu_list.append(self.particles[i].mu_obs)
+        #         self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
+        #         # np.save(self.cloud_file, cloud_arr)
 
-                
-                # empty arrays
-                self.particles[i].cloud = np.zeros((1,2))
-                self.particles[i].mu_obs = np.zeros((1,))
-                self.particles[i].sigma_obs = np.zeros((1,))
-            self.targets = np.zeros((1,))
+        #         # empty arrays
+        #         self.particles[i].cloud = np.zeros((1,2))
+        #         self.particles[i].mu_obs = np.zeros((1,))
+        #         self.particles[i].sigma_obs = np.zeros((1,))
+        #     self.targets = np.zeros((1,))
 
         # weights = []
         # print('\n\n NEW WWWW \n\n')
@@ -636,6 +639,41 @@ class rbpf_slam(object):
         # weights_array += 1.e-200
 
         # return weights_array
+
+    def regression(self):
+        for i in range(self.pc):
+            inputs = np.zeros((1,2))
+            targets = np.zeros((1,))
+            p = self.particles[i]
+            p.targets = self.targets
+            # for leaf in self.tree_list:
+            #     if leaf.ID == self.particles[i].ID:
+            #         p = leaf
+            #         break
+            while True:
+                inputs = np.append(inputs, p.inputs, axis=0)
+                targets = np.append(targets, p.targets, axis=0)
+                if p.parent == None:
+                    break
+                for leaf in self.tree_list:
+                    if p.parent == leaf.ID:
+                        p = leaf
+                        break
+            cloud_arr = np.zeros((len(targets),3))
+            cloud_arr[:,:2] = inputs
+            cloud_arr[:,2] = targets
+            cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
+            cloud_arr = cloud_arr.reshape(len(targets)*3-3, 1)
+            cloud_arr = np.append(cloud_arr, i) # insert particle index
+            msg = Floats()
+            msg.data = cloud_arr
+            self.gp_pub.publish(msg)
+            # save observation data to calculate likelihood later 
+            self.particles[i].mu_list.append(self.particles[i].mu_obs)
+            self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
+
+        rospy.loginfo('Training gps... ')
+        self.time4regression = False
 
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
@@ -682,7 +720,6 @@ class rbpf_slam(object):
     def resample(self, weights):
         # Normalize weights
         weights /= weights.sum()
-        # print('should I resample? ', self.time2resample)
         # print(weights)
         N_eff = self.pc
         if weights.sum() == 0.:
@@ -717,33 +754,42 @@ class rbpf_slam(object):
                 # clear data
                 self.particles[i].trajectory_path = np.zeros((1,6))
                 self.particles[i].save_map = np.zeros((1,3))
+                self.particles[i].cloud = np.zeros((1,2))
+                self.particles[i].mu_obs = []
+                self.particles[i].sigma_obs = []
             self.observations = np.zeros((1,3))
             self.mapping = np.zeros((1,3))
+            self.targets = np.zeros((1,))
 
         # resample every other time
         # self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
         # remove first row, only zeros from when the arrays were created 
+        self.targets = np.delete(self.targets, 0, 0)
         self.observations = np.delete(self.observations, 0, 0)
         self.mapping = np.delete(self.mapping, 0, 0)
         for i in range(self.pc):
             self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
             self.particles[i].save_map = np.delete(self.particles[i].save_map, 0, 0)
-        
+            self.particles[i].cloud = np.delete(self.particles[i].cloud, 0, 0)
+
         if self.one_time: # for the first particles, created at start
             self.one_time = False
             for i in range(self.pc):
                 particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path, self.observations )
                 particle_tree.mapping = self.particles[i].save_map
                 particle_tree.real_map = self.mapping
+                particle_tree.inputs = self.particles[i].cloud
+                particle_tree.targets = self.targets
+                particle_tree.mu_obs = self.particles[i].mu_obs
+                particle_tree.sigma_obs = self.particles[i].sigma_obs
                 # save trajectory for plot
                 # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
                 np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
                 np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
                 np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
                 np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
-                # print('Shape observation {} , shape trajectory {} '.format(particle_tree.observations.shape, particle_tree.trajectory.shape))
                 self.tree_list.append(particle_tree) # ID = index
 
         print('how many dupes: ', dupes)
@@ -751,18 +797,22 @@ class rbpf_slam(object):
 
         for i in range(len(lost)):
             self.particles[lost[i]].ID = self.p_ID
+            self.particles[lost[i]].parent = self.particles[dupes[i]].ID
             idx_child = self.p_ID
             idx_parent = self.particles[dupes[i]].ID
             particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path, self.observations )
-            particle_tree.mapping = self.particles[i].save_map
+            particle_tree.mapping = self.particles[lost[i]].save_map
             particle_tree.real_map = self.mapping
+            particle_tree.inputs = self.particles[lost[i]].cloud
+            particle_tree.targets = self.targets
+            particle_tree.mu_obs = self.particles[lost[i]].mu_obs
+            particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs
             # save trajectory for plot
             # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
             np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
             np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
             np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
             np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
-            # print('Shape observation {} , shape trajectory {} '.format(particle_tree.observations.shape, particle_tree.trajectory.shape))
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1 # all particles have their own unique ID

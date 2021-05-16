@@ -344,15 +344,15 @@ class rbpf_slam(object):
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
-                self.update(self.latest_mbes, odom_msg)
+                weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
 
                 # regression        
-                if self.time4regression:
-                    self.regression()
+                # if self.time4regression:
+                #     self.regression()
                 
                 # Particle resampling
-                # self.resample(weights)
+                self.resample(weights)
                 self.update_rviz()
                 self.publish_stats(odom_msg)
 
@@ -498,10 +498,10 @@ class rbpf_slam(object):
 
         except ValueError:
             print('Likelihood = 0.0')
-            print('sigma obs ', sigma_obs.shape)
-            print('sigma est ', sigma_est.shape)
-            print('mu obs ', mu_obs.shape)
-            print('mu est ', mu_est.shape)
+            # print('sigma obs ', sigma_obs.shape)
+            # print('sigma est ', sigma_est.shape)
+            # print('mu obs ', mu_obs.shape)
+            # print('mu est ', mu_est.shape)
             lkhood = 0.0
 
         # print('likelihood of particle ', idx)
@@ -510,12 +510,12 @@ class rbpf_slam(object):
         self.pw[idx] = self.particles[idx].w 
 
         # when to resample
-        if idx == self.pc - 1: # all particles weighted
-            self.miss_meas = self.pw.count(0.0)
-            weights_array = np.asarray(self.pw)
-            # Add small non-zero value to avoid hitting zero
-            weights_array += 1.e-200
-            self.resample(weights_array)
+        # if idx == self.pc - 1: # all particles weighted
+        #     self.miss_meas = self.pw.count(0.0)
+        #     weights_array = np.asarray(self.pw)
+        #     # Add small non-zero value to avoid hitting zero
+        #     weights_array += 1.e-200
+        #     self.resample(weights_array)
         
         # for i in range(0, self.pc):
             # gp_cloud = np.load(self.storage_path + 'particle' + str(i) + 'posterior.npy')
@@ -603,13 +603,10 @@ class rbpf_slam(object):
             #if np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))) < self.l_max:
             if np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
                 print('loop closing for particle ', i)
-                # print('old mbes ', old_mbes)
-                # print('mu obs ', mu_obs)
-                # print('l \n', l_hyper)
-                # print('\n 1/l \n', 1/l_hyper)
                 self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
-                self.particles[i].time4regression = True 
-                self.time4regression = True # as long as it works for one particle I should train the data
+                self.regression(i)
+                # self.particles[i].time4regression = True 
+                # self.time4regression = True # as long as it works for one particle I should train the data
                 # print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
                 # print('min is ', np.min(abs(np.asarray(self.particles[i].mu_obs))))
                 # print('the value is: ', np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))))
@@ -658,58 +655,53 @@ class rbpf_slam(object):
         #         self.particles[i].sigma_obs = np.zeros((1,))
         #     self.targets = np.zeros((1,))
 
-        # weights = []
-        # print('\n\n NEW WWWW \n\n')
-        # for i in range(self.pc):
-        #     weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
-        #     print(self.particles[i].w)
+        weights = []
+        for i in range(self.pc):
+            weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
+            # print(self.particles[i].w)
 
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
-        # self.miss_meas = weights.count(0.0)
-        # weights_array = np.asarray(weights)
-        # # Add small non-zero value to avoid hitting zero
-        # weights_array += 1.e-200
+        self.miss_meas = weights.count(0.0)
+        weights_array = np.asarray(weights)
+        # Add small non-zero value to avoid hitting zero
+        weights_array += 1.e-200
 
-        # return weights_array
+        return weights_array
 
-    def regression(self):
-        for i in range(self.pc):
-            if self.particles[i].time4regression:  
-                self.particles[i].time4regression = False  
-                inputs = np.zeros((1,2))
-                targets = np.zeros((1,))
-                p = self.particles[i]
-                p.targets = self.targets
-                # for leaf in self.tree_list:
-                #     if leaf.ID == self.particles[i].ID:
-                #         p = leaf
-                #         break
-                while True:
-                    inputs = np.append(inputs, p.inputs, axis=0)
-                    targets = np.append(targets, p.targets, axis=0)
-                    if p.parent == None:
-                        break
-                    for leaf in self.tree_list:
-                        if p.parent == leaf.ID:
-                            p = leaf
-                            break
-                cloud_arr = np.zeros((len(targets)-2,3))
-                cloud_arr[:,:2] = inputs[2:,:]
-                cloud_arr[:,2] = targets[2:]
-                # cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
-                cloud_arr = cloud_arr.reshape(cloud_arr.shape[0]*cloud_arr.shape[1], 1)
-            else:
-                cloud_arr = np.array([0, 0, 0])
+    def regression(self, i):
+        inputs = np.zeros((1,2))
+        targets = np.zeros((1,))
+        p = self.particles[i]
+        p.targets = self.targets
+        # for leaf in self.tree_list:
+        #     if leaf.ID == self.particles[i].ID:
+        #         p = leaf
+        #         break
+        while True:
+            inputs = np.append(inputs, p.inputs, axis=0)
+            targets = np.append(targets, p.targets, axis=0)
+            if p.parent == None:
+                break
+            for leaf in self.tree_list:
+                if p.parent == leaf.ID:
+                    print('parent is ', p.parent )
+                    print('particle ', i)
+                    p = leaf
+                    break
+        cloud_arr = np.zeros((len(targets)-2,3))
+        cloud_arr[:,:2] = inputs[2:,:]
+        cloud_arr[:,2] = targets[2:]
+        # cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
+        cloud_arr = cloud_arr.reshape(cloud_arr.shape[0]*cloud_arr.shape[1], 1)
+        cloud_arr = np.append(cloud_arr, i) # insert particle index
+        msg = Floats()
+        msg.data = cloud_arr
+        self.gp_pub.publish(msg)
+        # save observation data to calculate likelihood later 
 
-            cloud_arr = np.append(cloud_arr, i) # insert particle index
-            msg = Floats()
-            msg.data = cloud_arr
-            self.gp_pub.publish(msg)
-            # save observation data to calculate likelihood later 
-
-            self.particles[i].mu_list.append(self.particles[i].mu_obs[1:])
-            self.particles[i].sigma_list.append(self.particles[i].sigma_obs[1:])
+        self.particles[i].mu_list.append(self.particles[i].mu_obs[1:])
+        self.particles[i].sigma_list.append(self.particles[i].sigma_obs[1:])
 
         rospy.loginfo('Training gps... ')
         self.time4regression = False
@@ -770,8 +762,8 @@ class rbpf_slam(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         # print ("N_eff ", N_eff)
-        print('n_eff_filt ', self.n_eff_filt)
-        print ("Missed meas ", self.miss_meas)
+        # print('n_eff_filt ', self.n_eff_filt)
+        # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:

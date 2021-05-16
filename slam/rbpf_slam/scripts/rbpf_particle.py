@@ -48,13 +48,15 @@ class Particle(object):
         # for the gp and likelihood
         self.inputs =  np.zeros((1,2)) #[[0]*2]*1
         self.save_map = np.zeros((1,3))
-        self.sigma_obs = []
-        self.mu_obs = []
+        self.sigma_obs = np.zeros((1,))
+        self.mu_obs = np.zeros((1,))
         self.sigma_list = []
         self.mu_list = []
         # for the ancestry tree
         self.trajectory_path = np.zeros((1,6))
+        self.time4regression = False
         self.parent = None
+        self.n_from = 1
 
 
     def add_noise(self, noise):

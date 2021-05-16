@@ -67,7 +67,7 @@ class Train_gps():
         # train each particles gp
         try:
             self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
-            if (idx < 1) and self.count_training[idx] % 10 == 0:
+            if (idx < 1) and len(targets) > 5: # and self.count_training[idx] % 10 == 0:
                 # save a plot of the gps every 10th training of the first and second particle
                 rospy.loginfo('Saving a plot of the gps')
                 self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_plot/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )

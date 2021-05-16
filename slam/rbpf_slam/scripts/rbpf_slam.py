@@ -69,11 +69,10 @@ class rbpf_slam(object):
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
-        self.record_data = rospy.get_param("~record_data", 1)
         self.n_inducing = rospy.get_param("~n_inducing", 300)
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
         qz = rospy.get_param("~queue_size", 10) # to pub/sub to gp training
-        self.l_max = rospy.get_param("~l_max", 30.)
+        self.l_max = rospy.get_param("~l_max", .5)
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -123,6 +122,8 @@ class rbpf_slam(object):
         self.p_ID = 0
         self.tree_list = []
         self.time4regression = False
+        self.gamma = .1
+        self.n_from = 1
         # self.resample_nr = 0
 
         # creating dir if missing
@@ -460,12 +461,12 @@ class rbpf_slam(object):
             sigma = np.diag(sigma)
 
             if logLkhood:
-                if self.firstFit:
-                    self.firstFit = False # only need to calculate ones
-                    self.dim = len(mu_est) # Dimension
-                    print('dim ', self.dim)
-                    self.norm_const =  self.dim * np.log (2 * np.pi) 
-                    print('power to dim ', self.norm_const)
+                # if self.firstFit:
+                #     self.firstFit = False # only need to calculate ones
+                self.dim = len(mu) # Dimension
+                # print('dim ', self.dim)
+                self.norm_const =  self.dim * np.log (2 * np.pi) 
+                # print('power to dim ', self.norm_const)
 
                 nom = np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu))
                 _, detSigma = np.linalg.slogdet(sigma)
@@ -476,14 +477,14 @@ class rbpf_slam(object):
                 # lkhood = np.exp(lkhood)
 
             else:
-                if self.firstFit:
-                    self.firstFit = False # only need to calculate ones
-                    self.dim = len(mu_est) # Dimension
-                    print('dim ', self.dim)
-                    self.norm_const = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
-                    print('power to dim ', self.norm_const)
-                print('power to dim ')
-                print(self.norm_const)
+                # if self.firstFit:
+                #     self.firstFit = False # only need to calculate ones
+                self.dim = len(mu) # Dimension
+                # print('dim ', self.dim)
+                self.norm_const = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
+                # print('power to dim ', self.norm_const)
+                # print('power to dim ')
+                # print(self.norm_const)
 
                 nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
                 # print('nominator is ', nom)
@@ -497,6 +498,10 @@ class rbpf_slam(object):
 
         except ValueError:
             print('Likelihood = 0.0')
+            print('sigma obs ', sigma_obs.shape)
+            print('sigma est ', sigma_est.shape)
+            print('mu obs ', mu_obs.shape)
+            print('mu est ', mu_est.shape)
             lkhood = 0.0
 
         # print('likelihood of particle ', idx)
@@ -535,15 +540,11 @@ class rbpf_slam(object):
         real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
         
         # -------------- record target data ------------
-        okay = False
         obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         self.observations = np.append(self.observations, obs, axis=0) # for later comparison
         self.mapping = np.append(self.mapping, real_mbes_full, axis=0) # for later comparison
         # print(real_mbes_full[:,0])
-        if self.count_pings % self.record_data == 0: 
-            # print('ping count ', self.count_pings)
-            okay = True
 
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
@@ -579,20 +580,52 @@ class rbpf_slam(object):
             # ----------- record input data --------
             self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,:2], axis=0)  # (n,2)
             self.particles[i].save_map = np.append(self.particles[i].save_map, exp_mbes, axis=0)  # (n,3)
-            self.particles[i].sigma_obs.append(exp_sigs)
-            self.particles[i].mu_obs.append(mu_obs) #exp_mbes[:,2])# mu_obs)
+            self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs, axis=0)
+            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mu_obs, axis=0)#exp_mbes[:,2])# mu_obs)
             trajectory = np.array([[self.particles[i].p_pose[0], self.particles[i].p_pose[1], self.particles[i].p_pose[2], self.particles[i].p_pose[3], self.particles[i].p_pose[4], self.particles[i].p_pose[5] ]])
             self.particles[i].trajectory_path = np.append(self.particles[i].trajectory_path, trajectory, axis=0) #save the trajectory for later use
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
             # self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
+            # print(self.beams_num)
+            # print('real depth \n ', self.particles[i].mu_obs[self.n_from : self.n_from + self.beams_num])
+            # print('\n\n')
+            # print('exp depth \n ', mu_obs)
+            # print('\n\n')
+            # print('procent: ',   mu_obs / self.particles[i].mu_obs[self.n_from : self.n_from + self.beams_num] )
+            # hej = False
+            old_mbes = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
+            l_hyper = mu_obs / old_mbes
 
-            if np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))) > self.l_max:
-                print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
-                print('min is ', np.min(abs(np.asarray(self.particles[i].mu_obs))))
-                print('the value is: ', np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))))
-                self.time4regression = True 
+            # print('l hyper ', l_hyper)
+            
+            #if np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))) < self.l_max:
+            if np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
+                print('loop closing for particle ', i)
+                # print('old mbes ', old_mbes)
+                # print('mu obs ', mu_obs)
+                # print('l \n', l_hyper)
+                # print('\n 1/l \n', 1/l_hyper)
+                self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
+                self.particles[i].time4regression = True 
+                self.time4regression = True # as long as it works for one particle I should train the data
+                # print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
+                # print('min is ', np.min(abs(np.asarray(self.particles[i].mu_obs))))
+                # print('the value is: ', np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))))
+                # ctr = 0
+                # N_beams = len(self.targets)
+                # B_min = N_beams * self.gamma
+                # print('exp X is \n', exp_mbes[:,0])
+                # print('exp Y is \n', exp_mbes[:,1])
+                # print('\n\n')
+                # print('first X pose is\n', self.particles[i].inputs[0:25,0])
+                # print('\n minus gamma is \n', self.particles[i].inputs[0:25,0]-self.gamma)
+
+
+                # if exp_mbes[:,0] > self.particles[i].inputs[0:25,0]-self.gamma and exp_mbes[:,0] < self.particles[i].inputs[0:25,0]+self.gamma:
+                #     if exp_mbes[:,1] > self.particles[i].inputs[0:25,1]-self.gamma and exp_mbes[:,1] < self.particles[i].inputs[0:25,1]+self.gamma:   
+                        # self.time4regression = True 
 
         
         # if okay: 
@@ -642,35 +675,41 @@ class rbpf_slam(object):
 
     def regression(self):
         for i in range(self.pc):
-            inputs = np.zeros((1,2))
-            targets = np.zeros((1,))
-            p = self.particles[i]
-            p.targets = self.targets
-            # for leaf in self.tree_list:
-            #     if leaf.ID == self.particles[i].ID:
-            #         p = leaf
-            #         break
-            while True:
-                inputs = np.append(inputs, p.inputs, axis=0)
-                targets = np.append(targets, p.targets, axis=0)
-                if p.parent == None:
-                    break
-                for leaf in self.tree_list:
-                    if p.parent == leaf.ID:
-                        p = leaf
+            if self.particles[i].time4regression:  
+                self.particles[i].time4regression = False  
+                inputs = np.zeros((1,2))
+                targets = np.zeros((1,))
+                p = self.particles[i]
+                p.targets = self.targets
+                # for leaf in self.tree_list:
+                #     if leaf.ID == self.particles[i].ID:
+                #         p = leaf
+                #         break
+                while True:
+                    inputs = np.append(inputs, p.inputs, axis=0)
+                    targets = np.append(targets, p.targets, axis=0)
+                    if p.parent == None:
                         break
-            cloud_arr = np.zeros((len(targets),3))
-            cloud_arr[:,:2] = inputs
-            cloud_arr[:,2] = targets
-            cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
-            cloud_arr = cloud_arr.reshape(len(targets)*3-3, 1)
+                    for leaf in self.tree_list:
+                        if p.parent == leaf.ID:
+                            p = leaf
+                            break
+                cloud_arr = np.zeros((len(targets)-2,3))
+                cloud_arr[:,:2] = inputs[2:,:]
+                cloud_arr[:,2] = targets[2:]
+                # cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
+                cloud_arr = cloud_arr.reshape(cloud_arr.shape[0]*cloud_arr.shape[1], 1)
+            else:
+                cloud_arr = np.array([0, 0, 0])
+
             cloud_arr = np.append(cloud_arr, i) # insert particle index
             msg = Floats()
             msg.data = cloud_arr
             self.gp_pub.publish(msg)
             # save observation data to calculate likelihood later 
-            self.particles[i].mu_list.append(self.particles[i].mu_obs)
-            self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
+
+            self.particles[i].mu_list.append(self.particles[i].mu_obs[1:])
+            self.particles[i].sigma_list.append(self.particles[i].sigma_obs[1:])
 
         rospy.loginfo('Training gps... ')
         self.time4regression = False
@@ -754,36 +793,37 @@ class rbpf_slam(object):
                 # clear data
                 self.particles[i].trajectory_path = np.zeros((1,6))
                 self.particles[i].save_map = np.zeros((1,3))
-                self.particles[i].cloud = np.zeros((1,2))
-                self.particles[i].mu_obs = []
-                self.particles[i].sigma_obs = []
+                self.particles[i].inputs = np.zeros((1,2))
+                self.particles[i].mu_obs = np.zeros((1,))
+                self.particles[i].sigma_obs = np.zeros((1,))
             self.observations = np.zeros((1,3))
             self.mapping = np.zeros((1,3))
             self.targets = np.zeros((1,))
+            self.n_from = 1
 
         # resample every other time
         # self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
         # remove first row, only zeros from when the arrays were created 
-        self.targets = np.delete(self.targets, 0, 0)
-        self.observations = np.delete(self.observations, 0, 0)
-        self.mapping = np.delete(self.mapping, 0, 0)
-        for i in range(self.pc):
-            self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
-            self.particles[i].save_map = np.delete(self.particles[i].save_map, 0, 0)
-            self.particles[i].cloud = np.delete(self.particles[i].cloud, 0, 0)
+        # self.targets = np.delete(self.targets, 0, 0)
+        # self.observations = np.delete(self.observations, 0, 0)
+        # self.mapping = np.delete(self.mapping, 0, 0)
+        # for i in range(self.pc):
+        #     self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
+        #     self.particles[i].save_map = np.delete(self.particles[i].save_map, 0, 0)
+        #     self.particles[i].cloud = np.delete(self.particles[i].cloud, 0, 0)
 
         if self.one_time: # for the first particles, created at start
             self.one_time = False
             for i in range(self.pc):
-                particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path, self.observations )
-                particle_tree.mapping = self.particles[i].save_map
-                particle_tree.real_map = self.mapping
-                particle_tree.inputs = self.particles[i].cloud
-                particle_tree.targets = self.targets
-                particle_tree.mu_obs = self.particles[i].mu_obs
-                particle_tree.sigma_obs = self.particles[i].sigma_obs
+                particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path[1:,:], self.observations[1:,:] )
+                particle_tree.mapping = self.particles[i].save_map[1:,:]
+                particle_tree.real_map = self.mapping[1:,:]
+                particle_tree.inputs = self.particles[i].inputs[1:,:]
+                particle_tree.targets = self.targets[1:]
+                particle_tree.mu_obs = self.particles[i].mu_obs[1:]
+                particle_tree.sigma_obs = self.particles[i].sigma_obs[1:]
                 # save trajectory for plot
                 # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
                 np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
@@ -800,13 +840,13 @@ class rbpf_slam(object):
             self.particles[lost[i]].parent = self.particles[dupes[i]].ID
             idx_child = self.p_ID
             idx_parent = self.particles[dupes[i]].ID
-            particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path, self.observations )
-            particle_tree.mapping = self.particles[lost[i]].save_map
-            particle_tree.real_map = self.mapping
-            particle_tree.inputs = self.particles[lost[i]].cloud
-            particle_tree.targets = self.targets
-            particle_tree.mu_obs = self.particles[lost[i]].mu_obs
-            particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs
+            particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path[1:,:], self.observations[1:,:] )
+            particle_tree.mapping = self.particles[lost[i]].save_map[1:,:]
+            particle_tree.real_map = self.mapping[1:,:]
+            particle_tree.inputs = self.particles[lost[i]].inputs[1:,:]
+            particle_tree.targets = self.targets[1:]
+            particle_tree.mu_obs = self.particles[lost[i]].mu_obs[1:]
+            particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs[1:]
             # save trajectory for plot
             # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
             np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)

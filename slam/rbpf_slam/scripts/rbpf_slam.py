@@ -500,10 +500,10 @@ class rbpf_slam(object):
 
         except ValueError:
             print('Likelihood = 0.0')
-            # print('sigma obs ', sigma_obs.shape)
-            # print('sigma est ', sigma_est.shape)
-            # print('mu obs ', mu_obs.shape)
-            # print('mu est ', mu_est.shape)
+            print('sigma obs ', sigma_obs.shape)
+            print('sigma est ', sigma_est.shape)
+            print('mu obs ', mu_obs.shape)
+            print('mu est ', mu_est.shape)
             wi = 0.0
 
         # print('likelihood of particle ', idx)
@@ -543,7 +543,7 @@ class rbpf_slam(object):
         
         # -------------- record target data ------------
         obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
-        self.targets = np.append(self.targets, real_mbes_full[:,2], axis=0)
+        self.targets = np.append(self.targets, real_mbes_ranges, axis=0)
         self.observations = np.append(self.observations, obs, axis=0) # for later comparison
         self.mapping = np.append(self.mapping, real_mbes_full, axis=0) # for later comparison
         # print(real_mbes_full[:,0])
@@ -580,10 +580,10 @@ class rbpf_slam(object):
             mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
             
             # ----------- record input data --------
-            self.particles[i].inputs = np.append(self.particles[i].inputs, mbes[:,:2], axis=0)  # (n,2)
+            self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,:2], axis=0)  # (n,2)
             self.particles[i].save_map = np.append(self.particles[i].save_map, exp_mbes, axis=0)  # (n,3)
             self.particles[i].sigma_obs = np.append(self.particles[i].sigma_obs, exp_sigs, axis=0)
-            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, mbes[:,2], axis=0)#exp_mbes[:,2])# mu_obs)
+            self.particles[i].mu_obs = np.append(self.particles[i].mu_obs, exp_mbes[:,2], axis=0)#exp_mbes[:,2])# mu_obs)
             trajectory = np.array([[self.particles[i].p_pose[0], self.particles[i].p_pose[1], self.particles[i].p_pose[2], self.particles[i].p_pose[3], self.particles[i].p_pose[4], self.particles[i].p_pose[5] ]])
             self.particles[i].trajectory_path = np.append(self.particles[i].trajectory_path, trajectory, axis=0) #save the trajectory for later use
             
@@ -610,6 +610,7 @@ class rbpf_slam(object):
                 self.ctr += 1
                 self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
                 self.regression(i)
+                # print( self.ctr, ' particles weigthed \n')
                 # self.particles[i].time4regression = True 
                 # self.time4regression = True # as long as it works for one particle I should train the data
                 # print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
@@ -661,18 +662,17 @@ class rbpf_slam(object):
         #     self.targets = np.zeros((1,))
         
         
-        if self.ctr > self.pc/2:
+        if self.ctr > self.pc * 0.8: #  self.pc / 2
             if self.ctr >= self.pc:
                 self.ctr = 0
             self.time2resample = True
-            print('\n', self.ctr, ' particles weigthed \n')
 
         if self.time2resample:
             weights = []
             for i in range(self.pc):
                 weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
             # print(self.particles[i].w)
-            print('\n weigths \n', weights)
+            # print('\n weigths \n', weights)
         else:
             weights = [0.]*self.pc
 
@@ -701,8 +701,8 @@ class rbpf_slam(object):
                 break
             for leaf in self.tree_list:
                 if p.parent == leaf.ID:
-                    print('parent is ', p.parent )
-                    print('particle ', i)
+                    # print('parent is ', p.parent )
+                    # print('particle ', i)
                     p = leaf
                     break
         cloud_arr = np.zeros((len(targets)-2,3))
@@ -721,8 +721,8 @@ class rbpf_slam(object):
         # self.particles[i].mu_obs = np.zeros((1,))
         # self.particles[i].sigma_obs = np.zeros((1,))
 
-        rospy.loginfo('Training gps... ')
-        self.time4regression = False
+        # rospy.loginfo('Training gps... ')
+        # self.time4regression = False
 
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
@@ -780,15 +780,18 @@ class rbpf_slam(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         # print ("N_eff ", N_eff)
-        print('n_eff_filt ', self.n_eff_filt)
-        print ("Missed meas ", self.miss_meas)
+        # print('n_eff_filt ', self.n_eff_filt)
+        # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
             self.time2resample = False
+            self.ctr = 0
         # if self.time2resample:
             rospy.loginfo('resampling')
             print('n_eff_filt ', self.n_eff_filt)
+            print ("Missed meas ", self.miss_meas)
+            # print(weights)
             indices = residual_resample(weights)
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]

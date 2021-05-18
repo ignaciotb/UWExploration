@@ -7,7 +7,7 @@ class keyboard_trajectory():
     def __init__(self): 
         # Control when to save trajectory
         pub_ = rospy.Publisher('/keyboard_trajectory', Bool, queue_size=1)
-        print('(Press q to quit)')
+        print('\n(Press q to quit)\n')
         msg = Bool()
         msg.data = True
         

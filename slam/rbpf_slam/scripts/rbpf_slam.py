@@ -858,8 +858,8 @@ class rbpf_slam(object):
                 # np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
                 self.tree_list.append(particle_tree) # ID = index
 
-        print('how many dupes: ', dupes)
-        print('how many lost: ', lost)
+        # print('how many dupes: ', dupes)
+        # print('how many lost: ', lost)
 
         for i in range(len(lost)):
             self.particles[lost[i]].ID = self.p_ID
@@ -891,7 +891,10 @@ class rbpf_slam(object):
         #         self.particles[i] = self.particles[i].children[0]
 
     def save_trajectory_cb(self, msg):
-        rospy.loginfo('... saving trajectory')
+        rospy.loginfo('... saving trajectory\n')
+        # sanity
+        # for leaf in self.tree_list:
+            # print('ID {} , parent: {}, children: {}'.format(leaf.ID, leaf.parent, leaf.children))
         for i in range(self.pc):
             particle_tree = self.particles[i]
             particle_tree.trajectory = self.particles[i].trajectory_path[1:,:]
@@ -908,6 +911,9 @@ class rbpf_slam(object):
             self.create_dir(f_name + 'mapping/est_map/')
             self.create_dir(f_name + 'mapping/real_map/')
             while True:
+                # print('particle {} has ID {} '.format(i, particle_tree.ID))
+                if particle_tree.ID == i:
+                    break
                 np.save(self.storage_path + f_name +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
                 np.save(self.storage_path + f_name + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
                 np.save(self.storage_path + f_name +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)

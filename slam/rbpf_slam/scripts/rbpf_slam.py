@@ -688,6 +688,9 @@ class rbpf_slam(object):
     def regression(self, i):
         inputs = np.zeros((1,2))
         targets = np.zeros((1,))
+        mu = np.zeros((1,))
+        sigma = np.zeros((1,))
+
         p = self.particles[i]
         p.targets = self.targets
         # for leaf in self.tree_list:
@@ -697,6 +700,9 @@ class rbpf_slam(object):
         while True:
             inputs = np.append(inputs, p.inputs, axis=0)
             targets = np.append(targets, p.targets, axis=0)
+            mu = np.append(mu, p.mu_obs, axis=0)
+            sigma = np.append(sigma, p.sigma_obs, axis=0)
+
             if p.parent == None:
                 break
             for leaf in self.tree_list:
@@ -716,8 +722,8 @@ class rbpf_slam(object):
         self.gp_pub.publish(msg)
         # save observation data to calculate likelihood later 
 
-        self.particles[i].mu_list.append(self.particles[i].mu_obs[1:])
-        self.particles[i].sigma_list.append(self.particles[i].sigma_obs[1:])
+        self.particles[i].mu_list.append(mu[2:])
+        self.particles[i].sigma_list.append(sigma[2:])
         # self.particles[i].mu_obs = np.zeros((1,))
         # self.particles[i].sigma_obs = np.zeros((1,))
 
@@ -838,8 +844,8 @@ class rbpf_slam(object):
                 particle_tree.real_map = self.mapping[1:,:]
                 particle_tree.inputs = self.particles[i].inputs[1:,:]
                 particle_tree.targets = self.targets[1:]
-                # particle_tree.mu_obs = self.particles[i].mu_obs[1:]
-                # particle_tree.sigma_obs = self.particles[i].sigma_obs[1:]
+                particle_tree.mu_obs = self.particles[i].mu_obs[1:]
+                particle_tree.sigma_obs = self.particles[i].sigma_obs[1:]
                 # save trajectory for plot
                 # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
                 np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
@@ -861,8 +867,8 @@ class rbpf_slam(object):
             particle_tree.real_map = self.mapping[1:,:]
             particle_tree.inputs = self.particles[lost[i]].inputs[1:,:]
             particle_tree.targets = self.targets[1:]
-            # particle_tree.mu_obs = self.particles[lost[i]].mu_obs[1:]
-            # particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs[1:]
+            particle_tree.mu_obs = self.particles[lost[i]].mu_obs[1:]
+            particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs[1:]
             # save trajectory for plot
             # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
             np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)

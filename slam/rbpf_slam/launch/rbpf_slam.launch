@@ -13,6 +13,8 @@
 
   <!-- GP -->
 	<arg name="l_max" default=".6"/>  
+	<arg name="gamma" default=".8"/>  
+	<arg name="th_reg" default="80."/>  
   <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="50"/> <!-- to pub/sub to gp training -->
@@ -50,7 +52,9 @@
       <param name="odom_frame"                              value="$(arg odom_frame)" />
 			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
 			<param name="synch_topic"                             value="$(arg filter)/synch" />
-      <param name="l_max"                                   value="$(arg l_max)" />
+      <param name="l_max"                                   value="$(arg l_max)" /> 
+      <param name="gamma"                                   value="$(arg gamma)" />
+      <param name="th_reg"                                   value="$(arg th_reg)" />
       <param name="n_inducing"                              value="$(arg n_inducing)" />
       <param name="data_path"                               value="$(arg data_path)" />
       <param name="queue_size"                              value="$(arg queue_size)" />

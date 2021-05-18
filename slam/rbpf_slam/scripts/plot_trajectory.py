@@ -14,18 +14,20 @@ root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
 def p_path():
     _, dir_name, _ = next(os.walk(root)) 
     dir_name.remove('gp_plot')
+    k = 0
+    first_obs = True # to get legend
     for p in dir_name:
         obs_path = root + p + '/localization/obs_path/'
         tr_path = root + p + '/localization/tr_path/'
         _, _, name_obs = next(os.walk(obs_path))
         _, _, name_tr = next(os.walk(tr_path))
         n = len(name_obs)
-        first_obs = True # to get legend
+        
         # col = iter(cm.rainbow(np.linspace(0,1,n)))
         name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
         cmap = get_cmap(name)  # type: matplotlib.colors.ListedColormap
         col = cmap.colors  # type: list
-        k = 0
+        
 
         for i in range(n): 
             p_obs = np.load(obs_path + name_obs[i])
@@ -45,14 +47,14 @@ def p_path():
             else:
                 plt.plot(x_obs, y_obs , color = 'black')
             plt.plot(x_tr, y_tr, color = col[k] ) #, label = 'trajectory' )
-            k += 1
+        k += 1
 
-        plt.legend()
-        plt.xlabel('x axis (m)')
-        plt.ylabel('y axis (m)')
-        name = 'Trajectory with 50 particles, 25 beam per ping'
-        plt.title(name)
-        plt.show()
+    plt.legend()
+    plt.xlabel('x axis (m)')
+    plt.ylabel('y axis (m)')
+    name = 'Trajectory with 50 particles, 25 beam per ping'
+    plt.title(name)
+    plt.show()
 
 def mapping(plot_type):
     map_path = root + 'mapping/'

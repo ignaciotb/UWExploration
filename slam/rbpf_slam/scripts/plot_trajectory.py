@@ -141,5 +141,5 @@ def mapping(plot_type):
 
 
 if __name__ == '__main__':
-    # p_path()
-    mapping('scatter')
+    p_path()
+    # mapping('scatter')

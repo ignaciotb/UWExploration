@@ -13,8 +13,8 @@
 
   <!-- GP -->
 	<arg name="l_max" default=".6"/>  
-	<arg name="gamma" default=".8"/>  
-	<arg name="th_reg" default="80."/>  
+	<arg name="gamma" default=".6"/>  
+	<arg name="th_reg" default="100."/>  
   <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="50"/> <!-- to pub/sub to gp training -->

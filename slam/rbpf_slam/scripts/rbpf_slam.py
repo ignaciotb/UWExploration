@@ -192,6 +192,10 @@ class rbpf_slam(object):
         rospy.Subscriber('/gp_meanvar', numpy_msg(Floats), self.gp_meanvar_cb, queue_size=qz)
         # Subscribe to when to save down trajectory
         rospy.Subscriber('/keyboard_trajectory', Bool, self.save_trajectory_cb, queue_size=1 )
+        # Publish to keep on checking length scale
+        # self.length_pub = rospy.Publisher('/length_scale', Bool, queue_size=1)
+        rospy.Subscriber('/length_scale', numpy_msg(Floats), self.cb_lengthscale, queue_size=qz)
+
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -340,6 +344,8 @@ class rbpf_slam(object):
             self.predict(odom_msg)    
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
+                # check length scale 
+                # self.check_length_scale()
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
@@ -362,6 +368,12 @@ class rbpf_slam(object):
 
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
+
+    # def check_length_scale(self):
+    #     msg = Bool()
+    #     msg.data = True
+    #     self.length_pub.publish(msg)
+
 
 # ----------- not used now ---------------
     def recordData2gp(self):
@@ -425,6 +437,16 @@ class rbpf_slam(object):
         # empty array
         self.targets = np.zeros((1,))
         rospy.loginfo('... GP training successful')
+
+    def cb_lengthscale(self, msg):
+        arr = msg.data
+        idx = int(arr[-1]) # Particle index
+        if int(arr[0]) == 0:
+            self.particles[idx].time4regression = True
+        else:
+            self.particles[idx].time4regression = False
+
+        print('particle ', idx, 'time for regression ', self.particles[idx].time4regression)
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
@@ -593,10 +615,10 @@ class rbpf_slam(object):
             # print('\n\n')
             # print('procent: ',   mu_obs / self.particles[i].mu_obs[self.n_from : self.n_from + self.beams_num] )
             # hej = False
-            old_mu = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
-            l_hyper = mu_obs / old_mu
-            old_mbes_x = self.particles[i].save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
-            old_mbes_y = self.particles[i].save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
+            # old_mu = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
+            # l_hyper = mu_obs / old_mu
+            old_mbes_x = self.particles[i].save_map[0:self.beams_num, 0] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
+            old_mbes_y = self.particles[i].save_map[0:self.beams_num, 1] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
             dist = np.sqrt( (exp_mbes[:,0] - old_mbes_x)**2 + (exp_mbes[:,1] - old_mbes_y)**2)
             dist_accepted = sum(dist < self.th_reg)
             # if i ==0:
@@ -605,8 +627,8 @@ class rbpf_slam(object):
                 # print('how many satisfi ', satisf, 'of ', self.beams_num * self.gamma)
 
             
-            if np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
-                self.particles[i].time4regression = True
+            # if  np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
+            #     self.particles[i].time4regression = True
                 # print('loop closing for particle ', i)
 
             if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:    

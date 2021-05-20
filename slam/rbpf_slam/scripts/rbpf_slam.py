@@ -75,6 +75,7 @@ class rbpf_slam(object):
         self.l_max = rospy.get_param("~l_max", .5)
         self.gamma = rospy.get_param("~gamma", .8)
         self.th_reg = rospy.get_param("~th_reg", 80.)
+        self.record_data = rospy.get_param("~record_data", 1)
 
 
         # Initialize tf listener
@@ -336,6 +337,8 @@ class rbpf_slam(object):
 
         self.latest_mbes = result.sim_mbes 
         self.count_pings += 1
+        for i in range(self.pc):
+            self.particles[i].ctr += 1
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -446,7 +449,7 @@ class rbpf_slam(object):
         else:
             self.particles[idx].time4regression = False
 
-        print('particle ', idx, 'time for regression ', self.particles[idx].time4regression)
+        # print('particle ', idx, 'time for regression ', self.particles[idx].time4regression)
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
@@ -617,26 +620,33 @@ class rbpf_slam(object):
             # hej = False
             # old_mu = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
             # l_hyper = mu_obs / old_mu
-            old_mbes_x = self.particles[i].save_map[0:self.beams_num, 0] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
-            old_mbes_y = self.particles[i].save_map[0:self.beams_num, 1] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
-            dist = np.sqrt( (exp_mbes[:,0] - old_mbes_x)**2 + (exp_mbes[:,1] - old_mbes_y)**2)
-            dist_accepted = sum(dist < self.th_reg)
-            # if i ==0:
-            #     # print('dist is \n ', dist)
-            #     satisf = sum(dist < self.th_reg)
-                # print('how many satisfi ', satisf, 'of ', self.beams_num * self.gamma)
+            if i < 1:
+                print(self.particles[i].ctr)
+            if self.particles[i].ctr > self.record_data:
+                
+                old_mbes_x = self.particles[i].save_map[0:self.beams_num, 0] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
+                old_mbes_y = self.particles[i].save_map[0:self.beams_num, 1] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
+                dist = np.sqrt( (exp_mbes[:,0] - old_mbes_x)**2 + (exp_mbes[:,1] - old_mbes_y)**2)
+                dist_accepted = sum(dist < self.th_reg)
+                # print ('time for regression? ', self.particles[i].time4regression)
+                # print ('dist ', dist_accepted)
+                # if i ==0:
+                #     # print('dist is \n ', dist)
+                #     satisf = sum(dist < self.th_reg)
+                    # print('how many satisfi ', satisf, 'of ', self.beams_num * self.gamma)
 
-            
-            # if  np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
-            #     self.particles[i].time4regression = True
-                # print('loop closing for particle ', i)
+                
+                # if  np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
+                #     self.particles[i].time4regression = True
+                    # print('loop closing for particle ', i)
 
-            if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:    
-                self.ctr += 1
-                self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
-                self.regression(i)
-                self.particles[i].time4regression = False
-                # print( self.ctr, ' particles weigthed \n')
+                if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:    
+                    self.ctr += 1
+                    self.particles[i].ctr = 0
+                    self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
+                    self.regression(i)
+                    # self.particles[i].time4regression = False
+                    # print( ' particle ', i, ' weigthed \n')
                 #  
                 # self.time4regression = True # as long as it works for one particle I should train the data
                 # print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
@@ -689,8 +699,8 @@ class rbpf_slam(object):
         
         
         if self.ctr > self.pc * self.gamma: #  self.pc / 2
-            if self.ctr >= self.pc:
-                self.ctr = 0
+            # if self.ctr >= self.pc:
+            #     self.ctr = 0
             self.time2resample = True
 
         if self.time2resample:

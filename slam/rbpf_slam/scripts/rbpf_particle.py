@@ -57,6 +57,7 @@ class Particle(object):
         self.time4regression = False
         self.parent = None
         self.n_from = 1
+        self.ctr = 0
 
 
     def add_noise(self, noise):

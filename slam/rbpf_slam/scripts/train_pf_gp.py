@@ -40,7 +40,7 @@ class Train_gps():
         # check length scale
         # rospy.Subscriber('/length_scale', Bool, self.cb_lengthscale, queue_size=1)
         self.length_pub = rospy.Publisher('/length_scale', numpy_msg(Floats), queue_size=qz)
-        time.sleep(5)
+        time.sleep(10)
         # initialize gps for each particle
         for i in range(0,self.pc):
             self.gp_obj[i] = create_particle(self.n_inducing)
@@ -118,7 +118,7 @@ class Train_gps():
 
     def check_lengthscale(self, idx):
         msg = Floats()
-        print('lengthscale is ', self.gp_obj[idx].lengthscale)
+        # print('lengthscale is ', self.gp_obj[idx].lengthscale)
 
         if self.gp_obj[idx].lengthscale < self.l_max:
             arr = np.array([0, idx]) # True = 0
@@ -126,7 +126,7 @@ class Train_gps():
             arr = np.array([1, idx]) # False = 1
 
         msg.data = arr
-        print('publish lengthscale ')
+        # print('publish lengthscale ')
         self.length_pub.publish(msg)            
 
 # ----------- not used now ---------------
@@ -211,7 +211,7 @@ class create_particle():
     def __init__(self, n):
         self.gp = SVGP(n) 
         self.lengthscale = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]
-        print(' this is the lengthclale ', self.lengthscale ) #, (mini + maxi)/2 )
+        # print(' this is the lengthclale ', self.lengthscale ) #, (mini + maxi)/2 )
     
     def update_lengthscale(self):
         mini = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]

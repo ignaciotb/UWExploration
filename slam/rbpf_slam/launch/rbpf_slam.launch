@@ -9,12 +9,12 @@
 
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="25"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
-	<arg name="mbes_open_angle" value="1.025" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- GP -->
-	<arg name="l_max" default=".6"/>  
-	<arg name="gamma" default=".6"/>  
-	<arg name="th_reg" default="100."/>  
+	<arg name="l_max" default="20."/>  
+	<arg name="gamma" default=".8"/>  
+	<arg name="th_reg" default="60."/>  
   <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="50"/> <!-- to pub/sub to gp training -->
@@ -22,7 +22,7 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="100"/> <!--50 -->
+  <arg name="particle_count"                    default="1"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
   <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
@@ -82,6 +82,8 @@
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
       <param name="data_path"                               value="$(arg data_path)" />
       <param name="queue_size"                              value="$(arg queue_size)" />
+      <param name="l_max"                                   value="$(arg l_max)" /> 
+
     </node>
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">

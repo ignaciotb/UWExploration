@@ -24,13 +24,12 @@ class Train_gps():
         self.n_inducing = rospy.get_param("~n_inducing", 300) # Number of inducing points and optimisation samples 
         self.storage_path = rospy.get_param("~data_path") #'/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/'
         qz = rospy.get_param("~queue_size", 10) # to pub/sub to gp training
+        self.l_max = rospy.get_param("~l_max", 20.)
 
         self.firstFit = [True] * self.pc # len of particles
         self.count_training = [0] * self.pc # len of particles
         self.numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
         self.gp_obj = np.empty(self.pc, dtype=object)
-        for i in range(0,self.pc):
-            self.gp_obj[i] = create_particle(self.n_inducing)
 
         if not os.path.exists(self.storage_path + 'gp_plot/'):
             os.makedirs(self.storage_path + 'gp_plot/')
@@ -38,7 +37,16 @@ class Train_gps():
         rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=qz)
         # Publish variance and mean
         self.meanvar_pub = rospy.Publisher('/gp_meanvar', numpy_msg(Floats),queue_size=qz)
+        # check length scale
+        # rospy.Subscriber('/length_scale', Bool, self.cb_lengthscale, queue_size=1)
+        self.length_pub = rospy.Publisher('/length_scale', numpy_msg(Floats), queue_size=qz)
         time.sleep(5)
+        # initialize gps for each particle
+        for i in range(0,self.pc):
+            self.gp_obj[i] = create_particle(self.n_inducing)
+            self.check_lengthscale(i)
+
+        
         rospy.loginfo('Patiently waiting for data...')
         rospy.spin()
 
@@ -51,6 +59,12 @@ class Train_gps():
         # self.trainNplot()
         # print(names)
 
+    # def cb_lengthscale(self, msg):
+    #     for idx in range(0,self.pc):
+    #         mini = self.gp_obj[idx].gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]
+    #         maxi = self.gp_obj[idx].gp.cov.base_kernel.lengthscale.detach().numpy()[0,1]
+    #         # if idx < 1: 
+    #         #     print(' this is the lengthclale ', (mini + maxi)/2 )
 
     def cb(self, msg):
             arr = msg.data
@@ -67,6 +81,11 @@ class Train_gps():
         # train each particles gp
         try:
             self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+            # check length scale
+            self.gp_obj[idx].update_lengthscale()
+            self.check_lengthscale(idx)
+
+            # print('for particle ', idx , ' this is the lengthclale (training) \n', self.gp_obj[idx].gp.cov.lengthscale )
             if (idx < 1) and len(targets) > 5: # and self.count_training[idx] % 10 == 0:
                 # save a plot of the gps every 10th training of the first and second particle
                 rospy.loginfo('Saving a plot of the gps')
@@ -96,7 +115,19 @@ class Train_gps():
         msg = Floats()
         msg.data = arr
         self.meanvar_pub.publish(msg)
-            
+
+    def check_lengthscale(self, idx):
+        msg = Floats()
+        print('lengthscale is ', self.gp_obj[idx].lengthscale)
+
+        if self.gp_obj[idx].lengthscale < self.l_max:
+            arr = np.array([0, idx]) # True = 0
+        else: 
+            arr = np.array([1, idx]) # False = 1
+
+        msg.data = arr
+        print('publish lengthscale ')
+        self.length_pub.publish(msg)            
 
 # ----------- not used now ---------------
     def trainNplot(self):
@@ -179,6 +210,13 @@ class Train_gps():
 class create_particle():
     def __init__(self, n):
         self.gp = SVGP(n) 
+        self.lengthscale = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]
+        print(' this is the lengthclale ', self.lengthscale ) #, (mini + maxi)/2 )
+    
+    def update_lengthscale(self):
+        mini = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]
+        maxi = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,1]
+        self.lengthscale = (mini + maxi)/2
 
 
 if __name__ == '__main__':

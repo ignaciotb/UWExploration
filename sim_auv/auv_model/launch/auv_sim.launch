@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
-	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
-	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
     <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
@@ -11,9 +11,9 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.5"/>
     <arg name="replay_rate" default="0.2"/>
-	
+
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="n_beams_mbes" default="100"/>
 	<arg name="mbes_open_angle" default="2.308" />
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
@@ -21,7 +21,7 @@
 	<!-- Car detection parameters -->
     <arg name="detection" default="False"/>
     <arg name="add_mini" default="False"/>
-    
+
     <!-- Particle filter -->
     <arg name="particle_filter" default="True"/>
     <arg name="filter" default="pf"/>
@@ -29,7 +29,7 @@
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
 
     <!-- Real data  -->
-    <arg name="path" default="/media/torroba/Seagate Expansion Drive/HuginDatasets/BornoSMaRC202006/200615_overnight/EM2040/map"/>
+    <arg name="path" default="/home/aldoteran/Downloads/Stine21"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
@@ -69,12 +69,12 @@
 		</node>
 
 		<!-- Publish map as pcl  -->
-		<node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
-			<param name="map_gp_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/svgp_1000_0.01.npy"/>
-			<param name="map_frame" value="map" />
-			<param name="use_pings_cloud" type= "bool" value="True" />
-		</node>
+        <node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
+            <param name="map_cloud_path"  value="/home/aldoteran/slam_ws/src/UWExploration/sim_auv/auv_model/launch/pcl.npy" />
+            <param name="map_gp_path"  value=""/>
+            <param name="map_frame" value="map" />
+            <param name="use_pings_cloud" type= "bool" value="True" />
+        </node>
 
 		<!-- Simulate Hugin AUV -->
 		<group if="$(eval mode == 'sim')">
@@ -123,12 +123,11 @@
 				<param name="add_mini" value="$(arg add_mini)" />
 				<param name="synch_topic" value="/$(arg filter)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
-      			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="19000" />
-				<!-- <param name="end_mission_ping_num" value="28000" /> -->
+      			<param name="survey_finished_top" value="/gt/survey_finished" />
+				<param name="start_mission_ping_num" value="0" />
+                <param name="end_mission_ping_num" value="28000" />
 			</node>
 		</group>
 
 	</group>
-
 </launch>

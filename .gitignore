@@ -25,6 +25,8 @@ install/*
 # Pointclouds
 *.npz
 *.cereal
+*.npy
+
 
 # RVIZ
 *.rviz

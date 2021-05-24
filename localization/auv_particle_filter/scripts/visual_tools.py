@@ -16,11 +16,11 @@ import message_filters
 import sensor_msgs.point_cloud2 as pc2
 
 class PFStatsVisualization(object):
-    
+
     def __init__(self):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats_sub = rospy.Subscriber(stats_top, numpy_msg(Floats), self.stat_cb)
-        self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
+        # self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
@@ -45,7 +45,7 @@ class PFStatsVisualization(object):
         self.filter_cnt = 1
         self.datagram_size = 17
         self.filt_vec = np.zeros((self.datagram_size,1))
-        self.img = plt.imread(self.path_img)
+        # self.img = plt.imread(self.path_img)
 
         # Map to odom transform to plot AUV pose on top of image
         tfBuffer = tf2_ros.Buffer()
@@ -58,7 +58,7 @@ class PFStatsVisualization(object):
             rospy.loginfo("Transforms locked - stats node")
         except:
             rospy.logerr("Stats node: Could not lookup transforms")
-        
+
         # When the survey is finished, save the data to disk
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
@@ -71,7 +71,7 @@ class PFStatsVisualization(object):
     def ping_cb(self, real_ping, pf_ping):
         real_meas = self.ping_to_array(real_ping)
         pf_meas = self.ping_to_array(pf_ping)
-        
+
         idx = np.round(np.linspace(0, np.size(real_meas, 0)-1,
                                    np.size(pf_meas, 0))).astype(int)
         real_meas = real_meas[idx, :]
@@ -79,7 +79,7 @@ class PFStatsVisualization(object):
 
     def ping_to_array(self, point_cloud):
         ranges = []
-        for p in pc2.read_points(point_cloud, 
+        for p in pc2.read_points(point_cloud,
                                  field_names = ("x", "y", "z"), skip_nans=True):
             ranges.append(p)
         return np.asarray(ranges)
@@ -130,7 +130,7 @@ class PFStatsVisualization(object):
         py = np.array(fx[:, 1] + xEst[1]).flatten()
         plt.plot(px, py, "--r")
 
-   
+
     def stat_cb(self, stat_msg):
 
         data_t = stat_msg.data.copy().reshape(self.datagram_size,1)
@@ -138,7 +138,7 @@ class PFStatsVisualization(object):
         data_t[2:5] = self.m2o_mat[0:3,0:3].dot(data_t[2:5])
         data_t[5:8] = self.m2o_mat[0:3,0:3].dot(data_t[5:8])
         data_t[8:11] = self.m2o_mat[0:3,0:3].dot(data_t[8:11])
-        
+
         # Reconstruct 3x3 covariance matrix
         # Not account for z values atm
         cov_mat = np.zeros((3,3))
@@ -151,7 +151,7 @@ class PFStatsVisualization(object):
         self.filt_vec = np.hstack((self.filt_vec, data_t))
         self.filter_cnt += 1
         if self.filter_cnt > 0:
-            
+
             plt.gcf().canvas.mpl_connect('key_release_event',
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
@@ -220,7 +220,7 @@ class PFStatsVisualization(object):
                 #  - np.gradient(exp_mbes_ranges)))
 
                 plt.grid(True)
-            
+
 
             plt.pause(0.0001)
 

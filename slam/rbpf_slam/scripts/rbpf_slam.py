@@ -620,8 +620,8 @@ class rbpf_slam(object):
             # hej = False
             # old_mu = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
             # l_hyper = mu_obs / old_mu
-            if i < 1:
-                print(self.particles[i].ctr)
+            # if i < 1:
+            #     print(self.particles[i].ctr)
             if self.particles[i].ctr > self.record_data:
                 
                 old_mbes_x = self.particles[i].save_map[0:self.beams_num, 0] #save_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
@@ -892,14 +892,15 @@ class rbpf_slam(object):
 
         # print('how many dupes: ', dupes)
         # print('how many lost: ', lost)
+        
 
         for i in range(len(lost)):
             self.particles[lost[i]].ID = self.p_ID
             self.particles[lost[i]].parent = self.particles[dupes[i]].ID
-            idx_child = self.p_ID
+            idx_child = self.particles[lost[i]].ID
             idx_parent = self.particles[dupes[i]].ID
-            particle_tree = atree(idx_child, idx_parent, self.particles[lost[i]].trajectory_path[1:,:], self.observations[1:,:] )
-            particle_tree.mapping = self.particles[lost[i]].save_map[1:,:]
+            particle_tree = atree(idx_child, idx_parent, self.particles[dupes[i]].trajectory_path[1:,:], self.observations[1:,:] )
+            particle_tree.mapping = self.particles[dupes[i]].save_map[1:,:]
             particle_tree.real_map = self.mapping[1:,:]
             particle_tree.inputs = self.particles[lost[i]].inputs[1:,:]
             particle_tree.targets = self.targets[1:]
@@ -915,7 +916,35 @@ class rbpf_slam(object):
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1 # all particles have their own unique ID
         # rospy.loginfo('Saving trajectory')
-        # self.resample_nr += 1
+
+        
+        set_dupes = set(dupes)
+        unique_parent = (list(set_dupes))
+        # merge parent and child if only one child
+        for i in range(self.pc):
+            if i not in lost and i not in unique_parent: 
+                print('not resampled ', i)
+                unique_parent.append(i)
+
+        # Now save the old parent as its child
+        print('unique parents are ', unique_parent)
+        for i in range(len(unique_parent)):
+            idx_parent = self.particles[unique_parent[i]].ID
+            idx_child = self.p_ID
+            self.particles[unique_parent[i]].parent = self.particles[unique_parent[i]].ID
+            self.particles[unique_parent[i]].ID = idx_child
+
+            particle_tree = atree(idx_child, idx_parent, self.particles[unique_parent[i]].trajectory_path[1:,:], self.observations[1:,:] )
+            particle_tree.mapping = self.particles[unique_parent[i]].save_map[1:,:]
+            particle_tree.real_map = self.mapping[1:,:]
+            particle_tree.inputs = self.particles[unique_parent[i]].inputs[1:,:]
+            particle_tree.targets = self.targets[1:]
+            particle_tree.mu_obs = self.particles[unique_parent[i]].mu_obs[1:]
+            particle_tree.sigma_obs = self.particles[unique_parent[i]].sigma_obs[1:]
+            self.tree_list.append(particle_tree)
+            self.tree_list[idx_parent].children.append(idx_child)
+            self.p_ID += 1 # all particles have their own unique ID
+            
 
         # merge parent and child if only one child
         # for i in range(self.pc):
@@ -924,16 +953,18 @@ class rbpf_slam(object):
 
     def save_trajectory_cb(self, msg):
         rospy.loginfo('... saving trajectory\n')
+        tr_path = 'trajectory/'
+        self.create_dir(tr_path)
         # sanity
-        # for leaf in self.tree_list:
-            # print('ID {} , parent: {}, children: {}'.format(leaf.ID, leaf.parent, leaf.children))
+        for leaf in self.tree_list:
+            print('ID {} , parent: {}, children: {}'.format(leaf.ID, leaf.parent, leaf.children))
         for i in range(self.pc):
             particle_tree = self.particles[i]
             particle_tree.trajectory = self.particles[i].trajectory_path[1:,:]
             particle_tree.observations = self.observations[1:,:]
             particle_tree.mapping = self.particles[i].save_map[1:,:]
             particle_tree.real_map = self.mapping[1:,:]
-            f_name = 'p' + str(i) + '/'
+            f_name = tr_path + 'p' + str(i) + '/'
             # creating dir if missing
             self.create_dir(f_name)
             self.create_dir(f_name + 'localization/')
@@ -944,8 +975,47 @@ class rbpf_slam(object):
             self.create_dir(f_name + 'mapping/real_map/')
             while True:
                 # print('particle {} has ID {} '.format(i, particle_tree.ID))
-                if particle_tree.ID == i:
+                # if particle_tree.ID == i:
+                #     break
+                np.save(self.storage_path + f_name +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
+                np.save(self.storage_path + f_name + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
+                np.save(self.storage_path + f_name +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
+                np.save(self.storage_path + f_name +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
+                if particle_tree.parent == None:
                     break
+                for leaf in self.tree_list:
+                    if particle_tree.parent == leaf.ID:
+                        particle_tree = leaf
+                        break
+        
+        rospy.loginfo('Trajectory saved.')
+
+    def try_new(self, msg):
+        rospy.loginfo('... saving trajectory\n')
+        tr_path = 'trajectory/'
+        self.create_dir(tr_path)
+        # sanity
+        # for leaf in self.tree_list:
+            # print('ID {} , parent: {}, children: {}'.format(leaf.ID, leaf.parent, leaf.children))
+        for i in range(self.pc):
+            particle_tree = self.particles[i]
+            particle_tree.trajectory = self.particles[i].trajectory_path[1:,:]
+            particle_tree.observations = self.observations[1:,:]
+            particle_tree.mapping = self.particles[i].save_map[1:,:]
+            particle_tree.real_map = self.mapping[1:,:]
+            f_name = tr_path + 'p' + str(i) + '/'
+            # creating dir if missing
+            self.create_dir(f_name)
+            self.create_dir(f_name + 'localization/')
+            self.create_dir(f_name + 'mapping/')
+            self.create_dir(f_name + 'localization/tr_path/')
+            self.create_dir(f_name + 'localization/obs_path/')
+            self.create_dir(f_name + 'mapping/est_map/')
+            self.create_dir(f_name + 'mapping/real_map/')
+            while True:
+                # print('particle {} has ID {} '.format(i, particle_tree.ID))
+                # if particle_tree.ID == i:
+                #     break
                 np.save(self.storage_path + f_name +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
                 np.save(self.storage_path + f_name + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
                 np.save(self.storage_path + f_name +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)

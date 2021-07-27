@@ -24,6 +24,7 @@ class PFStatsVisualization(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
+        # self.result_path = rospy.get_param('~result_path', '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results')
 
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -65,6 +66,11 @@ class PFStatsVisualization(object):
         self.survey_finished = False
 
         self.cov_traces = [0.]
+
+        # adding figures:
+        # self.fig_xy = plt.figure()
+        # self.fig_error = plt.figure()
+        # self.fig_real_mbes = plt.figure()
 
         rospy.spin()
 
@@ -152,13 +158,14 @@ class PFStatsVisualization(object):
         self.filter_cnt += 1
         if self.filter_cnt > 0:
             
-            plt.gcf().canvas.mpl_connect('key_release_event',
-                    lambda event: [exit(0) if event.key == 'escape' else None])
+            # plt.gcf().canvas.mpl_connect('key_release_event',
+            #         lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
             if True:
                 plt.cla()
                 #  Center image on odom frame
+                plt.figure(1)
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
                                              -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
                 #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
@@ -174,7 +181,8 @@ class PFStatsVisualization(object):
                 self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
             # Plot error between DR PF and GT
-            if False:
+            if True:
+                plt.figure(2)
                 plt.subplot(3, 1, 1)
                 plt.cla()
                 plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
@@ -199,7 +207,8 @@ class PFStatsVisualization(object):
                 plt.grid(True)
 
             # Plot real pings vs expected meas
-            if False:
+            if True:
+                plt.figure(3)
                 plt.subplot(1, 1, 1)
                 plt.cla()
                 plt.plot(self.pings_vec[:,1],
@@ -222,10 +231,33 @@ class PFStatsVisualization(object):
                 plt.grid(True)
             
 
-            plt.pause(0.0001)
+            # plt.pause(0.0001)
 
             if self.survey_finished:
+                # fig 1
+                plt.figure(1)
+                plt.legend(['GT', 'Odom', 'PF'])
+                plt.title('X-Y track')
+                plt.xlabel('x axis (m)')
+                plt.ylabel('y axis (m)')
                 plt.savefig(self.survey_name + "_tracks.png")
+                # fig 2
+                plt.figure(2)
+                plt.subplot(3, 1, 1)
+                plt.legend(['error between DR PF and GT'])
+                plt.subplot(3, 1, 2)
+                plt.legend(['Error between PF and GT'])
+                plt.subplot(3,1,3)
+                plt.legend(['trace of cov matrix'])
+                plt.savefig(self.survey_name + "_error.png")
+                # fig 1
+                plt.figure(3)
+                plt.legend(['k', 'b'])
+                plt.title('Real vs mbes')
+                plt.savefig(self.survey_name + "_real_vs_mbes.png")
+
+                rospy.loginfo("Saving down image of the tracks.")
+                self.survey_finished = False
 
 
 

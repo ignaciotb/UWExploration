@@ -278,7 +278,7 @@ class rbpf_slam(object):
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 
-        #  rospy.signal_shutdown("Survey finished")
+        # rospy.signal_shutdown("Survey finished")
 
 
     def gp_meas_model(self, real_mbes, p_part, r_base):

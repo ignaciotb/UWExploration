@@ -154,5 +154,8 @@ def mapping(plot_type, Xd):
 
 
 if __name__ == '__main__':
-    p_path()
-    mapping('scatter', '2d')
+    result = np.load("/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/result.npz")
+    result_array = result['full_dataset']
+    print(result_array.shape)
+    # p_path()
+    # mapping('scatter', '2d')

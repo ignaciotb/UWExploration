@@ -5,18 +5,29 @@ from std_msgs.msg import Bool
 
 class keyboard_trajectory():
     def __init__(self): 
-        # Control when to save trajectory
-        pub_ = rospy.Publisher('/keyboard_trajectory', Bool, queue_size=1)
-        print('\n(Press q to quit)\n')
+        '''
+        Control when to save trajectory and final map. 
+        Open in a seperate terminal so one clearly can read 
+        the output and control with the keyboard.
+        '''
+
+        pub_trajectory = rospy.Publisher('/keyboard_trajectory', Bool, queue_size=1)
+        pub_map = rospy.Publisher('/gt/survey_finished', Bool, queue_size=1)
         msg = Bool()
         msg.data = True
         
         while True:
-            v = input('Press any key to save down trajectory ...')
-            if v == 'q':
+            val = input('Press  t  to save down the trajectory \nPress  m  to save down the final map \nPress  q  to quit\n...')
+            if val == 'q':
                 break
-            pub_.publish(msg)
-            print('Trajectory will be saved.')
+            elif val =='t' or val == 'T':
+                pub_trajectory.publish(msg)
+                print('Trajectory will be saved.')
+            elif val =='m' or val == 'M':
+                pub_map.publish(msg)
+                print('Final map will be saved.\nTerminal shuts down.')
+                break
+
             
         # rospy.spin()
 

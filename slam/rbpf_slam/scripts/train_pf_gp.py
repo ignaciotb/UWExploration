@@ -77,9 +77,10 @@ class Train_gps():
             self.trainGP(inputs, targets, idx)
 
     def trainGP(self, inputs, targets, idx):
+        t0 = time.time()
         # train each particles gp
         try:
-            self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+            self.gp_obj[idx].gp.fit(inputs, targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/4), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
             # check length scale
             self.gp_obj[idx].update_lengthscale()
             self.check_lengthscale(idx)
@@ -93,11 +94,12 @@ class Train_gps():
             # x = inputs[:,0]
             # y = inputs[:,1]
             # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-            # if self.count_training[idx] < len(self.numbers):
-            #     print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
-            # else:
-            #     print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
+            if self.count_training[idx] < len(self.numbers):
+                print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+            else:
+                print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
 
+            print('Training took {:.1f} seconds'. format(time.time() - t0))
             self.count_training[idx] +=1 # to save plots
 
             #  publish results ---------

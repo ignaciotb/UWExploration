@@ -16,9 +16,9 @@
 	<arg name="l_max" default="100."/>  
 	<arg name="gamma" default=".6"/>  
 	<arg name="th_reg" default="110."/>  
-  <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
+  <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
-  <arg name="queue_size"  default="60"/> <!-- to pub/sub to gp training -->
+  <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
 
   <!-- final map  -->
   <arg name="survey_finished_top" default="/gt/survey_finished"/>

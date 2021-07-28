@@ -9,8 +9,11 @@ import time
 import numpy as np
 import os
 
-root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory6/'
+root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/'
 _, dir_name, _ = next(os.walk(root)) 
+color_name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
+cmap = get_cmap(color_name)  # type: matplotlib.colors.ListedColormap
+col = cmap.colors  # type: list
 # dir_name.remove('gp_plot')
 
 def p_path():
@@ -25,9 +28,7 @@ def p_path():
         n = len(name_obs)
         
         # col = iter(cm.rainbow(np.linspace(0,1,n)))
-        name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
-        cmap = get_cmap(name)  # type: matplotlib.colors.ListedColormap
-        col = cmap.colors  # type: list
+        
         
 
         for i in range(n): 
@@ -53,66 +54,82 @@ def p_path():
     plt.legend()
     plt.xlabel('x axis (m)')
     plt.ylabel('y axis (m)')
-    name = 'Trajectory with 50 particles, 25 beam per ping'
-    plt.title(name)
+    title_name = 'Trajectory with 50 particles, 25 beam per ping'
+    plt.title(title_name)
     plt.show()
 
 def mapping(plot_type, Xd):
     fig = plt.figure()
+    n_particle = len(dir_name)
     if Xd == '3d':
         # ax1 = fig.axes(projection='3d')
-        ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-        ax2 = fig.add_subplot(1, 2, 2, projection='3d')
+        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
     else:
-        ax1 = fig.add_subplot(1, 2, 1)#, projection='3d')
-        ax2 = fig.add_subplot(1, 2, 2)#, projection='3d')
+        ax1 = fig.add_subplot(2, 1, 1)#, projection='3d')
 
-    for p in dir_name:
+    ax2 = fig.add_subplot(2, 1, 2)
+    all_err = [0]*n_particle
+    all_maps = [0]*n_particle
+
+    for j, p in enumerate(dir_name):
         map_path = root + p  + '/mapping/'
         _, _, name_est = next(os.walk(map_path + 'est_map/'))
-        _, _, name_real = next(os.walk(map_path + 'real_map/'))
+        _, _, name_real = next(os.walk(map_path + 'obs_depth/'))
 
         n = len(name_est)
         
+        final_map = np.zeros((1,3))
+        err_vec = np.zeros((1,))
         for i in range(n): 
             pm = np.load(map_path + 'est_map/' + name_est[i])
+            final_map = np.append(final_map, pm, axis=0)
+                
             X = pm[:,0]
             Y = pm[:,1]
-            Z = pm[:,2]
-            rm = np.load(map_path + 'real_map/' + name_real[i])
-            x = rm[:,0]
-            y = rm[:,1]
-            z = rm[:,2]
+            Z_est = pm[:,2]
+            z_obs = np.load(map_path + 'obs_depth/' + name_real[i])
+            err_vec = np.append(err_vec, abs(Z_est-z_obs))
+        all_err[j] = err_vec[1:]
+        all_maps[j] = final_map[1:,:]
+    
+    idx = find_best_trajectory(all_err)
+    print('best trajectory: ', idx)
 
-            # debug
-            # print('exp ', Y)
-            # print('real ', y)
+    final_map = all_maps[idx]
+    X = final_map[:,0]
+    Y = final_map[:,1]
+    Z = final_map[:,2]
 
-            if plot_type == 'scatter':
-                ax1.scatter(X, Y, c=Z, cmap='viridis', linewidth=0.5)
-                ax2.scatter(x, y, c=z, cmap='viridis', linewidth=0.5)
-            elif plot_type == 'surf': # only with 3d
-                ax1.plot_trisurf(X, Y, Z, cmap='viridis', edgecolor='none')
-                ax2.plot_trisurf(x, y, z, cmap='viridis', edgecolor='none')
-            elif plot_type == '2dZ': # z must be 2-dimensional
-                ax1.plot_surface(X, Y, Z, rstride=1, cstride=1,
-                                cmap='viridis', edgecolor='none')
-                ax2.plot_surface(x, y, z, rstride=1, cstride=1,
-                                cmap='viridis', edgecolor='none')
-            # plt.show()
-
-        # xx, yy = np.meshgrid(x_tr, y_tr, sparse=True)
-        # z = np.sin(xx**2 + yy**2) / (xx**2 + yy**2)
-        # h = plt.contourf(x_tr,y_tr,z)
-    ax1.set_title('RBPF map')
-    ax2.set_title('Real map')
+    if plot_type == 'scatter':
+        ax1.scatter(X, Y, c=Z, cmap='viridis', linewidth=0.5)
+    elif plot_type == 'surf': # only with 3d
+        ax1.plot_trisurf(X, Y, Z_est, cmap='viridis', edgecolor='none')
+    elif plot_type == '2dZ': # z must be 2-dimensional
+        ax1.plot_surface(X, Y, Z_est, rstride=1, cstride=1,
+                        cmap='viridis', edgecolor='none')
+    ax2.plot(all_err[idx])
+    ax1.set_title('RBPF map ')
+    ax2.set_title('Error')
     ax1.set_xlabel('x axis (m)')
     ax1.set_ylabel('y axis (m)')
-    # ax1.set_zlabel('z axis (m)')
-    # ax2.set_zlabel('z axis (m)')
-    ax2.set_xlabel('x axis (m)')
-    ax2.set_ylabel('y axis (m)')
     plt.show()
+
+def find_best_trajectory(List):
+    idx = 0
+    best_trajectory = []
+    for ii in range(len(List[0])):
+        val = 100.
+        for jj in range(len(List)):
+            if List[jj][ii] < val:
+                val = List[jj][ii] 
+                idx = jj
+        best_trajectory.append(idx)
+    print('best trajectory ', len(best_trajectory))
+    return most_frequent(best_trajectory)
+    
+
+def most_frequent(List):
+    return max(set(List), key = List.count)
 
 # def err():
     # err = []
@@ -154,8 +171,8 @@ def mapping(plot_type, Xd):
 
 
 if __name__ == '__main__':
-    result = np.load("/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/result.npz")
-    result_array = result['full_dataset']
-    print(result_array.shape)
+    # result = np.load("/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/result.npz")
+    # result_array = result['full_dataset']
+    # print(result_array.shape)
     # p_path()
-    # mapping('scatter', '2d')
+    mapping('scatter', '2d')

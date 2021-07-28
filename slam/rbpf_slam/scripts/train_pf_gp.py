@@ -45,7 +45,6 @@ class Train_gps():
         for i in range(0,self.pc):
             self.gp_obj[i] = create_particle(self.n_inducing)
             self.check_lengthscale(i)
-
         
         rospy.loginfo('Patiently waiting for data...')
         rospy.spin()

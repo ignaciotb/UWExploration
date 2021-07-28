@@ -17,7 +17,6 @@ col = cmap.colors  # type: list
 # dir_name.remove('gp_plot')
 
 def p_path():
-    
     k = 0
     first_obs = True # to get legend
     for p in dir_name:
@@ -26,11 +25,8 @@ def p_path():
         _, _, name_obs = next(os.walk(obs_path))
         _, _, name_tr = next(os.walk(tr_path))
         n = len(name_obs)
-        
         # col = iter(cm.rainbow(np.linspace(0,1,n)))
         
-        
-
         for i in range(n): 
             p_obs = np.load(obs_path + name_obs[i])
             p_tr = np.load(tr_path + name_tr[i])
@@ -58,40 +54,33 @@ def p_path():
     plt.title(title_name)
     plt.show()
 
-def mapping(plot_type, Xd):
-    fig = plt.figure()
-    n_particle = len(dir_name)
-    if Xd == '3d':
-        # ax1 = fig.axes(projection='3d')
-        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
-    else:
-        ax1 = fig.add_subplot(2, 1, 1)#, projection='3d')
 
-    ax2 = fig.add_subplot(2, 1, 2)
+
+def Mapping(plot_type, Xd):
+    
+    n_particle = len(dir_name)
     all_err = [0]*n_particle
     all_maps = [0]*n_particle
 
+    # Upload data
     for j, p in enumerate(dir_name):
         map_path = root + p  + '/mapping/'
         _, _, name_est = next(os.walk(map_path + 'est_map/'))
         _, _, name_real = next(os.walk(map_path + 'obs_depth/'))
-
         n = len(name_est)
-        
-        final_map = np.zeros((1,3))
+        mapping = np.zeros((1,3))
         err_vec = np.zeros((1,))
         for i in range(n): 
             pm = np.load(map_path + 'est_map/' + name_est[i])
-            final_map = np.append(final_map, pm, axis=0)
-                
-            X = pm[:,0]
-            Y = pm[:,1]
+            mapping = np.append(mapping, pm, axis=0)
             Z_est = pm[:,2]
             z_obs = np.load(map_path + 'obs_depth/' + name_real[i])
             err_vec = np.append(err_vec, abs(Z_est-z_obs))
+
         all_err[j] = err_vec[1:]
-        all_maps[j] = final_map[1:,:]
+        all_maps[j] = mapping[1:,:]
     
+    # Find the lowest error along the trajectory
     idx = find_best_trajectory(all_err)
     print('best trajectory: ', idx)
 
@@ -100,13 +89,23 @@ def mapping(plot_type, Xd):
     Y = final_map[:,1]
     Z = final_map[:,2]
 
-    if plot_type == 'scatter':
+    # Plot the final map and error along the track
+    fig = plt.figure()
+    if plot_type == 'scatter' and Xd == '3d':
+        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
+        ax1.scatter(X, Y, Z, c=Z, cmap='viridis', linewidth=0.5)
+    elif plot_type == 'scatter':
+        ax1 = fig.add_subplot(2, 1, 1)
         ax1.scatter(X, Y, c=Z, cmap='viridis', linewidth=0.5)
-    elif plot_type == 'surf': # only with 3d
-        ax1.plot_trisurf(X, Y, Z_est, cmap='viridis', edgecolor='none')
-    elif plot_type == '2dZ': # z must be 2-dimensional
-        ax1.plot_surface(X, Y, Z_est, rstride=1, cstride=1,
-                        cmap='viridis', edgecolor='none')
+    elif plot_type == 'surf' and Xd == '3d': # only with 3d
+        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
+        ax1.plot_trisurf(X, Y, Z, cmap='viridis', edgecolor='none')
+    else:
+        print('surf only works with 3D')
+    # elif plot_type == '2dZ': # z must be 2-dimensional
+    #     ax1.plot_surface(X, Y, Z_est, rstride=1, cstride=1,
+    #                     cmap='viridis', edgecolor='none')
+    ax2 = fig.add_subplot(2, 1, 2)
     ax2.plot(all_err[idx])
     ax1.set_title('RBPF map ')
     ax2.set_title('Error')
@@ -126,7 +125,6 @@ def find_best_trajectory(List):
         best_trajectory.append(idx)
     print('best trajectory ', len(best_trajectory))
     return most_frequent(best_trajectory)
-    
 
 def most_frequent(List):
     return max(set(List), key = List.count)
@@ -171,8 +169,12 @@ def most_frequent(List):
 
 
 if __name__ == '__main__':
+
+    # p_path()
+    plot_type = 'surf' # Chose from 'scatter' and 'surf'
+    xd = '3d'             # Chose from '2d' and '3d'
+    Mapping(plot_type, xd) 
+
     # result = np.load("/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/result.npz")
     # result_array = result['full_dataset']
     # print(result_array.shape)
-    # p_path()
-    mapping('scatter', '2d')

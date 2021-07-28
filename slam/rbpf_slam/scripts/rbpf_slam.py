@@ -923,11 +923,11 @@ class rbpf_slam(object):
         # merge parent and child if only one child
         for i in range(self.pc):
             if i not in lost and i not in unique_parent: 
-                print('not resampled ', i)
+                # print('not resampled ', i)
                 unique_parent.append(i)
 
         # Now save the old parent as its child
-        print('unique parents are ', unique_parent)
+        # print('unique parents are ', unique_parent)
         for i in range(len(unique_parent)):
             idx_parent = self.particles[unique_parent[i]].ID
             idx_child = self.p_ID

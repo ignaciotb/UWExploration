@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from mpl_toolkits import mplot3d
 from matplotlib.cm import get_cmap
+from statistics import mean
 import csv
 import time
 import numpy as np
 import os
 
-root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/'
+root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory2/' # tra 2 and 3 is good (4 in 2d)
 _, dir_name, _ = next(os.walk(root)) 
 color_name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
 cmap = get_cmap(color_name)  # type: matplotlib.colors.ListedColormap
@@ -61,6 +62,7 @@ def Mapping(plot_type, Xd):
     n_particle = len(dir_name)
     all_err = [0]*n_particle
     all_maps = [0]*n_particle
+    n_data = 1.1e5
 
     # Upload data
     for j, p in enumerate(dir_name):
@@ -70,20 +72,32 @@ def Mapping(plot_type, Xd):
         n = len(name_est)
         mapping = np.zeros((1,3))
         err_vec = np.zeros((1,))
+        # print('particle ' + p)
         for i in range(n): 
             pm = np.load(map_path + 'est_map/' + name_est[i])
             mapping = np.append(mapping, pm, axis=0)
             Z_est = pm[:,2]
             z_obs = np.load(map_path + 'obs_depth/' + name_real[i])
-            err_vec = np.append(err_vec, abs(Z_est-z_obs))
+            # print('particle id ' + name_est[i])
+            # print('Z est ' , Z_est.shape)
+            # print('Z obs ' , z_obs.shape)
+            try:
+                err_vec = np.append(err_vec, abs(Z_est-z_obs))
+            except:
+                end_idx = len(Z_est)
+                # print('end idx = ', end_idx)
+                err_vec = np.append(err_vec, abs(Z_est-z_obs[0:end_idx]))
 
         all_err[j] = err_vec[1:]
         all_maps[j] = mapping[1:,:]
+        if len(all_err[j]) < n_data:
+            n_data = len(all_err[j])
     
     # Find the lowest error along the trajectory
-    idx = find_best_trajectory(all_err)
+    idx = find_best_trajectory(all_err, n_data)
+    # Make error smooth
+    depth_err = make_error_smooth(all_err[idx])
     print('best trajectory: ', idx)
-
     final_map = all_maps[idx]
     X = final_map[:,0]
     Y = final_map[:,1]
@@ -92,38 +106,49 @@ def Mapping(plot_type, Xd):
     # Plot the final map and error along the track
     fig = plt.figure()
     if plot_type == 'scatter' and Xd == '3d':
-        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
+        ax1 = fig.add_subplot(1, 2, 1, projection='3d')
         ax1.scatter(X, Y, Z, c=Z, cmap='viridis', linewidth=0.5)
+        ax1.set_zlabel('z axis (m)')
     elif plot_type == 'scatter':
-        ax1 = fig.add_subplot(2, 1, 1)
+        ax1 = fig.add_subplot(1, 2, 1)
         ax1.scatter(X, Y, c=Z, cmap='viridis', linewidth=0.5)
     elif plot_type == 'surf' and Xd == '3d': # only with 3d
-        ax1 = fig.add_subplot(2, 1, 1, projection='3d')
+        ax1 = fig.add_subplot(1, 2, 1, projection='3d')
+        ax1.set_zlabel('z axis (m)')
         ax1.plot_trisurf(X, Y, Z, cmap='viridis', edgecolor='none')
     else:
         print('surf only works with 3D')
     # elif plot_type == '2dZ': # z must be 2-dimensional
     #     ax1.plot_surface(X, Y, Z_est, rstride=1, cstride=1,
     #                     cmap='viridis', edgecolor='none')
-    ax2 = fig.add_subplot(2, 1, 2)
-    ax2.plot(all_err[idx])
+    ax2 = fig.add_subplot(1, 2, 2)
+    ax2.plot(depth_err)
+    ax2.set_xlabel('Iteration')
+    ax2.set_ylabel('Depth (m)')
     ax1.set_title('RBPF map ')
     ax2.set_title('Error')
     ax1.set_xlabel('x axis (m)')
     ax1.set_ylabel('y axis (m)')
     plt.show()
 
-def find_best_trajectory(List):
+def make_error_smooth(List):
+    k = 25
+    new_list = []
+    for i in range(0,len(List), k):
+        val = mean(List[i:i+k])
+        new_list.append(val)
+    return new_list
+
+def find_best_trajectory(List, n_iter):
     idx = 0
     best_trajectory = []
-    for ii in range(len(List[0])):
+    for ii in range(n_iter):
         val = 100.
         for jj in range(len(List)):
             if List[jj][ii] < val:
                 val = List[jj][ii] 
                 idx = jj
         best_trajectory.append(idx)
-    print('best trajectory ', len(best_trajectory))
     return most_frequent(best_trajectory)
 
 def most_frequent(List):

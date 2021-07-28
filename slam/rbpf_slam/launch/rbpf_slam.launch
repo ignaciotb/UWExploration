@@ -9,13 +9,13 @@
 
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="25"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
-	<arg name="mbes_open_angle" value="1.150" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- GP -->
   <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
 	<arg name="l_max" default="100."/>  
 	<arg name="gamma" default=".6"/>  
-	<arg name="th_reg" default="90."/>  
+	<arg name="th_reg" default="110."/>  
   <arg name="n_inducing"  default="100"/> <!-- slow if n > 300 -->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="60"/> <!-- to pub/sub to gp training -->
@@ -91,7 +91,7 @@
 
     </node>
 
-    <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
+    <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
@@ -101,7 +101,7 @@
       <param name="result_path" value="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/"/>
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
-   </node>
+   </node> -->
 
 <!-- for first run ... > -->
 <!--  catkin_make -DCMAKE_BUILD_TYPE=Release install  -->

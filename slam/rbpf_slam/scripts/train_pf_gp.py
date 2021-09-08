@@ -33,6 +33,8 @@ class Train_gps():
 
         if not os.path.exists(self.storage_path + 'gp_plot/'):
             os.makedirs(self.storage_path + 'gp_plot/')
+        # if not os.path.exists(self.storage_path + 'posterior/'):
+        #     os.makedirs(self.storage_path + 'posterior/')
         # Subscribe to particles
         rospy.Subscriber('/training_gps', numpy_msg(Floats), self.cb, queue_size=qz)
         # Publish variance and mean
@@ -67,6 +69,8 @@ class Train_gps():
 
     def cb(self, msg):
             arr = msg.data
+            final = int(arr[-1]) # if final or not
+            arr = np.delete(arr, -1)
             idx = int(arr[-1]) # Particle index
             # print('training particle ', idx)
             arr = np.delete(arr, -1)
@@ -74,9 +78,9 @@ class Train_gps():
             cloud = arr.reshape(n,3)
             inputs = cloud[:,[0,1]]
             targets = cloud[:,2]
-            self.trainGP(inputs, targets, idx)
+            self.trainGP(inputs, targets, idx, final)
 
-    def trainGP(self, inputs, targets, idx):
+    def trainGP(self, inputs, targets, idx, final):
         t0 = time.time()
         # train each particles gp
         try:
@@ -86,20 +90,23 @@ class Train_gps():
             self.check_lengthscale(idx)
 
             # print('for particle ', idx , ' this is the lengthclale (training) \n', self.gp_obj[idx].gp.cov.lengthscale )
-            if (idx < 1) and len(targets) > 5: # and self.count_training[idx] % 10 == 0:
-                # save a plot of the gps every 10th training of the first and second particle
-                rospy.loginfo('Saving a plot of the gps')
-                self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_plot/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            # if (idx < 1) and len(targets) > 5: # and self.count_training[idx] % 10 == 0:
+            #     # save a plot of the gps every 10th training of the first and second particle
+            #     rospy.loginfo('Saving a plot of the gps')
+            #     self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_plot/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
             # print('\n ... saving the posterior...')
-            # x = inputs[:,0]
-            # y = inputs[:,1]
-            # self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+            if final == 99:
+                print('final is ', final)
+                x = inputs[:,0]
+                y = inputs[:,1]
+                self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+                rospy.loginfo('final gp saved')
             if self.count_training[idx] < len(self.numbers):
                 print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
             else:
                 print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
 
-            print('Training took {:.1f} seconds'. format(time.time() - t0))
+            # print('Training took {:.1f} seconds'. format(time.time() - t0))
             self.count_training[idx] +=1 # to save plots
 
             #  publish results ---------
@@ -119,11 +126,12 @@ class Train_gps():
 
     def check_lengthscale(self, idx):
         msg = Floats()
-        # print('lengthscale is ', self.gp_obj[idx].lengthscale)
 
         if self.gp_obj[idx].lengthscale < self.l_max:
             arr = np.array([0, idx]) # True = 0
         else: 
+            print('lengthscale is ', self.gp_obj[idx].lengthscale)
+            print('... for particle {} training {} '.format(idx , self.count_training[idx]))
             arr = np.array([1, idx]) # False = 1
 
         msg.data = arr

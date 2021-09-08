@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32
 
 class keyboard_trajectory():
     def __init__(self): 
@@ -13,8 +13,11 @@ class keyboard_trajectory():
 
         pub_trajectory = rospy.Publisher('/keyboard_trajectory', Bool, queue_size=1)
         pub_map = rospy.Publisher('/gt/survey_finished', Bool, queue_size=1)
+        pub_gp = rospy.Publisher('/final_gp_topic', Float32, queue_size=1)
+
         msg = Bool()
         msg.data = True
+
         
         while True:
             val = input('Press  t  to save down the trajectory \nPress  m  to save down the final map \nPress  q  to quit\n...')
@@ -26,7 +29,12 @@ class keyboard_trajectory():
             elif val =='m' or val == 'M':
                 pub_map.publish(msg)
                 print('Final map will be saved.\nTerminal shuts down.')
-                break
+            elif int(val) > 0 and int(val) < 50:
+                print('choosing particle ', val)
+                msgInt = Float32()
+                msgInt.data = float(val)
+
+                pub_gp.publish(msgInt)
 
             
         # rospy.spin()

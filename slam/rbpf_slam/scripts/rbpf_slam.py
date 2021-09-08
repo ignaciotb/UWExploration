@@ -3,6 +3,8 @@
 # Standard dependencies
 import os
 import math
+
+from numpy.core.fromnumeric import shape
 import rospy
 import random
 import sys
@@ -193,9 +195,11 @@ class rbpf_slam(object):
         rospy.Subscriber('/gp_meanvar', numpy_msg(Floats), self.gp_meanvar_cb, queue_size=qz)
         # Subscribe to when to save down trajectory
         rospy.Subscriber('/keyboard_trajectory', Bool, self.save_trajectory_cb, queue_size=1 )
-        # Publish to keep on checking length scale
+        # Subscribe to keep on checking length scale
         # self.length_pub = rospy.Publisher('/length_scale', Bool, queue_size=1)
         rospy.Subscriber('/length_scale', numpy_msg(Floats), self.cb_lengthscale, queue_size=qz)
+        # Subscribe to final particle index
+        rospy.Subscriber('/final_gp_topic', Float32, self.save_final_gp_cb, queue_size=1)
 
 
         # Subscription to real mbes pings 
@@ -644,7 +648,7 @@ class rbpf_slam(object):
                     self.ctr += 1
                     self.particles[i].ctr = 0
                     self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
-                    self.regression(i)
+                    self.regression(i, 0)
                     # self.particles[i].time4regression = False
                     # print( ' particle ', i, ' weigthed \n')
                 #  
@@ -721,7 +725,7 @@ class rbpf_slam(object):
 
         return weights_array
 
-    def regression(self, i):
+    def regression(self, i, final):
         inputs = np.zeros((1,2))
         targets = np.zeros((1,))
         mu = np.zeros((1,))
@@ -747,12 +751,25 @@ class rbpf_slam(object):
                     # print('particle ', i)
                     p = leaf
                     break
-        cloud_arr = np.zeros((len(targets)-2,3))
+        if len(targets) == inputs.shape[0]:
+            cloud_arr = np.zeros((len(targets)-2,3))
+        elif len(targets) >= inputs.shape[0]:
+            print('target len before:', targets.shape)
+            targets = targets[:-25]
+            print('target len after:', targets.shape)
+            cloud_arr = np.zeros((len(targets)-2,3))
+        elif len(targets) <= inputs.shape[0]:
+            print('inputs len before:', inputs.shape)
+            inputs = inputs[:-25,:]
+            print('target len after:', inputs.shape)
+            cloud_arr = np.zeros((len(targets)-2,3))
+
         cloud_arr[:,:2] = inputs[2:,:]
         cloud_arr[:,2] = targets[2:]
         # cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
         cloud_arr = cloud_arr.reshape(cloud_arr.shape[0]*cloud_arr.shape[1], 1)
         cloud_arr = np.append(cloud_arr, i) # insert particle index
+        cloud_arr = np.append(cloud_arr, final) # insert if final or not
         msg = Floats()
         msg.data = cloud_arr
         self.gp_pub.publish(msg)
@@ -822,7 +839,7 @@ class rbpf_slam(object):
         self.n_eff_mask.append(N_eff)
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         # print ("N_eff ", N_eff)
-        # print('n_eff_filt ', self.n_eff_filt)
+        print('n_eff_filt ', self.n_eff_filt)
         # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
@@ -950,6 +967,12 @@ class rbpf_slam(object):
         # for i in range(self.pc):
         #     if len(self.particles[i].children) == 1:
         #         self.particles[i] = self.particles[i].children[0]
+
+    def save_final_gp_cb(self, msg):
+        rospy.loginfo('... saving final gp map\n')
+        idx = int(msg.data)
+        print('final particle ', idx)
+        self.regression(idx, 99)
 
     def save_trajectory_cb(self, msg):
         rospy.loginfo('... saving trajectory\n')

@@ -10,7 +10,7 @@ import time
 import numpy as np
 import os
 
-root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory2/' # tra 2 and 3 is good (4 in 2d)
+root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/' # tra 2 and 3 is good (4 in 2d)
 _, dir_name, _ = next(os.walk(root)) 
 color_name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
 cmap = get_cmap(color_name)  # type: matplotlib.colors.ListedColormap
@@ -90,6 +90,7 @@ def Mapping(plot_type, Xd):
 
         all_err[j] = err_vec[1:]
         all_maps[j] = mapping[1:,:]
+        # print('with {} is name {}'.format(j,p))
         if len(all_err[j]) < n_data:
             n_data = len(all_err[j])
     
@@ -97,8 +98,11 @@ def Mapping(plot_type, Xd):
     idx = find_best_trajectory(all_err, n_data)
     # Make error smooth
     depth_err = make_error_smooth(all_err[idx])
+    # print('ALL maps', len(all_maps))
     print('best trajectory: ', idx)
+    print('with name: ' + dir_name[idx])
     final_map = all_maps[idx]
+    np.save(root + 'final_map.npy', final_map)
     X = final_map[:,0]
     Y = final_map[:,1]
     Z = final_map[:,2]

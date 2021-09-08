@@ -13,9 +13,9 @@
 
   <!-- GP -->
   <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
-	<arg name="l_max" default="100."/>  
-	<arg name="gamma" default=".6"/>  
-	<arg name="th_reg" default="110."/>  
+	<arg name="l_max" default="50."/>  
+	<arg name="gamma" default=".5"/>  
+	<arg name="th_reg" default="90."/>  
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->

@@ -31,8 +31,8 @@ class Train_gps():
         self.numbers = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
         self.gp_obj = np.empty(self.pc, dtype=object)
 
-        if not os.path.exists(self.storage_path + 'gp_plot/'):
-            os.makedirs(self.storage_path + 'gp_plot/')
+        if not os.path.exists(self.storage_path + 'gp_result/'):
+            os.makedirs(self.storage_path + 'gp_result/')
         # if not os.path.exists(self.storage_path + 'posterior/'):
         #     os.makedirs(self.storage_path + 'posterior/')
         # Subscribe to particles
@@ -95,12 +95,7 @@ class Train_gps():
             #     rospy.loginfo('Saving a plot of the gps')
             #     self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_plot/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
             # print('\n ... saving the posterior...')
-            if final == 99:
-                print('final is ', final)
-                x = inputs[:,0]
-                y = inputs[:,1]
-                self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'particle' + str(idx) + 'posterior.npy', verbose=False)
-                rospy.loginfo('final gp saved')
+            
             if self.count_training[idx] < len(self.numbers):
                 print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
             else:
@@ -118,6 +113,14 @@ class Train_gps():
         except:
             rospy.loginfo('gitter..')
             arr = np.array([0, 0])
+            
+        if final == 99:
+            print('final is ', final)
+            x = inputs[:,0]
+            y = inputs[:,1]
+            self.gp_obj[idx].gp.save_posterior(self.n_inducing, min(x), max(x), min(y), max(y), self.storage_path + 'gp_result/' + 'particle' + str(idx) + 'posterior.npy', verbose=False)
+            self.gp_obj[idx].gp.plot(inputs, targets, self.storage_path + 'gp_result/' + 'particle' + str(idx) + 'training' + str(self.count_training[idx]) + '.png', n=100, n_contours=100 )
+            rospy.loginfo('final gp saved')
             
         arr = np.append(arr, idx) # insert particle index
         msg = Floats()

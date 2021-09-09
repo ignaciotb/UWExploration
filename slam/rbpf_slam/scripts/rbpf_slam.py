@@ -351,15 +351,9 @@ class rbpf_slam(object):
             self.predict(odom_msg)    
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
-                # check length scale 
-                # self.check_length_scale()
                 # Measurement update if new one received
                 weights = self.update(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-
-                # regression        
-                # if self.time4regression:
-                #     self.regression()
                 
                 # Particle resampling
                 self.resample(weights)
@@ -375,11 +369,6 @@ class rbpf_slam(object):
 
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
-
-    # def check_length_scale(self):
-    #     msg = Bool()
-    #     msg.data = True
-    #     self.length_pub.publish(msg)
 
 
 # ----------- not used now ---------------
@@ -453,7 +442,6 @@ class rbpf_slam(object):
         else:
             self.particles[idx].time4regression = False
 
-        # print('particle ', idx, 'time for regression ', self.particles[idx].time4regression)
 
     def gp_meanvar_cb(self, msg):
         arr = msg.data
@@ -463,12 +451,6 @@ class rbpf_slam(object):
         cloud = arr.reshape(n,2)
         mu_est = cloud[:,0]
         sigma_est = cloud[:,1]
-        # for i in range(0, self.pc):
-        #     if self.particles[i].ID == p_id: # from resampling, the order can shift, better to look at the id instead of list index
-        #         idx = i
-        #         if i != p_id: # to keep track of when (if) the resampling changes the order 
-        #             print('particle {} have id {}'.format(i, p_id))
-        #         break
         self.calculateLikelihood( mu_est, sigma_est, idx, logLkhood=True)
 
 
@@ -487,38 +469,26 @@ class rbpf_slam(object):
             sigma = np.diag(sigma)
 
             if logLkhood:
-                # if self.firstFit:
-                #     self.firstFit = False # only need to calculate ones
                 self.dim = len(mu) # Dimension
-                # print('dim ', self.dim)
                 self.norm_const =  self.dim * np.log (2 * np.pi) 
-                # print('power to dim ', self.norm_const)
 
                 nom = np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu))
                 _, detSigma = np.linalg.slogdet(sigma)
                 logdetSigma = np.log(detSigma)
                 lkhood = -0.5 * (nom + self.norm_const + logdetSigma)
                 wi = abs(1/lkhood) # since it's negative, the highest negative value should have the lowest weight (e^-inf = 0)
-                # print('log likelihood  ', lkhood)
                 # lkhood = np.exp(lkhood)
 
             else:
-                # if self.firstFit:
-                #     self.firstFit = False # only need to calculate ones
                 self.dim = len(mu) # Dimension
-                # print('dim ', self.dim)
                 self.norm_const = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
-                # print('power to dim ', self.norm_const)
-                # print('power to dim ')
-                # print(self.norm_const)
+
 
                 nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
-                # print('nominator is ', nom)
                 _, detSigma = np.linalg.slogdet(sigma)
-                # print('sign and det sigma ',sign, detSigma)
                 denom = self.norm_const * np.sqrt(detSigma)
                 # denom = np.sqrt( np.power( 2 * np.pi, dim) * np.linalg.det(sigma)) # sgrt( (2pi)^dim * Det(sigma))
-                # print('denominator is ', denom)
+                
                 # calculate the likelihood
                 lkhood = np.exp (nom) / denom
                 wi = lkhood
@@ -530,26 +500,10 @@ class rbpf_slam(object):
             print('mu obs ', mu_obs.shape)
             print('mu est ', mu_est.shape)
             wi = 0.0
-
-        # print('likelihood of particle ', idx)
         # convert likelihood into weigh
         self.particles[idx].w = wi  # particle weight?
         # self.pw[idx] = self.particles[idx].w 
 
-        # when to resample
-        # if idx == self.pc - 1: # all particles weighted
-        #     self.miss_meas = self.pw.count(0.0)
-        #     weights_array = np.asarray(self.pw)
-        #     # Add small non-zero value to avoid hitting zero
-        #     weights_array += 1.e-200
-        #     self.resample(weights_array)
-        
-        # for i in range(0, self.pc):
-            # gp_cloud = np.load(self.storage_path + 'particle' + str(i) + 'posterior.npy')
-            # mu_est = gp_cloud[:,2]
-            # sigma_est = gp_cloud[:,3]
-        # mu_obs = np.load(self.storage_path + 'particle' + str(idx) + 'mu.npy')
-        # sigma_obs = np.load(self.storage_path + 'particle' + str(idx) + 'sigma.npy')
 
     def update(self, real_mbes, odom):
         # Compute AUV MBES ping ranges in the map frame
@@ -615,93 +569,21 @@ class rbpf_slam(object):
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
             # self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
-            # print(self.beams_num)
-            # print('real depth \n ', self.particles[i].mu_obs[self.n_from : self.n_from + self.beams_num])
-            # print('\n\n')
-            # print('exp depth \n ', mu_obs)
-            # print('\n\n')
-            # print('procent: ',   mu_obs / self.particles[i].mu_obs[self.n_from : self.n_from + self.beams_num] )
-            # hej = False
-            # old_mu = self.particles[i].mu_obs[self.particles[i].n_from : self.particles[i].n_from + self.beams_num]
-            # l_hyper = mu_obs / old_mu
-            # if i < 1:
-            #     print(self.particles[i].ctr)
             if self.particles[i].ctr > self.record_data:
-                
                 old_mbes_x = self.particles[i].est_map[0:self.beams_num, 0] #est_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
                 old_mbes_y = self.particles[i].est_map[0:self.beams_num, 1] #est_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
                 dist = np.sqrt( (exp_mbes[:,0] - old_mbes_x)**2 + (exp_mbes[:,1] - old_mbes_y)**2)
                 dist_accepted = sum(dist < self.th_reg)
-                # print ('time for regression? ', self.particles[i].time4regression)
-                # print ('dist ', dist_accepted)
-                # if i ==0:
-                #     # print('dist is \n ', dist)
-                #     satisf = sum(dist < self.th_reg)
-                    # print('how many satisfi ', satisf, 'of ', self.beams_num * self.gamma)
-
-                
-                # if  np.all( l_hyper < self.l_max) or np.all( 1/l_hyper < self.l_max):
-                #     self.particles[i].time4regression = True
-                    # print('loop closing for particle ', i)
 
                 if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:    
                     self.ctr += 1
                     self.particles[i].ctr = 0
                     self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
                     self.regression(i, 0)
-                    # self.particles[i].time4regression = False
-                    # print( ' particle ', i, ' weigthed \n')
-                #  
-                # self.time4regression = True # as long as it works for one particle I should train the data
-                # print('max is ', np.max(abs(np.asarray(self.particles[i].mu_obs))))
-                # print('min is ', np.min(abs(np.asarray(self.particles[i].mu_obs))))
-                # print('the value is: ', np.max(abs(np.asarray(self.particles[i].mu_obs))) - np.min(abs(np.asarray(self.particles[i].mu_obs))))
                 # ctr = 0
                 # N_beams = len(self.targets)
                 # B_min = N_beams * self.gamma
-                # print('exp X is \n', exp_mbes[:,0])
-                # print('exp Y is \n', exp_mbes[:,1])
-                # print('\n\n')
-                # print('first X pose is\n', self.particles[i].inputs[0:25,0])
-                # print('\n minus gamma is \n', self.particles[i].inputs[0:25,0]-self.gamma)
 
-
-                # if exp_mbes[:,0] > self.particles[i].inputs[0:25,0]-self.gamma and exp_mbes[:,0] < self.particles[i].inputs[0:25,0]+self.gamma:
-                #     if exp_mbes[:,1] > self.particles[i].inputs[0:25,1]-self.gamma and exp_mbes[:,1] < self.particles[i].inputs[0:25,1]+self.gamma:   
-                        # self.time4regression = True 
-
-        
-        # if okay: 
-        #     # np.save(self.targets_file, self.targets)
-        #     # print('\nData recorded.\n')
-        #     rospy.loginfo('Training gps... ')
-        #     for i in range(0, self.pc):
-        #         cloud_arr = np.zeros((len(self.targets),3))
-        #         cloud_arr[:,:2] = self.particles[i].cloud
-        #         cloud_arr[:,2] = self.targets
-        #         cloud_arr = cloud_arr.reshape(len(self.targets)*3, 1)
-        #         cloud_arr = np.append(cloud_arr, i) # insert particle index
-        #         for _ in range(3):
-        #             cloud_arr = np.delete(cloud_arr, 0) # delete the first index of each array, since its not a part of the data
-        #         msg = Floats()
-        #         msg.data = cloud_arr
-        #         # self.trainGP()
-        #         self.gp_pub.publish(msg)
-
-        #         # save observation data to compare
-        #         self.particles[i].mu_obs = np.delete(self.particles[i].mu_obs, 0)
-        #         self.particles[i].sigma_obs = np.delete(self.particles[i].sigma_obs, 0)
-        #         self.particles[i].mu_list.append(self.particles[i].mu_obs)
-        #         self.particles[i].sigma_list.append(self.particles[i].sigma_obs)
-        #         # np.save(self.cloud_file, cloud_arr)
-
-        #         # empty arrays
-        #         self.particles[i].cloud = np.zeros((1,2))
-        #         self.particles[i].mu_obs = np.zeros((1,))
-        #         self.particles[i].sigma_obs = np.zeros((1,))
-        #     self.targets = np.zeros((1,))
-        
-        
         if self.ctr > self.pc * self.gamma: #  self.pc / 2
             # if self.ctr >= self.pc:
             #     self.ctr = 0
@@ -711,8 +593,6 @@ class rbpf_slam(object):
             weights = []
             for i in range(self.pc):
                 weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
-            # print(self.particles[i].w)
-            # print('\n weigths \n', weights)
         else:
             weights = [0.]*self.pc
 
@@ -722,21 +602,17 @@ class rbpf_slam(object):
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
         weights_array += 1.e-200
-
         return weights_array
+
 
     def regression(self, i, final):
         inputs = np.zeros((1,2))
         targets = np.zeros((1,))
         mu = np.zeros((1,))
         sigma = np.zeros((1,))
-
         p = self.particles[i]
         p.targets = self.targets
-        # for leaf in self.tree_list:
-        #     if leaf.ID == self.particles[i].ID:
-        #         p = leaf
-        #         break
+
         while True:
             inputs = np.append(inputs, p.inputs, axis=0)
             targets = np.append(targets, p.targets, axis=0)
@@ -747,10 +623,9 @@ class rbpf_slam(object):
                 break
             for leaf in self.tree_list:
                 if p.parent == leaf.ID:
-                    # print('parent is ', p.parent )
-                    # print('particle ', i)
                     p = leaf
                     break
+
         if len(targets) == inputs.shape[0]:
             cloud_arr = np.zeros((len(targets)-2,3))
         elif len(targets) >= inputs.shape[0]:
@@ -766,7 +641,6 @@ class rbpf_slam(object):
 
         cloud_arr[:,:2] = inputs[2:,:]
         cloud_arr[:,2] = targets[2:]
-        # cloud_arr = np.delete(cloud_arr, 0, 0) # delete the first index of each array, since its not a part of the data
         cloud_arr = cloud_arr.reshape(cloud_arr.shape[0]*cloud_arr.shape[1], 1)
         cloud_arr = np.append(cloud_arr, i) # insert particle index
         cloud_arr = np.append(cloud_arr, final) # insert if final or not
@@ -774,14 +648,9 @@ class rbpf_slam(object):
         msg.data = cloud_arr
         self.gp_pub.publish(msg)
         # save observation data to calculate likelihood later 
-
         self.particles[i].mu_list.append(mu[2:])
         self.particles[i].sigma_list.append(sigma[2:])
-        # self.particles[i].mu_obs = np.zeros((1,))
-        # self.particles[i].sigma_obs = np.zeros((1,))
 
-        # rospy.loginfo('Training gps... ')
-        # self.time4regression = False
 
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
@@ -828,7 +697,6 @@ class rbpf_slam(object):
     def resample(self, weights):
         # Normalize weights
         weights /= weights.sum()
-        # print(weights)
         N_eff = self.pc
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
@@ -846,11 +714,9 @@ class rbpf_slam(object):
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
             self.time2resample = False
             self.ctr = 0
-        # if self.time2resample:
             rospy.loginfo('resampling')
             print('n_eff_filt ', self.n_eff_filt)
             print ("Missed meas ", self.miss_meas)
-            # print(weights)
             indices = residual_resample(weights)
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]
@@ -876,40 +742,19 @@ class rbpf_slam(object):
             self.targets = np.zeros((1,))
             self.n_from = 1
 
-        # resample every other time
-        # self.time2resample = not self.time2resample
 
     def ancestry_tree(self, lost, dupes):
-        # remove first row, only zeros from when the arrays were created 
-        # self.targets = np.delete(self.targets, 0, 0)
-        # self.observations = np.delete(self.observations, 0, 0)
-        # self.mapping = np.delete(self.mapping, 0, 0)
-        # for i in range(self.pc):
-        #     self.particles[i].trajectory_path = np.delete(self.particles[i].trajectory_path, 0, 0)
-        #     self.particles[i].est_map = np.delete(self.particles[i].est_map, 0, 0)
-        #     self.particles[i].cloud = np.delete(self.particles[i].cloud, 0, 0)
 
         if self.one_time: # for the first particles, created at start
             self.one_time = False
             for i in range(self.pc):
                 particle_tree = atree(self.particles[i].ID, None, self.particles[i].trajectory_path[1:,:], self.observations[1:,:] )
                 particle_tree.mapping = self.particles[i].est_map[1:,:]
-                # particle_tree.real_map = self.mapping[1:,:]
                 particle_tree.inputs = self.particles[i].inputs[1:,:]
                 particle_tree.targets = self.targets[1:]
                 particle_tree.mu_obs = self.particles[i].mu_obs[1:]
                 particle_tree.sigma_obs = self.particles[i].sigma_obs[1:]
-                # save trajectory for plot
-                # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
-                # np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
-                # np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
-                # np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
-                # np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
                 self.tree_list.append(particle_tree) # ID = index
-
-        # print('how many dupes: ', dupes)
-        # print('how many lost: ', lost)
-        
 
         for i in range(len(lost)):
             self.particles[lost[i]].ID = self.p_ID
@@ -918,33 +763,21 @@ class rbpf_slam(object):
             idx_parent = self.particles[dupes[i]].ID
             particle_tree = atree(idx_child, idx_parent, self.particles[dupes[i]].trajectory_path[1:,:], self.observations[1:,:] )
             particle_tree.mapping = self.particles[dupes[i]].est_map[1:,:]
-            # particle_tree.real_map = self.mapping[1:,:]
             particle_tree.inputs = self.particles[lost[i]].inputs[1:,:]
             particle_tree.targets = self.targets[1:]
             particle_tree.mu_obs = self.particles[lost[i]].mu_obs[1:]
             particle_tree.sigma_obs = self.particles[lost[i]].sigma_obs[1:]
-            # save trajectory for plot
-            # particle_tree.trajectory = np.append(particle_tree, self.resample_nr)
-            # np.save(self.storage_path +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
-            # np.save(self.storage_path + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
-            # np.save(self.storage_path +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)
-            # np.save(self.storage_path +'mapping/real_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.real_map)
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1 # all particles have their own unique ID
-        # rospy.loginfo('Saving trajectory')
 
-        
         set_dupes = set(dupes)
         unique_parent = (list(set_dupes))
         # merge parent and child if only one child
         for i in range(self.pc):
             if i not in lost and i not in unique_parent: 
-                # print('not resampled ', i)
                 unique_parent.append(i)
-
         # Now save the old parent as its child
-        # print('unique parents are ', unique_parent)
         for i in range(len(unique_parent)):
             idx_parent = self.particles[unique_parent[i]].ID
             idx_child = self.p_ID
@@ -953,7 +786,6 @@ class rbpf_slam(object):
 
             particle_tree = atree(idx_child, idx_parent, self.particles[unique_parent[i]].trajectory_path[1:,:], self.observations[1:,:] )
             particle_tree.mapping = self.particles[unique_parent[i]].est_map[1:,:]
-            # particle_tree.real_map = self.mapping[1:,:]
             particle_tree.inputs = self.particles[unique_parent[i]].inputs[1:,:]
             particle_tree.targets = self.targets[1:]
             particle_tree.mu_obs = self.particles[unique_parent[i]].mu_obs[1:]
@@ -961,12 +793,7 @@ class rbpf_slam(object):
             self.tree_list.append(particle_tree)
             self.tree_list[idx_parent].children.append(idx_child)
             self.p_ID += 1 # all particles have their own unique ID
-            
 
-        # merge parent and child if only one child
-        # for i in range(self.pc):
-        #     if len(self.particles[i].children) == 1:
-        #         self.particles[i] = self.particles[i].children[0]
 
     def save_final_gp_cb(self, msg):
         rospy.loginfo('... saving final gp map\n')
@@ -974,20 +801,18 @@ class rbpf_slam(object):
         print('final particle ', idx)
         self.regression(idx, 99)
 
+
     def save_trajectory_cb(self, msg):
         rospy.loginfo('... saving trajectory\n')
         tr_path = 'trajectory/'
         self.create_dir(tr_path)
-        # sanity
-        # for leaf in self.tree_list:
-        #     print('ID {} , parent: {}, children: {}'.format(leaf.ID, leaf.parent, leaf.children))
+
         for i in range(self.pc):
             particle_tree = self.particles[i]
             particle_tree.trajectory = self.particles[i].trajectory_path[1:,:]
             particle_tree.observations = self.observations[1:,:]
             particle_tree.mapping = self.particles[i].est_map[1:,:]
             particle_tree.targets = self.targets[1:]
-            # particle_tree.real_map = self.mapping[1:,:]
             f_name = tr_path + 'p' + str(i) + '/'
             # creating dir if missing
             self.create_dir(f_name)
@@ -998,9 +823,6 @@ class rbpf_slam(object):
             self.create_dir(f_name + 'mapping/est_map/')
             self.create_dir(f_name + 'mapping/obs_depth/')
             while True:
-                # print('particle {} has ID {} '.format(i, particle_tree.ID))
-                # if particle_tree.ID == i:
-                #     break
                 np.save(self.storage_path + f_name +'localization/tr_path/' + 'ID' + str(particle_tree.ID) + 'tr.npy', particle_tree.trajectory)
                 np.save(self.storage_path + f_name + 'localization/obs_path/'+ 'ID' + str(particle_tree.ID) + 'obs.npy', particle_tree.observations)
                 np.save(self.storage_path + f_name +'mapping/est_map/' + 'ID' + str(particle_tree.ID) + 'map.npy', particle_tree.mapping)

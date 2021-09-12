@@ -15,7 +15,7 @@
   <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
 	<arg name="l_max" default="50."/>  
 	<arg name="gamma" default=".5"/>  
-	<arg name="th_reg" default="90."/>  
+	<arg name="th_reg" default="100."/>  
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
@@ -32,7 +32,7 @@
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
   <!-- <arg name="resampling_noise_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/> -->
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.01]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/> 
   <arg name="measurement_std"  default="3"/>
 

@@ -133,7 +133,7 @@ def Mapping(plot_type, Xd):
     ax2.set_title('Error')
     ax1.set_xlabel('x axis (m)')
     ax1.set_ylabel('y axis (m)')
-    plt.show()
+    # plt.show()
 
 def make_error_smooth(List):
     k = 25

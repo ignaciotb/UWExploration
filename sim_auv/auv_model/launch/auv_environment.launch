@@ -4,12 +4,13 @@
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin"/>
-	<arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
+    <arg name="app" default="pf"/>
+    <arg name="debug" default="0"/>
 
 	<!-- Rates for simulating missions  -->
     <arg name="odom_rate" default="0.1"/>
-	<arg name="meas_rate" default="0.5"/>
+	<arg name="meas_rate" default="0.1"/>
     <arg name="replay_rate" default="0.2"/>
 	
 	<!-- MBES sensor -->
@@ -18,17 +19,8 @@
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
-	<!-- Car detection parameters -->
-    <arg name="detection" default="False"/>
-    <arg name="add_mini" default="False"/>
-    
-    <!-- Particle filter -->
-    <arg name="particle_filter" default="True"/>
-    <arg name="filter" default="pf"/>
-
-    <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
-
     <!-- Real data  -->
+    <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
     <arg name="path" default="/media/torroba/Seagate Expansion Drive/HuginDatasets/BornoSMaRC202006/200615_overnight/EM2040/map"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
@@ -45,7 +37,6 @@
 		<!-- Hugin model -->
 		<param name="robot_description" command="$(find xacro)/xacro '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
-			<!-- <param name="robot_description" value="/$(arg namespace)/robot_description" /> -->
 		</node>
 
 		<!-- Publish map as pcl  -->
@@ -111,9 +102,8 @@
 				<param name="odom_frame" value="odom" />
 				<param name="base_link" value="$(arg namespace)/base_link" />
 				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-				<!-- <param name="mbes_sim_as" value="/mbes_sim_server" /> -->
-				<param name="add_mini" value="$(arg add_mini)" />
-				<param name="synch_topic" value="/$(arg filter)/synch" />
+				<!-- <param name="add_mini" value="$(arg add_mini)" /> -->
+				<param name="synch_topic" value="/$(arg app)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
 				<param name="start_mission_ping_num" value="19000" />

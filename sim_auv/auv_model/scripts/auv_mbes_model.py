@@ -23,9 +23,6 @@ from auv_2_ros.msg import MbesSimAction, MbesSimResult
 from auvlib.bathy_maps import base_draper
 from auvlib.data_tools import csv_data
 
-from scipy.ndimage.filters import gaussian_filter
-
-
 class mbes_model(object):
 
     def __init__(self):

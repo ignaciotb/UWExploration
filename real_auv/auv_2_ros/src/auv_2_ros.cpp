@@ -237,7 +237,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
 
     // Don't start survey until PF is up
     if(start_replay_ != true){
-        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for PF to send synch signal");
+        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for application to send synch signal");
         return;
     }
 

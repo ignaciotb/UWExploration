@@ -156,7 +156,7 @@ class PFStatsVisualization(object):
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            if False:
+            if True:
                 plt.cla()
                 #  Center image on odom frame
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
@@ -199,7 +199,7 @@ class PFStatsVisualization(object):
                 plt.grid(True)
 
             # Plot real pings vs expected meas
-            if True:
+            if False:
                 plt.subplot(1, 1, 1)
                 plt.cla()
                 plt.plot(self.pings_vec[:,1],

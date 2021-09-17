@@ -1,43 +1,37 @@
 #!/usr/bin/env python3
 
 # Standard dependencies
-import math
 import rospy
 import sys
 import numpy as np
 import tf2_ros
 from scipy.spatial.transform import Rotation as rot
-from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Transform, Quaternion
+from geometry_msgs.msg import Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header, Bool
+from std_msgs.msg import Bool
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
-from tf.transformations import quaternion_from_euler, euler_from_quaternion
-from tf.transformations import translation_matrix, translation_from_matrix
-from tf.transformations import quaternion_matrix, quaternion_from_matrix
-from tf.transformations import rotation_matrix, rotation_from_matrix
+from tf.transformations import quaternion_from_euler
+from tf.transformations import rotation_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
 
 # For sim mbes action client
-import actionlib
-from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
 # Auvlib
 from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data, all_data, std_data
+from auvlib.data_tools import csv_data
 
 from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
-from bathy_gps import process, gp
+# from bathy_gps import gp
 import time 
 
 class auv_pf(object):
@@ -131,18 +125,13 @@ class auv_pf(object):
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))
+        # gp_path = rospy.get_param("~gp_path", 'gp.path')
+        # self.gp = gp.SVGP.load(1000, gp_path)
+        # print("Size of GP: ", sys.getsizeof(self.gp))
 
-        # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
-        sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
-        self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb, auto_start=True)
-
-        # Subscription to real mbes pings 
+        # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb)
         
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
@@ -320,42 +309,8 @@ class auv_pf(object):
         #  print(sigma)
         return mbes_gp, sigma
 
-    def mbes_real_cb(self, msg):
+    def mbes_cb(self, msg):
         self.latest_mbes = msg
-
-    # Action server to simulate MBES for the sim AUV
-    def mbes_as_cb(self, goal):
-
-        # Unpack goal
-        p_mbes = [goal.mbes_pose.transform.translation.x, 
-                 goal.mbes_pose.transform.translation.y, 
-                 goal.mbes_pose.transform.translation.z]
-        r_mbes = quaternion_matrix([goal.mbes_pose.transform.rotation.x,
-                                    goal.mbes_pose.transform.rotation.y,
-                                    goal.mbes_pose.transform.rotation.z,
-                                    goal.mbes_pose.transform.rotation.w])[0:3, 0:3]
-                
-        # IGL sim ping
-        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
-        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
-        mbes = self.draper.project_mbes(np.asarray(p_mbes), r_mbes,
-                                        goal.beams_num.data, self.mbes_angle)
-        
-        mbes = mbes[::-1] # Reverse beams for same order as real pings
-        
-        # Transform points to MBES frame (same frame than real pings)
-        rot_inv = r_mbes.transpose()
-        p_inv = rot_inv.dot(p_mbes)
-        mbes = np.dot(rot_inv, mbes.T)
-        mbes = np.subtract(mbes.T, p_inv)
-
-        # Pack result
-        mbes_cloud = pack_cloud(self.mbes_frame, mbes)
-        result = MbesSimResult()
-        result.sim_mbes = mbes_cloud
-        self.as_ping.set_succeeded(result)
-
-        self.latest_mbes = result.sim_mbes 
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -414,7 +369,7 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model
-            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            #  exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
             #  self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
 
@@ -424,9 +379,9 @@ class auv_pf(object):
                                            #  gp_samples, self.beams_num)
                    
             # IGL-based meas model
-            #  exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                #  self.beams_num, self.mbes_angle)
-            #  exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)

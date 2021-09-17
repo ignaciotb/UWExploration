@@ -9,14 +9,12 @@ project(auv_model)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
     roscpp
-    tf2
-    tf2_ros
-    pcl_ros
     eigen_conversions
-    tf_conversions
-    genmsg
+    tf
     actionlib_msgs
-    geometry_msgs
+    actionlib
+    std_msgs
+    sensor_msgs
     auv_2_ros
 )
 

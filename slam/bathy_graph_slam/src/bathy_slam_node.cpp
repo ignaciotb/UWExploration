@@ -11,6 +11,7 @@
 
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Bool.h>
+#include <std_srvs/Empty.h>
 
 #include <tf/transform_datatypes.h>
 #include <tf_conversions/tf_eigen.h>
@@ -52,7 +53,7 @@ public:
         synch_->registerCallback(&BathySlamNode::pingCB, this);
 
         submaps_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/submaps", 10, false);
-        ros::Publisher synch_pub_ = nh_->advertise<std_msgs::Bool>(synch_top, 10, false);
+        // ros::Publisher synch_pub_ = nh_->advertise<std_msgs::Bool>(synch_top, 10, false);
         enable_subs_ = nh_->subscribe(enable_top, 1, &BathySlamNode::enableCB, this);
 
         try {
@@ -67,10 +68,14 @@ public:
 
         submaps_cnt_ = 0;
 
-        // Synch signal to start auv_2_ros survey
-        std_msgs::Bool synchMsg;
-        synchMsg.data = true;
-        synch_pub_.publish(synchMsg);
+        // Empty service to synch the applications waiting for this node to start
+        synch_service_ = nh_->advertiseService(synch_top,
+                                               &BathySlamNode::emptySrv, this);
+        ROS_INFO("Initialized SLAM");
+    }
+
+    bool emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res)
+    {
     }
 
     void bcMapSubmapsTF(const ros::TimerEvent&){
@@ -111,11 +116,10 @@ private:
     ros::Publisher submaps_pub_;
     ros::Subscriber enable_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
+    ros::ServiceServer synch_service_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_subs_;
-    message_filters::TimeSynchronizer<sensor_msgs::PointCloud2, nav_msgs::Odometry>* sync_;
-
     typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
     message_filters::Synchronizer<MySyncPolicy>* synch_;
 

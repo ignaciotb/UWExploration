@@ -11,6 +11,7 @@ from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Quaternion
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Bool
+from std_srvs.srv import Empty
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
@@ -155,12 +156,6 @@ class auv_pf(object):
 
         self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
-        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
-        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
-        self.synch_pub = rospy.Publisher(synch_top, Bool, queue_size=10)
-        msg = Bool()
-        msg.data = True
-
         # Transforms from auv_2_ros
         try:
             rospy.loginfo("Waiting for transforms")
@@ -185,8 +180,12 @@ class auv_pf(object):
 
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
-        self.synch_pub.publish(msg)
+
+        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
         
+        # Topic to signal end of survey
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
@@ -199,8 +198,12 @@ class auv_pf(object):
         self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
                                     self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
-
         rospy.spin()
+
+
+    def empty_srv(self, req):
+        rospy.loginfo("PF Ready")
+        return None
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 

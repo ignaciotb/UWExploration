@@ -30,6 +30,7 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 #include <std_msgs/Bool.h>
+#include <std_srvs/Empty.h>
 
 #include <actionlib/client/simple_action_client.h>
 #include <auv_2_ros/MbesSimAction.h>
@@ -51,10 +52,8 @@ public:
     void broadcastTf(const ros::TimerEvent &);
 
     void publishOdom(Vector3d odom_ping_i, Vector3d euler);
-
-    // void publishExpectedMeas();
-
-    void addMiniCar(std::string& mini_name);
+   
+    void addMiniCar(std::string &mini_name);
 
     void initMiniFrames(std::vector<Vector3d> &minis_poses);
 
@@ -97,7 +96,7 @@ private:
     geometry_msgs::TransformStamped world_map_tfmsg_;
     std::vector<geometry_msgs::TransformStamped> map_mini_tfmsgs_;
 
-    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, mini_frame_;
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, mini_frame_, synch_name_;
 
     bool start_replay_, survey_finished_, change_detection_, add_mini_;
     int ping_cnt_;
@@ -105,8 +104,6 @@ private:
     int beams_num_;
     int first_ping_;
     int last_ping_;
-
-
 };
 
 

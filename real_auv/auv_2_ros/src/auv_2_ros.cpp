@@ -5,7 +5,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     node_name_(node_name), nh_(&nh){
 
     std::string gt_pings_top, debug_pings_top, mbes_as_name, gt_odom_top,
-    sim_pings_top, enable_top, synch_name;
+    sim_pings_top, enable_top;
 
     nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
@@ -19,7 +19,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mini_link", mini_frame_, "mini_link");
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
     // nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
-    nh_->param<std::string>("synch_topic", synch_name, "/pf/synch");
+    nh_->param<std::string>("synch_topic", synch_name_, "/pf/synch");
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);
     nh_->param<int>("n_beams_mbes", beams_num_, 100);
@@ -31,7 +31,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 1);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 100);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 1);
-    pf_synch_sub_ = nh_->subscribe(synch_name, 1, &BathymapConstructor::synchCB, this);
+    // pf_synch_sub_ = nh_->subscribe(synch_name, 1, &BathymapConstructor::synchCB, this);
     // ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_as_name, true);
 
     ping_cnt_ = first_ping_;
@@ -39,18 +39,19 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     time_now_ = ros::Time::now();
     start_replay_ = false;
 
+
 }
 
 BathymapConstructor::~BathymapConstructor(){
 
 }
 
-void BathymapConstructor::synchCB(const std_msgs::BoolConstPtr& synch_msg){
-    std::cout << "Synch signal received" << std::endl;
-    start_replay_ = synch_msg->data;
-    time_prev_ = ros::Time::now();
+// void BathymapConstructor::synchCB(const std_msgs::BoolConstPtr& synch_msg){
+//     std::cout << "Synch signal received" << std::endl;
+//     start_replay_ = synch_msg->data;
+//     time_prev_ = ros::Time::now();
 
-}
+// }
 
 void BathymapConstructor::initMiniFrames(std::vector<Eigen::Vector3d>& minis_poses){
 
@@ -182,8 +183,6 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     prev_base_link_.transform.rotation.y = 0;
     prev_base_link_.transform.rotation.z = 0;
     prev_base_link_.transform.rotation.w = 1;
-
-    ROS_INFO("Initialized auv_2_ros");
 }
 
 void BathymapConstructor::addMiniCar(std::string & mini_name){
@@ -236,10 +235,10 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     }
 
     // Don't start survey until PF is up
-    if(start_replay_ != true){
-        ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for application to send synch signal");
-        return;
-    }
+    // if(start_replay_ != true){
+    //     ROS_INFO_NAMED(node_name_, "AUV2ROS Waiting for application to send synch signal");
+    //     return;
+    // }
 
     // BR odom-->base at time t
     new_base_link_.header.frame_id = odom_frame_;
@@ -263,9 +262,22 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     new_base_link_.transform.rotation.w = quato2p.w();
     static_broadcaster_.sendTransform(new_base_link_);
 
+    // Synch signal to start auv_2_ros survey
+    if (start_replay_ == false)
+    {
+        while (!ros::service::waitForService(synch_name_, -1) && ros::ok())
+        {
+            std::cout << synch_name_ << std::endl;
+            ROS_DEBUG_NAMED(node_name_, "auv_2_ros node waiting for app ");
+        }
+        ROS_INFO("AUV2ROS UP");
+        start_replay_ = true;
+    }
+
     this->publishOdom(odom_ping_i, euler);
 
-    if(ping_cnt_ == first_ping_ && add_mini_){
+    if (ping_cnt_ == first_ping_ && add_mini_)
+    {
         std::string mini_name = "/home/torroba/Downloads/MMT Mini Point Cloud/MMT_Mini_PointCloud.obj";
         addMiniCar(mini_name);
     }

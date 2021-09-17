@@ -18,7 +18,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
     nh_->param<std::string>("mini_link", mini_frame_, "mini_link");
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
-    nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
+    // nh_->param<std::string>("mbes_sim_as", mbes_as_name, "mbes_sim_server");
     nh_->param<std::string>("synch_topic", synch_name, "/pf/synch");
     nh_->param<bool>("change_detection", change_detection_, false);
     nh_->param<bool>("add_mini", add_mini_, false);

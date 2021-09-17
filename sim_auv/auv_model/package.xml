@@ -22,15 +22,13 @@
   <build_depend>roscpp</build_depend>
   <build_export_depend>roscpp</build_export_depend>
   <exec_depend>roscpp</exec_depend>
-  <exec_depend>tf2</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>pcl_ros</exec_depend>
-  <exec_depend>eigen_conversions</exec_depend>
-  <exec_depend>tf_conversions</exec_depend>
-  <exec_depend>auv_2_ros</exec_depend>
+  <exec_depend>tf</exec_depend>
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
-
+  <exec_depend>eigen_conversions</exec_depend>
+  <exec_depend>auv_2_ros</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
   <!-- The export tag contains other, unspecified, tags -->
   <export>
     <!-- Other tools can request additional information be placed here -->

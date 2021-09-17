@@ -6,6 +6,9 @@
 
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
+#include <message_filters/synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Bool.h>
 
@@ -32,22 +35,24 @@ public:
     BathySlamNode(std::string node_name, ros::NodeHandle& nh):
     node_name_(node_name), nh_(&nh){
 
-        std::string gt_pings_top, debug_pings_top, gt_odom_top, sim_pings_top, enable_top;
-        nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
-        nh_->param<std::string>("odom_gt", gt_odom_top, "/gt/odom");
+        std::string pings_top, debug_pings_top, odom_top, sim_pings_top, enable_top, synch_top;
+        nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
+        nh_->param<std::string>("odom_gt", odom_top, "/gt/odom");
         nh_->param<std::string>("map_frame", map_frame_, "map");
         nh_->param<std::string>("odom_frame", odom_frame_, "odom");
         nh_->param<std::string>("base_link", base_frame_, "base_frame");
         nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
         nh_->param<std::string>("survey_finished_top", enable_top, "enable");
+        nh_->param<std::string>("synch_topic", synch_top, "slam_synch");
 
-        mbes_subs_.subscribe(*nh_, gt_pings_top, 1);
-        odom_subs_.subscribe(*nh_, gt_odom_top, 1);
-        sync_ = new message_filters::TimeSynchronizer<sensor_msgs::PointCloud2, nav_msgs::Odometry>
-                (mbes_subs_, odom_subs_, 10);
-        sync_->registerCallback(&BathySlamNode::pingCB, this);
+        // Synchronizer for MBES and odom msgs
+        mbes_subs_.subscribe(*nh_, pings_top, 1);
+        odom_subs_.subscribe(*nh_, odom_top, 1);
+        synch_ = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(10), mbes_subs_, odom_subs_);
+        synch_->registerCallback(&BathySlamNode::pingCB, this);
 
         submaps_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/submaps", 10, false);
+        ros::Publisher synch_pub_ = nh_->advertise<std_msgs::Bool>(synch_top, 10, false);
         enable_subs_ = nh_->subscribe(enable_top, 1, &BathySlamNode::enableCB, this);
 
         try {
@@ -61,6 +66,11 @@ public:
         }
 
         submaps_cnt_ = 0;
+
+        // Synch signal to start auv_2_ros survey
+        std_msgs::Bool synchMsg;
+        synchMsg.data = true;
+        synch_pub_.publish(synchMsg);
     }
 
     void bcMapSubmapsTF(const ros::TimerEvent&){
@@ -71,12 +81,26 @@ public:
         for(tf::Transform& tf_measi_map: tf_submaps_vec_){
              tf_map_submap_stp = tf::StampedTransform(tf_measi_map,
                                                       ros::Time::now(),
-                                                      map_frame_,
+                                                      odom_frame_,
                                                       "submap_" + std::to_string(cnt_i));
 
              cnt_i += 1;
              tf::transformStampedTFToMsg(tf_map_submap_stp, msg_map_submap);
              submaps_bc_.sendTransform(msg_map_submap);
+        }
+    }
+
+    void pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, const nav_msgs::OdometryPtr &odom_msg)
+    {
+
+        tf::Transform ping_tf;
+        tf::poseMsgToTF(odom_msg->pose.pose, ping_tf);
+        submap_raw_.emplace_back(mbes_ping, ping_tf * tf_mbes_base_);
+
+        if (submap_raw_.size() > 100)
+        {
+            this->submapConstructor();
+            submap_raw_.clear();
         }
     }
 
@@ -91,6 +115,9 @@ private:
     message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_subs_;
     message_filters::TimeSynchronizer<sensor_msgs::PointCloud2, nav_msgs::Odometry>* sync_;
+
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
+    message_filters::Synchronizer<MySyncPolicy>* synch_;
 
     SubmapsVec submaps_vec_;
     std::vector<ping_raw> submap_raw_;
@@ -112,20 +139,7 @@ private:
         }
     }
 
-    void pingCB(const sensor_msgs::PointCloud2Ptr& mbes_ping, const nav_msgs::OdometryPtr& odom_msg){
-
-        tf::Transform ping_tf;
-        tf::poseMsgToTF(odom_msg->pose.pose, ping_tf);
-        submap_raw_.emplace_back(mbes_ping, ping_tf*tf_mbes_base_);
-
-        if(submap_raw_.size()>100){
-            this->submapConstructor();
-            submap_raw_.clear();
-        }
-    }
-
     void submapConstructor(){
-//        ROS_INFO_STREAM("Creating submap");
 
         // Store submap tf
         tf::Transform tf_submap_i = std::get<1>(submap_raw_.at(submap_raw_.size()/2));
@@ -157,6 +171,7 @@ private:
         submap_msg.header.frame_id = "submap_" + std::to_string(tf_submaps_vec_.size()-1);
         submap_msg.header.stamp = ros::Time::now();
         submaps_pub_.publish(submap_msg);
+        std::cout << "Submaps constructed" << std::endl;
     }
 };
 
@@ -169,7 +184,7 @@ int main(int argc, char** argv){
 
     BathySlamNode* bathy_slam = new BathySlamNode(ros::this_node::getName(), nh);
 
-    ros::Timer timer = nh.createTimer(ros::Duration(0.5), &BathySlamNode::bcMapSubmapsTF, bathy_slam);
+    ros::Timer timer = nh.createTimer(ros::Duration(1), &BathySlamNode::bcMapSubmapsTF, bathy_slam);
 
     ros::spin();
     ros::waitForShutdown();

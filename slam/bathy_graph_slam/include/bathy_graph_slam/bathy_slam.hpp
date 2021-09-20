@@ -17,6 +17,8 @@
 
 #include <tf/transform_datatypes.h>
 #include <tf_conversions/tf_eigen.h>
+#include <tf2_ros/static_transform_broadcaster.h>
+#include <tf2_ros/transform_listener.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf/transform_broadcaster.h>
 
@@ -72,8 +74,9 @@ public:
     tf::TransformBroadcaster submaps_bc_;
     tf::TransformListener tflistener_;
     tf::StampedTransform tf_mbes_base_;
+    tf2_ros::StaticTransformBroadcaster static_broadcaster_;
 
-    samGraph *isam_obj;
+    samGraph *graph_solver;
 };
 
 #endif

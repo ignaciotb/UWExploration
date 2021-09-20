@@ -28,6 +28,8 @@
 
 #include <Eigen/Core>
 
+#include <bathy_graph_slam/sam_graph.hpp>
+
 class BathySlamNode{
     typedef std::tuple<sensor_msgs::PointCloud2Ptr, tf::Transform> ping_raw;
 
@@ -44,7 +46,7 @@ public:
 
     void enableCB(const std_msgs::BoolPtr &enable_msg);
 
-    void submapConstructor();
+    void addSubmap();
 
     std::string node_name_;
     ros::NodeHandle *nh_;
@@ -61,11 +63,14 @@ public:
     SubmapsVec submaps_vec_;
     std::vector<ping_raw> submap_raw_;
     unsigned int submaps_cnt_;
-
+    bool first_msg_;
+    
     std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
     tf::TransformListener tflistener_;
     tf::StampedTransform tf_mbes_base_;
+
+    samGraph *isam_obj;
 };
 
 #endif

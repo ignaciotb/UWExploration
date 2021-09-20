@@ -21,7 +21,6 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh): node_n
     synch_->registerCallback(&BathySlamNode::pingCB, this);
 
     submaps_pub_ = nh_->advertise<sensor_msgs::PointCloud2>("/submaps", 10, false);
-    // ros::Publisher synch_pub_ = nh_->advertise<std_msgs::Bool>(synch_top, 10, false);
     enable_subs_ = nh_->subscribe(enable_top, 1, &BathySlamNode::enableCB, this);
 
     try {
@@ -34,7 +33,12 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh): node_n
         ros::Duration(1.0).sleep();
     }
 
+    // Initialize survey params
+    first_msg_ = true;
     submaps_cnt_ = 0;
+
+    // ISAM solver
+    isam_obj = new samGraph();
 
     // Empty service to synch the applications waiting for this node to start
     synch_service_ = nh_->advertiseService(synch_top,
@@ -78,6 +82,12 @@ void BathySlamNode::updateTf()
 
 void BathySlamNode::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, const nav_msgs::OdometryPtr &odom_msg)
 {
+    // Set prior on first odom pose
+    if (first_msg_){
+        std::cout << "Adding prior now " << std::endl;
+        isam_obj->addPrior();
+        first_msg_ = false;
+    }
 
     tf::Transform ping_tf;
     tf::poseMsgToTF(odom_msg->pose.pose, ping_tf);
@@ -85,7 +95,7 @@ void BathySlamNode::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, const n
 
     if (submap_raw_.size() > 20)
     {
-        this->submapConstructor();
+        this->addSubmap();
         submap_raw_.clear();
     }
 }
@@ -104,21 +114,19 @@ void BathySlamNode::enableCB(const std_msgs::BoolPtr &enable_msg)
     }
 }
 
-void BathySlamNode::submapConstructor()
+void BathySlamNode::addSubmap()
 {
     std::cout << "Calling submap constructor" << std::endl;
 
     // Store submap tf
     tf::Transform tf_submap_i = std::get<1>(submap_raw_.at(submap_raw_.size()/2));
     tf_submaps_vec_.push_back(tf_submap_i);
-    std::cout << "New submap tf stored" << std::endl;
 
     // Create submap object
     SubmapObj submap_i;
     Eigen::Affine3d tf_affine;
     tf::transformTFToEigen(tf_submap_i, tf_affine);
     submap_i.submap_tf_ = tf_affine.matrix().cast<float>();
-    std::cout << "Submap created" << std::endl;
 
     for(ping_raw& ping_j: submap_raw_){
         PointCloudT pcl_ping;
@@ -135,7 +143,12 @@ void BathySlamNode::submapConstructor()
     submaps_cnt_++;
     submaps_vec_.push_back(submap_i);
 
+    // Update TF
     this->updateTf();
+
+    // Update graph DR
+    
+
 }
 
 

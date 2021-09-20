@@ -84,7 +84,6 @@ void BathySlamNode::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, const n
 {
     // Set prior on first odom pose
     if (first_msg_){
-        std::cout << "Adding prior now " << std::endl;
         isam_obj->addPrior();
         first_msg_ = false;
     }
@@ -114,6 +113,27 @@ void BathySlamNode::enableCB(const std_msgs::BoolPtr &enable_msg)
     }
 }
 
+Pose2 BathySlamNode::odomStep(unsigned int odom_step)
+{
+    // // Rotation
+    // tf::Quaternion q_prev, q_now;
+    // tf::quaternionMsgToTF(submaps_vec_.at(submaps_cnt_ - 2).submap_tf_.rotation, q_prev);
+    // tf::quaternionMsgToTF(submaps_vec_.at(submaps_cnt_ - 1).submap_tf_.rotation, q_now);
+
+    // tf::Quaternion q_step = q_now.normalized() * q_prev.inverse().normalized();
+    // tf::Matrix3x3 m_step(q_step);
+    // double roll_step, pitch_step, yaw_step;
+    // m_step.getRPY(roll_step, pitch_step, yaw_step);
+
+    // // Translation
+    // Eigen::Vector3d pos_now, pos_prev;
+    // tf::vectorMsgToEigen(submaps_vec_.at(submaps_cnt_ - 2).submap_tf_.translation, pos_prev);
+    // tf::vectorMsgToEigen(submaps_vec_.at(submaps_cnt_ - 1).submap_tf_.translation, pos_now);
+    // Eigen::Vector3d pos_step = pos_now - pos_prev;
+
+    // return Pose2(pos_step[0], pos_step[1], yaw_step);
+}
+
 void BathySlamNode::addSubmap()
 {
     std::cout << "Calling submap constructor" << std::endl;
@@ -140,15 +160,18 @@ void BathySlamNode::addSubmap()
     submap_i.submap_id_ = submaps_cnt_;
 
     submap_i.auv_tracks_ = submap_i.submap_tf_.translation().transpose().cast<double>();
+
     submaps_cnt_++;
     submaps_vec_.push_back(submap_i);
+    
+    // Update graph DR
+    // Pose2 odom_step = this->odomStep(submaps_cnt_);
+    // odom_step.print("Latest odom step ");
+    // isam_obj->addOdomFactor();
+
 
     // Update TF
     this->updateTf();
-
-    // Update graph DR
-    
-
 }
 
 

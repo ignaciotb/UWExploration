@@ -52,41 +52,31 @@ bool BathySlamNode::emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyRespons
 
 void BathySlamNode::updateTf()
 {
-    int cnt_i = 0;
-    tf::StampedTransform tf_map_submap_stp;
     geometry_msgs::TransformStamped msg_map_submap;
-    for (tf::Transform &tf_measi_map : tf_submaps_vec_)
-    {
-        tf_map_submap_stp = tf::StampedTransform(tf_measi_map,
-                                                 ros::Time::now(),
-                                                 odom_frame_,
-                                                 "submap_" + std::to_string(cnt_i));
+    tf::StampedTransform tf_map_submap_stp(tf_submaps_vec_.at(submaps_cnt_),
+                                            ros::Time::now(),
+                                            odom_frame_,
+                                            "submap_" + std::to_string(submaps_cnt_));
 
-        cnt_i += 1;
-        tf::transformStampedTFToMsg(tf_map_submap_stp, msg_map_submap);
-        submaps_bc_.sendTransform(msg_map_submap);
-    }
+    std::cout << "submap_" + std::to_string(submaps_cnt_) << std::endl;
+    tf::transformStampedTFToMsg(tf_map_submap_stp, msg_map_submap);
+    static_broadcaster_.sendTransform(msg_map_submap);
 
     // For RVIZ
-    if (submaps_vec_.empty())
-    {
-        std::cout << "Submaps vec empty " << std::endl;
-    }
     sensor_msgs::PointCloud2 submap_msg;
-    pcl::toROSMsg(submaps_vec_.at(submaps_cnt_ - 1).submap_pcl_, submap_msg);
-    submap_msg.header.frame_id = "submap_" + std::to_string(tf_submaps_vec_.size() - 1);
+    pcl::toROSMsg(submaps_vec_.at(submaps_cnt_).submap_pcl_, submap_msg);
+    submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
     submap_msg.header.stamp = ros::Time::now();
     submaps_pub_.publish(submap_msg);
-    std::cout << "Submaps constructed" << std::endl;
 }
 
 void BathySlamNode::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, const nav_msgs::OdometryPtr &odom_msg)
 {
     // Set prior on first odom pose
-    if (first_msg_){
-        isam_obj->addPrior();
-        first_msg_ = false;
-    }
+    // if (first_msg_){
+    //     graph_solver->addPrior();
+    //     first_msg_ = false;
+    // }
 
     tf::Transform ping_tf;
     tf::poseMsgToTF(odom_msg->pose.pose, ping_tf);

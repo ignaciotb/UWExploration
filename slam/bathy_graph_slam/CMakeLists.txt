@@ -14,6 +14,8 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   tf
   tf_conversions
+  tf2
+  tf2_ros
   eigen_conversions
 )
 

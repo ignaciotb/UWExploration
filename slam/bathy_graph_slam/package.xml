@@ -59,6 +59,8 @@
   <depend>tf_conversions</depend>
   <depend>std_msgs</depend>
   <depend>eigen_conversions</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

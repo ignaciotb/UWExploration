@@ -27,40 +27,19 @@ using namespace gtsam;
 class samGraph{
     public:
 
-    samGraph(){
+    samGraph();
 
-        // ISAM solver params
-        ISAM2Params params = ISAM2Params(ISAM2GaussNewtonParams(0.001), 0.0,
-                                          0, false, true,
-                                          ISAM2Params::CHOLESKY, true,
-                                          DefaultKeyFormatter, true);
+    ~samGraph();
 
-        odoNoise = noiseModel::Diagonal::Sigmas((Vector(3) << 0.1, 0.1, M_PI / 100.0).finished());
+    void addPrior();
 
-        // Instantiate pointers
-        isam = new ISAM2(params);
-        fullGraph.reset(new NonlinearFactorGraph());
-        fullInit.reset(new Values());
-    }
-
-    void addPrior(){
-        NonlinearFactorGraph newfactors;
-        Pose2 pose_init(0.0, 0.0, 0.0);
-        newfactors.addPrior(0, pose_init, odoNoise);
-        fullGraph->push_back(newfactors);
-
-        Values init;
-        Pose2 pose_init_corrupted(0.01, 0.01, 0.01);
-        init.insert((0), pose_init_corrupted);
-        fullInit->insert((0), pose_init_corrupted);
-
-        isam->update(newfactors, init);
-    }
+    void addOdomFactor(Pose2 odom_step, size_t step);
 
     // Create a factor graph
-    NonlinearFactorGraph::shared_ptr fullGraph;
-    Values::shared_ptr fullInit;
-    ISAM2* isam;
+    NonlinearFactorGraph::shared_ptr newFactors_;
+    Values::shared_ptr initValues_;
+    boost::shared_ptr<ISAM2> isam_;
+    Pose2 lastPose_;
 
     // TODO: this has to be an input parameter
     SharedDiagonal odoNoise; 

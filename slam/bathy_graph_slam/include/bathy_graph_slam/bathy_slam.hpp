@@ -17,6 +17,7 @@
 
 #include <tf/transform_datatypes.h>
 #include <tf_conversions/tf_eigen.h>
+#include <eigen_conversions/eigen_msg.h>
 #include <tf/transform_broadcaster.h>
 
 #include "submaps_tools/submaps.hpp"
@@ -48,6 +49,8 @@ public:
 
     void addSubmap();
 
+    Pose2 odomStep(unsigned int odom_step);
+
     std::string node_name_;
     ros::NodeHandle *nh_;
     ros::Publisher submaps_pub_;
@@ -64,7 +67,7 @@ public:
     std::vector<ping_raw> submap_raw_;
     unsigned int submaps_cnt_;
     bool first_msg_;
-    
+
     std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
     tf::TransformListener tflistener_;

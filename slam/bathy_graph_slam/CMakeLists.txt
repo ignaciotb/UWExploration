@@ -14,16 +14,17 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   tf
   tf_conversions
-  )
+)
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 find_package(g2o REQUIRED)
 
+# Auvlib stuff
 find_package(LibXTF REQUIRED)
 find_package(LibGSF REQUIRED)
 find_package(EigenCereal REQUIRED)
@@ -35,6 +36,12 @@ find_package(BathyMaps REQUIRED)
 find_package(SubmapsTools REQUIRED)
 find_package(GraphOptimization REQUIRED)
 find_package(SubmapRegistration REQUIRED)
+
+
+#GTSAM components
+find_package(GTSAM REQUIRED) # Uses installed package
+find_package(GTSAMCMakeTools)
+include_directories(${GTSAM_INCLUDE_DIR})
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -174,6 +181,7 @@ target_link_libraries(${PROJECT_NAME}_node
    data_transforms
    utils_visualization
    benchmark
+   gtsam
 )
 
 #############

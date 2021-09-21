@@ -28,10 +28,51 @@
 #include "data_tools/benchmark.h"
 
 #include <actionlib/client/simple_action_client.h>
-
 #include <Eigen/Core>
 
-#include <bathy_graph_slam/sam_graph.hpp>
+#include <gtsam/geometry/Pose2.h>
+#include <gtsam/geometry/Point2.h>
+#include <gtsam/inference/Symbol.h>
+#include <gtsam/slam/BetweenFactor.h>
+#include <gtsam/sam/BearingRangeFactor.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
+#include <gtsam/nonlinear/Marginals.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/slam/dataset.h>
+#include <gtsam/nonlinear/Values.h>
+#include <gtsam/nonlinear/NonlinearISAM.h>
+#include <gtsam/nonlinear/ISAM2.h>
+
+using namespace gtsam;
+
+class samGraph
+{
+public:
+    samGraph();
+
+    ~samGraph();
+
+    void addPrior();
+
+    void addOdomFactor(Pose2 odom_step, size_t step);
+
+    void addRangeFactor(Pose2 odom_step, size_t step);
+
+    void addRangeFactor(Pose2 odom_step, size_t step, int lm_idx);
+
+    void updateISAM2();
+
+    // Create a factor graph
+    NonlinearFactorGraph::shared_ptr graph_;
+    Values::shared_ptr initValues_;
+    boost::shared_ptr<ISAM2> isam_;
+    Pose2 lastPose_;
+
+    // TODO: this has to be an input parameter
+    SharedDiagonal odoNoise_;
+    SharedDiagonal brNoise_;
+};
 
 class BathySlamNode{
     typedef std::tuple<sensor_msgs::PointCloud2Ptr, tf::Transform> ping_raw;
@@ -49,9 +90,13 @@ public:
 
     void enableCB(const std_msgs::BoolPtr &enable_msg);
 
-    void addSubmap();
+    void addSubmap(std::vector<ping_raw> submap_pings);
 
-    Pose2 odomStep(unsigned int odom_step);
+    Pose2 odomStep(int odom_step);
+
+    std::tuple<double, double> extractLandmarks(SubmapObj& submap_i);
+    
+    void checkForLoopClosures(SubmapObj submap_i);
 
     std::string node_name_;
     ros::NodeHandle *nh_;
@@ -67,16 +112,16 @@ public:
 
     SubmapsVec submaps_vec_;
     std::vector<ping_raw> submap_raw_;
-    unsigned int submaps_cnt_;
+    int submaps_cnt_;
     bool first_msg_;
 
     std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
     tf::TransformListener tflistener_;
-    tf::StampedTransform tf_mbes_base_;
+    tf::StampedTransform tf_base_mbes_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
 
-    samGraph *graph_solver;
+    boost::shared_ptr<samGraph> graph_solver;
 };
 
 #endif

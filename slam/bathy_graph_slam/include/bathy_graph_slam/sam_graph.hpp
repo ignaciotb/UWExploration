@@ -35,6 +35,8 @@ class samGraph{
 
     void addOdomFactor(Pose2 odom_step, size_t step);
 
+    // void initializeISAM();
+
     // Create a factor graph
     NonlinearFactorGraph::shared_ptr newFactors_;
     Values::shared_ptr initValues_;

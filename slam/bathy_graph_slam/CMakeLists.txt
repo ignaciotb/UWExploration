@@ -40,11 +40,14 @@ find_package(SubmapsTools REQUIRED)
 find_package(GraphOptimization REQUIRED)
 find_package(SubmapRegistration REQUIRED)
 
-
 #GTSAM components
 find_package(GTSAM REQUIRED) # Uses installed package
 find_package(GTSAMCMakeTools)
 include_directories(${GTSAM_INCLUDE_DIR})
+
+link_directories(${PCL_LIBRARY_DIRS})
+add_definitions(${PCL_DEFINITIONS})
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -145,8 +148,10 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
- include
- ${catkin_INCLUDE_DIRS}
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${EIGEN_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -183,6 +188,7 @@ target_link_libraries(${PROJECT_NAME}_node
    submaps_tools
    data_transforms
    benchmark
+   ${PCL_LIBRARIES}
    gtsam
 )
 

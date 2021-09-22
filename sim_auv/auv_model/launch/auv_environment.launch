@@ -14,8 +14,8 @@
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="2.308" />
+	<arg name="n_beams_mbes" default="200"/>	
+	<arg name="mbes_open_angle" default="0.908" />
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
@@ -106,7 +106,7 @@
 				<param name="synch_topic" value="/$(arg app)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="19000" />
+				<param name="start_mission_ping_num" value="18000" />
 				<!-- <param name="end_mission_ping_num" value="28000" /> -->
 			</node>
 		</group>

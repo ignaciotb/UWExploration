@@ -5,7 +5,7 @@ submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh)
 {
     std::string pings_top, debug_pings_top, odom_top, enable_top, submap_top;
     nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
-    nh_->param<std::string>("odom_gt", odom_top, "/gt/odom");
+    nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
     nh_->param<std::string>("base_link", base_frame_, "base_frame");
@@ -76,6 +76,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
 
     // Store submap tf
     tf::Transform tf_submap_i = std::get<1>(submap_pings.at(submap_pings.size() / 2));
+    ros::Time submap_time = std::get<0>(submap_pings.at(submap_pings.size() / 2))->header.stamp;
 
     // Create submap object
     // TODO: this should be done with the function in submaps.hpp
@@ -137,12 +138,12 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     sensor_msgs::PointCloud2 submap_msg;
     pcl::toROSMsg(*cloud_temp, submap_msg);
     submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
-    submap_msg.header.stamp = ros::Time::now();
+    submap_msg.header.stamp = submap_time;
     submaps_pub_.publish(submap_msg);
 
     // For testing outside the environment
-    for (const auto &point : *cloud_temp)
-        std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
+    // for (const auto &point : *cloud_temp)
+    //     std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
 
     submaps_vec_.push_back(submap_i);
     ROS_INFO("-----------");

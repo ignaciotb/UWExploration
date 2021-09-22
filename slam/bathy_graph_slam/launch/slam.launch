@@ -21,7 +21,7 @@
 
 		<node type="submap_constructor_node" pkg="bathy_graph_slam" name="submap_constructor_node" output="screen">
 			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
-			<param name="odom_gt"  value="/$(arg mode)/odom" />
+			<param name="odom_topic"  value="/$(arg mode)/odom" />
 			<param name="world_frame" value="$(arg world_frame)" />
 			<param name="map_frame" value="$(arg map_frame)" />
 			<param name="odom_frame" value="$(arg odom_frame)" />
@@ -34,7 +34,7 @@
 
 		<node type="bathy_graph_slam_node" pkg="bathy_graph_slam" name="bathy_slam_node" output="screen">
 			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
-			<param name="odom_gt"  value="/$(arg mode)/odom" />
+			<param name="odom_topic"  value="/$(arg mode)/odom" />
 			<param name="world_frame" value="$(arg world_frame)" />
 			<param name="map_frame" value="$(arg map_frame)" />
 			<param name="odom_frame" value="$(arg odom_frame)" />

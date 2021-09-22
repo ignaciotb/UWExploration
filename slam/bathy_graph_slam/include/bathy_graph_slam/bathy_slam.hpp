@@ -92,22 +92,26 @@ public:
 
     BathySlamNode(std::string node_name, ros::NodeHandle &nh);
 
+    void odomCB(const nav_msgs::OdometryPtr &odom_msg);
+
     bool emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res);
 
     void updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_i);
 
-    Pose2 odomStep(int odom_step);
+    Pose2 odomStep(double t_step);
 
     void checkForLoopClosures(SubmapObj submap_i);
 
     std::string node_name_;
     ros::NodeHandle *nh_;
     // ros::Publisher submaps_pub_;
-    ros::Subscriber submap_subs_;
+    ros::Subscriber odom_subs_, submap_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
     ros::ServiceServer synch_service_;
 
     SubmapsVec submaps_vec_;
+    std::vector<nav_msgs::Odometry> odomVec_;
+    boost::shared_ptr<nav_msgs::Odometry> prev_submap_odom_;
     int submaps_cnt_;
     bool first_msg_;
 

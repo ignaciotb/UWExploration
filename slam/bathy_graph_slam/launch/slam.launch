@@ -19,6 +19,19 @@
 
 	<group ns="$(arg app)">
 
+		<node type="submap_constructor_node" pkg="bathy_graph_slam" name="submap_constructor_node" output="screen">
+			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
+			<param name="odom_gt"  value="/$(arg mode)/odom" />
+			<param name="world_frame" value="$(arg world_frame)" />
+			<param name="map_frame" value="$(arg map_frame)" />
+			<param name="odom_frame" value="$(arg odom_frame)" />
+			<param name="base_link" value="$(arg namespace)/base_link" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+			<param name="submaps_topic" value="/$(arg app)/submaps" />
+			<!-- <param name="survey_finished_top" value="/$(arg namespace)/survey_finished" />
+			<param name="synch_topic" value="/$(arg app)/synch" /> -->
+		</node>
+
 		<node type="bathy_graph_slam_node" pkg="bathy_graph_slam" name="bathy_slam_node" output="screen">
 			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
 			<param name="odom_gt"  value="/$(arg mode)/odom" />
@@ -29,6 +42,7 @@
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="survey_finished_top" value="/$(arg namespace)/survey_finished" />
 			<param name="synch_topic" value="/$(arg app)/synch" />
+			<param name="submaps_topic" value="/$(arg app)/submaps" />
 		</node>
 	
 	</group>

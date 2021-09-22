@@ -16,7 +16,6 @@
 #include <pcl/io/ply_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
-
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>
@@ -85,7 +84,8 @@ public:
     SharedDiagonal brNoise_;
 };
 
-class BathySlamNode{
+class BathySlamNode
+{
     typedef std::tuple<sensor_msgs::PointCloud2Ptr, tf::Transform> ping_raw;
 
 public:
@@ -94,32 +94,19 @@ public:
 
     bool emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res);
 
-    void updateTf();
-
-    void pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, 
-                const nav_msgs::OdometryPtr &odom_msg);
+    void submapCB(const sensor_msgs::PointCloud2Ptr &submap_i);
 
     void enableCB(const std_msgs::BoolPtr &enable_msg);
 
-    void addSubmap(std::vector<ping_raw> submap_pings);
-
     Pose2 odomStep(int odom_step);
 
-    std::tuple<double, double> extractLandmarks(SubmapObj& submap_i);
-    
     void checkForLoopClosures(SubmapObj submap_i);
 
     std::string node_name_;
     ros::NodeHandle *nh_;
-    ros::Publisher submaps_pub_;
-    ros::Subscriber enable_subs_;
+    ros::Subscriber enable_subs_, submap_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
     ros::ServiceServer synch_service_;
-
-    message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
-    message_filters::Subscriber<nav_msgs::Odometry> odom_subs_;
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
-    message_filters::Synchronizer<MySyncPolicy> *synch_;
 
     SubmapsVec submaps_vec_;
     std::vector<ping_raw> submap_raw_;

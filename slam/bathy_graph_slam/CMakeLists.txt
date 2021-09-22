@@ -43,10 +43,10 @@ find_package(SubmapRegistration REQUIRED)
 #GTSAM components
 find_package(GTSAM REQUIRED) # Uses installed package
 find_package(GTSAMCMakeTools)
-include_directories(${GTSAM_INCLUDE_DIR})
+# include_directories(${GTSAM_INCLUDE_DIR})
 
-link_directories(${PCL_LIBRARY_DIRS})
-add_definitions(${PCL_DEFINITIONS})
+# link_directories(${PCL_LIBRARY_DIRS})
+# add_definitions(${PCL_DEFINITIONS})
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -135,7 +135,7 @@ add_definitions(${PCL_DEFINITIONS})
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+ INCLUDE_DIRS include
 #  LIBRARIES bathy_slam
 #  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
@@ -152,6 +152,8 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${EIGEN_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIR}
+  ${SubmapsTools_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -170,19 +172,10 @@ include_directories(
 add_executable(${PROJECT_NAME}_node
     src/bathy_slam_node.cpp)
 
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
 add_dependencies(${PROJECT_NAME}_node
     ${${PROJECT_NAME}_EXPORTED_TARGETS}
     ${catkin_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
    ${catkin_LIBRARIES}
    submaps_tools
@@ -190,6 +183,22 @@ target_link_libraries(${PROJECT_NAME}_node
    benchmark
    ${PCL_LIBRARIES}
    gtsam
+)
+
+
+add_executable(submap_constructor_node
+    src/submap_constructor.cpp)
+
+add_dependencies(submap_constructor_node
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(submap_constructor_node
+   ${catkin_LIBRARIES}
+   submaps_tools
+   data_transforms
+   benchmark
+   ${PCL_LIBRARIES}
 )
 
 #############

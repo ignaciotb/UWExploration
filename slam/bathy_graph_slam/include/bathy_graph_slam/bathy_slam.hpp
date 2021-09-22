@@ -94,9 +94,7 @@ public:
 
     bool emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res);
 
-    void submapCB(const sensor_msgs::PointCloud2Ptr &submap_i);
-
-    void enableCB(const std_msgs::BoolPtr &enable_msg);
+    void updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_i);
 
     Pose2 odomStep(int odom_step);
 
@@ -104,20 +102,22 @@ public:
 
     std::string node_name_;
     ros::NodeHandle *nh_;
-    ros::Subscriber enable_subs_, submap_subs_;
+    // ros::Publisher submaps_pub_;
+    ros::Subscriber submap_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
     ros::ServiceServer synch_service_;
 
     SubmapsVec submaps_vec_;
-    std::vector<ping_raw> submap_raw_;
     int submaps_cnt_;
     bool first_msg_;
 
     std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
-    tf::TransformListener tflistener_;
+    // tf::TransformListener tflistener_;
     tf::StampedTransform tf_base_mbes_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
+    tf2_ros::Buffer tfBuffer_;
+    tf2_ros::TransformListener tfListener_;
 
     boost::shared_ptr<samGraph> graph_solver;
 };

@@ -72,7 +72,7 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
 
     std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top;
     nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
-    nh_->param<std::string>("odom_gt", odom_top, "/gt/odom");
+    nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
     nh_->param<std::string>("base_link", base_frame_, "base_frame");
@@ -81,6 +81,7 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     nh_->param<std::string>("submaps_topic", submap_top, "/submaps");
 
     submap_subs_ = nh_->subscribe(submap_top, 2, &BathySlamNode::updateGraphCB, this);
+    odom_subs_ = nh_->subscribe(odom_top, 20, &BathySlamNode::odomCB, this);
 
     // tfListener_.reset(new tf2_ros::TransformListener(tfBuffer_));
     // try {
@@ -99,6 +100,19 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     // Initialize survey params
     first_msg_ = true;
     submaps_cnt_ = 0;
+    odomVec_.clear();
+    // Initial pose is on top of odom frame
+    prev_submap_odom_.reset(new nav_msgs::Odometry());
+    prev_submap_odom_->header.frame_id = odom_frame_;
+    prev_submap_odom_->child_frame_id = mbes_frame_;
+    prev_submap_odom_->header.stamp = ros::Time::now();
+    prev_submap_odom_->pose.pose.position.x = 0.0;
+    prev_submap_odom_->pose.pose.position.y = 0.0;
+    prev_submap_odom_->pose.pose.position.z = 0.0;
+    prev_submap_odom_->pose.pose.orientation.x = 0.0;
+    prev_submap_odom_->pose.pose.orientation.y = 0.0;
+    prev_submap_odom_->pose.pose.orientation.z = 0.0;
+    prev_submap_odom_->pose.pose.orientation.w = 1.0;
 
     // ISAM solver
     graph_solver.reset(new samGraph());
@@ -107,6 +121,11 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     synch_service_ = nh_->advertiseService(synch_top,
                                             &BathySlamNode::emptySrv, this);
     ROS_INFO_NAMED(node_name_, " initialized");
+}
+
+void BathySlamNode::odomCB(const nav_msgs::OdometryPtr &odom_msg)
+{
+    odomVec_.push_back(*odom_msg);
 }
 
 bool BathySlamNode::emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res)
@@ -137,7 +156,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &pcl_msg)
     // Update graph DR concatenating odom msgs between submaps
     if (submaps_cnt_ > 0)
     {
-        // Pose2 odom_step = this->odomStep(submaps_cnt_);
+        Pose2 odom_step = this->odomStep(pcl_msg->header.stamp.toSec());
         // graph_solver->addOdomFactor(odom_step, submaps_cnt_);
     }
     ROS_INFO_NAMED(node_name_, " added odom edge");
@@ -150,25 +169,37 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &pcl_msg)
     submaps_cnt_++;
 }
 
-Pose2 BathySlamNode::odomStep(int odom_step)
+Pose2 BathySlamNode::odomStep(double t_step)
 {
-    // TODO: compute odom adding odom msgs between landmarks
+    // Find odom msg corresponding to submap at time t_step
+    auto pos = odomVec_.begin();
+    pos = std::find_if(pos, odomVec_.end(), [&](const nav_msgs::Odometry& odom) {
+        return odom.header.stamp.toSec() == t_step;
+    });
 
-    // // Rotation
-    // ROS_INFO("Computing odom");
-    // Eigen::Quaternionf q_prev(submaps_vec_.at(submaps_cnt_ - 1).submap_tf_.linear());
-    // Eigen::Quaternionf q_now(submaps_vec_.at(submaps_cnt_).submap_tf_.linear()); 
-    // Eigen::Quaternionf q_step = q_now.normalized() * q_prev.inverse().normalized();
-    // Eigen::Vector3f euler = q_step.toRotationMatrix().eulerAngles(0, 1, 2);
+    // Odom step as diff between odom_msgs from two consecutive submaps
+    Eigen::Affine3d pose_now, pose_prev;
+    tf::poseMsgToEigen (pos->pose.pose, pose_now);
+    tf::poseMsgToEigen (prev_submap_odom_->pose.pose, pose_prev);
 
-    // // // Translation
-    // Eigen::Vector3f pos_now, pos_prev;
-    // pos_prev = submaps_vec_.at(submaps_cnt_ - 1).submap_tf_.translation();
-    // pos_now = submaps_vec_.at(submaps_cnt_).submap_tf_.translation();
-    // Eigen::Vector3f pos_step = pos_now - pos_prev;
-    // std::cout << pos_step << euler << std::endl;
+    // Rotation
+    Eigen::Quaterniond q_prev(pose_prev.linear());
+    Eigen::Quaterniond q_now(pose_now.linear()); 
+    Eigen::Quaterniond q_step = q_now.normalized() * q_prev.inverse().normalized();
+    Eigen::Vector3d euler = q_step.toRotationMatrix().eulerAngles(0, 1, 2);
 
-    // return Pose2(pos_step[0], pos_step[1], euler[2]);
+    // Translation
+    Eigen::Vector3d pos_now, pos_prev;
+    pos_prev = pose_prev.translation();
+    pos_now = pose_now.translation();
+    Eigen::Vector3d pos_step = pos_now - pos_prev;
+
+    // Store odom from current submap as prev
+    prev_submap_odom_.reset(new nav_msgs::Odometry(*pos));
+
+    // TODO: clear odomVec_ once in a while
+
+    return Pose2(pos_step[0], pos_step[1], euler[2]);
 }
 
 int main(int argc, char** argv){

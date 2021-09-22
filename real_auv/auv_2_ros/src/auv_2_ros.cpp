@@ -132,11 +132,11 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> minis tfs
-    std::vector<Eigen::Vector3d> minis_poses;
+    // std::vector<Eigen::Vector3d> minis_poses;
 //    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
-    minis_poses.push_back(Eigen::Vector3d(-220,-20,-17));
-    minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
-    initMiniFrames(minis_poses);
+    // minis_poses.push_back(Eigen::Vector3d(-220,-20,-17));
+    // minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
+    // initMiniFrames(minis_poses);
 
     // Store map --> mbes tf
     map_mbes_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();

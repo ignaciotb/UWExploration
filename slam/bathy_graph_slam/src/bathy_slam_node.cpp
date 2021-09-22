@@ -1,4 +1,5 @@
 #include <bathy_graph_slam/bathy_slam.hpp>
+// #include <pcl/keypoints/sift_keypoint.h>
 
 samGraph::samGraph()
 {
@@ -66,6 +67,7 @@ void samGraph::updateISAM2()
 
 //==========================================================================
 //==========================================================================
+
 BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh): node_name_(node_name), nh_(&nh)
 {
 
@@ -129,17 +131,17 @@ void BathySlamNode::updateTf()
     static_broadcaster_.sendTransform(msg_map_submap);
 
     // For RVIZ
-    sensor_msgs::PointCloud2 submap_msg;
-    pcl::toROSMsg(submaps_vec_.at(submaps_cnt_).submap_pcl_, submap_msg);
-    submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
-    submap_msg.header.stamp = ros::Time::now();
-    submaps_pub_.publish(submap_msg);
+    // sensor_msgs::PointCloud2 submap_msg;
+    // pcl::toROSMsg(submaps_vec_.at(submaps_cnt_).submap_pcl_, submap_msg);
+    // submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
+    // submap_msg.header.stamp = ros::Time::now();
+    // submaps_pub_.publish(submap_msg);
 }
 
 void BathySlamNode::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping, 
                            const nav_msgs::OdometryPtr &odom_msg)
 {
-    Set prior on first odom pose
+    // Set prior on first odom pose
     if (first_msg_){
         graph_solver->addPrior();
         first_msg_ = false;  
@@ -214,7 +216,40 @@ void BathySlamNode::checkForLoopClosures(SubmapObj submap_i){
 }
 
 std::tuple<double, double> BathySlamNode::extractLandmarks(SubmapObj& submap_i){
+    // Parameters for sift computation
+    const float min_scale = 0.01f;
+    const int n_octaves = 6;
+    const int n_scales_per_octave = 4;
+    const float min_contrast = 0.005f;
 
+    // // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>(submap_i.submap_pcl_));
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::io::loadPCDFile<pcl::PointXYZ>("/home/torroba/test_pcd.pcd", *cloud_xyz);
+    // std::cout << "Copied pcl " << cloud_xyz->size() << std::endl;
+
+    // // Estimate the sift interest points using z values from xyz as the Intensity variants
+    // pcl::SIFTKeypoint<pcl::PointXYZ, pcl::PointWithScale> sift;
+    // pcl::PointCloud<pcl::PointWithScale> result;
+    // pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+    // sift.setSearchMethod(tree);
+    // sift.setScales(min_scale, n_octaves, n_scales_per_octave);
+    // sift.setMinimumContrast(min_contrast);
+    // sift.setInputCloud(cloud_xyz);
+    // std::cout << "SIFT set up " << std::endl;
+    // sift.compute(result);
+
+    // std::cout << "No of SIFT points in the result are " << result.size() << std::endl;
+
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_temp(new pcl::PointCloud<pcl::PointXYZ>);
+    // copyPointCloud(result, *cloud_temp);
+
+    // sensor_msgs::PointCloud2 submap_msg;
+    // pcl::toROSMsg(*cloud_temp, submap_msg);
+    // submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
+    // submap_msg.header.stamp = ros::Time::now();
+    // submaps_pub_.publish(submap_msg);
+
+    return std::make_tuple(1.0, 1.0);
 }
 
 void BathySlamNode::addSubmap(std::vector<ping_raw> submap_pings)
@@ -242,6 +277,16 @@ void BathySlamNode::addSubmap(std::vector<ping_raw> submap_pings)
     submap_i.submap_pcl_.sensor_origin_ << submap_i.submap_tf_.translation();
     submap_i.submap_pcl_.sensor_orientation_ = submap_i.submap_tf_.linear();
     submap_i.submap_id_ = submaps_cnt_;
+
+    submap_i.submap_pcl_.width = submap_i.submap_pcl_.size();
+    submap_i.submap_pcl_.height = 1;
+    submap_i.submap_pcl_.is_dense = true;
+
+    // For testing outside the environment
+    // for (const auto &point : submap_i.submap_pcl_)
+    //     std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
+
+    pcl::io::savePCDFileASCII("/home/torroba/test_pcd.pcd", submap_i.submap_pcl_);
 
     // submap_i.auv_tracks_ = submap_i.submap_tf_.translation().transpose().cast<double>();
     submap_i.auv_tracks_ =Eigen::MatrixXd(3, 3);
@@ -271,24 +316,80 @@ void BathySlamNode::addSubmap(std::vector<ping_raw> submap_pings)
     submaps_cnt_++;
 }
 
-
+namespace pcl
+{
+    template <>
+    struct SIFTKeypointFieldSelector<PointXYZ>
+    {
+        inline float
+        operator()(const PointXYZ &p) const
+        {
+            return p.z;
+        }
+    };
+}
 
 int main(int argc, char** argv){
 
     ros::init(argc, argv, "bathy_slam_node");
     ros::NodeHandle nh("~");
-    
-    BathySlamNode* bathy_slam = new BathySlamNode(ros::this_node::getName(), nh);
 
-    // ros::Timer timer = nh.createTimer(ros::Duration(1), &BathySlamNode::bcMapSubmapsTF, bathy_slam);
+    // Parameters for sift computation
+    const float min_scale = 1.0f;
+    const int n_octaves = 6;
+    const int n_scales_per_octave = 4;
+    const float min_contrast = 0.005f;
 
-    ros::spin();
-    ros::waitForShutdown();
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>(submap_i.submap_pcl_));
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::io::loadPCDFile<pcl::PointXYZ>("/home/torroba/test_pcd.pcd", *cloud_xyz);
+    std::cout << "Copied pcl " << cloud_xyz->size() << std::endl;
 
-    if(!ros::ok()){
-        delete bathy_slam;
+    // Estimate the sift interest points using z values from xyz as the Intensity variants
+    pcl::SIFTKeypoint<pcl::PointXYZ, pcl::PointWithScale> sift;
+    pcl::PointCloud<pcl::PointWithScale> result;
+    pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+    sift.setSearchMethod(tree);
+    sift.setScales(min_scale, n_octaves, n_scales_per_octave);
+    sift.setMinimumContrast(min_contrast);
+    sift.setInputCloud(cloud_xyz);
+    std::cout << "SIFT set up " << std::endl;
+    sift.compute(result);
+
+    std::cout << "No of SIFT points in the result are " << result.size() << std::endl;
+
+    // Copying the pointwithscale to pointxyz so as visualize the cloud
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_temp(new pcl::PointCloud<pcl::PointXYZ>);
+    copyPointCloud(result, *cloud_temp);
+    std::cout << "SIFT points in the result are " << cloud_temp->size() << std::endl;
+    // Visualization of keypoints along with the original cloud
+    pcl::visualization::PCLVisualizer viewer("PCL Viewer");
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> keypoints_color_handler(cloud_temp, 0, 255, 0);
+    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> cloud_color_handler(cloud_xyz, 255, 0, 0);
+    viewer.setBackgroundColor(0.0, 0.0, 0.0);
+    viewer.addPointCloud(cloud_xyz, cloud_color_handler, "cloud");
+    viewer.addPointCloud(cloud_temp, keypoints_color_handler, "keypoints");
+    viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 7, "keypoints");
+
+    while (!viewer.wasStopped())
+    {
+        viewer.spinOnce();
     }
-    ROS_INFO("Bathy SLAM node finished");
+
+    return 0;
+
+   
+    // BathySlamNode* bathy_slam = new BathySlamNode(ros::this_node::getName(), nh);
+
+    // // ros::Timer timer = nh.createTimer(ros::Duration(1), &BathySlamNode::bcMapSubmapsTF, bathy_slam);
+
+    // ros::spin();
+    // ros::waitForShutdown();
+
+    // if(!ros::ok()){
+    //     delete bathy_slam;
+    // }
+    // ROS_INFO("Bathy SLAM node finished");
 
     return 0;
 }

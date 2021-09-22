@@ -6,6 +6,17 @@
 #include <pcl_ros/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+#include <pcl/point_types.h>
+#include <pcl/features/normal_3d.h>
+#include <pcl/io/pcd_io.h>
+
+#include <iostream>
+
+#include <pcl/keypoints/sift_keypoint.h>
+#include <pcl/io/ply_io.h>
+#include <pcl/visualization/pcl_visualizer.h>
+
+
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>

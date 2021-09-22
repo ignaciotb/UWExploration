@@ -24,10 +24,12 @@ samGraph::~samGraph()
 
 void samGraph::addPrior()
 {
+    // TODO: make Pose3
     // Add a prior at time 0 and update isam
     graph_->addPrior(0, Pose2(0.0, 0.0, 0.0), odoNoise_);
-    initValues_->insert((0), Pose2(0.01, 0.01, 0.01));
+    initValues_->insert((0), Pose2(0.0, 0.0, 0.0));
 
+    // TODO: do we need to update isam here?
     isam_->update(*graph_, *initValues_);
     graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
@@ -37,7 +39,9 @@ void samGraph::addPrior()
 void samGraph::addOdomFactor(Pose2 odom_step, size_t step)
 {
     // Add odometry
-    graph_->push_back(BetweenFactor<Pose2>(step - 1, step, odom_step, odoNoise_));
+    // submap i will be DR factor i+1 since the origin 
+    // (where there's no submap) is the factor 0
+    graph_->push_back(BetweenFactor<Pose2>(step, step+1, odom_step, odoNoise_));
 
     // Predict pose and add as initial estimate
     Pose2 predictedPose = lastPose_.compose(odom_step);
@@ -142,24 +146,16 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &pcl_msg)
     // tf::transformMsgToEigen(tf_o_submapi.transform, submap_tf_d);
     // ROS_INFO_NAMED("SLAM ", "TF received");
 
-
-    ROS_INFO_NAMED("SLAM ", "submap published");
-
     // Set prior on first odom pose
     if (first_msg_)
     {
         graph_solver->addPrior();
         first_msg_ = false;
-        ROS_INFO_NAMED("SLAM ", "added prior to graph");
     }
 
     // Update graph DR concatenating odom msgs between submaps
-    if (submaps_cnt_ > 0)
-    {
-        Pose2 odom_step = this->odomStep(pcl_msg->header.stamp.toSec());
-        // graph_solver->addOdomFactor(odom_step, submaps_cnt_);
-    }
-    ROS_INFO_NAMED(node_name_, " added odom edge");
+    Pose2 odom_step = this->odomStep(pcl_msg->header.stamp.toSec());
+    graph_solver->addOdomFactor(odom_step, submaps_cnt_);
 
     // If landmarks have been revisited, add measurements to graph and update ISAM
     // if (loop_closure){

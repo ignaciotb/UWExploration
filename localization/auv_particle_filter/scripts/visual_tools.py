@@ -123,7 +123,7 @@ class PFStatsVisualization(object):
         x = [a * math.cos(it) for it in t]
         y = [b * math.sin(it) for it in t]
         angle = math.atan2(eig_vec[1, big_ind], eig_vec[0, big_ind])
-        rot = Rot.from_euler('z', angle).as_dcm()[0:2, 0:2]
+        rot = Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
         fx = np.stack([x, y]).T @ rot
 
         px = np.array(fx[:, 0] + xEst[0]).flatten()

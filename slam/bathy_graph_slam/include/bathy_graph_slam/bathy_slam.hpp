@@ -47,7 +47,8 @@
 // #include <gtsam/inference/Symbol.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/StereoFactor.h>
-// #include <gtsam/sam/BearingRangeFactor.h>
+#include <gtsam/sam/BearingRangeFactor.h>
+#include <gtsam/geometry/BearingRange.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
@@ -59,6 +60,8 @@ using namespace gtsam;
 
 class samGraph
 {
+    typedef BearingRangeFactor<Pose3, Point3> BearingRangeFactor3D;
+
 public:
     samGraph();
 
@@ -68,7 +71,8 @@ public:
 
     void addOdomFactor(Pose3 odom_step, size_t step);
 
-    void addLandmarksFactor(Pose3 odom_step, size_t step, int lm_idx);
+    void addLandmarksFactor(PointCloudT&, size_t step, 
+                            std::vector<int>& lm_idx, Pose3 submap_pose);
 
     void updateISAM2();
 
@@ -77,6 +81,7 @@ public:
     Values::shared_ptr initValues_;
     boost::shared_ptr<ISAM2> isam_;
     Pose3 lastPose_;
+    int num_landmarks_;
 
     // TODO: this has to be an input parameter
     SharedDiagonal odoNoise_;
@@ -97,7 +102,7 @@ public:
 
     void updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_i);
 
-    Pose3 odomStep(double t_step);
+    Pose3 odomStep(double t_step, Pose3& current_pose);
 
     void checkForLoopClosures(SubmapObj submap_i);
 

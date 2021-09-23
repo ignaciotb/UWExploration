@@ -9,9 +9,10 @@ samGraph::samGraph()
                                      DefaultKeyFormatter, true);
 
     // TODO: this has to be an input param
-    odoNoise_ = noiseModel::Diagonal::Sigmas((Vector(3) << 0.1, 0.1, M_PI / 100.0).finished());
-    brNoise_ = noiseModel::Diagonal::Sigmas((Vector(2) << M_PI / 100.0, 0.1).finished());
-
+    odoNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 0.1, 0.1, 0,1,
+                                            0, 0, M_PI / 100.0).finished());
+    brNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 0.1, 0.1, 0,1,
+                                            0, 0, M_PI / 100.0).finished());
     // Instantiate pointers
     isam_.reset(new ISAM2(params));
     graph_.reset(new NonlinearFactorGraph());
@@ -24,44 +25,48 @@ samGraph::~samGraph()
 
 void samGraph::addPrior()
 {
-    // TODO: make Pose3
     // Add a prior at time 0 and update isam
-    graph_->addPrior(0, Pose2(0.0, 0.0, 0.0), odoNoise_);
-    initValues_->insert((0), Pose2(0.0, 0.0, 0.0));
+    graph_->addPrior(0, Pose3(Rot3(), Point3(0.0, 0.0, 0.0)), odoNoise_);
+    initValues_->insert(0, Pose3(Rot3(), Point3(0.0, 0.0, 0.0)));
+    // Init last pose where the odom frame is
+    lastPose_ = Pose3(Rot3(), Point3(0.0, 0.0, 0.0));
 
     // TODO: do we need to update isam here?
-    isam_->update(*graph_, *initValues_);
-    graph_.reset(new NonlinearFactorGraph());
-    initValues_.reset(new Values());
+    // isam_->update(*graph_, *initValues_);
+    // graph_.reset(new NonlinearFactorGraph());
+    // initValues_.reset(new Values());
     ROS_INFO("Prior updated");
 }
 
-void samGraph::addOdomFactor(Pose2 odom_step, size_t step)
+void samGraph::addOdomFactor(Pose3 odom_step, size_t step)
 {
     // Add odometry
     // submap i will be DR factor i+1 since the origin 
     // (where there's no submap) is the factor 0
-    graph_->push_back(BetweenFactor<Pose2>(step, step+1, odom_step, odoNoise_));
+    graph_->emplace_shared<BetweenFactor<Pose3> >(step, step+1, odom_step, odoNoise_);
 
     // Predict pose and add as initial estimate
-    Pose2 predictedPose = lastPose_.compose(odom_step);
+    Pose3 predictedPose = lastPose_.compose(odom_step);
     lastPose_ = predictedPose;
-    initValues_->insert((step), predictedPose);
+    initValues_->insert((step+1), predictedPose);
     ROS_INFO("Odom factor added");
 }
 
-void samGraph::addRangeFactor(Pose2 odom_step, size_t step, int lm_idx)
+void samGraph::addLandmarksFactor(Pose3 odom_step, size_t step, int lm_idx)
 {
-    graph_->push_back(BearingRangeFactor<Pose2, Point2>(step, lm_idx,
-                                                        Rot2::fromAngle(M_PI / 4.0), 5.0, brNoise_));
+    // graph.emplace_shared<GenericStereoFactor<Pose3,Point3> >(StereoPoint2(520, 480, 440), model, 1, 3, K);
+    // graph_->push_back(BearingRangeFactor<Pose2, Point2>(step, lm_idx,
+    //                                                     Rot2::fromAngle(M_PI / 4.0), 5.0, brNoise_));
 
-    initValues_->insert(lm_idx, Point2(5.0 / sqrt(2.0), 5.0 / sqrt(2.0)));
+    // initValues_->insert(lm_idx, Point2(5.0 / sqrt(2.0), 5.0 / sqrt(2.0)));
     ROS_INFO("RB factor added");
 }
 
 void samGraph::updateISAM2()
 {
     isam_->update(*graph_, *initValues_);
+    Values estimate = isam_->calculateEstimate();
+    estimate.print("Current estimate: ");
     graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
     ROS_INFO("ISAM updated");
@@ -154,7 +159,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &pcl_msg)
     }
 
     // Update graph DR concatenating odom msgs between submaps
-    Pose2 odom_step = this->odomStep(pcl_msg->header.stamp.toSec());
+    Pose3 odom_step = this->odomStep(pcl_msg->header.stamp.toSec());
     graph_solver->addOdomFactor(odom_step, submaps_cnt_);
 
     // If landmarks have been revisited, add measurements to graph and update ISAM
@@ -165,7 +170,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &pcl_msg)
     submaps_cnt_++;
 }
 
-Pose2 BathySlamNode::odomStep(double t_step)
+Pose3 BathySlamNode::odomStep(double t_step)
 {
     // Find odom msg corresponding to submap at time t_step
     auto pos = odomVec_.begin();
@@ -195,7 +200,8 @@ Pose2 BathySlamNode::odomStep(double t_step)
 
     // TODO: clear odomVec_ once in a while
 
-    return Pose2(pos_step[0], pos_step[1], euler[2]);
+    return Pose3(Rot3::Ypr(euler[2], euler[1], euler[0]), 
+                Point3(pos_step[0], pos_step[1], pos_step[2]));
 }
 
 int main(int argc, char** argv){

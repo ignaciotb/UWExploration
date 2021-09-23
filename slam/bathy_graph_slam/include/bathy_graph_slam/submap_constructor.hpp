@@ -33,6 +33,7 @@
 #include <tf/transform_broadcaster.h>
 
 #include "submaps_tools/submaps.hpp"
+#include "registration/gicp_reg.hpp"
 
 #include "data_tools/std_data.h"
 #include "data_tools/benchmark.h"
@@ -93,6 +94,8 @@ public:
     tf::TransformListener tflistener_;
     tf::StampedTransform tf_base_mbes_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
+
+    boost::shared_ptr<SubmapRegistration> gicp_reg_;
 };
 
 #endif

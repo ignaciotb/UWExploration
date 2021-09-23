@@ -38,6 +38,9 @@ submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh)
     // Initialize survey params
     submaps_cnt_ = 0;
 
+    // GICP registration class
+    gicp_reg_.reset(new SubmapRegistration());
+
     ROS_INFO_NAMED(node_name_, " initialized");
 }
 
@@ -63,7 +66,7 @@ void submapConstructor::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
     // Storing point cloud of mbes pings in mbes frame and current tf_odom_mbes_
     submap_raw_.emplace_back(mbes_ping, odom_base_tf * tf_base_mbes_);
 
-    if (submap_raw_.size() > 50)
+    if (submap_raw_.size() > 150)
     {
         this->addSubmap(submap_raw_);
         submap_raw_.clear();
@@ -129,6 +132,16 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     // Check for loop closures
     if(submaps_cnt_ > 1){
         this->checkForLoopClosures(submap_i);
+
+        // Register overlapping submaps
+        if(!submap_i.overlaps_idx_.empty()){
+            SubmapObj submap_i_copy = submap_i;
+            SubmapObj submap_trg = gicp_reg_->constructTrgSubmap(submaps_vec_, submap_i.overlaps_idx_);
+            if(gicp_reg_->gicpSubmapRegistration(submap_trg, submap_i_copy)){
+                //
+            }
+            submap_trg.submap_pcl_.clear();
+        }
     }
     // std::cout << "Checked for LCs" << std::endl;
 
@@ -163,6 +176,7 @@ PointCloudT::Ptr submapConstructor::extractLandmarks(SubmapObj submap_i)
     sift.setInputCloud(cloud_xyz);
     sift.compute(result);
 
+    std::cout << "No of points in original submap " << submap_i.submap_pcl_.size() << std::endl;
     std::cout << "No of SIFT points in the result are " << result.size() << std::endl;
 
     PointCloudT::Ptr cloud_temp(new PointCloudT);
@@ -174,7 +188,6 @@ PointCloudT::Ptr submapConstructor::extractLandmarks(SubmapObj submap_i)
 void submapConstructor::checkForLoopClosures(SubmapObj submap_i)
 {
     // Look for submaps overlapping the latest one
-    ROS_INFO_NAMED(node_name_, " Checking for loop closures ");
     SubmapsVec submaps_prev;
     for (SubmapObj &submap_k : submaps_vec_)
     {
@@ -190,11 +203,12 @@ void submapConstructor::checkForLoopClosures(SubmapObj submap_i)
     bool submaps_in_map_tf = false;
     submap_i.findOverlaps(submaps_in_map_tf, submaps_prev);
     submaps_prev.clear();
+    std::cout << "Overlap with submaps: ";
     for (unsigned int j = 0; j < submap_i.overlaps_idx_.size(); j++)
     {
-        std::cout << "Overlap with submap " << submap_i.overlaps_idx_.at(j);
+        std::cout << submap_i.overlaps_idx_.at(j) << " " ;
     }
-    ROS_INFO("Done checking for LCs");
+    std::cout << std::endl; 
 }
 
 int main(int argc, char **argv)

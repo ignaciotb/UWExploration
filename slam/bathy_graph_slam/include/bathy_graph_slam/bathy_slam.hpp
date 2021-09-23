@@ -42,14 +42,15 @@
 
 #include <gtsam/geometry/Pose2.h>
 #include <gtsam/geometry/Point2.h>
-#include <gtsam/inference/Symbol.h>
+#include <gtsam/geometry/Pose3.h>
+#include <gtsam/geometry/Point3.h>
+// #include <gtsam/inference/Symbol.h>
 #include <gtsam/slam/BetweenFactor.h>
-#include <gtsam/sam/BearingRangeFactor.h>
+#include <gtsam/slam/StereoFactor.h>
+// #include <gtsam/sam/BearingRangeFactor.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 #include <gtsam/nonlinear/Marginals.h>
-#include <gtsam/nonlinear/Values.h>
-#include <gtsam/slam/dataset.h>
 #include <gtsam/nonlinear/Values.h>
 #include <gtsam/nonlinear/NonlinearISAM.h>
 #include <gtsam/nonlinear/ISAM2.h>
@@ -65,11 +66,9 @@ public:
 
     void addPrior();
 
-    void addOdomFactor(Pose2 odom_step, size_t step);
+    void addOdomFactor(Pose3 odom_step, size_t step);
 
-    void addRangeFactor(Pose2 odom_step, size_t step);
-
-    void addRangeFactor(Pose2 odom_step, size_t step, int lm_idx);
+    void addLandmarksFactor(Pose3 odom_step, size_t step, int lm_idx);
 
     void updateISAM2();
 
@@ -77,7 +76,7 @@ public:
     NonlinearFactorGraph::shared_ptr graph_;
     Values::shared_ptr initValues_;
     boost::shared_ptr<ISAM2> isam_;
-    Pose2 lastPose_;
+    Pose3 lastPose_;
 
     // TODO: this has to be an input parameter
     SharedDiagonal odoNoise_;
@@ -98,7 +97,7 @@ public:
 
     void updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_i);
 
-    Pose2 odomStep(double t_step);
+    Pose3 odomStep(double t_step);
 
     void checkForLoopClosures(SubmapObj submap_i);
 

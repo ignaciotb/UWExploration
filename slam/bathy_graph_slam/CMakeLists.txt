@@ -196,6 +196,7 @@ add_dependencies(submap_constructor_node
 target_link_libraries(submap_constructor_node
    ${catkin_LIBRARIES}
    submaps_tools
+   gicp_registration
    data_transforms
    benchmark
    ${PCL_LIBRARIES}

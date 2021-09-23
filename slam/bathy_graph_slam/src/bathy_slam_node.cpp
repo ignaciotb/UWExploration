@@ -75,15 +75,14 @@ void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step,
     }
     // initValues_->print("Init values ");
     ROS_INFO("RB factor added");
-}
+} 
 
 void samGraph::updateISAM2()
 {
-    ROS_INFO("About to update ISAM");
     isam_->update(*graph_, *initValues_);
 
     Values estimate = isam_->calculateEstimate();
-    estimate.print("Current estimate: ");
+    // estimate.print("Current estimate: ");
     graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
     ROS_INFO("ISAM updated");
@@ -186,9 +185,9 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_meas
     graph_solver->addLandmarksFactor(meas_pcl, submaps_cnt_, lm_idx, current_pose);
 
     // If landmarks have been revisited, add measurements to graph and update ISAM
-    if (submaps_cnt_ == 2){
-        graph_solver->updateISAM2();
-    }
+    // if (submaps_cnt_ == 2){
+    //     graph_solver->updateISAM2();
+    // }
 
     submaps_cnt_++;
 }

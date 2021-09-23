@@ -178,7 +178,7 @@ void submapConstructor::checkForLoopClosures(SubmapObj submap_i)
     SubmapsVec submaps_prev;
     for (SubmapObj &submap_k : submaps_vec_)
     {
-        // Don't look for overlaps between submaps of the same swath or the prev submap
+        // Don't look for overlaps between consecutive submaps
         if (submap_k.submap_id_ != submap_i.submap_id_ - 1)
         {
             submaps_prev.push_back(submap_k);
@@ -186,8 +186,9 @@ void submapConstructor::checkForLoopClosures(SubmapObj submap_i)
     }
     std::cout << "Stored prev potential submaps " << submaps_prev.size() << std::endl;
 
-    submap_i.findOverlaps(submaps_prev);
-    ROS_INFO("Done looking for overlaps");
+    // Submaps in map frame?
+    bool submaps_in_map_tf = false;
+    submap_i.findOverlaps(submaps_in_map_tf, submaps_prev);
     submaps_prev.clear();
     for (unsigned int j = 0; j < submap_i.overlaps_idx_.size(); j++)
     {

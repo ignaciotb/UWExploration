@@ -127,26 +127,19 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     PointCloudT::Ptr cloud_lm = this->extractLandmarks(submap_i);
 
     // Check for loop closures
-    // if(submaps_cnt_ > 1){
-    //     this->checkForLoopClosures(submap_i);
-    // }
+    if(submaps_cnt_ > 1){
+        this->checkForLoopClosures(submap_i);
+    }
     // std::cout << "Checked for LCs" << std::endl;
 
-    // Transform landmarks to range and bearing measurements
-
-    // Publish landmarks as range bearing measurements for the graph
+    // Publish SIFT landmarks for the graph
     sensor_msgs::PointCloud2 submap_msg;
     pcl::toROSMsg(*cloud_lm, submap_msg);
     submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
     submap_msg.header.stamp = submap_time;
     submaps_pub_.publish(submap_msg);
 
-    // For testing outside the environment
-    // for (const auto &point : *cloud_lm)
-    //     std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
-
     submaps_vec_.push_back(submap_i);
-    ROS_INFO("-----------");
     submaps_cnt_++;
 }
 

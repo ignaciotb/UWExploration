@@ -64,16 +64,16 @@ void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step,
         graph_->emplace_shared<BearingRangeFactor<Pose3, Point3> >(
             Symbol('x', step+1), Symbol('l', num_landmarks_), submap_pose.bearing(lm), submap_pose.range(lm), brNoise_);
 
-        std::cout << "--------" << std::endl;
-        std::cout << submap_pose.bearing(lm) << std::endl;
-        std::cout << submap_pose.range(lm) << std::endl;
         // Add initial estimate for landmarks
-        initValues_->insert(Symbol('l', num_landmarks_), lm);
+        if (!initValues_->exists(Symbol('l', num_landmarks_))) {
+            // TODO: transform landmarks to map frame. Currently in odom frame
+            // Pose3 submap_in_map(submap_pose.matrix() * submap_pose.matrix());
+            Point3 mapLandmark = submap_pose.transformFrom(lm);
+            initValues_->insert(Symbol('l', num_landmarks_), mapLandmark);
+        }
         num_landmarks_++;
     }
-    // graph_->push_back(BearingRangeFactor3D(step, lm_idx,
-    //  Rot3(), 5.0, brNoise_));
-
+    // initValues_->print("Init values ");
     ROS_INFO("RB factor added");
 }
 
@@ -81,6 +81,7 @@ void samGraph::updateISAM2()
 {
     ROS_INFO("About to update ISAM");
     isam_->update(*graph_, *initValues_);
+
     Values estimate = isam_->calculateEstimate();
     estimate.print("Current estimate: ");
     graph_.reset(new NonlinearFactorGraph());
@@ -185,7 +186,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_meas
     graph_solver->addLandmarksFactor(meas_pcl, submaps_cnt_, lm_idx, current_pose);
 
     // If landmarks have been revisited, add measurements to graph and update ISAM
-    if (submaps_cnt_ == 1){
+    if (submaps_cnt_ == 2){
         graph_solver->updateISAM2();
     }
 

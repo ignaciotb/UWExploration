@@ -66,7 +66,7 @@ void submapConstructor::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
     // Storing point cloud of mbes pings in mbes frame and current tf_odom_mbes_
     submap_raw_.emplace_back(mbes_ping, odom_base_tf * tf_base_mbes_);
 
-    if (submap_raw_.size() > 150)
+    if (submap_raw_.size() > 250)
     {
         this->addSubmap(submap_raw_);
         submap_raw_.clear();
@@ -128,6 +128,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
 
     // Extract landmarks from submap point cloud
     PointCloudT::Ptr cloud_lm = this->extractLandmarks(submap_i);
+    pcl::io::savePCDFileASCII("/home/torroba/Downloads/submaps/submap_" + std::to_string(submaps_cnt_), *cloud_lm);
 
     // Check for loop closures
     if(submaps_cnt_ > 1){
@@ -137,7 +138,8 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
         if(!submap_i.overlaps_idx_.empty()){
             SubmapObj submap_i_copy = submap_i;
             SubmapObj submap_trg = gicp_reg_->constructTrgSubmap(submaps_vec_, submap_i.overlaps_idx_);
-            if(gicp_reg_->gicpSubmapRegistration(submap_trg, submap_i_copy)){
+            if (gicp_reg_->gicpSubmapRegistrationSimple(submap_trg, submap_i_copy))
+            {
                 //
             }
             submap_trg.submap_pcl_.clear();

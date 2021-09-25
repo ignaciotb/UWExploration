@@ -96,7 +96,7 @@ class Train_gps():
             # print('\n ... saving the posterior...')
             
             if self.count_training[idx] < len(self.numbers):
-                # print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
+                print('... done with particle {} training {} '.format(idx , self.numbers[self.count_training[idx]]))
                 self.f.write('Particle {}   Training {}    Time {:.1f} seconds.\n'.format(idx , self.numbers[self.count_training[idx]], time.time() - t0))
             else:
                 # print('... done with particle {} training {} '.format(idx , self.count_training[idx]))
@@ -136,7 +136,7 @@ class Train_gps():
         if self.gp_obj[idx].lengthscale < self.l_max:
             arr = np.array([0, idx]) # True = 0
         else: 
-            print('lengthscale is ', self.gp_obj[idx].lengthscale)
+            print('lengthscale is above maximum value at:', self.gp_obj[idx].lengthscale)
             print('... for particle {} training {} '.format(idx , self.count_training[idx]))
             arr = np.array([1, idx]) # False = 1
 

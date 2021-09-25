@@ -14,8 +14,8 @@
   <!-- GP -->
   <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
 	<arg name="l_max" default="50."/>  
-	<arg name="gamma" default=".5"/>  
-	<arg name="th_reg" default="100."/>  
+	<arg name="gamma" default=".3"/>  
+	<arg name="th_reg" default="45."/>  
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
   <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
@@ -32,7 +32,7 @@
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
   <!-- <arg name="resampling_noise_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/> -->
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.01]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/> 
   <arg name="measurement_std"  default="3"/>
 
@@ -91,17 +91,17 @@
 
     </node>
 
-    <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
+    <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
       <param name="background_img_path" value="/home/stine/catkin_ws/src/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
-      <param name="survey_name" value="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/result"/>
-      <param name="result_path" value="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results/"/>
+      <param name="survey_name" value="$(arg data_path)" />
+      <param name="result_path" value="$(arg data_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
-   </node> -->
+   </node>
 
 <!-- for first run ... > -->
 <!--  catkin_make -DCMAKE_BUILD_TYPE=Release install  -->

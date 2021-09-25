@@ -25,16 +25,16 @@ class keyboard_trajectory():
                 break
             elif val =='t' or val == 'T':
                 pub_trajectory.publish(msg)
-                print('Trajectory will be saved.')
+                print('Trajectory will be saved.\n')
             elif val =='m' or val == 'M':
                 pub_map.publish(msg)
-                print('Final map will be saved.\nTerminal shuts down.')
+                print('Final map will be saved.\n')
             elif int(val) > 0 and int(val) < 50:
                 print('choosing particle ', val)
                 msgInt = Float32()
                 msgInt.data = float(val)
-
                 pub_gp.publish(msgInt)
+                break
 
             
         # rospy.spin()

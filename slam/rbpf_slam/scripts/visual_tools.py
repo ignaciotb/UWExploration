@@ -4,6 +4,7 @@ import rospy
 import matplotlib.pyplot as plt
 import numpy as np
 import math
+import os
 
 from scipy.spatial.transform import Rotation as Rot
 from rospy_tutorials.msg import Floats
@@ -31,6 +32,9 @@ class PFStatsVisualization(object):
 
         # PF ping subscriber
         pf_pings_top = rospy.get_param("~particle_sim_mbes_topic", 'pf_mbes_pings')
+
+        if not os.path.exists(self.survey_name + 'plot_result/'):
+            os.makedirs(self.survey_name + 'plot_result/')
 
         self.real_pings_sub = message_filters.Subscriber(mbes_pings_top, PointCloud2)
         self.pf_pings_sub = message_filters.Subscriber(pf_pings_top, PointCloud2)
@@ -134,6 +138,8 @@ class PFStatsVisualization(object):
 
         px = np.array(fx[:, 0] + xEst[0]).flatten()
         py = np.array(fx[:, 1] + xEst[1]).flatten()
+
+        plt.figure(1)
         plt.plot(px, py, "--r")
 
    
@@ -172,13 +178,13 @@ class PFStatsVisualization(object):
                 plt.plot(self.filt_vec[2,:],
                          self.filt_vec[3,:], "-k")
 
-                plt.plot(self.filt_vec[5,:],
-                         self.filt_vec[6,:], "-b")
+                # plt.plot(self.filt_vec[5,:],
+                #          self.filt_vec[6,:], "-b")
 
                 plt.plot(self.filt_vec[8,:],
                          self.filt_vec[9,:], "-r")
 
-                self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
+                # self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
             # Plot error between DR PF and GT
             if True:
@@ -236,11 +242,19 @@ class PFStatsVisualization(object):
             if self.survey_finished:
                 # fig 1
                 plt.figure(1)
-                plt.legend(['GT', 'Odom', 'PF'])
-                plt.title('X-Y track')
+                plt.legend(['GT', 'PF'])
+                plt.title('Resulting path')
                 plt.xlabel('x axis (m)')
                 plt.ylabel('y axis (m)')
-                plt.savefig(self.survey_name + "_tracks.png")
+                plt.savefig(self.survey_name + 'plot_result/' + "_tracks.png")
+                # fig 1 zoomed
+                plt.figure(1)
+                plt.axis([-250, 150, -100, 300])
+                plt.legend(['GT', 'PF'])
+                plt.title('Zoomed path')
+                plt.xlabel('x axis (m)')
+                plt.ylabel('y axis (m)')
+                plt.savefig(self.survey_name + 'plot_result/' + "_zoomed.png")
                 # fig 2
                 plt.figure(2)
                 plt.subplot(3, 1, 1)
@@ -249,12 +263,12 @@ class PFStatsVisualization(object):
                 plt.legend(['Error between PF and GT'])
                 plt.subplot(3,1,3)
                 plt.legend(['trace of cov matrix'])
-                plt.savefig(self.survey_name + "_error.png")
+                plt.savefig(self.survey_name + 'plot_result/' + "_error.png")
                 # fig 1
                 plt.figure(3)
                 plt.legend(['k', 'b'])
                 plt.title('Real vs mbes')
-                plt.savefig(self.survey_name + "_real_vs_mbes.png")
+                plt.savefig(self.survey_name + 'plot_result/' + "_real_vs_mbes.png")
 
                 rospy.loginfo("Saving down image of the tracks.")
                 self.survey_finished = False

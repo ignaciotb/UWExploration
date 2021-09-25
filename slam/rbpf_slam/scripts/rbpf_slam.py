@@ -298,10 +298,6 @@ class rbpf_slam(object):
         # Concatenate sampling points x,y with sampled z
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
                                   mu_array.T), axis=1)
-        # print('\n\n mu ', mu)
-        # time.sleep(2)
-        # print('\n\ sigma ', sigma)
-        # time.sleep(2)
         return mbes_gp, sigma, mu
 
     def mbes_real_cb(self, msg):
@@ -584,18 +580,9 @@ class rbpf_slam(object):
                 # N_beams = len(self.targets)
                 # B_min = N_beams * self.gamma
 
-        if self.ctr > self.pc * self.gamma: #  self.pc / 2
-            # if self.ctr >= self.pc:
-            #     self.ctr = 0
-            self.time2resample = True
-
-        if self.time2resample:
-            weights = []
-            for i in range(self.pc):
-                weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
-        else:
-            weights = [0.]*self.pc
-
+        weights = []
+        for i in range(self.pc):
+            weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
         self.miss_meas = weights.count(0.0)
@@ -708,10 +695,10 @@ class rbpf_slam(object):
         self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
         # print ("N_eff ", N_eff)
         print('n_eff_filt ', self.n_eff_filt)
-        # print ("Missed meas ", self.miss_meas)
+        print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:
+        if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/2.:
             self.time2resample = False
             self.ctr = 0
             rospy.loginfo('resampling')

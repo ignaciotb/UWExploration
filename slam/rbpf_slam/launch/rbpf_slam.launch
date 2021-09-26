@@ -11,13 +11,13 @@
 	<arg name="n_beams_mbes" default="25"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
 	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
-  <!-- GP -->
+  <!-- mine added args -->
   <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
-	<arg name="l_max" default="50."/>  
-	<arg name="gamma" default=".3"/>  
-	<arg name="th_reg" default="45."/>  
+	<arg name="l_max" default="50."/>       <!--lengthscale has to be lower that l_max -->
+	<arg name="gamma" default=".3"/>        <!--How many procent of the beams that needs to be withing th_reg  -->
+	<arg name="th_reg" default="45."/>      <!--How close mbes x-y pose is to the first ping, when it's time for training.  -->
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
-  <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" />
+  <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" /> <!-- Where to save the results  -->
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
 
   <!-- final map  -->
@@ -71,8 +71,8 @@
   	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-      <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
-      <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
+      <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
+      <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
       <param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
       <param name="gp_path" value="$(find rbpf_slam)/data/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
       <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->

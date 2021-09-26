@@ -10,12 +10,11 @@ import time
 import numpy as np
 import os
 
-root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/' # tra 2 and 3 is good (4 in 2d)
+root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/' # Need to update to the path where the data is saved
 _, dir_name, _ = next(os.walk(root)) 
 color_name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
 cmap = get_cmap(color_name)  # type: matplotlib.colors.ListedColormap
 col = cmap.colors  # type: list
-# dir_name.remove('gp_plot')
 
 def p_path():
     k = 0
@@ -57,7 +56,7 @@ def p_path():
 
 
 
-def Mapping(plot_type, Xd):
+def Mapping(plot_type, Xd): # using this function to find the best particle and ancestors
     
     n_particle = len(dir_name)
     all_err = [0]*n_particle
@@ -72,25 +71,19 @@ def Mapping(plot_type, Xd):
         n = len(name_est)
         mapping = np.zeros((1,3))
         err_vec = np.zeros((1,))
-        # print('particle ' + p)
         for i in range(n): 
             pm = np.load(map_path + 'est_map/' + name_est[i])
             mapping = np.append(mapping, pm, axis=0)
             Z_est = pm[:,2]
             z_obs = np.load(map_path + 'obs_depth/' + name_real[i])
-            # print('particle id ' + name_est[i])
-            # print('Z est ' , Z_est.shape)
-            # print('Z obs ' , z_obs.shape)
             try:
                 err_vec = np.append(err_vec, abs(Z_est-z_obs))
             except:
                 end_idx = len(Z_est)
-                # print('end idx = ', end_idx)
                 err_vec = np.append(err_vec, abs(Z_est-z_obs[0:end_idx]))
 
         all_err[j] = err_vec[1:]
         all_maps[j] = mapping[1:,:]
-        # print('with {} is name {}'.format(j,p))
         if len(all_err[j]) < n_data:
             n_data = len(all_err[j])
     
@@ -98,9 +91,8 @@ def Mapping(plot_type, Xd):
     idx = find_best_trajectory(all_err, n_data)
     # Make error smooth
     depth_err = make_error_smooth(all_err[idx])
-    # print('ALL maps', len(all_maps))
     print('best trajectory: ', idx)
-    print('with name: ' + dir_name[idx])
+    print('with particle: ' + dir_name[idx])
     final_map = all_maps[idx]
     np.save(root + 'final_map.npy', final_map)
     X = final_map[:,0]

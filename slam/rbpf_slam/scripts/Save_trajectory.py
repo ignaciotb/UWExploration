@@ -18,9 +18,8 @@ class keyboard_trajectory():
         msg = Bool()
         msg.data = True
 
-        
         while True:
-            val = input('Press  t  to save down the trajectory \nPress  m  to save down the final map \nPress  q  to quit\n...')
+            val = input('Press  m  to save down the xy-path \nPress  t  to save down the trajectory \nPress  q  to quit \nWrite the particle number which final map should be saved:\n...')
             if val == 'q':
                 break
             elif val =='t' or val == 'T':
@@ -28,16 +27,14 @@ class keyboard_trajectory():
                 print('Trajectory will be saved.\n')
             elif val =='m' or val == 'M':
                 pub_map.publish(msg)
-                print('Final map will be saved.\n')
-            elif int(val) > 0 and int(val) < 50:
+                print('Final xy-path will be saved.\n')
+            elif int(val) > 0 and int(val) < 50: # Particle count
                 print('choosing particle ', val)
                 msgInt = Float32()
                 msgInt.data = float(val)
                 pub_gp.publish(msgInt)
                 break
 
-            
-        # rospy.spin()
 
 if __name__ == '__main__':
     rospy.init_node('Save_trajectory', disable_signals=False)

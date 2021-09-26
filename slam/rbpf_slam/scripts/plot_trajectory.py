@@ -91,8 +91,8 @@ def Mapping(plot_type, Xd): # using this function to find the best particle and 
     idx = find_best_trajectory(all_err, n_data)
     # Make error smooth
     depth_err = make_error_smooth(all_err[idx])
-    print('best trajectory: ', idx)
-    print('with particle: ' + dir_name[idx])
+    # print('best trajectory: ', idx)
+    print('best particle: ' + dir_name[idx])
     final_map = all_maps[idx]
     np.save(root + 'final_map.npy', final_map)
     X = final_map[:,0]

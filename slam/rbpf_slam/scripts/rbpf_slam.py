@@ -48,10 +48,7 @@ import time
 # For large numbers 
 from mpmath import mpf
 
-# train gps simultaneously as rbpf slam is run
-# from train_pf_gp import Train_gps
-
-class atree():
+class atree(): # ancestry tree
     def __init__(self, ID, parent, trajectory, observations):
         self.ID = ID
         self.parent = parent
@@ -121,7 +118,6 @@ class rbpf_slam(object):
         self.time2resample = False
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
-        # self.resample_th = 1 / self.pc - 0.1 # when to resample
         # for ancestry tree
         self.observations = np.zeros((1,3)) 
         self.mapping= np.zeros((1,3)) 
@@ -130,10 +126,6 @@ class rbpf_slam(object):
         self.time4regression = False
         self.n_from = 1
         self.ctr = 0
-        # self.resample_nr = 0
-
-        
-
 
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
@@ -255,7 +247,6 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-            # self.particles[i].gp = gp.SVGP(self.n_inducing) # doing this in another node to save time
             self.particles[i].ID = self.p_ID
             self.p_ID += 1
         
@@ -367,76 +358,13 @@ class rbpf_slam(object):
         self.dr_particle.motion_pred(odom_t, dt)
 
 
-# ----------- not used now ---------------
-    def recordData2gp(self):
-        root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/'
-        dir_name = 'results/'
-        # dir_name = ('results_' + str(time.gmtime().tm_year) + '_' + str(time.gmtime().tm_mon) + '_' + str(time.gmtime().tm_mday) + '___'
-        #             + str(time.gmtime().tm_hour) + '_' + str(time.gmtime().tm_min) + '_' + str(time.gmtime().tm_sec) + '/')
-        if root_folder[-1] != '/':
-            dir_name = '/' + dir_name
-
-        storage_path = root_folder + dir_name
-        # input_path = storage_path + 'particles/'
-        # xy_path = storage_path + 'xy/'
-        if not os.path.exists(storage_path):
-            os.makedirs(storage_path)
-        # if not os.path.exists(xy_path):
-        #     os.makedirs(xy_path)
-        # if not os.path.exists(input_path):
-        #     os.makedirs(input_path)
-        
-        self.cloud_file = storage_path + 'ping_cloud.npy'
-        # self.inputs_file = [None]*self.pc
-        # self.pxy_file = [None]*self.pc
-
-        # for i in range(0, self.pc):
-        #     self.inputs_file[i] = input_path + 'inputs_gp_particle' + str(i) + '.npy'
-            # self.pxy_file[i] = xy_path + 'xy' + str(i) + '.npy'
-    
-# ----------- not used now ---------------
-    def trainGP(self):
-        if self.firstFit: # Only enter ones
-            self.firstFit = False 
-            for i in range(0,self.pc):
-                inputs = self.particles[i].cloud
-                # train each particles gp
-                self.particles[i].gp.fit(inputs, self.targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
-                # save a plot of the gps
-                self.particles[i].gp.plot(inputs, self.targets, self.storage_path + 'particle' + str(i) + 'training' + str(self.count_training) + '.png', n=100, n_contours=100 )
-                # save the path to train again
-                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
-                self.particles[i].gp.save(gp_path)
-                # empty arrays
-                self.particles[i].cloud = np.zeros((1,2))
-        
-        else: # second or more time to retrain gp
-            for i in range(0, self.pc):
-                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
-                self.particles[i].gp = gp.SVGP.load(self.n_inducing, gp_path)
-                inputs = self.particles[i].cloud
-                 # train each particles gp
-                self.particles[i].gp.fit(inputs, self.targets, n_samples= int(self.n_inducing/2), max_iter=int(self.n_inducing/2), learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=True)
-                # save a plot of the gps
-                self.particles[i].gp.plot(inputs, self.targets, self.storage_path + 'particle' + str(i) + 'training' + str(self.count_training) + '.png', n=100, n_contours=100 )
-                # save the path to train again
-                gp_path = self.storage_path + 'svgp_particle' + str(i) + '.pth'
-                self.particles[i].gp.save(gp_path)
-                # empty arrays
-                self.particles[i].cloud = np.zeros((1,2))
-        
-        self.count_training +=1 # to save plots
-        # empty array
-        self.targets = np.zeros((1,))
-        rospy.loginfo('... GP training successful')
-
     def cb_lengthscale(self, msg):
         arr = msg.data
         idx = int(arr[-1]) # Particle index
         if int(arr[0]) == 0:
-            self.particles[idx].time4regression = True
+            self.particles[idx].time4regression = True # if data = 0 can keep on training
         else:
-            self.particles[idx].time4regression = False
+            self.particles[idx].time4regression = False # if data = 1 stop training
 
 
     def gp_meanvar_cb(self, msg):
@@ -478,8 +406,6 @@ class rbpf_slam(object):
             else:
                 self.dim = len(mu) # Dimension
                 self.norm_const = np.sqrt( np.power( mpf(2 * np.pi) , self.dim)) # mpf can handle large float numbers
-
-
                 nom = -0.5 * np.dot(  np.dot( mu , np.linalg.inv(sigma) ) , np.transpose(mu)) # -1/2 * mu^T * Sigma^-1 * mu
                 _, detSigma = np.linalg.slogdet(sigma)
                 denom = self.norm_const * np.sqrt(detSigma)
@@ -497,8 +423,7 @@ class rbpf_slam(object):
             print('mu est ', mu_est.shape)
             wi = 0.0
         # convert likelihood into weigh
-        self.particles[idx].w = wi  # particle weight?
-        # self.pw[idx] = self.particles[idx].w 
+        self.particles[idx].w = wi 
 
 
     def update(self, real_mbes, odom):
@@ -521,7 +446,6 @@ class rbpf_slam(object):
         self.targets = np.append(self.targets, real_mbes_ranges, axis=0) # (n,1) only mbes in z-axis
         self.observations = np.append(self.observations, obs, axis=0) # for later comparison (1,3)
         self.mapping = np.append(self.mapping, real_mbes_full, axis=0) # not used
-        # print(real_mbes_full[:,0])
 
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
@@ -564,25 +488,24 @@ class rbpf_slam(object):
             
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
-            # self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
             if self.particles[i].ctr > self.record_data:
                 old_mbes_x = self.particles[i].est_map[0:self.beams_num, 0] #est_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 0]
                 old_mbes_y = self.particles[i].est_map[0:self.beams_num, 1] #est_map[self.particles[i].n_from : self.particles[i].n_from + self.beams_num, 1]
                 dist = np.sqrt( (exp_mbes[:,0] - old_mbes_x)**2 + (exp_mbes[:,1] - old_mbes_y)**2)
                 dist_accepted = sum(dist < self.th_reg)
 
-                if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:    
+                if self.particles[i].time4regression and dist_accepted >= self.beams_num * self.gamma:   # when to re-calculate the svgp 
                     self.ctr += 1
                     self.particles[i].ctr = 0
                     self.particles[i].n_from = len(self.particles[i].mu_obs) - self.beams_num
-                    self.regression(i, 0)
+                    self.regression(i, 0) # sending data to re-calculate svgp
                 # ctr = 0
                 # N_beams = len(self.targets)
                 # B_min = N_beams * self.gamma
 
         weights = []
         for i in range(self.pc):
-            weights.append(self.particles[i].w) # REMEMBER the new particles need to ärva the old ones gp's.
+            weights.append(self.particles[i].w) 
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
         self.miss_meas = weights.count(0.0)
@@ -600,7 +523,7 @@ class rbpf_slam(object):
         p = self.particles[i]
         p.targets = self.targets
 
-        while True:
+        while True: # sending both the particles data plus the ancestors
             inputs = np.append(inputs, p.inputs, axis=0)
             targets = np.append(targets, p.targets, axis=0)
             mu = np.append(mu, p.mu_obs, axis=0)
@@ -612,18 +535,14 @@ class rbpf_slam(object):
                 if p.parent == leaf.ID:
                     p = leaf
                     break
-
+        # this if-statment is for the final trajctory, sometimes when the script keeps running its collecting more data and I need len(target) = len(input)
         if len(targets) == inputs.shape[0]:
             cloud_arr = np.zeros((len(targets)-2,3))
         elif len(targets) >= inputs.shape[0]:
-            print('target len before:', targets.shape)
-            targets = targets[:-25]
-            print('target len after:', targets.shape)
+            targets = targets[:-self.beams_num]
             cloud_arr = np.zeros((len(targets)-2,3))
         elif len(targets) <= inputs.shape[0]:
-            print('inputs len before:', inputs.shape)
-            inputs = inputs[:-25,:]
-            print('target len after:', inputs.shape)
+            inputs = inputs[:-self.beams_num,:]
             cloud_arr = np.zeros((len(targets)-2,3))
 
         cloud_arr[:,:2] = inputs[2:,:]
@@ -633,7 +552,7 @@ class rbpf_slam(object):
         cloud_arr = np.append(cloud_arr, final) # insert if final or not
         msg = Floats()
         msg.data = cloud_arr
-        self.gp_pub.publish(msg)
+        self.gp_pub.publish(msg) # training particles svgp in: train_pf_gp.py
         # save observation data to calculate likelihood later 
         self.particles[i].mu_list.append(mu[2:])
         self.particles[i].sigma_list.append(sigma[2:])
@@ -782,14 +701,14 @@ class rbpf_slam(object):
             self.p_ID += 1 # all particles have their own unique ID
 
 
-    def save_final_gp_cb(self, msg):
+    def save_final_gp_cb(self, msg): #when you select a number in: Save_trajectory.py
         rospy.loginfo('... saving final gp map\n')
         idx = int(msg.data)
         print('final particle ', idx)
         self.regression(idx, 99)
 
 
-    def save_trajectory_cb(self, msg):
+    def save_trajectory_cb(self, msg): #when you press 't' in: Save_trajectory.py
         rospy.loginfo('... saving trajectory\n')
         tr_path = 'trajectory/'
         self.create_dir(tr_path)

@@ -70,12 +70,6 @@ class PFStatsVisualization(object):
         self.survey_finished = False
 
         self.cov_traces = [0.]
-
-        # adding figures:
-        # self.fig_xy = plt.figure()
-        # self.fig_error = plt.figure()
-        # self.fig_real_mbes = plt.figure()
-
         rospy.spin()
 
     def ping_cb(self, real_ping, pf_ping):
@@ -239,7 +233,7 @@ class PFStatsVisualization(object):
 
             # plt.pause(0.0001)
 
-            if self.survey_finished:
+            if self.survey_finished: #when you press 'm' in: Save_trajectory.py
                 # fig 1
                 plt.figure(1)
                 plt.legend(['GT', 'PF'])
@@ -256,19 +250,19 @@ class PFStatsVisualization(object):
                 plt.ylabel('y axis (m)')
                 plt.savefig(self.survey_name + 'plot_result/' + "_zoomed.png")
                 # fig 2
-                plt.figure(2)
-                plt.subplot(3, 1, 1)
-                plt.legend(['error between DR PF and GT'])
-                plt.subplot(3, 1, 2)
-                plt.legend(['Error between PF and GT'])
-                plt.subplot(3,1,3)
-                plt.legend(['trace of cov matrix'])
-                plt.savefig(self.survey_name + 'plot_result/' + "_error.png")
-                # fig 1
-                plt.figure(3)
-                plt.legend(['k', 'b'])
-                plt.title('Real vs mbes')
-                plt.savefig(self.survey_name + 'plot_result/' + "_real_vs_mbes.png")
+                # plt.figure(2)
+                # plt.subplot(3, 1, 1)
+                # plt.legend(['error between DR PF and GT'])
+                # plt.subplot(3, 1, 2)
+                # plt.legend(['Error between PF and GT'])
+                # plt.subplot(3,1,3)
+                # plt.legend(['trace of cov matrix'])
+                # plt.savefig(self.survey_name + 'plot_result/' + "_error.png")
+                # # fig 1
+                # plt.figure(3)
+                # plt.legend(['k', 'b'])
+                # plt.title('Real vs mbes')
+                # plt.savefig(self.survey_name + 'plot_result/' + "_real_vs_mbes.png")
 
                 rospy.loginfo("Saving down image of the tracks.")
                 self.survey_finished = False

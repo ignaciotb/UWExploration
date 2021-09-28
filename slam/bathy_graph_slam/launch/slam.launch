@@ -28,6 +28,7 @@
 			<param name="base_link" value="$(arg namespace)/base_link" />
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="submaps_topic" value="/$(arg app)/submaps" />
+			<param name="sift_map_top" value="/map_sift" />
 			<!-- <param name="survey_finished_top" value="/$(arg namespace)/survey_finished" />
 			<param name="synch_topic" value="/$(arg app)/synch" /> -->
 		</node>

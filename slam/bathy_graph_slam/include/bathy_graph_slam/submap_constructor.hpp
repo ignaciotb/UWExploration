@@ -54,6 +54,29 @@ namespace pcl
     };
 }
 
+bool checkSiftOverlap(const corners& submap_i_corners, const Vector3d& sift_i){
+
+    // Check every corner of i against every edge of k
+    int inside = 0;
+    bool overlap = false;
+    unsigned int k_next;
+
+    for(unsigned int k = 0; k<submap_i_corners.size(); k++){
+        // Four corners
+        k_next = k + 1;
+        k_next = (k_next == submap_i_corners.size())? 0: k_next;
+        // Check against four edges
+        if(pointToLine(submap_i_corners.at(k), submap_i_corners.at(k_next), sift_i)){
+            inside++;
+        }
+        else{
+            break;
+        }
+    }
+    overlap = (inside == 4)? true: false;
+    return overlap;
+}
+
 class submapConstructor
 {
     typedef std::tuple<sensor_msgs::PointCloud2Ptr, tf::Transform> ping_raw;
@@ -62,6 +85,8 @@ public:
     
     submapConstructor(std::string node_name, ros::NodeHandle &nh);
 
+    void siftMapCB(const sensor_msgs::PointCloud2Ptr &sift_map);
+
     void enableCB(const std_msgs::BoolPtr &enable_msg);
 
     void pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
@@ -69,14 +94,17 @@ public:
 
     void addSubmap(std::vector<ping_raw> submap_pings);
 
-    PointCloudT::Ptr extractLandmarks(SubmapObj submap_i);
+    PointCloudT::Ptr extractLandmarksUnknown(SubmapObj& submap_i);
 
-    void checkForLoopClosures(SubmapObj submap_i);
+    PointCloudT::Ptr extractLandmarksKnown(SubmapObj& submap_i);
 
+    void checkForLoopClosures(SubmapObj& submap_i);
+        
     std::string node_name_;
     ros::NodeHandle *nh_;
     ros::Publisher submaps_pub_;
     ros::Subscriber enable_subs_;
+    ros::Subscriber sift_map_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
     ros::ServiceServer synch_service_;
 
@@ -89,10 +117,14 @@ public:
     std::vector<ping_raw> submap_raw_;
     int submaps_cnt_;
 
+    PointCloudT::Ptr sift_map_;
+    bool first_sift_map_;
+    bool known_association_;
+
     // std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
     tf::TransformListener tflistener_;
-    tf::StampedTransform tf_base_mbes_;
+    tf::StampedTransform tf_base_mbes_, tf_map_odom_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
 
     boost::shared_ptr<SubmapRegistration> gicp_reg_;

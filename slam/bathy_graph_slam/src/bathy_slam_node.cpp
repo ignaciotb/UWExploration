@@ -92,7 +92,7 @@ void samGraph::updateISAM2()
 //==========================================================================
 //==========================================================================
 BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name),
-                                                                           nh_(&nh), tfListener_(tfBuffer_)
+                                                                           nh_(&nh)
 {
 
     std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top;
@@ -108,19 +108,17 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     submap_subs_ = nh_->subscribe(submap_top, 2, &BathySlamNode::updateGraphCB, this);
     odom_subs_ = nh_->subscribe(odom_top, 20, &BathySlamNode::odomCB, this);
 
-    // tfListener_.reset(new tf2_ros::TransformListener(tfBuffer_));
-    // try {
-
-    //     geometry_msgs::TransformStamped tf_base_mbes;
-    //     // tfBuffer_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(10.0));
-    //     tf_base_mbes = tfBuffer_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0));
-    //     tf::transformStampedMsgToTF(tf_base_mbes, tf_base_mbes_);
-    //     ROS_INFO_NAMED(node_name_, " locked transform base --> sensor");
-    // }
-    // catch(tf::TransformException &exception) {
-    //     ROS_ERROR("%s", exception.what());
-    //     ros::Duration(1.0).sleep();
-    // }
+    try
+    {
+        tflistener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(20.0));
+        tflistener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), tf_map_odom_);
+        ROS_INFO_NAMED(node_name_, " locked transform map --> odom");
+    }
+    catch (tf::TransformException &exception)
+    {
+        ROS_ERROR("%s", exception.what());
+        ros::Duration(1.0).sleep();
+    }
 
     // Initialize survey params
     first_msg_ = true;
@@ -128,7 +126,7 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     odomVec_.clear();
     // Initial pose is on top of odom frame
     prev_submap_odom_.reset(new nav_msgs::Odometry());
-    prev_submap_odom_->header.frame_id = odom_frame_;
+    prev_submap_odom_->header.frame_id = map_frame_;
     prev_submap_odom_->child_frame_id = mbes_frame_;
     prev_submap_odom_->header.stamp = ros::Time::now();
     prev_submap_odom_->pose.pose.position.x = 0.0;
@@ -200,11 +198,17 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
         return odom.header.stamp.toSec() == t_step;
     });
 
-    // Odom step as diff between odom_msgs from two consecutive submaps
-    Eigen::Affine3d pose_now, pose_prev;
+    // Base pose in odom frame for t and t-1
+    Eigen::Affine3d pose_now, pose_prev, map_2_odom;
+    tf::transformTFToEigen(tf_map_odom_, map_2_odom);
     tf::poseMsgToEigen (current_odom->pose.pose, pose_now);
     tf::poseMsgToEigen (prev_submap_odom_->pose.pose, pose_prev);
 
+    // Base pose in map frame for t and t-1
+    pose_now = map_2_odom * pose_now;
+    pose_prev = map_2_odom * pose_prev;
+
+    // Odom step as diff between odom_msgs from two consecutive submaps
     // Rotation
     Eigen::Quaterniond q_prev(pose_prev.linear());
     Eigen::Quaterniond q_now(pose_now.linear()); 

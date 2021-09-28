@@ -67,9 +67,9 @@ public:
 
     ~samGraph();
 
-    void addPrior();
+    void addPrior(Pose3& initPose);
 
-    void addOdomFactor(Pose3 odom_step, size_t step);
+    void addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step);
 
     void addLandmarksFactor(PointCloudT&, size_t step, 
                             std::vector<int>& lm_idx, Pose3 submap_pose);

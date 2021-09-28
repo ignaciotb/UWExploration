@@ -121,11 +121,11 @@ public:
 
     std::vector<tf::Transform> tf_submaps_vec_;
     tf::TransformBroadcaster submaps_bc_;
-    // tf::TransformListener tflistener_;
-    tf::StampedTransform tf_base_mbes_;
+    tf::TransformListener tflistener_;
+    tf::StampedTransform tf_map_odom_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;
-    tf2_ros::Buffer tfBuffer_;
-    tf2_ros::TransformListener tfListener_;
+    // tf2_ros::Buffer tfBuffer_;
+    // tf2_ros::TransformListener tfListener_;
 
     boost::shared_ptr<samGraph> graph_solver;
 };

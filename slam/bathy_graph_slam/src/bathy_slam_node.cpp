@@ -105,8 +105,8 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     nh_->param<std::string>("synch_topic", synch_top, "slam_synch");
     nh_->param<std::string>("submaps_topic", submap_top, "/submaps");
 
-    submap_subs_ = nh_->subscribe(submap_top, 2, &BathySlamNode::updateGraphCB, this);
-    odom_subs_ = nh_->subscribe(odom_top, 20, &BathySlamNode::odomCB, this);
+    submap_subs_ = nh_->subscribe(submap_top, 3, &BathySlamNode::updateGraphCB, this);
+    odom_subs_ = nh_->subscribe(odom_top, 30, &BathySlamNode::odomCB, this);
 
     try
     {
@@ -195,8 +195,11 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
     // Find odom msg corresponding to submap at time t_step
     auto current_odom = odomVec_.begin();
     current_odom = std::find_if(current_odom, odomVec_.end(), [&](const nav_msgs::Odometry& odom) {
-        return odom.header.stamp.toSec() == t_step;
+        return std::abs(odom.header.stamp.toSec() - t_step) < 0.01;
     });
+    if(current_odom == odomVec_.end()){
+        std::cout << "Not found current odom that matches submap" << std::endl;
+    }
 
     // Base pose in odom frame for t and t-1
     Eigen::Affine3d pose_now, pose_prev, map_2_odom;

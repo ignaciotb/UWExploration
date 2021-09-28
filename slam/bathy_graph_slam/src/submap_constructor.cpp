@@ -1,5 +1,5 @@
 #include <bathy_graph_slam/submap_constructor.hpp>
-
+#include <iomanip>      // std::setprecision
 
 submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name), nh_(&nh)
 {

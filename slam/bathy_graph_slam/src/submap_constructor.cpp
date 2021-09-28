@@ -87,6 +87,7 @@ void submapConstructor::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
     tf::poseMsgToTF(odom_msg->pose.pose, odom_base_tf);
     // Storing point cloud of mbes pings in mbes frame and current tf_odom_mbes_
     submap_raw_.emplace_back(mbes_ping, tf_map_odom_ * odom_base_tf * tf_base_mbes_);
+    // submap_raw_.emplace_back(mbes_ping, odom_base_tf * tf_base_mbes_);
 
     if (submap_raw_.size() > 100)
     {
@@ -127,13 +128,15 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     submap_i.submap_pcl_.is_dense = true;
     submap_i.auv_tracks_ = Eigen::MatrixXd(3, 3);
 
+    // Broadcast submap tf
     geometry_msgs::TransformStamped msg_map_submap;
     tf::StampedTransform tf_map_submap_stp(tf_submap_i,
-                                           ros::Time::now(),
+                                           submap_time,
                                            map_frame_,
                                            "submap_" + std::to_string(submaps_cnt_));
 
     std::cout << "submap_" + std::to_string(submaps_cnt_) << std::endl;
+    std::cout << "Position in map frame " << submap_i.submap_tf_.translation().transpose() << std::endl;
     tf::transformStampedTFToMsg(tf_map_submap_stp, msg_map_submap);
     static_broadcaster_.sendTransform(msg_map_submap);
 
@@ -179,6 +182,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
         pcl::toROSMsg(*cloud_lm, submap_msg);
         submap_msg.header.frame_id = "submap_" + std::to_string(submaps_cnt_);
         submap_msg.header.stamp = submap_time;
+        // std::cout << setprecision (11) << "Submap time " << submap_time.toSec() << std::endl;
         submaps_pub_.publish(submap_msg);
     }
     else{
@@ -189,7 +193,8 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
         sensor_msgs::PointCloud2 submap_msg;
         pcl::toROSMsg(*cloud_lm, submap_msg);
         submap_msg.header.frame_id = map_frame_;
-        submap_msg.header.stamp = ros::Time::now();
+        submap_msg.header.stamp = submap_time;
+        // std::cout << "Submap time " << submap_time.toSec() << std::endl;
         submaps_pub_.publish(submap_msg);
     }
 
@@ -231,7 +236,6 @@ PointCloudT::Ptr submapConstructor::extractLandmarksKnown(SubmapObj& submap_i)
     // Get submap corners
     bool submaps_in_map_tf = false;
     std::pair<int, corners> corners_i = getSubmapCorners(submaps_in_map_tf, submap_i);
-    std::cout << "Submap corners extracted " << std::endl;
 
     // Find map SIFT landmarks contained within the corners of submap_i 
     bool overlap_flag;

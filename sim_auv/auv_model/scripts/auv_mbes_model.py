@@ -13,7 +13,7 @@ from tf.transformations import rotation_matrix
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
-
+from scipy.ndimage import gaussian_filter1d
 
 # For sim mbes action client
 import actionlib
@@ -88,6 +88,9 @@ class mbes_model(object):
         p_inv = rot_inv.dot(p_mbes)
         mbes = np.dot(rot_inv, mbes.T)
         mbes = np.subtract(mbes.T, p_inv)
+
+        # Add noise
+        mbes = gaussian_filter1d(mbes , sigma=0.5)
 
         # Pack result
         mbes_cloud = self.pack_cloud(self.mbes_frame, mbes)

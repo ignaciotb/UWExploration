@@ -9,24 +9,24 @@
     <arg name="debug" default="0"/>
 
 	<!-- Rates for simulating missions  -->
-    <arg name="odom_rate" default="0.01"/>
-	<arg name="meas_rate" default="0.01"/>
+    <arg name="odom_rate" default="0.1"/>
+	<arg name="meas_rate" default="0.1"/>
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="200"/>	
-	<arg name="mbes_open_angle" default="0.908" />
+	<arg name="mbes_open_angle" default="1.908" />
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
     <!-- Real data  -->
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
-    <arg name="path" default="/media/torroba/Seagate Expansion Drive/HuginDatasets/BornoSMaRC202006/200615_overnight/EM2040/map"/>
+    <arg name="path" default="/home/torroba/Downloads/maps"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="-100.0"/>
-	<arg name="y" default="-300.0"/>
+	<arg name="x" default="-250.0"/>
+	<arg name="y" default="-400.0"/>
 	<arg name="z" default="-10.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
@@ -41,8 +41,8 @@
 
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
-			<param name="map_gp_path"  value="/home/torroba/workspaces/bathymetric_svgp/data/overnight_20/svgp_1000_0.01.npy"/>
+			<param name="map_cloud_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
+			<param name="map_gp_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/svgp_1000_0.01.npy"/>
 			<param name="map_frame" value="map" />
 			<param name="use_pings_cloud" type= "bool" value="True" />
 		</node>

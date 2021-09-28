@@ -44,8 +44,20 @@
 			<param name="synch_topic" value="/$(arg app)/synch" />
 			<param name="submaps_topic" value="/$(arg app)/submaps" />
 		</node>
-	
 	</group>
+
+	<!-- <group ns="stats">
+		<node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
+			<param name="pf_stats_top" value="/stats/pf_data" />       
+			<param name="map_frame" value="$(arg map_frame)" />       
+			<param name="odom_frame" value="$(arg odom_frame)" />       
+			<param name="survey_finished_top" value="/gt/survey_finished" />       
+			<param name="background_img_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/default_real_mean_depth.png" />       
+			<param name="survey_name" value="overnight_20"/>
+			<param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
+			<param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
+		</node>
+	</group> -->
 
     <!-- UW environment -->
     <include file="$(find auv_model)/launch/auv_environment.launch" >

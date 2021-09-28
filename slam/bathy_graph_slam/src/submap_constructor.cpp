@@ -132,6 +132,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     
     // Extract landmarks from submap point cloud
     PointCloudT::Ptr cloud_lm = this->extractLandmarks(submap_i);
+    pcl::io::savePCDFileASCII("/home/torroba/Downloads/submaps/submap_" + std::to_string(submaps_cnt_), *cloud_lm);
 
 
     // Check for loop closures
@@ -144,6 +145,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
             SubmapObj submap_trg = gicp_reg_->constructTrgSubmap(submaps_vec_, submap_i.overlaps_idx_);
             if(gicp_reg_->gicpSubmapRegistrationSimple(submap_trg, submap_i_copy)){
                 // submap_i_copy comes out already registered
+
             }
             submap_trg.submap_pcl_.clear();
         }

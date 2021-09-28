@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(map_pcl_publisher)
+project(map_visualizer)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)

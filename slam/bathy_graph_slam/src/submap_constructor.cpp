@@ -4,6 +4,7 @@
 submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name), nh_(&nh)
 {
     std::string pings_top, debug_pings_top, odom_top, enable_top, submap_top, sift_map_top;
+    std::string lm_idx_top;
     nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
     nh_->param<std::string>("map_frame", map_frame_, "map");
@@ -11,6 +12,7 @@ submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh)
     nh_->param<std::string>("base_link", base_frame_, "base_frame");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
     nh_->param<std::string>("submaps_topic", submap_top, "/submaps");
+    nh_->param<std::string>("landmarks_idx_topic", lm_idx_top, "/lm_idx");
     nh_->param<std::string>("survey_finished_top", enable_top, "enable");
     nh_->param<std::string>("sift_map_top", sift_map_top, "map_sift");
 
@@ -22,6 +24,7 @@ submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh)
 
     // Submaps publisher
     submaps_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(submap_top, 10, false);
+    lm_idx_pub_ = nh_->advertise<bathy_graph_slam::LandmarksIdx>(lm_idx_top, 10, false);
 
     enable_subs_ = nh_->subscribe(enable_top, 1, &submapConstructor::enableCB, this);
     // SIFT map subscriber. For known data association
@@ -175,7 +178,6 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
                 submap_trg.submap_pcl_.clear();
             }
         }
-        // std::cout << "Checked for LCs" << std::endl;
 
         // Publish SIFT landmarks for the graph
         sensor_msgs::PointCloud2 submap_msg;
@@ -184,18 +186,35 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
         submap_msg.header.stamp = submap_time;
         // std::cout << setprecision (11) << "Submap time " << submap_time.toSec() << std::endl;
         submaps_pub_.publish(submap_msg);
+
     }
     else{
-        // see what known landmarks are contained in the submap area
-        PointCloudT::Ptr cloud_lm = this->extractLandmarksKnown(submap_i);
+        // See which known landmarks are contained in the submap area
+        std::cout << "Extracting known landmarks " << std::endl;
+        PointCloudT::Ptr cloud_lm;
+        std::vector<int> lm_idx;
+        this->extractLandmarksKnown(submap_i, cloud_lm, lm_idx);
+        std::cout << "Known landmarks extracted " << std::endl;
+
+        // Check for loop closures 
+        // This is unnecessary when using known landmarks. The LC will be detected
+        // when adding the landmarks to the graph if they already exist
+        // if(submaps_cnt_ > 1){
+        //     this->checkForLoopClosures(submap_i);
+        // }
 
         // Publish SIFT landmarks for the graph
         sensor_msgs::PointCloud2 submap_msg;
         pcl::toROSMsg(*cloud_lm, submap_msg);
         submap_msg.header.frame_id = map_frame_;
         submap_msg.header.stamp = submap_time;
-        // std::cout << "Submap time " << submap_time.toSec() << std::endl;
         submaps_pub_.publish(submap_msg);
+        
+        // Publish their landmarks indexes as well
+        bathy_graph_slam::LandmarksIdx lm_idx_msg;
+        lm_idx_msg.header.stamp = submap_time;
+        lm_idx_msg.idx.data = lm_idx;
+        lm_idx_pub_.publish(lm_idx_msg);
     }
 
     submaps_vec_.push_back(submap_i);
@@ -231,35 +250,29 @@ PointCloudT::Ptr submapConstructor::extractLandmarksUnknown(SubmapObj& submap_i)
     return cloud_temp;
 }
 
-PointCloudT::Ptr submapConstructor::extractLandmarksKnown(SubmapObj& submap_i)
+void submapConstructor::extractLandmarksKnown(SubmapObj& submap_i, 
+                                              PointCloudT::Ptr& landmarks, 
+                                              std::vector<int>& lm_idx)
 {    
     // Get submap corners
     bool submaps_in_map_tf = false;
     std::pair<int, corners> corners_i = getSubmapCorners(submaps_in_map_tf, submap_i);
-
     // Find map SIFT landmarks contained within the corners of submap_i 
     bool overlap_flag;
-    PointCloudT::Ptr lc_landmarks(new PointCloudT);
-    std::vector<int> idx_vec;
-    int lm_idx = 0;
+    int i = 0;
+    landmarks.reset(new PointCloudT);
 
     for(PointT& point: sift_map_->points){
-        // std::cout << point.x << " " << point.y << " " << point.z << std::endl;
-
-        Vector3f sift_vec = Vector3f(point.x, point.y, point.z);
-        // std::cout << sift_vec.cast<double>() << std::endl;
-
         overlap_flag = false;
+        Vector3d point_v = Vector3f(point.x, point.y, point.z).cast<double>();
         // Check each SIFT point against the four edges of submap_i
-        overlap_flag = checkSiftOverlap(std::get<1>(corners_i), sift_vec.cast<double>());
+        overlap_flag = checkSiftOverlap(std::get<1>(corners_i), point_v);
         if(overlap_flag == true){
-            lc_landmarks->points.push_back(point);
-            idx_vec.push_back(lm_idx);
+            landmarks->points.push_back(point);
+            lm_idx.push_back(i);
         }
-        lm_idx++;
+        i++;
     }
-
-    return lc_landmarks;
 }
 
 void submapConstructor::checkForLoopClosures(SubmapObj& submap_i)
@@ -274,7 +287,6 @@ void submapConstructor::checkForLoopClosures(SubmapObj& submap_i)
             submaps_prev.push_back(submap_k);
         }
     }
-    std::cout << "Stored prev potential submaps " << submaps_prev.size() << std::endl;
 
     // Submaps in map frame?
     bool submaps_in_map_tf = false;

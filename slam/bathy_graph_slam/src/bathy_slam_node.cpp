@@ -58,22 +58,35 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
 void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
                                   std::vector<int>& lm_idx, Pose3 submap_pose)
 {
-    // TODO: handle landmarks id
+    // Check we've got the same number of landmarks and indexes
+    if(!landmarks.points.size() == lm_idx.size()){
+        ROS_ERROR("Different number of landmarks and indexes");
+    }
+
     // Convert landmarks PCL points to gtsam Point3
+    int i = 0;
+    bool lc_detected = false;
     for (PointT &point : landmarks){
+        // If known association is on, the landmarks are already in map frame
         Point3 lm = Vector3f(point.x, point.y, point.z).cast<double>();
+        
         graph_->emplace_shared<BearingRangeFactor<Pose3, Point3> >(
-            Symbol('x', step+1), Symbol('l', num_landmarks_), submap_pose.bearing(lm), submap_pose.range(lm), brNoise_);
+            Symbol('x', step+1), Symbol('l', lm_idx.at(i)), 
+            submap_pose.bearing(lm), submap_pose.range(lm), brNoise_);
 
         // Add initial estimate for landmarks
-        if (!initValues_->exists(Symbol('l', num_landmarks_))) {
-            // TODO: transform landmarks to map frame. Currently in odom frame
-            // Pose3 submap_in_map(submap_pose.matrix() * submap_pose.matrix());
-            Point3 mapLandmark = submap_pose.transformFrom(lm);
-            initValues_->insert(Symbol('l', num_landmarks_), mapLandmark);
+        if (!initValues_->exists(Symbol('l', lm_idx.at(i)))) {
+            // Point3 mapLandmark = submap_pose.transformFrom(lm);
+            initValues_->insert(Symbol('l', lm_idx.at(i)), lm);
         }
-        num_landmarks_++;
+        else{
+            lc_detected = true;
+            // std::cout << "LC with landmark " << lm_idx.at(i) << std::endl;
+            // TODO: if loop closure detected, updateISAM2()
+        }
+        i++;
     }
+
     // initValues_->print("Init values ");
     ROS_INFO("RB factor added");
 } 
@@ -96,7 +109,7 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
                                                                            nh_(&nh)
 {
 
-    std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top;
+    std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top, indexes_top;
     nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
     nh_->param<std::string>("map_frame", map_frame_, "map");
@@ -105,9 +118,17 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
     nh_->param<std::string>("synch_topic", synch_top, "slam_synch");
     nh_->param<std::string>("submaps_topic", submap_top, "/submaps");
+    nh_->param<std::string>("landmarks_idx_topic", indexes_top, "/lm_idx");
 
-    submap_subs_ = nh_->subscribe(submap_top, 3, &BathySlamNode::updateGraphCB, this);
+    // submap_subs_ = nh_->subscribe(submap_top, 3, &BathySlamNode::updateGraphCB, this);
     odom_subs_ = nh_->subscribe(odom_top, 30, &BathySlamNode::odomCB, this);
+
+    // Synchronizer for landmarks point cloud and its vector of indexes
+    lm_subs_.subscribe(*nh_, submap_top, 30);
+    lm_idx_subs_.subscribe(*nh_, indexes_top, 30);
+    synch_ = new message_filters::Synchronizer<MySyncPolicy>(MySyncPolicy(30), 
+                                                             lm_subs_, lm_idx_subs_);
+    synch_->registerCallback(&BathySlamNode::updateGraphCB, this);
 
     try
     {
@@ -157,15 +178,10 @@ bool BathySlamNode::emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyRespons
     return true;
 }
 
-void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_meas)
+void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg, 
+                                  const bathy_graph_slam::LandmarksIdxPtr &lm_idx)
 {
-    // ROS_INFO_NAMED("SLAM ", "submap received");
-    // geometry_msgs::TransformStamped tf_o_submapi;
-    // tf_o_submapi = tfBuffer_.lookupTransform(odom_frame_, pcl_msg->header.frame_id, ros::Time(0));
-    // Eigen::Isometry3d submap_tf_d;
-    // tf::transformMsgToEigen(tf_o_submapi.transform, submap_tf_d);
-    // ROS_INFO_NAMED("SLAM ", "TF received");
-
+    std::cout << "Updating graph " << std::endl;
     // Set prior on first odom pose
     if (first_msg_)
     {
@@ -186,21 +202,22 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_meas
 
     // Update graph DR concatenating odom msgs between submaps
     Pose3 current_pose;
-    Pose3 odom_step = this->odomStep(submap_meas->header.stamp.toSec(), current_pose);
+    Pose3 odom_step = this->odomStep(lm_pcl_msg->header.stamp.toSec(), current_pose);
     // current_pose.print("Current pose ");
     current_pose.print("Current pose ");
     odom_step.print("odom_step  ");
     graph_solver->addOdomFactor(current_pose, odom_step, submaps_cnt_);
 
-    std::vector<int> lm_idx;
-    PointCloudT meas_pcl;
-    pcl::fromROSMsg(*submap_meas, meas_pcl);
-    // graph_solver->addLandmarksFactor(meas_pcl, submaps_cnt_, lm_idx, current_pose);
+    // Add landmarks to graph as 3D range-bearing measurements from the current DR pose
+    std::vector<int> lm_idx_vec = lm_idx->idx.data;
+    PointCloudT lm_pcl;
+    pcl::fromROSMsg(*lm_pcl_msg, lm_pcl);
+    graph_solver->addLandmarksFactor(lm_pcl, submaps_cnt_, lm_idx_vec, current_pose);
 
     // If landmarks have been revisited, add measurements to graph and update ISAM
-    if (submaps_cnt_ == 2){
-        graph_solver->updateISAM2();
-    }
+    // if (submaps_cnt_ == 2){
+    //     graph_solver->updateISAM2();
+    // }
 
     submaps_cnt_++;
 }

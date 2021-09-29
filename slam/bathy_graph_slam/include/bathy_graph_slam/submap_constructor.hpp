@@ -24,6 +24,7 @@
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Bool.h>
 #include <std_srvs/Empty.h>
+#include <bathy_graph_slam/LandmarksIdx.h>
 
 #include <tf/transform_datatypes.h>
 #include <tf_conversions/tf_eigen.h>
@@ -96,13 +97,14 @@ public:
 
     PointCloudT::Ptr extractLandmarksUnknown(SubmapObj& submap_i);
 
-    PointCloudT::Ptr extractLandmarksKnown(SubmapObj& submap_i);
+    void extractLandmarksKnown(SubmapObj& submap_i, 
+                               PointCloudT::Ptr& landmarks, std::vector<int>& lm_idx);
 
     void checkForLoopClosures(SubmapObj& submap_i);
         
     std::string node_name_;
     ros::NodeHandle *nh_;
-    ros::Publisher submaps_pub_;
+    ros::Publisher submaps_pub_, lm_idx_pub_;
     ros::Subscriber enable_subs_;
     ros::Subscriber sift_map_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;

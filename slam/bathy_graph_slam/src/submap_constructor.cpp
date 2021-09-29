@@ -186,7 +186,6 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
         submap_msg.header.stamp = submap_time;
         // std::cout << setprecision (11) << "Submap time " << submap_time.toSec() << std::endl;
         submaps_pub_.publish(submap_msg);
-
     }
     else{
         // See which known landmarks are contained in the submap area

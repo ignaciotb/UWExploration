@@ -8,108 +8,100 @@ samGraph::samGraph()
                                      ISAM2Params::CHOLESKY, true,
                                      DefaultKeyFormatter, true);
 
-    // TODO: this has to be an input param
-    Vector odoSigmas = Vector3(0.005, 0.001, 0.01);
-    odoNoise = noiseModel::Diagonal::Sigmas(odoSigmas);
+    num_landmarks_ = 0;
 
+    // TODO: this has to be an input param
+    odoNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 0.1, 0.1, 0,1,
+                                            0, 0, M_PI / 100.0).finished());
+    brNoise_ = noiseModel::Diagonal::Sigmas((Vector(3)<<0.01,0.03,0.05).finished());
     // Instantiate pointers
     isam_.reset(new ISAM2(params));
-    newFactors_.reset(new NonlinearFactorGraph());
+    graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
 }
 
-samGraph::~samGraph(){
+samGraph::~samGraph()
+{
 }
 
-void samGraph::addPrior()
+void samGraph::addPrior(Pose3& initPose)
 {
-    SharedDiagonal odoNoise = noiseModel::Diagonal::Sigmas(
-        (Vector(3) << 0.1, 0.1, M_PI / 100.0).finished());
-
-    ISAM2Params params = ISAM2Params(ISAM2GaussNewtonParams(0.001), 0.0,
-                                     0, false, true,
-                                     ISAM2Params::CHOLESKY, true,
-                                     DefaultKeyFormatter, true);
-
-    ISAM2 isam(params);
-    Values fullinit;
-    NonlinearFactorGraph fullgraph;
-
-    // i keeps track of the time step
-    size_t i = 0;
-
     // Add a prior at time 0 and update isam
-    {
-        NonlinearFactorGraph newfactors;
-        newfactors.addPrior(0, Pose2(0.0, 0.0, 0.0), odoNoise);
-        fullgraph.push_back(newfactors);
+    graph_->addPrior(Symbol('x', 0), initPose, odoNoise_);
+    initValues_->insert(Symbol('x', 0), initPose);
+    // Init last pose where the odom frame is
+    lastPose_ = initPose;
 
-        Values init;
-        init.insert((0), Pose2(0.01, 0.01, 0.01));
-        fullinit.insert((0), Pose2(0.01, 0.01, 0.01));
-
-        isam.update(newfactors, init);
-    }
-    ROS_INFO("Prior updated");
-    // Add odometry from time 0 to time 5
-    for (; i < 5; ++i)
-    {
-        NonlinearFactorGraph newfactors;
-        newfactors += BetweenFactor<Pose2>(i, i + 1, Pose2(1.0, 0.0, 0.0), odoNoise);
-        fullgraph.push_back(newfactors);
-
-        Values init;
-        init.insert((i + 1), Pose2(double(i + 1) + 0.1, -0.1, 0.01));
-        fullinit.insert((i + 1), Pose2(double(i + 1) + 0.1, -0.1, 0.01));
-        ROS_INFO("About to update ISAM");
-        isam.update(newfactors, init);
-        ROS_INFO("ISAM updated");
-    }
+    // TODO: do we need to update isam here?
+    // isam_->update(*graph_, *initValues_);
+    // graph_.reset(new NonlinearFactorGraph());
+    // initValues_.reset(new Values());
+    std::cerr << "Prior added " << std::endl;
 }
 
-void samGraph::addOdomFactor(Pose2 odom_step, size_t step)
+void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
 {
-    // // Add odom factor
-    // ROS_INFO("Adding odom factor");
-    // NonlinearFactorGraph newfactors;
-    // newfactors += BetweenFactor<Pose2>(step, step + 1, Pose2(1.0, 0.0, 0.0), odoNoise);
-    // // newFactors_->push_back(BetweenFactor<Pose2>(step - 1, step, odom_step, odoNoise));
-    // std::cout << "New factor created" << std::endl;
+    // Add odometry
+    // submap i will be DR factor i+1 since the origin 
+    // (where there's no submap) is the factor 0
+    graph_->emplace_shared<BetweenFactor<Pose3> >(Symbol('x', step), Symbol('x', step+1),
+                                                  odom_step, odoNoise_);
 
-    // // predict pose and add as initial estimate
-    // Values init;
-    // // Pose2 predictedPose = lastPose_.compose(odom_step);
-    // // lastPose_ = predictedPose;
-    // init.insert((step + 1), Pose2(double(step + 1) + 0.1, -0.1, 0.01));
-    // std::cout << "New init created" << std::endl;
+    // Predict pose and add as initial estimate
+    // Pose3 predictedPose = lastPose_.compose(odom_step);
+    // lastPose_ = predictedPose;
+    // predictedPose.print("Node added ");
+    initValues_->insert(Symbol('x', step+1), factor_pose);
+    std::cerr << "Odom factor added" << std::endl;
 
-    // isam_->update(newfactors, init);
-    // std::cout << "adding odom factor" << std::endl;
-    size_t i = 0;
-    ROS_INFO("Odom factors added");
-
-    for (; i < 5; ++i)
-    {
-        NonlinearFactorGraph newfactors;
-        newfactors += BetweenFactor<Pose2>(i, i + 1, Pose2(1.0, 0.0, 0.0), odoNoise);
-        // std::cout << newfactors.print() << std::endl;
-        // fullgraph.push_back(newfactors);
-
-        Values init;
-        init.insert((i + 1), Pose2(double(i + 1) + 0.1, -0.1, 0.01));
-        // fullinit.insert((i + 1), Pose2(double(i + 1) + 0.1, -0.1, 0.01));
-
-        isam_->update(newfactors, init);
-    }
-    ROS_INFO("ISAM updated again");
 }
-// void samGraph::initializeISAM()
-// {
-//     initValues_->print();
-//     newFactors_->print();
-//     LevenbergMarquardtOptimizer batchOptimizer(*newFactors_, *initValues_);
-//     Values result = batchOptimizer.optimize();
-//     // isam_->update(*newFactors_, result);
 
-//     // initialized = true;
-// }
+void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
+                                  std::vector<int>& lm_idx, Pose3 submap_pose)
+{
+    // Check we've got the same number of landmarks and indexes
+    if(!landmarks.points.size() == lm_idx.size()){
+        std::cerr << "Different number of landmarks and indexes" << std::endl;
+    }
+
+    // Convert landmarks PCL points to gtsam Point3
+    int i = 0;
+    bool lc_detected = false;
+    for (PointT &point : landmarks){
+        // If known association is on, the landmarks are already in map frame
+        Point3 lm = Eigen::Vector3f(point.x, point.y, point.z).cast<double>();
+        
+        graph_->emplace_shared<BearingRangeFactor<Pose3, Point3> >(
+            Symbol('x', step+1), Symbol('l', lm_idx.at(i)), 
+            submap_pose.bearing(lm), submap_pose.range(lm), brNoise_);
+
+        // Add initial estimate for landmarks
+        if (!initValues_->exists(Symbol('l', lm_idx.at(i)))) {
+            // Point3 mapLandmark = submap_pose.transformFrom(lm);
+            initValues_->insert(Symbol('l', lm_idx.at(i)), lm);
+        }
+        else{
+            lc_detected = true;
+            // std::cout << "LC with landmark " << lm_idx.at(i) << std::endl;
+            // TODO: if loop closure detected, updateISAM2()
+        }
+        i++;
+    }
+    if(lc_detected){
+        std::cout << "Loop closure detected" << std::endl;
+    }
+
+    // initValues_->print("Init values ");
+    std::cout << "RB factors added" << std::endl;
+} 
+
+void samGraph::updateISAM2()
+{
+    isam_->update(*graph_, *initValues_);
+
+    // Values estimate = isam_->calculateEstimate();
+    initValues_->print("Init estimate: ");
+    graph_.reset(new NonlinearFactorGraph());
+    initValues_.reset(new Values());
+    std::cout << "ISAM updated" << std::endl;
+}

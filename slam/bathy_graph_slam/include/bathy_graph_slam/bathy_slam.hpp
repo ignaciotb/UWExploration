@@ -2,16 +2,14 @@
 #define BATHY_SLAM_HPP
 
 #include <ros/ros.h>
+#include <iostream>
+
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 #include <pcl_conversions/pcl_conversions.h>
-
 #include <pcl/point_types.h>
 #include <pcl/features/normal_3d.h>
 #include <pcl/io/pcd_io.h>
-
-#include <iostream>
-
 #include <pcl/keypoints/sift_keypoint.h>
 #include <pcl/io/ply_io.h>
 #include <pcl/visualization/pcl_visualizer.h>
@@ -41,53 +39,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <Eigen/Core>
 
-#include <gtsam/geometry/Pose2.h>
-#include <gtsam/geometry/Point2.h>
-#include <gtsam/geometry/Pose3.h>
-#include <gtsam/geometry/Point3.h>
-// #include <gtsam/inference/Symbol.h>
-#include <gtsam/slam/BetweenFactor.h>
-#include <gtsam/slam/StereoFactor.h>
-#include <gtsam/sam/BearingRangeFactor.h>
-#include <gtsam/geometry/BearingRange.h>
-#include <gtsam/nonlinear/NonlinearFactorGraph.h>
-#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
-#include <gtsam/nonlinear/Marginals.h>
-#include <gtsam/nonlinear/Values.h>
-#include <gtsam/nonlinear/NonlinearISAM.h>
-#include <gtsam/nonlinear/ISAM2.h>
-
-using namespace gtsam;
-
-class samGraph
-{
-    typedef BearingRangeFactor<Pose3, Point3> BearingRangeFactor3D;
-
-public:
-    samGraph();
-
-    ~samGraph();
-
-    void addPrior(Pose3& initPose);
-
-    void addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step);
-
-    void addLandmarksFactor(PointCloudT&, size_t step, 
-                            std::vector<int>& lm_idx, Pose3 submap_pose);
-
-    void updateISAM2();
-
-    // Create a factor graph
-    NonlinearFactorGraph::shared_ptr graph_;
-    Values::shared_ptr initValues_;
-    boost::shared_ptr<ISAM2> isam_;
-    Pose3 lastPose_;
-    int num_landmarks_;
-
-    // TODO: this has to be an input parameter
-    SharedDiagonal odoNoise_;
-    SharedDiagonal brNoise_;
-};
+#include <bathy_graph_slam/sam_graph.hpp>
 
 class BathySlamNode
 {

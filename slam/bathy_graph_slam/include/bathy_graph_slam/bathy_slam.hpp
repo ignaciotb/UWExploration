@@ -32,8 +32,9 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf/transform_broadcaster.h>
 
-#include "submaps_tools/submaps.hpp"
+#include <bathy_graph_slam/LandmarksIdx.h>
 
+#include "submaps_tools/submaps.hpp"
 #include "data_tools/std_data.h"
 #include "data_tools/benchmark.h"
 
@@ -100,7 +101,8 @@ public:
 
     bool emptySrv(std_srvs::EmptyRequest &req, std_srvs::EmptyResponse &res);
 
-    void updateGraphCB(const sensor_msgs::PointCloud2Ptr &submap_i);
+    void updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg, 
+                       const bathy_graph_slam::LandmarksIdxPtr &lm_idx);
 
     Pose3 odomStep(double t_step, Pose3& current_pose);
 
@@ -112,6 +114,11 @@ public:
     ros::Subscriber odom_subs_, submap_subs_;
     std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
     ros::ServiceServer synch_service_;
+
+    message_filters::Subscriber<sensor_msgs::PointCloud2> lm_subs_;
+    message_filters::Subscriber<bathy_graph_slam::LandmarksIdx> lm_idx_subs_;
+    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, bathy_graph_slam::LandmarksIdx> MySyncPolicy;
+    message_filters::Synchronizer<MySyncPolicy> *synch_;
 
     SubmapsVec submaps_vec_;
     std::vector<nav_msgs::Odometry> odomVec_;

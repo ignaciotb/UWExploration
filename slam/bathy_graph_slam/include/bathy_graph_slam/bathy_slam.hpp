@@ -64,7 +64,7 @@ public:
     ros::NodeHandle *nh_;
     // ros::Publisher submaps_pub_;
     ros::Subscriber odom_subs_, submap_subs_;
-    std::string map_frame_, odom_frame_, base_frame_, mbes_frame_;
+    std::string map_frame_, odom_frame_, base_frame_, mbes_frame_, graph_init_path_, graph_solved_path_;
     ros::ServiceServer synch_service_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> lm_subs_;

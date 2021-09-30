@@ -20,6 +20,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+#include <fstream>      // std::fstream
+
 using namespace gtsam;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudT;
@@ -38,10 +40,15 @@ public:
 
     void addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step);
 
-    void addLandmarksFactor(PointCloudT&, size_t step, 
+    bool addLandmarksFactor(PointCloudT&, size_t step, 
                             std::vector<int>& lm_idx, Pose3 submap_pose);
 
-    void updateISAM2();
+    void updateISAM2(int iterations);
+
+    Values computeEstimate();
+
+    void saveResults(const Values &result, const std::string &outfilename);
+
 
     // Create a factor graph
     NonlinearFactorGraph::shared_ptr graph_;

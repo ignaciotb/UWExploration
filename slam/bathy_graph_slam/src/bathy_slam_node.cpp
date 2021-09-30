@@ -18,6 +18,8 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
     nh_->param<std::string>("synch_topic", synch_top, "slam_synch");
     nh_->param<std::string>("submaps_topic", submap_top, "/submaps");
     nh_->param<std::string>("landmarks_idx_topic", indexes_top, "/lm_idx");
+    nh_->param<std::string>("graph_init_path", graph_init_path_, "./graph_solved.txt");
+    nh_->param<std::string>("graph_solved_path", graph_solved_path_, "./graph_solved.txt");
 
     // submap_subs_ = nh_->subscribe(submap_top, 3, &BathySlamNode::updateGraphCB, this);
     odom_subs_ = nh_->subscribe(odom_top, 30, &BathySlamNode::odomCB, this);
@@ -111,12 +113,19 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
     std::vector<int> lm_idx_vec = lm_idx->idx.data;
     PointCloudT lm_pcl;
     pcl::fromROSMsg(*lm_pcl_msg, lm_pcl);
-    graph_solver->addLandmarksFactor(lm_pcl, submaps_cnt_, lm_idx_vec, current_pose);
+    bool lc_detected = graph_solver->addLandmarksFactor(lm_pcl, submaps_cnt_, 
+                                                        lm_idx_vec, current_pose);
 
-    // If landmarks have been revisited, add measurements to graph and update ISAM
-    // if (submaps_cnt_ == 2){
-    //     graph_solver->updateISAM2();
-    // }
+    // If LCs detected
+    if(lc_detected){
+        // For testing, save init estimate in file for plotting
+        graph_solver->saveResults(*graph_solver->initValues_, graph_init_path_);
+
+        int updateIterations = 1;
+        graph_solver->updateISAM2(updateIterations);
+        Values current_estimate = graph_solver->computeEstimate();
+        graph_solver->saveResults(current_estimate, graph_solved_path_);
+    }
 
     submaps_cnt_++;
 }

@@ -61,7 +61,7 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
 
 }
 
-void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
+bool samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
                                   std::vector<int>& lm_idx, Pose3 submap_pose)
 {
     int i = 0;
@@ -94,25 +94,74 @@ void samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step,
         }
         i++;
     }
-    if(lc_detected){
-        // TODO: if loop closure detected, updateISAM2()
-        std::cout << "Loop closure detected" << std::endl;
-    }
 
     // Store latest landmarks for next round
     lm_idx_prev_.clear();
     lm_idx_prev_ = lm_idx;
-    // initValues_->print("Init values ");
     std::cout << "RB factors added" << std::endl;
+
+    return lc_detected;
 } 
 
-void samGraph::updateISAM2()
+void samGraph::updateISAM2(int iterations)
 {
     isam_->update(*graph_, *initValues_);
 
-    // Values estimate = isam_->calculateEstimate();
-    initValues_->print("Init estimate: ");
+    // Each call to iSAM2 update(*) performs one iteration of the iterative nonlinear solver.
+    // If accuracy is desired at the expense of time, update(*) can be called additional
+    // times to perform multiple optimizer iterations every step.
+    if(iterations > 1){
+        for(int i=0; i<iterations-1; i++){
+            isam_->update();
+        }
+    }
+
+    // initValues_->print("Init estimate: ");
     graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
     std::cout << "ISAM updated" << std::endl;
+}
+
+Values samGraph::computeEstimate()
+{
+    Values estimate = isam_->calculateEstimate();
+    estimate.print("Estimated values: ");
+
+    return estimate;
+}
+
+
+void samGraph::saveResults(const Values &result, const std::string &outfilename)
+{
+    std::fstream fs(outfilename.c_str(), std::fstream::out);
+
+    auto index = [](gtsam::Key key){ return Symbol(key).index(); };
+
+    // save 3D poses
+    for (const auto key_value : result)
+    {
+        auto p = dynamic_cast<const GenericValue<Pose3> *>(&key_value.value);
+        if (!p)
+            continue;
+        const Pose3 &pose = p->value();
+        Vector quaternion = Rot3(pose.rotation()).quaternion();
+        fs << "Pose " << index(key_value.key) << " " << pose.x() << " "
+            << pose.y() << " " << pose.z() << " " << quaternion(3) 
+            << " " << quaternion(2) << " " << quaternion(1) << " " << quaternion(0) 
+            << std::endl;
+    }
+
+    // save 3D landmarks
+    for (const auto key_value : result)
+    {
+        auto p = dynamic_cast<const GenericValue<Point3> *>(&key_value.value);
+        if (!p)
+            continue;
+        const Point3 &point = p->value();
+        fs << "Landmark " << index(key_value.key) << " " << point.x() << " "
+            << point.y() << " " << point.z() << std::endl;
+    }
+
+    fs.close();
+    std::cout << "Results saved" << std::endl;
 }

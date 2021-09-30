@@ -46,6 +46,8 @@
 			<param name="synch_topic" value="/$(arg app)/synch" />
 			<param name="submaps_topic" value="/$(arg app)/submaps" />
 			<param name="landmarks_idx_topic" value="/$(arg app)/lm_idx" />
+			<param name="graph_init_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_init.txt" />
+			<param name="graph_solved_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_solved.txt" />
 		</node>
 	</group>
 

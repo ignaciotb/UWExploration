@@ -50,6 +50,7 @@ public:
     Pose3 lastPose_;
     int num_landmarks_;
 
+    std::vector<int> lm_idx_prev_;
     // TODO: this has to be an input parameter
     SharedDiagonal odoNoise_;
     SharedDiagonal brNoise_;

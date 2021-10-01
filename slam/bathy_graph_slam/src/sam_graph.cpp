@@ -144,10 +144,12 @@ void samGraph::saveResults(const Values &result, const std::string &outfilename)
         if (!p)
             continue;
         const Pose3 &pose = p->value();
-        Vector quaternion = Rot3(pose.rotation()).quaternion();
+        // TODO: fix this shit
+        gtsam::Rot3 rot = pose.rotation();
+        gtsam::Quaternion quat = rot.toQuaternion();
         fs << "Pose " << index(key_value.key) << " " << pose.x() << " "
-            << pose.y() << " " << pose.z() << " " << quaternion(3) 
-            << " " << quaternion(2) << " " << quaternion(1) << " " << quaternion(0) 
+            << pose.y() << " " << pose.z() << " " << quat.w() 
+            << " " << quat.z() << " " << quat.y() << " " << quat.x() 
             << std::endl;
     }
 

@@ -25,9 +25,9 @@
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="-250.0"/>
-	<arg name="y" default="-400.0"/>
-	<arg name="z" default="-10.0"/>
+	<arg name="x" default="0.0"/>
+	<arg name="y" default="-20.0"/>
+	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>

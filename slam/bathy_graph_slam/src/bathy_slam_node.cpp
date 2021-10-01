@@ -120,7 +120,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
     if(lc_detected){
         // For testing, save init estimate in file for plotting
         graph_solver->saveResults(*graph_solver->initValues_, graph_init_path_);
-
+        // Update and solve ISAM2
         int updateIterations = 1;
         graph_solver->updateISAM2(updateIterations);
         Values current_estimate = graph_solver->computeEstimate();

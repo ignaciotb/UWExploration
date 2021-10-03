@@ -10,7 +10,7 @@ import time
 import numpy as np
 import os
 
-root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/' # Need to update to the path where the data is saved
+root = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/results/trajectory/' # Need to update to the path where the data is saved
 _, dir_name, _ = next(os.walk(root)) 
 color_name = 'Pastel1'  # 'Set3' #'tab20c' # 'Pastel1' #"Accent" 'tab20'
 cmap = get_cmap(color_name)  # type: matplotlib.colors.ListedColormap

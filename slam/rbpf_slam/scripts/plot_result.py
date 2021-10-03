@@ -33,7 +33,7 @@ def read_data(text):
 
 def main():
 
-    root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results_2020_11_7___12_18_9'
+    root = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results_2020_11_7___12_18_9'
 
     xt, yt = read_data(root + '/true_pose.csv')
     xm, ym = read_data(root + '/measured_pose.csv')

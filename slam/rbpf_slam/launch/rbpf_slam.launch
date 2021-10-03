@@ -8,7 +8,7 @@
 	<arg name="dataset" default="overnight_2020"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="25"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
+	<arg name="n_beams_mbes" default="50"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
 	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
 
   <!-- mine added args -->
@@ -17,7 +17,7 @@
 	<arg name="gamma" default=".3"/>        <!--How many procent of the beams that needs to be withing th_reg  -->
 	<arg name="th_reg" default="45."/>      <!--How close mbes x-y pose is to the first ping, when it's time for training.  -->
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
-  <arg name="data_path"   default="/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/results/" /> <!-- Where to save the results  -->
+  <arg name="data_path"   default="/$(find rbpf_slam)/data/results/" /> <!-- Where to save the results  -->
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
 
   <!-- final map  -->
@@ -26,14 +26,14 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="50"/> <!--50 -->
+  <arg name="particle_count"                    default="1"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
-  <!-- <arg name="resampling_noise_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/> -->
-  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/>
-  <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/> 
+  <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/>
+  <arg name="resampling_noise_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0]"/>
+  <!-- <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/> -->
+  <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/> -->
+  <!-- <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>  -->
   <arg name="measurement_std"  default="3"/>
 
   <arg name="map_frame"                         default="map"/>
@@ -96,7 +96,7 @@
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
-      <param name="background_img_path" value="/home/stine/catkin_ws/src/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
+      <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
       <param name="survey_name" value="$(arg data_path)" />
       <param name="result_path" value="$(arg data_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />

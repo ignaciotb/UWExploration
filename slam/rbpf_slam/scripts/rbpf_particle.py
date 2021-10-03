@@ -60,7 +60,7 @@ class Particle(object):
         self.ctr = 0
 
         # Nacho
-        self.gp = SVGP(100)
+        self.gp = SVGP(300)
         self.pose_history = []
 
 
@@ -99,15 +99,18 @@ class Particle(object):
         # Seems to be a problem when integrating depth from Ping vessel, so we just read it
         self.p_pose[2] = odom_t.pose.pose.position.z
 
-    def compute_weight(self, exp_mbes, real_mbes_ranges):
-        # Predict mbes ping given current particle pose and m 
-        exp_mbes_ranges = self.list2ranges(exp_mbes)
+    def compute_weight(self, exp_mbes, real_mbes):
+        # Compare only absolute z values of real and expected measurements 
+        exp_mbes_z = self.list2ranges(exp_mbes)
         #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
         #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
-
-        if len(exp_mbes_ranges) > 0:
+        print("Diffs in depths")
+        print(exp_mbes_z - real_mbes)
+        print("---------------")
+        
+        if len(exp_mbes_z) > 0:
             # Update particle weights
-            self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
+            self.w = self.weight_mv(real_mbes, exp_mbes_z)
             #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
             #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
         else:

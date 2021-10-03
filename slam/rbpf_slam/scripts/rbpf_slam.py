@@ -281,10 +281,9 @@ class rbpf_slam(object):
 
 
     def gp_meas_model(self, real_mbes, p_part, r_base):
-        # Nacho: the pings are already in the map frame
-        # # Transform beams to particle mbes frame and compute map coordinates
-        # real_mbes = np.dot(r_base, real_mbes.T)
-        # real_mbes = np.add(real_mbes.T, p_part)
+        # Transform beams to particle mbes frame and compute map coordinates
+        real_mbes = np.dot(r_base, real_mbes.T)
+        real_mbes = np.add(real_mbes.T, p_part)
 
         # Sample GP here
         mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
@@ -360,11 +359,16 @@ class rbpf_slam(object):
             
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
                 # Measurement update if new one received
-                weights = self.update_maps(self.latest_mbes, odom_msg)
+                self.update_maps(self.latest_mbes, odom_msg)
                 self.prev_mbes = self.latest_mbes
-                
-                # Particle resampling
-                self.resample(weights)
+
+                # If potential LC detected
+                # if(self.count_training > 0):
+                #     # Recompute weights
+                #     weights = self.update_particles_weights(self.latest_mbes, odom_msg)
+                #     # Particle resampling
+                #     self.resample(weights)
+                    
                 self.update_rviz()
                 self.publish_stats(odom_msg)
 
@@ -446,6 +450,51 @@ class rbpf_slam(object):
         # convert likelihood into weigh
         self.particles[idx].w = wi 
 
+    def update_particles_weights(self, mbes_ping, odom):
+
+        # Latest ping in vehicle mbes frame
+        latest_mbes = pcloud2ranges_full(mbes_ping)
+        # Selecting only self.beams_num of beams in the ping
+        idx = np.round(np.linspace(0, len(latest_mbes)-1,
+                                           self.beams_num)).astype(int)
+        latest_mbes = latest_mbes[idx]
+
+        # Transform depths from mbes to map frame: we're only going to update the weights
+        # based on the absolute depths, which we know well
+        latest_mbes_z = latest_mbes[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
+
+        # Calculate expected meas from the particles GP
+        R = self.base2mbes_mat.transpose()[0:3,0:3]
+        for i in range(0, self.pc):
+            # Convert ping from particle MBES to map frame
+            p_part, r_mbes = self.particles[i].pose_history[-1]
+            r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+            latest_mbes_map = np.dot(r_base, latest_mbes.T)
+            latest_mbes_map = np.add(latest_mbes_map.T, p_part)
+            
+            # Sample GP with the ping in map frame
+            mu, sigma = self.particles[i].gp.sample(np.asarray(latest_mbes_map)[:, 0:2])
+            mu_array = np.array([mu])
+            # TODO: use the sigmas from the GP on the weight calculation
+            sigma_array = np.array([sigma])
+
+            # Concatenate sampling points x,y with sampled z
+            exp_mbes = np.concatenate((np.asarray(latest_mbes_map)[:, 0:2], mu_array.T), axis=1)
+
+            # Compute particles weight
+            self.particles[i].compute_weight(exp_mbes, latest_mbes_z)
+        
+        weights = []
+        for i in range(self.pc):
+            weights.append(self.particles[i].w) 
+        # Number of particles that missed some beams 
+        # (if too many it would mess up the resampling)
+        self.miss_meas = weights.count(0.0)
+        weights_array = np.asarray(weights)
+        # Add small non-zero value to avoid hitting zero
+        weights_array += 1.e-200
+        return weights_array
+
 
     def update_maps(self, real_mbes, odom):
              
@@ -475,8 +524,9 @@ class rbpf_slam(object):
 
                 # Retrain the particle's GP
                 print("Training GP ", i)
-                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 200, 
-                                         max_iter=100, learning_rate=1e-1, rtol=1e-4, 
+                # n_samples = a fourth of the total number of beams
+                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= int(pings_i.shape[0]/4), 
+                                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
                                          ntol=100, auto=False, verbose=False)
                 # Plot posterior
                 self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
@@ -487,9 +537,6 @@ class rbpf_slam(object):
                 # self.particles[i].pings.clear()
                 print("GP trained ", i)
 
-                # # If the latest ping in this particle frame is close enough to the particle's GP map --> potential LC
-                
-                # # Calculate expected meas from the particle GP
                 # exp_ping_map, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
                 # self.particles[i].meas_cov = np.diag(exp_sigs)
 
@@ -524,17 +571,6 @@ class rbpf_slam(object):
             # Reset pings for training
             self.count_training += 1
             self.pings_since_training = 0
-
-        weights = []
-        for i in range(self.pc):
-            weights.append(self.particles[i].w) 
-        # Number of particles that missed some beams 
-        # (if too many it would mess up the resampling)
-        self.miss_meas = weights.count(0.0)
-        weights_array = np.asarray(weights)
-        # Add small non-zero value to avoid hitting zero
-        weights_array += 1.e-200
-        return weights_array
 
 
     def regression(self, i, final):
@@ -626,6 +662,7 @@ class rbpf_slam(object):
         # Normalize weights
         weights /= weights.sum()
         N_eff = self.pc
+
         if weights.sum() == 0.:
             rospy.loginfo("All weights zero!")
         else:
@@ -656,15 +693,15 @@ class rbpf_slam(object):
             self.reassign_poses(lost, dupes)
             
             # Add noise to particles
-            for i in range(self.pc):
-                self.particles[i].add_noise(self.res_noise_cov)
-                # clear data
-                self.particles[i].trajectory_path = np.zeros((1,6))
-                self.particles[i].est_map = np.zeros((1,3))
-                self.particles[i].inputs = np.zeros((1,2))
-                self.particles[i].mu_obs = np.zeros((1,))
-                self.particles[i].sigma_obs = np.zeros((1,))
-                self.particles[i].n_from = 1
+            # for i in range(self.pc):
+            #     self.particles[i].add_noise(self.res_noise_cov)
+            #     # clear data
+            #     self.particles[i].trajectory_path = np.zeros((1,6))
+            #     self.particles[i].est_map = np.zeros((1,3))
+            #     self.particles[i].inputs = np.zeros((1,2))
+            #     self.particles[i].mu_obs = np.zeros((1,))
+            #     self.particles[i].sigma_obs = np.zeros((1,))
+            #     self.particles[i].n_from = 1
             self.observations = np.zeros((1,3))
             self.mapping = np.zeros((1,3))
             self.targets = np.zeros((1,))

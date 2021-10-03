@@ -34,11 +34,11 @@
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<arg name="x" default="-250.0"/>
-	<arg name="y" default="-400.0"/>
+	<arg name="y" default="-450.0"/>
 	<arg name="z" default="-10.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/>
+	<arg name="yaw" default="1.0"/>
 
 	<group ns="$(arg namespace)">
 

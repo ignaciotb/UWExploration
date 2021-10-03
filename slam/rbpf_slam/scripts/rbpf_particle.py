@@ -59,6 +59,10 @@ class Particle(object):
         self.n_from = 1
         self.ctr = 0
 
+        # Nacho
+        self.gp = SVGP(100)
+        self.pings = []
+
 
     def add_noise(self, noise):
         noise_cov =np.diag(noise)

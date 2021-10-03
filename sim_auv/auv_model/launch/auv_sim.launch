@@ -8,8 +8,8 @@
 	<arg name="dataset" default="overnight_2020"/>
 
 	<!-- Rates for simulating missions  -->
-    <arg name="odom_rate" default="0.6"/> <!-- 0.1 --> <!-- how often odom is re-calculated?-->
-	<arg name="meas_rate" default="1.6"/> <!-- 0.5 --> <!-- how often "the white line appear" meaning, how often we take measurement-->
+    <arg name="odom_rate" default="0.2"/> <!-- 0.1 --> <!-- how often odom is re-calculated?-->
+	<arg name="meas_rate" default="0.2"/> <!-- 0.5 --> <!-- how often "the white line appear" meaning, how often we take measurement-->
     <arg name="replay_rate" default="0.2"/> <!-- 0.2 -->
 	
 	<!-- MBES sensor--> 

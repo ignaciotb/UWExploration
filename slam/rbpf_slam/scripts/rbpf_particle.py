@@ -61,7 +61,7 @@ class Particle(object):
 
         # Nacho
         self.gp = SVGP(100)
-        self.pings = []
+        self.pose_history = []
 
 
     def add_noise(self, noise):
@@ -169,6 +169,13 @@ class Particle(object):
             #  w_i = 1./self.p_num
             w_i = 0.0
         return w_i
+
+    def update_pose_history(self):
+        # For particle i, get its all its trajectory in the map frame
+        R = self.mbes_tf_mat.transpose()[0:3,0:3]
+        p_part, r_mbes = self.get_p_mbes_pose()
+        r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+        self.pose_history.append((p_part, r_base))
     
     def get_p_mbes_pose(self):
         # Find particle's mbes_frame pose in the map frame 

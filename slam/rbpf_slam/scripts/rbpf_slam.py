@@ -127,6 +127,9 @@ class rbpf_slam(object):
         self.n_from = 1
         self.ctr = 0
 
+        # Nacho
+        self.pings_so_far = 0
+
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
         self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
@@ -196,7 +199,7 @@ class rbpf_slam(object):
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb, queue_size=100)
         
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
@@ -277,14 +280,15 @@ class rbpf_slam(object):
 
 
     def gp_meas_model(self, real_mbes, p_part, r_base):
-        # Transform beams to particle mbes frame and compute map coordinates
-        real_mbes = np.dot(r_base, real_mbes.T)
-        real_mbes = np.add(real_mbes.T, p_part)
+        # Nacho: the pings are already in the map frame
+        # # Transform beams to particle mbes frame and compute map coordinates
+        # real_mbes = np.dot(r_base, real_mbes.T)
+        # real_mbes = np.add(real_mbes.T, p_part)
 
         # Sample GP here
         mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
         mu_array = np.array([mu])
-        sigma_array = np.array([sigma])
+        # sigma_array = np.array([sigma])
         
         # Concatenate sampling points x,y with sampled z
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
@@ -427,15 +431,13 @@ class rbpf_slam(object):
 
 
     def update(self, real_mbes, odom):
+        self.pings_so_far += 1
         # Beams in vehicle mbes frame
         real_mbes_full = pcloud2ranges_full(real_mbes)
         # Selecting only self.beams_num of beams in the ping
         idx = np.round(np.linspace(0, len(real_mbes_full)-1,
                                            self.beams_num)).astype(int)
         real_mbes_full = real_mbes_full[idx]
-
-        # Transform depths from mbes to map frame
-        # real_mbes_ranges = real_mbes_full[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
         
         # -------------- record target data ------------
         # obs = np.array([[odom.pose.pose.position.x, odom.pose.pose.position.y, odom.pose.pose.position.z]])
@@ -455,11 +457,7 @@ class rbpf_slam(object):
             # from the particle i pose
             part_ping_map = np.dot(r_base, real_mbes_full.T)
             part_ping_map = np.add(part_ping_map.T, p_part) 
-            
-            # GP meas model
-            # exp_mbes, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
-            
+                  
             # Publish (for visualization)
             # Transform ping to the particle i MBES frame (same frame than real pings)
             # rot_inv = r_mbes.transpose()
@@ -471,11 +469,39 @@ class rbpf_slam(object):
             mbes_pcloud = pack_cloud(self.map_frame, part_ping_map)
             self.pcloud_pub.publish(mbes_pcloud)
 
-            # Retrain the particle's GP after x new pings
-
-            # If the latest ping is in this particle frame is close enough to its GP map,
-            # calculate expected meas from the particle GP and update its weight
+            # Store ping for this particle
+            self.particles[i].pings.append(part_ping_map)
             
+            # Retrain the particle's GP after x new pings
+            if self.pings_so_far > 50:
+                print("Training GP ", i)
+                pings_i = np.asarray(self.particles[i].pings)
+                pings_i = np.reshape(pings_i, (-1,3))            
+                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], 
+                                         n_samples= pings_i.shape[0], max_iter=100, 
+                                         learning_rate=1e-1, rtol=1e-4, ntol=100, auto=False, verbose=False)
+                # Plot posterior
+                self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
+                                          self.storage_path + 'gp_result/' + 'particle_' + str(i) 
+                                          + '_training_' + str(self.count_training) + '.png',
+                                          n=100, n_contours=100 )
+                
+                # Reset pings for training
+                self.count_training += 1
+                self.pings_so_far = 0
+                self.particles[i].pings.clear()
+                print("GP trained ", i)
+
+
+            # # If the latest ping in this particle frame is close enough to the particle's GP map --> potential LC
+            
+            # # Calculate expected meas from the particle GP
+            # exp_ping_map, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
+
+            # # Update particle's weight comparing GP expected meas and real ping from AUV
+            # self.particles[i].compute_weight(exp_ping_map, part_ping_map)
+
             # ----------- record input data --------
             # self.particles[i].inputs = np.append(self.particles[i].inputs, exp_mbes[:,:2], axis=0)  # (n,2)
             # self.particles[i].est_map = np.append(self.particles[i].est_map, exp_mbes, axis=0)  # (n,3)

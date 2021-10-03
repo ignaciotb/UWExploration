@@ -82,14 +82,14 @@
       <param name="mbes_sim_as" value="/mbes_sim_server" />     
     </node>
 
-    <node type="train_pf_gp.py" pkg="rbpf_slam" name="train_pf_gp" output="screen" >
+    <!-- <node type="train_pf_gp.py" pkg="rbpf_slam" name="train_pf_gp" output="screen" >
       <param name="n_inducing"                              value="$(arg n_inducing)" />
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
       <param name="data_path"                               value="$(arg data_path)" />
       <param name="queue_size"                              value="$(arg queue_size)" />
       <param name="l_max"                                   value="$(arg l_max)" /> 
 
-    </node>
+    </node> -->
 
     <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       

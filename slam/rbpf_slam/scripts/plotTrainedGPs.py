@@ -68,7 +68,7 @@ def learn_basic():
 
 def test_plot():
     #plot input before training
-    root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results/xy/'
+    root = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results/xy/'
     _, _, names = next(os.walk(root))
     print(names[0])
     for f in names: 
@@ -81,7 +81,7 @@ def test_plot():
         plt.ylabel('y axis (m)')
         plt.show()
 
-    root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results/particles/'
+    root = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/results/particles/'
     _, _, names = next(os.walk(root))
     print(names[0])
     for f in names: 
@@ -96,7 +96,7 @@ def test_plot():
 
 def gp_data():    
     # plot saved poserior
-    root = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/particle_posterior/'
+    root = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/particle_posterior/'
     _, _, names = next(os.walk(root))
     # print(names[0])
     for f in names:

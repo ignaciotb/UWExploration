@@ -20,7 +20,7 @@ class AUV_Recorder(object):
 
     def __init__(self):
 
-        root_folder = '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/'
+        root_folder = '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/data/record_pf2train_gp/'
 
         # gt_odom_topic = 'odom' # Odometry
         # sim_odom_topic = '/sim_mbes' # Odometry

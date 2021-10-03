@@ -25,7 +25,6 @@ class PFStatsVisualization(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
-        # self.result_path = rospy.get_param('~result_path', '/home/stine/catkin_ws/src/UWExploration/slam/rbpf_slam/results')
 
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')

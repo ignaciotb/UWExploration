@@ -132,7 +132,7 @@ class Train_gps():
 class create_particle():
     def __init__(self, n):
         self.gp = SVGP(n) 
-        self.lengthscale = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]
+        self.lengthscale = self.gp.cpu().cov.base_kernel.lengthscale.detach().numpy()[0,0]
     
     def update_lengthscale(self):
         mini = self.gp.cov.base_kernel.lengthscale.detach().numpy()[0,0]

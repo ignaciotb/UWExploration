@@ -87,7 +87,7 @@ class Particle(object):
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
         
-        rot_mat_t = rot.from_euler("xyz", [roll_t,pitch_t, yaw_t]).as_dcm()
+        rot_mat_t = rot.from_euler("xyz", [roll_t,pitch_t, yaw_t]).as_matrix()
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
 
         self.p_pose[0] += step_t[0]
@@ -227,7 +227,7 @@ def matrix_from_pose(pose):
     rot_mat = rot.from_quat([pose.orientation.x,
                          pose.orientation.y,
                          pose.orientation.z,
-                         pose.orientation.w]).as_dcm()
+                         pose.orientation.w]).as_matrix()
     
     return (trans, rot_mat) 
 

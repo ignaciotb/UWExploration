@@ -60,7 +60,7 @@ class Particle(object):
         self.ctr = 0
 
         # Nacho
-        self.gp = SVGP(300)
+        # self.gp = SVGP(300)
         self.pose_history = []
 
 

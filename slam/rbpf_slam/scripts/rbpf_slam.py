@@ -146,8 +146,7 @@ class rbpf_slam(object):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
-        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
+        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         
         # Load mesh
         svp_path = rospy.get_param('~sound_velocity_prof')
@@ -173,10 +172,10 @@ class rbpf_slam(object):
         print("draper created")
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
-        # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))
+        # # Load GP
+        # gp_path = rospy.get_param("~gp_path", 'gp.path')
+        # self.gp = gp.SVGP.load(1000, gp_path)
+        # print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
@@ -502,7 +501,7 @@ class rbpf_slam(object):
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         
         # If time to retrain GP map
-        if self.pings_since_training > 100:
+        if self.pings_since_training > 50:
             for i in range(0, self.pc):           
                 # Transform each MBES ping in vehicle frame to the particle trajectory 
                 # (result in map frame)
@@ -520,22 +519,24 @@ class rbpf_slam(object):
                     
                 # Publish (for visualization)
                 mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+
+                self.pcloud_pub = rospy.Publisher("/particle_" + str(i) + self.mbes_pc_top, PointCloud2, queue_size=10)
                 self.pcloud_pub.publish(mbes_pcloud)
 
-                # Retrain the particle's GP
-                print("Training GP ", i)
-                # n_samples = a fourth of the total number of beams
-                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= int(pings_i.shape[0]/4), 
-                                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                                         ntol=100, auto=False, verbose=False)
-                # Plot posterior
-                self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
-                                          self.storage_path + 'gp_result/' + 'particle_' + str(i) 
-                                          + '_training_' + str(self.count_training) + '.png',
-                                          n=100, n_contours=100 )
+                # # Retrain the particle's GP
+                # print("Training GP ", i)
+                # # n_samples = a fourth of the total number of beams
+                # self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= int(pings_i.shape[0]/4), 
+                #                          max_iter=200, learning_rate=1e-1, rtol=1e-4, 
+                #                          ntol=100, auto=False, verbose=False)
+                # # Plot posterior
+                # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
+                #                           self.storage_path + 'gp_result/' + 'particle_' + str(i) 
+                #                           + '_training_' + str(self.count_training) + '.png',
+                #                           n=100, n_contours=100 )
                 
-                # self.particles[i].pings.clear()
-                print("GP trained ", i)
+                # # self.particles[i].pings.clear()
+                # print("GP trained ", i)
 
                 # exp_ping_map, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
                 # self.particles[i].meas_cov = np.diag(exp_sigs)

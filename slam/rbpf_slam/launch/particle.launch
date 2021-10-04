@@ -1,0 +1,10 @@
+<?xml version="1.0" ?>
+<launch>
+    <arg name="filter" default="pf"/>
+    <arg name="node_name"/>
+    
+    <node type="particle_map.py" pkg="rbpf_slam" name="$(arg node_name)" output="screen">
+      <param name="training_points_top" value="/$(arg filter)/sim_mbes"/>     
+      <param name="results_path" value="/$(find rbpf_slam)/data/results/"/>     
+    </node>
+</launch>

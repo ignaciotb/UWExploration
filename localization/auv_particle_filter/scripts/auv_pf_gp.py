@@ -32,7 +32,7 @@ from auvlib.data_tools import csv_data
 from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
-# from bathy_gps import gp
+from gp_mapping import gp
 import time 
 
 class auv_pf(object):
@@ -126,9 +126,9 @@ class auv_pf(object):
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # Load GP
-        # gp_path = rospy.get_param("~gp_path", 'gp.path')
-        # self.gp = gp.SVGP.load(1000, gp_path)
-        # print("Size of GP: ", sys.getsizeof(self.gp))
+        gp_path = rospy.get_param("~gp_path", 'gp.path')
+        self.gp = gp.SVGP.load(1000, gp_path)
+        print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -368,7 +368,7 @@ class auv_pf(object):
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
-            p_part, r_mbes = self.particles[i].get_p_mbes_pose();
+            p_part, r_mbes = self.particles[i].get_p_mbes_pose()
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model
@@ -377,14 +377,14 @@ class auv_pf(object):
             #  print(exp_sigs)
 
             # Second GP meas model
-            #  gp_samples = self.gp_sampling(p_part, r_base)
-            #  exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
-                                           #  gp_samples, self.beams_num)
+            gp_samples = self.gp_sampling(p_part, r_base)
+            exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
+                                            gp_samples, self.beams_num)
                    
             # IGL-based meas model
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            # exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+            #                                     self.beams_num, self.mbes_angle)
+            # exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)

@@ -1,0 +1,123 @@
+<?xml version="1.0" ?>
+<launch>
+    <!--Set to false if running online on Lolo-->
+    <arg name="use_sim_time" value="false" />
+
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
+    <arg name="mode" default="gt"/>
+	<arg name="namespace" default="lolo"/>
+	<arg name="debug" default="0"/>
+	<arg name="dataset" default="overnight_2020"/>
+
+  <!-- MBES sensor -->
+	<arg name="n_beams_mbes" default="50"/>
+	<arg name="mbes_open_angle" value="2.08" />
+
+  <arg name="filter" default="pf"/>
+
+  <!-- Define args -->
+  <arg name="particle_count"                    default="15"/>
+  <!-- [x, y, z, roll, pitch, yaw] -->
+  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
+  <!--<arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>-->
+  <!--<arg name="resampling_noise_covariance" default="[10, 10, 1.0, 0.0, 0.0, 0.2]"/>-->
+  <arg name="init_covariance" default="[10., 10., 0.0, 0.0, 0.0, 0.1]"/>
+  <arg name="motion_covariance" default="[0.2, 0.2, 0.1, 0.0, 0.0, 0.0001]"/>
+  <arg name="resampling_noise_covariance" default="[2, 2, 0.1, 0.0, 0.0, 0.1]"/>
+  <arg name="measurement_std"  default="0.2"/>
+
+  <!--<arg name="map_frame"                         default="utm"/>-->
+  <!--<arg name="map_frame"                         default="utm_33"/>-->
+  <arg name="map_frame"                         default="map"/>
+  <arg name="odom_frame"                         default="lolo/odom"/>
+  <arg name="mbes_frame"                         default="lolo/enu/mbes_link"/>
+  <arg name="odometry_topic"                    default="lolo/dr/odom"/>
+  <arg name="mbes_pings_topic"                  default="/lolo/mbes/enu/bathy_cloud"/>
+  <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
+  <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
+  <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
+  <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
+
+  <!--UTM zone 33 to map transform-->
+  <!--<node type="static_transform_publisher" pkg="tf" name="utm33_to_odom"-->
+      <!--args="688972.533 6575699.110 0 0 0 0 utm_33 lolo/odom 10"/>-->
+
+  <!--<node type="static_transform_publisher" pkg="tf" name="tf_utm33_to_map"-->
+      <!--args="688972.533 6575699.110 0 0 0 0 utm_33 map 10"/>-->
+
+  <node type="static_transform_publisher" pkg="tf" name="tf_map_to_loloodom"
+      args="0 0 0 0 0 0 map lolo/odom 10"/>
+
+  <!-- LoLo model -->
+  <!--<include file="$(find lolo_description)/launch/lolo_description.launch" />-->
+
+  <!--Scan to pointcloud publisher-->
+  <!--<node type="scan_2_ptcloud.py" pkg="lolo_pf_interface" name="scan_2_pointcloud2"-->
+        <!--output="screen"/>-->
+
+    <node type="auv_pf_gp.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
+      <param name="init_covariance"                  value="$(arg init_covariance)" />
+      <param name="resampling_noise_covariance"                  value="$(arg resampling_noise_covariance)" />
+      <param name="measurement_std"                  value="$(arg measurement_std)" />
+      <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+      <param name="map_frame"                               value="$(arg map_frame)" />
+      <param name="odom_frame"                               value="$(arg odom_frame)" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+			<param name="synch_topic" value="$(arg filter)/synch" />
+
+      <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+      <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+      <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
+      <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+  	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
+      <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
+      <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+      <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
+      <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
+      <!--<param name="mesh_path" value="$(find auv_particle_filter)/meshes/baggen_2020/baggen_mesh_utm.npz" />-->
+      <param name="mesh_path" value="/home/aldoteran/slam_ws/maps/KBerg_mission_map.npz" />
+      <param name="gp_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svgp.pth" />
+      <!--Only needed for GPs-->
+      <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
+      <param name="survey_finished_top" value="/gt/survey_finished" />
+      <param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />
+      <param name="pf_stats_top" value="/stats/pf_data" />
+      <param name="mbes_sim_as" value="/mbes_sim_server" />
+    </node>
+
+    <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
+      <param name="pf_stats_top" value="/stats/pf_data" />
+      <param name="map_frame" value="$(arg map_frame)" />
+      <param name="odom_frame" value="$(arg odom_frame)" />
+      <param name="survey_finished_top" value="/gt/survey_finished" />
+      <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />
+      <param name="survey_name" value="overnight_20"/>
+      <param name="mbes_pings_topic" value="/lolo/mbes/enu/bathy_cloud" />
+      <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
+   </node>
+
+    <!-- Publish map as pcl  -->
+    <!--<node type="map_pcl_vis.py" pkg="map_pcl_publisher" name="map_pub" output="screen">-->
+        <!--[><param name="map_cloud_path"  value="/home/aldoteran/slam_ws/src/UWExploration/sim_auv/auv_model/launch/pcl.npy" /><]-->
+        <!--<param name="map_cloud_path"  value="/home/aldoteran/slam_ws/maps/KBerg_map_full_offset_test.npy" />-->
+        <!--[><param name="map_cloud_path"  value="/home/aldoteran/slam_ws/maps/baggen_map_utm.npy" /><]-->
+        <!--<param name="map_gp_path"  value=""/>-->
+        <!--<param name="map_frame" value="$(arg map_frame)" />-->
+        <!--<param name="use_pings_cloud" type= "bool" value="True" />-->
+    <!--</node>-->
+
+    <!-- UW environment -->
+    <!--<include file="$(find auv_model)/launch/lolo_auv_sim.launch" >-->
+      <!--<arg name="mode" value="$(arg mode)"/>-->
+      <!--<arg name="filter" value="$(arg filter)"/>-->
+      <!--<arg name="namespace" value="$(arg namespace)"/>-->
+      <!--<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>-->
+      <!--<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />-->
+      <!--<arg name="dataset" value="$(arg dataset)" />-->
+    <!--</include>-->
+
+</launch>
+

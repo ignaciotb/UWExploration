@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<launch>
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin"/>
+	<arg name="debug" default="0"/>
+	<arg name="dataset" default="overnight_2020"/>
+
+  <!-- MBES sensor -->
+	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="mbes_open_angle" value="2.250" />
+  
+  <arg name="filter" default="pf"/>
+
+  <!-- Define args -->
+  <arg name="particle_count"                    default="100"/>
+  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
+  <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="measurement_std"  default="3"/>
+
+  <arg name="map_frame"                         default="map"/>
+  <arg name="odom_frame"                         default="odom"/>
+  <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
+  <arg name="mbes_pings_topic"                  default="/gt/mbes_pings"/>
+  <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
+  <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
+  <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
+  <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
+
+    <node type="auv_ui.py" pkg="gp_mapping" name="auv_ui" output="screen">
+      <param name="map_frame" value="$(arg map_frame)" />
+      <param name="odom_frame" value="$(arg odom_frame)" />
+	  <param name="mbes_link" value="$(arg namespace)/mbes_link" />
+      <param name="odometry_topic" value="$(arg odometry_topic)" />
+      <param name="mbes_pings_topic" value="$(arg mbes_pings_topic)" />
+      <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
+  </node>
+
+</launch>
+

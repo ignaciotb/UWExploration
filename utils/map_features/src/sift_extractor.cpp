@@ -59,7 +59,7 @@ void siftExtractionCB(const sensor_msgs::PointCloud2Ptr &map_cloud)
     copyPointCloud(result, *cloud_temp);
 
     // Save
-    pcl::io::savePCDFileASCII ("/home/torroba/Downloads/submaps/sift_map.pcd",
+    pcl::io::savePCDFileASCII ("/home/torroba/Downloads/sift_map.pcd",
                                *cloud_temp);
 
     // Kill node when done
@@ -68,7 +68,7 @@ void siftExtractionCB(const sensor_msgs::PointCloud2Ptr &map_cloud)
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "submap_constructor_node");
+    ros::init(argc, argv, "sift_extractor_node");
     ros::NodeHandle nh("~");
 
     std::string map_top, sift_path;

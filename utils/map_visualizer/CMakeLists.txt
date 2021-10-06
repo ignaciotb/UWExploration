@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(bathy_graph_slam)
+project(map_visualizer)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -7,48 +7,10 @@ project(bathy_graph_slam)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  message_filters
-  pcl_ros
-  sensor_msgs
-  tf
-  tf_conversions
-  tf2
-  tf2_ros
-  eigen_conversions
-  std_msgs
-  message_generation
-)
+find_package(catkin REQUIRED)
 
 ## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS system)
-find_package(Ceres REQUIRED)
-find_package(Eigen3 REQUIRED)
-find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 4 REQUIRED)
-find_package(g2o REQUIRED)
-
-# Auvlib stuff
-find_package(LibXTF REQUIRED)
-find_package(LibGSF REQUIRED)
-find_package(EigenCereal REQUIRED)
-find_package(DataTools REQUIRED)
-find_package(SonarTracing REQUIRED)
-find_package(AuvlibGlad REQUIRED)
-find_package(BathyMaps REQUIRED)
-
-find_package(SubmapsTools REQUIRED)
-find_package(GraphOptimization REQUIRED)
-find_package(SubmapRegistration REQUIRED)
-
-#GTSAM components
-find_package(GTSAM REQUIRED) # Uses installed package
-find_package(GTSAMCMakeTools)
-# include_directories(${GTSAM_INCLUDE_DIR})
-
-# link_directories(${PCL_LIBRARY_DIRS})
-# add_definitions(${PCL_DEFINITIONS})
+# find_package(Boost REQUIRED COMPONENTS system)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -81,11 +43,11 @@ find_package(GTSAMCMakeTools)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  LandmarksIdx.msg
-  # Message2.msg
-)
+# add_message_files(
+#   FILES
+#   Message1.msg
+#   Message2.msg
+# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -102,10 +64,10 @@ add_message_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs  # Or other packages containing msgs
-)
+# generate_messages(
+#   DEPENDENCIES
+#   std_msgs  # Or other packages containing msgs
+# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -137,9 +99,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS include
-#  LIBRARIES bathy_slam
- CATKIN_DEPENDS message_runtime
+#  INCLUDE_DIRS include
+#  LIBRARIES map_pcl_publisher
+#  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
 
@@ -150,52 +112,39 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIR}
-  ${SubmapsTools_INCLUDE_DIR}
+# include
+# ${catkin_INCLUDE_DIRS}
 )
 
-add_library(sam_graph
-  src/sam_graph.cpp
-)
+## Declare a C++ library
+# add_library(${PROJECT_NAME}
+#   src/${PROJECT_NAME}/map_pcl_publisher.cpp
+# )
 
+## Add cmake target dependencies of the library
+## as an example, code may need to be generated before libraries
+## either from message generation or dynamic reconfigure
+# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_executable(${PROJECT_NAME}_node
-    src/bathy_slam_node.cpp)
+## Declare a C++ executable
+## With catkin_make all packages are built within a single CMake context
+## The recommended prefix ensures that target names across packages don't collide
+# add_executable(${PROJECT_NAME}_node src/map_pcl_publisher_node.cpp)
 
-add_dependencies(${PROJECT_NAME}_node
-    ${${PROJECT_NAME}_EXPORTED_TARGETS}
-    ${catkin_EXPORTED_TARGETS})
+## Rename C++ executable without prefix
+## The above recommended prefix causes long target names, the following renames the
+## target back to the shorter version for ease of user use
+## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
+# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
-target_link_libraries(${PROJECT_NAME}_node
-   ${catkin_LIBRARIES}
-   submaps_tools
-   data_transforms
-   benchmark
-   sam_graph
-   ${PCL_LIBRARIES}
-   gtsam
-)
+## Add cmake target dependencies of the executable
+## same as for the library above
+# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-
-add_executable(submap_constructor_node
-    src/submap_constructor.cpp)
-
-add_dependencies(submap_constructor_node
-    ${${PROJECT_NAME}_EXPORTED_TARGETS}
-    ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(submap_constructor_node
-   ${catkin_LIBRARIES}
-   submaps_tools
-   gicp_registration
-   data_transforms
-   benchmark
-   ${PCL_LIBRARIES}
-)
+## Specify libraries to link a library or executable target against
+# target_link_libraries(${PROJECT_NAME}_node
+#   ${catkin_LIBRARIES}
+# )
 
 #############
 ## Install ##
@@ -244,7 +193,7 @@ target_link_libraries(submap_constructor_node
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_bathy_slam.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_map_pcl_publisher.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

@@ -132,11 +132,11 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tfmsg_.transform.rotation.w = quatw2m.w();
 
     // Store map --> minis tfs
-    std::vector<Eigen::Vector3d> minis_poses;
+    // std::vector<Eigen::Vector3d> minis_poses;
 //    minis_poses.push_back(Eigen::Vector3d(15,-30,-15.5));
-    minis_poses.push_back(Eigen::Vector3d(-220,-20,-17));
-    minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
-    initMiniFrames(minis_poses);
+    // minis_poses.push_back(Eigen::Vector3d(-220,-20,-17));
+    // minis_poses.push_back(Eigen::Vector3d(-200,50,-17));
+    // initMiniFrames(minis_poses);
 
     // Store map --> mbes tf
     map_mbes_tf_ = traj_pings_.at(ping_cnt_).submap_tf_.cast<double>();
@@ -326,22 +326,22 @@ void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector
     tf::Quaternion q_prev;
     tf::quaternionMsgToTF(prev_base_link_.transform.rotation, q_prev);
     tf::Quaternion q_now = tf::createQuaternionFromRPY(euler[0], euler[1], euler[2]);
-    tf::Quaternion q_vel = q_now.normalized() * q_prev.inverse().normalized();
+    tf::Quaternion q_step = q_now.normalized() * q_prev.inverse().normalized();
 
     tf::Matrix3x3 m_prev(q_prev);
     Eigen::Matrix3d m_prev_e;
     tf::matrixTFToEigen(m_prev, m_prev_e);
     Eigen::Vector3d vel_rel = m_prev_e.inverse() * vel_t;
-    tf::Matrix3x3 m_vel(q_vel);
-    double roll_vel, pitch_vel, yaw_vel;
-    m_vel.getRPY(roll_vel, pitch_vel, yaw_vel);
+    tf::Matrix3x3 m_step(q_step);
+    double roll_step, pitch_step, yaw_step;
+    m_step.getRPY(roll_step, pitch_step, yaw_step);
 
     odom.twist.twist.linear.x = vel_rel.x();
     odom.twist.twist.linear.y = vel_rel.y();
     odom.twist.twist.linear.z = vel_rel.z();
-    odom.twist.twist.angular.x = roll_vel/dt;
-    odom.twist.twist.angular.y = pitch_vel/dt;
-    odom.twist.twist.angular.z = yaw_vel/dt;
+    odom.twist.twist.angular.x = roll_step / dt;
+    odom.twist.twist.angular.y = pitch_step / dt;
+    odom.twist.twist.angular.z = yaw_step / dt;
     odom_pub_.publish(odom);
 
     prev_base_link_ = new_base_link_;

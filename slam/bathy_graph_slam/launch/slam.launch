@@ -2,7 +2,7 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-	<arg name="mode" default="gt"/>
+	<arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
     <arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
@@ -10,18 +10,33 @@
 
   	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="2.250" />
+	<arg name="mbes_open_angle" default="1.0" />
 
 	<!-- Frames -->
-	<arg name="world_frame"                         default="world"/>
-	<arg name="map_frame"                         default="map"/>
-	<arg name="odom_frame"                         default="odom"/>
+	<arg name="world_frame"	default="world"/>
+	<arg name="map_frame"	default="map"/>
+	<arg name="odom_frame"	default="odom"/>
 
 	<group ns="$(arg app)">
 
+		<node type="submap_constructor_node" pkg="bathy_graph_slam" name="submap_constructor_node" output="screen">
+			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
+			<param name="odom_topic"  value="/$(arg mode)/odom" />
+			<param name="world_frame" value="$(arg world_frame)" />
+			<param name="map_frame" value="$(arg map_frame)" />
+			<param name="odom_frame" value="$(arg odom_frame)" />
+			<param name="base_link" value="$(arg namespace)/base_link" />
+			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+			<param name="submaps_topic" value="/$(arg app)/submaps" />
+			<param name="landmarks_idx_topic" value="/$(arg app)/lm_idx" />
+			<param name="sift_map_top" value="/map_sift" />
+			<!-- <param name="survey_finished_top" value="/$(arg namespace)/survey_finished" />
+			<param name="synch_topic" value="/$(arg app)/synch" /> -->
+		</node>
+
 		<node type="bathy_graph_slam_node" pkg="bathy_graph_slam" name="bathy_slam_node" output="screen">
 			<param name="mbes_pings"  value="/$(arg mode)/mbes_pings" />
-			<param name="odom_gt"  value="/$(arg mode)/odom" />
+			<param name="odom_topic"  value="/$(arg mode)/odom" />
 			<param name="world_frame" value="$(arg world_frame)" />
 			<param name="map_frame" value="$(arg map_frame)" />
 			<param name="odom_frame" value="$(arg odom_frame)" />
@@ -29,9 +44,25 @@
 			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
 			<param name="survey_finished_top" value="/$(arg namespace)/survey_finished" />
 			<param name="synch_topic" value="/$(arg app)/synch" />
+			<param name="submaps_topic" value="/$(arg app)/submaps" />
+			<param name="landmarks_idx_topic" value="/$(arg app)/lm_idx" />
+			<param name="graph_init_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_init.txt" />
+			<param name="graph_solved_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_solved.txt" />
 		</node>
-	
 	</group>
+
+	<!-- <group ns="stats">
+		<node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
+			<param name="pf_stats_top" value="/stats/pf_data" />       
+			<param name="map_frame" value="$(arg map_frame)" />       
+			<param name="odom_frame" value="$(arg odom_frame)" />       
+			<param name="survey_finished_top" value="/gt/survey_finished" />       
+			<param name="background_img_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/default_real_mean_depth.png" />       
+			<param name="survey_name" value="overnight_20"/>
+			<param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
+			<param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
+		</node>
+	</group> -->
 
     <!-- UW environment -->
     <include file="$(find auv_model)/launch/auv_environment.launch" >

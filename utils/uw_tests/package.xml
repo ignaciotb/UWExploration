@@ -1,13 +1,13 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>bathy_graph_slam</name>
+  <name>uw_tests</name>
   <version>0.0.0</version>
-  <description>The bathy_graph_slam package</description>
+  <description>The uw_tests package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <!-- Example:  -->
   <!-- <maintainer email="jane.doe@example.com">Jane Doe</maintainer> -->
-  <maintainer email="torroba18@todo.todo">torroba18</maintainer>
+  <maintainer email="torroba@todo.todo">torroba</maintainer>
 
 
   <!-- One license tag required, multiple allowed, one license per tag -->
@@ -19,7 +19,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/bathy_slam</url> -->
+  <!-- <url type="website">http://wiki.ros.org/uw_tests</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->
@@ -49,21 +49,7 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  <build_depend>roscpp</build_depend>
-  <build_depend>message_generation</build_depend>
-  <build_export_depend>roscpp</build_export_depend>
-  <exec_depend>roscpp</exec_depend>
-  <exec_depend>message_runtime</exec_depend>
-  <depend>message_filters</depend>
-  <depend>pcl_ros</depend>
-  <depend>sensor_msgs</depend>
-  <depend>tf</depend>
-  <depend>tf_conversions</depend>
-  <depend>std_msgs</depend>
-  <depend>eigen_conversions</depend>
-  <depend>tf2</depend>
-  <depend>tf2_ros</depend>
-  <!-- <depend>std_msgs</depend> -->
+
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

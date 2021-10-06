@@ -90,7 +90,7 @@ class mbes_model(object):
         mbes = np.subtract(mbes.T, p_inv)
 
         # Add noise
-        mbes = gaussian_filter1d(mbes , sigma=0.5)
+        # mbes = gaussian_filter1d(mbes , sigma=0.5)
 
         # Pack result
         mbes_cloud = self.pack_cloud(self.mbes_frame, mbes)

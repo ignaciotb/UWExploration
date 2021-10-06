@@ -33,7 +33,12 @@ from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
 from gp_mapping import gp
-import time 
+
+
+import tensorflow as tf
+import time
+import pathlib
+import tempfile
 
 class auv_pf(object):
 
@@ -127,8 +132,20 @@ class auv_pf(object):
  
         # Load GP
         gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))
+        # self.gp = gp.SVGP.load(1000, gp_path)
+        
+        # Load model
+        save_dir = str(pathlib.Path(tempfile.gettempdir()))
+        print(save_dir)
+        self.gp = tf.saved_model.load(
+            "/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/utils/uw_tests/datasets/overnight_2020/svgp")
+
+        # x = [[0,0]]
+        # loaded_result = loaded_model.predict_y_compiled(x)
+        # print(loaded_result)
+        # print("Model loaded")
+
+        # print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -209,106 +226,22 @@ class auv_pf(object):
         rospy.loginfo("PF node: Survey finished received") 
         #  rospy.signal_shutdown("Survey finished")
 
-    def gp_sampling(self, p, R):
-        h = 100. # Depth of the field of view
-        b = h / np.cos(self.mbes_angle/2.)
-        n = 80  # Number of sampling points
-
-        # Triangle vertices 
-        Rxmin = rotation_matrix(-self.mbes_angle/2., (1,0,0))[0:3, 0:3]
-        Rxmax = rotation_matrix(self.mbes_angle/2., (1,0,0))[0:3, 0:3]
-        Rxmin = np.matmul(R, Rxmin)
-        Rxmax = np.matmul(R, Rxmax)
-        
-        p2 = p + Rxmax[:,2]/np.linalg.norm(Rxmax[:,2]) * b
-        p3 = p + Rxmin[:,2]/np.linalg.norm(Rxmin[:,2]) * b
-        
-        # Sampling step
-        i_range = np.linalg.norm(p3 - p2)/n
-
-        # Across ping direction
-        direc = ((p3-p2)/np.linalg.norm(p3-p2)) 
-        
-        #  start = time.time()
-        p2s = np.full((n, len(p2)), p2)
-        direcs = np.full((n, len(direc)), direc)
-        i_ranges = np.full((1,n), i_range)*(np.asarray(range(0,n)))
-        sampling_points = p2s + i_ranges.reshape(n, 1)*direcs
-
-        # Sample GP here
-        mu, sigma = self.gp.sample(np.asarray(sampling_points)[:, 0:2])
-        mu_array = np.array([mu])
-        
-        # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(sampling_points)[:, 0:2], 
-                                  mu_array.T), axis=1)
-        #  print(mbes_gp)
-        return mbes_gp
-
-
-    def gp_ray_tracing(self, r_mbes, p, gp_samples, beams_num):
-                
-        # Transform points to MBES frame to perform ray tracing on 2D
-        rot_inv = r_mbes.transpose()
-        p_inv = rot_inv.dot(p)
-        gp_samples = np.dot(rot_inv, gp_samples.T)
-        gp_samples = np.subtract(gp_samples.T, p_inv)
-        
-        # Without for loop version
-        start = time.time()
-        n = len(gp_samples)
-        M = len(self.beams_dir)
-        v1 = -np.roll(gp_samples, 1, axis=0)
-        v1_vec = np.tile(v1, (M,1))
-        v2_vec = np.tile(gp_samples + v1, (M,1))
-        v3_vec = np.repeat(self.beams_dir_2d, len(gp_samples), axis=0)
-
-        inner23_vec = np.einsum('ij, ij->i', v2_vec, v3_vec)
-        t2_vec = np.einsum('ij, ij->i', v1_vec, v3_vec)/inner23_vec
-        t2_vec = t2_vec.reshape(M, n)
-
-        hits_vec = np.asarray(np.where((t2_vec[0]>=0) & (t2_vec[0]<=1))[0][1]).reshape(1,1)
-        for m in range(1, M):
-            new = np.asarray(np.where((t2_vec[m]>=0) & (t2_vec[m] <= 1))[0][1]).reshape(1,1)
-            hits_vec = np.concatenate((hits_vec, new), 0)
-
-        # TODO: optimize
-        #  rows, cols = np.where((t2_vec[0]>=0) & (t2_vec[0]<=1))
-
-        t1_vec = (np.cross(v2_vec, v1_vec)/inner23_vec.reshape(M*len(gp_samples),1))
-        # TODO: This one can be faster too
-        t1_vec = np.sqrt(np.sum(t1_vec**2,axis=-1))
-        t1_vec = t1_vec.reshape(M, n)
-
-        exp_meas = []
-        for m in range(M):
-            if len(hits_vec[m]) > 0:
-                if t1_vec[m, hits_vec[m]] > 0:
-                    exp_meas.append(self.beams_dir[m] * t1_vec[m, hits_vec[m]])
-
-        #  print("Duration mat", time.time() - start)
-        #  print("----")
-        
-        # Transform back to map frame
-        mbes_gp = np.asarray(exp_meas)
-        mbes_gp = np.dot(r_mbes, mbes_gp.T)
-        mbes_gp = np.add(mbes_gp.T, p)
-
-        return mbes_gp
-
     def gp_meas_model(self, real_mbes, p_part, r_base):
         # Transform beams to particle mbes frame and compute map coordinates
         real_mbes = np.dot(r_base, real_mbes.T)
         real_mbes = np.add(real_mbes.T, p_part)
 
         # Sample GP here
-        mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
-        mu_array = np.array([mu])
+        mu, sigma = self.gp.predict_y_compiled(real_mbes[:, 0:2])
+
+        # mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
+        mu_array = np.array(mu)
         sigma_array = np.array([sigma])
-        
+        # print(np.asarray(real_mbes)[:, 0:2])
+        # print(mu_array)
         # Concatenate sampling points x,y with sampled z
         mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
-                                  mu_array.T), axis=1)
+                                  mu_array), axis=1)
         #  print(sigma)
         return mbes_gp, sigma
 
@@ -372,19 +305,14 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model
-            #  exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            #  self.particles[i].meas_cov = np.diag(exp_sigs)
-            #  print(exp_sigs)
-
-            # # Second GP meas model
-            # gp_samples = self.gp_sampling(p_part, r_base)
-            # exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
-            #                                 gp_samples, self.beams_num)
+            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
+            # print(exp_sigs)
                    
-            # IGL-based meas model
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            # # IGL-based meas model
+            # exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+            #                                     self.beams_num, self.mbes_angle)
+            # exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)

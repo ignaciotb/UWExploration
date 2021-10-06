@@ -84,12 +84,14 @@ class Particle(object):
     def compute_weight(self, exp_mbes, real_mbes_ranges):
         # Predict mbes ping given current particle pose and m 
         exp_mbes_ranges = self.list2ranges(exp_mbes)
+        print(exp_mbes_ranges.shape)
+        print(real_mbes_ranges.shape)
         #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
         #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
 
         if len(exp_mbes_ranges) > 0:
             # Update particle weights
-            self.w = self.weight_mv(real_mbes_ranges, exp_mbes_ranges)
+            self.w = self.weight_mv(real_mbes_ranges, real_mbes_ranges)
             #  self.w = self.weight_avg(real_mbes_ranges, exp_mbes_ranges)
             #  self.w = self.weight_grad(real_mbes_ranges, exp_mbes_ranges)
         else:

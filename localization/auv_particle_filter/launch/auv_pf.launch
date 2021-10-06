@@ -2,7 +2,7 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-  <arg name="mode" default="gt"/>
+  <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
   <arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
@@ -62,7 +62,7 @@
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
+      <param name="background_img_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/default_real_mean_depth.png" />       
       <param name="survey_name" value="overnight_20"/>
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />

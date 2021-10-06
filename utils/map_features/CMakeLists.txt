@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(bathy_graph_slam)
+cmake_minimum_required(VERSION 3.0.2)
+project(map_features)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
@@ -7,85 +7,21 @@ project(bathy_graph_slam)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  message_filters
-  pcl_ros
-  sensor_msgs
-  tf
-  tf_conversions
-  tf2
-  tf2_ros
-  eigen_conversions
-  std_msgs
-  message_generation
+find_package(catkin REQUIRED
+    roscpp
+    pcl_ros
+    sensor_msgs
 )
 
-## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS system)
-find_package(Ceres REQUIRED)
-find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 4 REQUIRED)
-find_package(g2o REQUIRED)
 
-# Auvlib stuff
-find_package(LibXTF REQUIRED)
-find_package(LibGSF REQUIRED)
-find_package(EigenCereal REQUIRED)
-find_package(DataTools REQUIRED)
-find_package(SonarTracing REQUIRED)
-find_package(AuvlibGlad REQUIRED)
-find_package(BathyMaps REQUIRED)
-
-find_package(SubmapsTools REQUIRED)
-find_package(GraphOptimization REQUIRED)
-find_package(SubmapRegistration REQUIRED)
-
-#GTSAM components
-find_package(GTSAM REQUIRED) # Uses installed package
-find_package(GTSAMCMakeTools)
-# include_directories(${GTSAM_INCLUDE_DIR})
-
-# link_directories(${PCL_LIBRARY_DIRS})
-# add_definitions(${PCL_DEFINITIONS})
-
-
-## Uncomment this if the package has a setup.py. This macro ensures
-## modules and global scripts declared therein get installed
-## See http://ros.org/doc/api/catkin/html/user_guide/setup_dot_py.html
-# catkin_python_setup()
-
-################################################
-## Declare ROS messages, services and actions ##
-################################################
-
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a exec_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a exec_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(
-  FILES
-  LandmarksIdx.msg
-  # Message2.msg
-)
+# add_message_files(
+#   FILES
+#   Message1.msg
+#   Message2.msg
+# )
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -102,10 +38,10 @@ add_message_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs  # Or other packages containing msgs
-)
+# generate_messages(
+#   DEPENDENCIES
+#   std_msgs  # Or other packages containing msgs
+# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -137,9 +73,9 @@ generate_messages(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS include
-#  LIBRARIES bathy_slam
- CATKIN_DEPENDS message_runtime
+#  INCLUDE_DIRS include
+#  LIBRARIES map_features
+#  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
 
@@ -150,50 +86,20 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-  include
-  ${catkin_INCLUDE_DIRS}
-  ${EIGEN_INCLUDE_DIRS}
-  ${PCL_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIR}
-  ${SubmapsTools_INCLUDE_DIR}
+    # include
+    ${catkin_INCLUDE_DIRS}
+    ${PCL_INCLUDE_DIRS}
 )
 
-add_library(sam_graph
-  src/sam_graph.cpp
-)
+add_executable(sift_extractor_node
+    src/sift_extractor.cpp)
 
-
-add_executable(${PROJECT_NAME}_node
-    src/bathy_slam_node.cpp)
-
-add_dependencies(${PROJECT_NAME}_node
+add_dependencies(sift_extractor_node
     ${${PROJECT_NAME}_EXPORTED_TARGETS}
     ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(${PROJECT_NAME}_node
+target_link_libraries(sift_extractor_node
    ${catkin_LIBRARIES}
-   submaps_tools
-   data_transforms
-   benchmark
-   sam_graph
-   ${PCL_LIBRARIES}
-   gtsam
-)
-
-
-add_executable(submap_constructor_node
-    src/submap_constructor.cpp)
-
-add_dependencies(submap_constructor_node
-    ${${PROJECT_NAME}_EXPORTED_TARGETS}
-    ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(submap_constructor_node
-   ${catkin_LIBRARIES}
-   submaps_tools
-   gicp_registration
-   data_transforms
-   benchmark
    ${PCL_LIBRARIES}
 )
 
@@ -206,7 +112,7 @@ target_link_libraries(submap_constructor_node
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
+# catkin_install_python(PROGRAMS
 #   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
@@ -244,7 +150,7 @@ target_link_libraries(submap_constructor_node
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_bathy_slam.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_map_features.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

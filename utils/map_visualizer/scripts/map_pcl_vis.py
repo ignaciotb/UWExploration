@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from auvlib.data_tools import gsf_data, std_data, csv_data, xyz_data
-from auvlib.bathy_maps import mesh_map, base_draper
-import configargparse
-import math
-import os
-import sys
-
-from scipy import stats
-from scipy.spatial.transform import Rotation as rot
+import open3d as o3d
 
 import rospy
 from sensor_msgs.msg import PointCloud2, PointField
@@ -22,9 +14,11 @@ class MapPCLPublisher(object):
     def __init__(self):
 
         self.cloud_path = rospy.get_param('~map_cloud_path')
+        self.sift_cloud_path = rospy.get_param('~map_sift_path')
         self.gp_cloud_path = rospy.get_param('~map_gp_path')
         self.map_frame = rospy.get_param('~map_frame')
         self.map_pub = rospy.Publisher('/map_mbes', PointCloud2, queue_size=1)
+        self.map_sift_pub = rospy.Publisher('/map_sift', PointCloud2, queue_size=1)
         self.map_gp_pub = rospy.Publisher('/map_gp', PointCloud2, queue_size=1)
         raw_data = False
 
@@ -46,7 +40,7 @@ class MapPCLPublisher(object):
             gp_cloud = np.load(self.gp_cloud_path)
             gp_cloud = gp_cloud[:,0:3]
             
-            gp_pcloud = PointCloud2()
+            # gp_pcloud = PointCloud2()
             header = Header()
             header.frame_id = self.map_frame
             fields = [PointField('x', 0, PointField.FLOAT32, 1),
@@ -56,6 +50,22 @@ class MapPCLPublisher(object):
             gp_pcloud = point_cloud2.create_cloud(header, fields, gp_cloud)
             gp_cloud = None
 
+        if self.sift_cloud_path != "":    
+            pcd = o3d.io.read_point_cloud(self.sift_cloud_path)
+            sift_cloud = np.asarray(pcd.points)  
+
+            print("Map from SIFT features ", sift_cloud.shape)
+            # sift_pcloud = PointCloud2()
+            header = Header()
+            header.frame_id = self.map_frame
+            fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                      PointField('y', 4, PointField.FLOAT32, 1),
+                      PointField('z', 8, PointField.FLOAT32, 1)]
+            
+            sift_pcloud = point_cloud2.create_cloud(header, fields, sift_cloud)
+            gp_cloud = None
+
+
         rate = rospy.Rate(0.5)
         while not rospy.is_shutdown():
             header.stamp = rospy.Time.now()
@@ -63,6 +73,9 @@ class MapPCLPublisher(object):
 
             if self.gp_cloud_path:
                 self.map_gp_pub.publish(gp_pcloud)
+            
+            if self.sift_cloud_path:
+                self.map_sift_pub.publish(sift_pcloud)
 
             rate.sleep()
 

@@ -376,15 +376,15 @@ class auv_pf(object):
             #  self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
 
-            # Second GP meas model
-            gp_samples = self.gp_sampling(p_part, r_base)
-            exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
-                                            gp_samples, self.beams_num)
+            # # Second GP meas model
+            # gp_samples = self.gp_sampling(p_part, r_base)
+            # exp_mbes = self.gp_ray_tracing(r_mbes.dot(R_flip), p_part,
+            #                                 gp_samples, self.beams_num)
                    
             # IGL-based meas model
-            # exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-            #                                     self.beams_num, self.mbes_angle)
-            # exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                self.beams_num, self.mbes_angle)
+            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)

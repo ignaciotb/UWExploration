@@ -10,19 +10,19 @@
 
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="2.250" />
+	<arg name="mbes_open_angle" default="1.250" />
 
   <!-- Frames -->
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
 
   <!-- PF args -->
-  <arg name="particle_count"                    default="100"/>
+  <arg name="particle_count"                    default="50"/>
   <!-- [x, y, z, roll, pitch, yaw] -->
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_std"  default="3"/>
+  <arg name="measurement_std"  default="10"/>
 
   <group ns="$(arg app)">
     <node type="auv_pf_gp.py" pkg="auv_particle_filter" name="auv_pf" output="screen">
@@ -45,10 +45,10 @@
       <param name="particle_sim_mbes_topic"                 value="/$(arg app)/sim_mbes"/>
       <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
-      <param name="mesh_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/mesh.npz" />       
-      <param name="gp_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
+      <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/mesh.npz" />       
+      <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
       <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />       
+      <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
       <param name="mbes_sim_as" value="/mbes_sim_server" /> 
       <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
@@ -56,18 +56,18 @@
     </node>
   </group>
 
-  <group ns="stats">
+  <!-- <group ns="stats">
     <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="background_img_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/default_real_mean_depth.png" />       
+      <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
       <param name="survey_name" value="overnight_20"/>
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
     </node>
-  </group>
+  </group> -->
   
   <!-- UW environment -->
   <include file="$(find auv_model)/launch/auv_environment.launch" >

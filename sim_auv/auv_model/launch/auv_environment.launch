@@ -14,19 +14,19 @@
     <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="200"/>	
+	<arg name="n_beams_mbes" default="100"/>	
 	<arg name="mbes_open_angle" default="1.908" />
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
     <!-- Real data  -->
     <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
-    <arg name="path" default="/home/torroba/Downloads/maps"/>
+    <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="0.0"/>
-	<arg name="y" default="-20.0"/>
+	<arg name="x" default="-200.0"/>
+	<arg name="y" default="-200.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
@@ -41,9 +41,10 @@
 
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
-			<param name="map_gp_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/svgp_1000_0.01.npy"/>
-			<param name="map_sift_path"  value="/home/torroba/Downloads/submaps/sift_map.pcd"/>
+			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl_33_over.npy" />
+			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_1000_0.01.npy"/>
+			<!-- <param name="map_sift_path"  value="/home/torroba/Downloads/submaps/sift_map.pcd"/> -->
+			<param name="map_sift_path"  value=""/>
 			<param name="map_frame" value="map" />
 			<param name="map_mbes" value="/map_mbes" />
 			<param name="use_pings_cloud" type= "bool" value="True" />
@@ -51,7 +52,7 @@
 
 		<!-- Extract SIFT features from map  -->
 		<!-- <node type="sift_extractor_node" pkg="map_features" name="sift_extractor_node" output="screen">
-			<param name="map_cloud_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/pcl_33_over.npy" />
+			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl_33_over.npy" />
 			<param name="map_frame" value="map" />
 			<param name="map_mbes" value="/map_mbes" />
 		</node> -->
@@ -92,8 +93,8 @@
 				<param name="mbes_sim_as" value="/mbes_sim_server" /> 
 				<param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
 				<param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
-				<param name="sound_velocity_prof" value="$(find auv_particle_filter)/meshes/$(arg dataset)/svp.cereal" />       
-			    <param name="mesh_path" value="$(find auv_particle_filter)/meshes/$(arg dataset)/mesh.npz" />       
+				<param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
+			    <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/mesh.npz" />       
 			</node>
 
   		</group>

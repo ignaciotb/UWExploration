@@ -410,7 +410,7 @@ class auv_pf(object):
         # Measurement update of each particle
         for i in range(0, self.pc):
             # Compute base_frame from mbes_frame
-            p_part, r_mbes = self.particles[i].get_p_mbes_pose();
+            p_part, r_mbes = self.particles[i].get_p_mbes_pose()
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model

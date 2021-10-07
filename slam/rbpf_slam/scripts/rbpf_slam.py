@@ -45,8 +45,13 @@ from scipy.ndimage.filters import gaussian_filter
 from bathy_gps import gp
 import time 
 
+from rospy.numpy_msg import numpy_msg
+
 # For large numbers 
 from mpmath import mpf
+
+from slam_msgs.msg import PlotPosteriorGoal, PlotPosteriorAction
+from slam_msgs.msg import SamplePosteriorGoal, SamplePosteriorAction
 
 class atree(): # ancestry tree
     def __init__(self, ID, parent, trajectory, observations):
@@ -130,6 +135,7 @@ class rbpf_slam(object):
 
         # Nacho
         self.pings_since_training = 0
+        self.map_updates = 0
 
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
@@ -181,6 +187,10 @@ class rbpf_slam(object):
         sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
         self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
                                                     execute_cb=self.mbes_as_cb, auto_start=True)
+
+        # Action server for plotting the GP maps
+        self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
+        self.sample_gp_server = rospy.get_param('~sample_gp_server', 'gp_plot_server')
 
         # Publish to record data
         # self.recordData2gp()
@@ -270,8 +280,27 @@ class rbpf_slam(object):
                                     self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
 
+        # Timer for end of mission: finish when no more odom is being received
+        self.time_wo_motion = 5.
+        rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
+        self.mission_finished = False
+        self.odom_latest = Odometry()
+        self.odom_end = Odometry()
+
+        # For LC detection
+        self.lc_detected = False
+
         rospy.spin()
 
+
+    def mission_finished_cb(self, event):
+        if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
+            print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
+            # self.mission_finished = True
+            self.lc_detected = True
+            # self.plot_gp_maps()
+        
+        self.odom_end = self.odom_latest
 
 
     def synch_cb(self, finished_msg):
@@ -352,26 +381,64 @@ class rbpf_slam(object):
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
-        if self.old_time and self.time > self.old_time:
-            # Motion prediction
-            self.predict(odom_msg)    
-            
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
-                # Measurement update if new one received
-                self.update_maps(self.latest_mbes, odom_msg)
-                self.prev_mbes = self.latest_mbes
+        self.odom_latest = odom_msg
+        
+        # Flag to finish mission: only for testing 
+        # self.time_wo_motion seconds
+        if not self.mission_finished:
+            if self.old_time and self.time > self.old_time:
+                # Motion prediction
+                self.predict(odom_msg)    
+                
+                if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
+                    # Measurement update if new one received
+                    self.update_maps(self.latest_mbes, odom_msg)
+                    self.prev_mbes = self.latest_mbes
 
-                # If potential LC detected
-                # if(self.count_training > 0):
-                #     # Recompute weights
-                #     weights = self.update_particles_weights(self.latest_mbes, odom_msg)
-                #     # Particle resampling
-                #     self.resample(weights)
-                    
-                self.update_rviz()
-                self.publish_stats(odom_msg)
+                    # If potential LC detected
+                    if(self.lc_detected ):
+                        # Recompute weights
+                        weights = self.update_particles_weights(self.latest_mbes, odom_msg)
+                        # Particle resampling
+                        self.resample(weights)
+                        self.lc_detected = False
+                        self.mission_finished = True 
+                        
+                    self.update_rviz()
+                    self.publish_stats(odom_msg)
 
         self.old_time = self.time
+
+    def plot_gp_maps(self):
+        print("------ Plot final maps --------")
+        R = self.base2mbes_mat.transpose()[0:3,0:3]
+
+        for i in range(0, self.pc):
+            ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
+                                                    PlotPosteriorAction)
+            ac_plot.wait_for_server()
+
+            part_ping_map = []
+            for j in range(0, len(self.mbes_history)): 
+                # For particle i, get all its trajectory in the map frame
+                p_part, r_mbes = self.particles[i].pose_history[j]
+                r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+
+                part_i_ping_map = np.dot(r_base, self.mbes_history[j].T)
+                part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
+            # As array
+            pings_i = np.asarray(part_ping_map)
+            pings_i = np.reshape(pings_i, (-1,3))            
+                
+            # Publish (for visualization)
+            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            goal = PlotPosteriorGoal(mbes_pcloud)
+
+            ac_plot.send_goal(goal)
+
+            ac_plot.wait_for_result()
+            print("GP ", i, " posterior plotted ")
+
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
@@ -465,15 +532,32 @@ class rbpf_slam(object):
         # Calculate expected meas from the particles GP
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
+            # AS for particle i
+            ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
+                                                    SamplePosteriorAction)
+            ac_sample.wait_for_server()
+
             # Convert ping from particle MBES to map frame
             p_part, r_mbes = self.particles[i].pose_history[-1]
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
             latest_mbes_map = np.dot(r_base, latest_mbes.T)
             latest_mbes_map = np.add(latest_mbes_map.T, p_part)
-            
+
+            # As array
+            pings_i = np.asarray(latest_mbes_map)
+            pings_i = np.reshape(pings_i, (-1,3))                            
+            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            goal = SamplePosteriorGoal(mbes_pcloud)
+
+            # Send to as and wait
+            ac_sample.send_goal(goal)
+            ac_sample.wait_for_result()
+            result = ac_sample.get_result()  
+
             # Sample GP with the ping in map frame
-            mu, sigma = self.particles[i].gp.sample(np.asarray(latest_mbes_map)[:, 0:2])
+            mu, sigma = result.mu, result.sigma
             mu_array = np.array([mu])
+
             # TODO: use the sigmas from the GP on the weight calculation
             sigma_array = np.array([sigma])
 
@@ -502,6 +586,7 @@ class rbpf_slam(object):
         
         # If time to retrain GP map
         if self.pings_since_training > 50:
+            self.map_updates += 1
             for i in range(0, self.pc):           
                 # Transform each MBES ping in vehicle frame to the particle trajectory 
                 # (result in map frame)
@@ -535,7 +620,6 @@ class rbpf_slam(object):
                 #                           + '_training_' + str(self.count_training) + '.png',
                 #                           n=100, n_contours=100 )
                 
-                # # self.particles[i].pings.clear()
                 # print("GP trained ", i)
 
                 # exp_ping_map, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
@@ -677,11 +761,14 @@ class rbpf_slam(object):
         # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
-        if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/2.:
+        # if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/2.:
+        print('n_eff ', N_eff)
+        print("Weights ")
+        print(weights)
+        if N_eff < self.pc/2. and self.miss_meas <= self.pc/2.:
             self.time2resample = False
             self.ctr = 0
             rospy.loginfo('resampling')
-            print('n_eff_filt ', self.n_eff_filt)
             print ("Missed meas ", self.miss_meas)
             indices = residual_resample(weights)
             keep = list(set(indices))
@@ -690,7 +777,7 @@ class rbpf_slam(object):
             for i in keep:
                 dupes.remove(i)
 
-            self.ancestry_tree(lost, dupes) # save parent and children
+            # self.ancestry_tree(lost, dupes) # save parent and children
             self.reassign_poses(lost, dupes)
             
             # Add noise to particles
@@ -703,10 +790,10 @@ class rbpf_slam(object):
             #     self.particles[i].mu_obs = np.zeros((1,))
             #     self.particles[i].sigma_obs = np.zeros((1,))
             #     self.particles[i].n_from = 1
-            self.observations = np.zeros((1,3))
-            self.mapping = np.zeros((1,3))
-            self.targets = np.zeros((1,))
-            self.n_from = 1
+            # self.observations = np.zeros((1,3))
+            # self.mapping = np.zeros((1,3))
+            # self.targets = np.zeros((1,))
+            # self.n_from = 1
 
 
     def ancestry_tree(self, lost, dupes):

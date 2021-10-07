@@ -21,8 +21,8 @@ class MapPCLPublisher(object):
 
     def __init__(self):
 
-        self.cloud_path = rospy.get_param('~map_cloud_path')
-        self.gp_cloud_path = rospy.get_param('~map_gp_path')
+        self.cloud_path = rospy.get_param('~map_cloud_path', "")
+        self.gp_cloud_path = rospy.get_param('~map_gp_path', "")
         self.map_frame = rospy.get_param('~map_frame')
         self.map_pub = rospy.Publisher('/map_mbes', PointCloud2, queue_size=1)
         self.map_gp_pub = rospy.Publisher('/map_gp', PointCloud2, queue_size=1)

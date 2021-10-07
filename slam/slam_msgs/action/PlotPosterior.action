@@ -1,0 +1,9 @@
+#goal definition
+sensor_msgs/PointCloud2 pings
+---
+#result definition
+bool success
+---
+#feedback (not used)
+# std_msgs/bool feedback
+

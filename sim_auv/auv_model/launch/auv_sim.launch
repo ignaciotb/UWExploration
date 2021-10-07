@@ -33,8 +33,8 @@
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="-250.0"/>
-	<arg name="y" default="-450.0"/>
+	<arg name="x" default="-240.0"/>
+	<arg name="y" default="-430.0"/>
 	<arg name="z" default="-10.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
@@ -98,11 +98,17 @@
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
 			</node>
 
-			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
+			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
 				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
-			</node>
+			</node> -->
+
+			<!-- <node pkg="rosbag" type="play" name="test_mission_ctrl" output="screen" 
+					args="$(find rbpf_slam)/launch/lc_test_1.bag"/> -->
+			
+			<!-- <node pkg="rosbag" type="record" name="record_mission_ctrl" output="screen" 
+					args="-O $(find rbpf_slam)/launch/lc_test.bag /hugin/throttle_cmd /hugin/thruster_cmd /hugin/inclination_cmd"/> -->
   		</group>
 
 		<!-- Reproduce real Hugin survey -->

@@ -2,9 +2,13 @@
 <launch>
     <arg name="filter" default="pf"/>
     <arg name="node_name"/>
+    <arg name="gp_plot_server" default="/gp/plot_server"/>
+    <arg name="sample_sample_server" default="/gp/sample_server"/>
     
     <node type="particle_map.py" pkg="rbpf_slam" name="$(arg node_name)" output="screen">
       <param name="training_points_top" value="/$(arg filter)/sim_mbes"/>     
       <param name="results_path" value="/$(find rbpf_slam)/data/results/"/>     
+      <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
+      <param name="sample_gp_server" value="$(arg sample_sample_server)"/>     
     </node>
 </launch>

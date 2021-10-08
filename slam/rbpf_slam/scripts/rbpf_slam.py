@@ -256,12 +256,19 @@ class rbpf_slam(object):
 
         # Initialize list of particles
         self.particles = np.empty(self.pc, dtype=object)
-        for i in range(self.pc):
+        for i in range(self.pc-1):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
             self.particles[i].ID = self.p_ID
             self.p_ID += 1
+        
+        # Create one particle on top of vehicle for tests with very few
+        self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
+                                         self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
+                                         process_cov=[0.]*6)
+        self.particles[i].ID = self.p_ID
+        self.p_ID += 1
         
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")

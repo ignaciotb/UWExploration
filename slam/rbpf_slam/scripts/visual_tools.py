@@ -69,7 +69,59 @@ class PFStatsVisualization(object):
         self.survey_finished = False
 
         self.cov_traces = [0.]
+
+        rospy.on_shutdown(self.save_figs)
+
         rospy.spin()
+
+    def save_figs(self):
+
+        ### Trajectories
+        plt.cla()
+        #  Center image on odom frame
+        plt.figure(1)
+        plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
+                                        -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
+        #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
+        plt.plot(self.filt_vec[8,:],
+                    self.filt_vec[9,:], "-r")
+        
+        plt.plot(self.filt_vec[2,:],
+                    self.filt_vec[3,:], "-k")
+
+        plt.plot(self.filt_vec[5,:],
+                 self.filt_vec[6,:], "-g")
+
+        plt.savefig(self.survey_name + 'gp_result/' + "trajectories.png")
+
+        ### Errors
+        plt.cla()
+        plt.figure(2)
+        plt.subplot(3, 1, 1)
+        plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                    np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2,
+                                axis=0)), "-k")
+        plt.grid(True)
+
+        # Error between PF and GT
+        plt.subplot(3, 1, 2)
+        plt.cla()
+        plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                    np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[5:7,:])**2,
+                                axis=0)), "-b")
+
+        plt.grid(True)
+
+        # Plot trace of cov matrix
+        plt.subplot(3, 1, 3)
+        plt.cla()
+        plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                    np.asarray(self.cov_traces), "-k")
+        plt.grid(True)
+
+        plt.savefig(self.survey_name + 'gp_result/' + "errors.png")
+
+
 
     def ping_cb(self, real_ping, pf_ping):
         real_meas = self.ping_to_array(real_ping)
@@ -161,26 +213,27 @@ class PFStatsVisualization(object):
             #         lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            if True:
+            if False:
                 plt.cla()
                 #  Center image on odom frame
                 plt.figure(1)
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
                                              -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
                 #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
+                # GT
                 plt.plot(self.filt_vec[2,:],
                          self.filt_vec[3,:], "-k")
-
-                # plt.plot(self.filt_vec[5,:],
-                #          self.filt_vec[6,:], "-b")
-
+                # Filter
+                plt.plot(self.filt_vec[5,:],
+                         self.filt_vec[6,:], "-g")
+                # Odom
                 plt.plot(self.filt_vec[8,:],
                          self.filt_vec[9,:], "-r")
 
                 # self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
             # Plot error between DR PF and GT
-            if False:
+            if True:
                 plt.figure(2)
                 plt.subplot(3, 1, 1)
                 plt.cla()

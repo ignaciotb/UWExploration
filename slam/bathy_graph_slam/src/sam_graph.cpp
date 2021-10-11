@@ -21,10 +21,7 @@ samGraph::samGraph()
     initValues_.reset(new Values());
 
     // Landmark ids of previous submap
-    // lm_idx_prev_.clear();
-    // lm_idx_vec_.clear();
-    lm_mapped_idx_vec_.clear();
-
+    lm_idx_prev_.clear();
 }
 
 samGraph::~samGraph()
@@ -49,8 +46,6 @@ void samGraph::addPrior(Pose3& initPose)
 void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
 {
     // Add odometry
-    // submap i will be DR factor i+1 since the origin 
-    // (where there's no submap) is the factor 0
     graph_->emplace_shared<BetweenFactor<Pose3> >(Symbol('x', step-1), Symbol('x', step),
                                                   odom_step, odoNoise_);
 
@@ -60,32 +55,12 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
     // predictedPose.print("Node added ");
     initValues_->insert(Symbol('x', step), factor_pose);
     std::cerr << "Odom factor added" << std::endl;
-
 }
 
 bool samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
                                   std::vector<int>& lm_idx, Pose3 submap_pose)
 {
-    // Map known landmarks indexes to [0, num landmarks in mission] to not overflow
-    // gtsam internal indexes when maps are very large
     std::cout << "Adding landmark factors " << std::endl;
-
-    // for(int i = 0; i< lm_idx.size(); i++){
-    //     auto existing_lm = lm_idx_vec_.begin();
-    //     existing_lm = std::find_if(existing_lm, lm_idx_vec_.end(), [&](const int existing_lm_id)
-    //                                { return existing_lm_id == lm_idx.at(i); });
-    //     // If new landmark, add to record containing real indexes and mapped ones
-    //     if (existing_lm == lm_idx_vec_.end())
-    //     {
-    //         lm_idx_vec_.push_back(lm_idx.at(i));
-    //         lm_mapped_idx_vec_.push_back(lm_mapped_idx_vec_.size());
-    //         lm_idx.at(i) = lm_mapped_idx_vec_.size();
-    //     }
-    //     // If reobserved landmark, remapped only the latest lm_idx vector
-    //     else{
-    //         lm_idx.at(i) = lm_mapped_idx_vec_.at(existing_lm - lm_mapped_idx_vec_.begin());
-    //     }
-    // }
 
     unsigned int i = 0;
     bool lc_detected = false;

@@ -158,13 +158,9 @@ include_directories(
   ${SubmapsTools_INCLUDE_DIR}
 )
 
-add_library(sam_graph
-  src/sam_graph.cpp
-)
-
-
 add_executable(${PROJECT_NAME}_node
-    src/bathy_slam_node.cpp)
+    src/bathy_slam_node.cpp
+    src/sam_graph.cpp)
 
 add_dependencies(${PROJECT_NAME}_node
     ${${PROJECT_NAME}_EXPORTED_TARGETS}
@@ -175,7 +171,6 @@ target_link_libraries(${PROJECT_NAME}_node
    submaps_tools
    data_transforms
    benchmark
-   sam_graph
    ${PCL_LIBRARIES}
    gtsam
 )

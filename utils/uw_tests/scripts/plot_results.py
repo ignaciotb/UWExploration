@@ -29,6 +29,8 @@ parser.add_option("--initial", dest="initial",
                   default="", help="The filename that contains the SLAM problem.")
 parser.add_option("--result", dest="result",
                   default="", help="The filename that contains the SLAM result.")
+parser.add_option("--img", dest="img",
+                  default="", help="The png image with the background bathy.")
 
 parser.add_option("--output_file", dest="outputFile",
                   default="", help="The output file.")
@@ -44,27 +46,31 @@ result = None
 if options.result != '':
   result = np.genfromtxt(options.result, dtype=str, usecols = (0, 2, 3))
 
-# Plots the result for the specified poses.
-#  figure = plot.figure()
+if options.img != '':
+  plot.cla()
+  img = plot.imread(options.img)
+  plot.imshow(img, extent=[-647, 1081,
+                          -1190, 523])
 
-figure, (ax1, ax2) = plot.subplots(1, 2)
+# figure, (ax1, ax2) = plot.subplots(1, 2)
+
 if initial is not None:
  poses, landmarks = parse_graph(initial)
 
- ax1.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
- ax1.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
- ax1.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="green")
- ax1.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
+ plot.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
+ plot.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
+ plot.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="green")
+#  plot.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
  #  ax1.set_xlim([-250, 200])
  #  ax1.set_ylim([-200, 300])
 
 if result is not None:
  poses, landmarks = parse_graph(result)
 
- ax2.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
- ax2.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
- ax2.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="green")
- ax2.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
+ plot.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
+ plot.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
+ plot.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="blue")
+#  ax2.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
  #  ax2.set_xlim([-250, 200])
  #  ax2.set_ylim([-200, 300])
 

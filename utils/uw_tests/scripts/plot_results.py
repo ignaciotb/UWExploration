@@ -51,6 +51,7 @@ figure, (ax1, ax2) = plot.subplots(1, 2)
 if initial is not None:
  poses, landmarks = parse_graph(initial)
 
+ ax1.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
  ax1.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
  ax1.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="green")
  ax1.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
@@ -60,6 +61,7 @@ if initial is not None:
 if result is not None:
  poses, landmarks = parse_graph(result)
 
+ ax2.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
  ax2.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
  ax2.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="green")
  ax2.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")

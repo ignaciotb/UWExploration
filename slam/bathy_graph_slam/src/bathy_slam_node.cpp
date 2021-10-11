@@ -1,9 +1,5 @@
 #include <bathy_graph_slam/bathy_slam.hpp>
-#include <bathy_graph_slam/sam_graph.hpp>
 
-
-//==========================================================================
-//==========================================================================
 BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name),
                                                                            nh_(&nh)
 {
@@ -45,7 +41,7 @@ BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_
 
     // Initialize survey params
     first_msg_ = true;
-    submaps_cnt_ = 0;
+    submaps_cnt_ = 1;
     odomVec_.clear();
     // Initial pose is on top of odom frame
     prev_submap_odom_.reset(new nav_msgs::Odometry());
@@ -118,12 +114,15 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
 
     // If LCs detected
     if(lc_detected){
+        ROS_INFO("Loop closure detected");
         // For testing, save init estimate in file for plotting
         graph_solver->saveResults(*graph_solver->initValues_, graph_init_path_);
+
         // Update and solve ISAM2
         int updateIterations = 1;
         graph_solver->updateISAM2(updateIterations);
         Values current_estimate = graph_solver->computeEstimate();
+        
         graph_solver->saveResults(current_estimate, graph_solved_path_);
     }
 

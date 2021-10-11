@@ -21,7 +21,9 @@ samGraph::samGraph()
     initValues_.reset(new Values());
 
     // Landmark ids of previous submap
-    lm_idx_prev_.clear();
+    // lm_idx_prev_.clear();
+    // lm_idx_vec_.clear();
+    lm_mapped_idx_vec_.clear();
 
 }
 
@@ -38,9 +40,9 @@ void samGraph::addPrior(Pose3& initPose)
     lastPose_ = initPose;
 
     // TODO: do we need to update isam here?
-    // isam_->update(*graph_, *initValues_);
-    // graph_.reset(new NonlinearFactorGraph());
-    // initValues_.reset(new Values());
+    isam_->update(*graph_, *initValues_);
+    graph_->resize(0);
+    initValues_->clear();
     std::cerr << "Prior added " << std::endl;
 }
 
@@ -49,14 +51,14 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
     // Add odometry
     // submap i will be DR factor i+1 since the origin 
     // (where there's no submap) is the factor 0
-    graph_->emplace_shared<BetweenFactor<Pose3> >(Symbol('x', step), Symbol('x', step+1),
+    graph_->emplace_shared<BetweenFactor<Pose3> >(Symbol('x', step-1), Symbol('x', step),
                                                   odom_step, odoNoise_);
 
     // Predict pose and add as initial estimate
     // Pose3 predictedPose = lastPose_.compose(odom_step);
     // lastPose_ = predictedPose;
     // predictedPose.print("Node added ");
-    initValues_->insert(Symbol('x', step+1), factor_pose);
+    initValues_->insert(Symbol('x', step), factor_pose);
     std::cerr << "Odom factor added" << std::endl;
 
 }
@@ -64,32 +66,53 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
 bool samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
                                   std::vector<int>& lm_idx, Pose3 submap_pose)
 {
-    int i = 0;
+    // Map known landmarks indexes to [0, num landmarks in mission] to not overflow
+    // gtsam internal indexes when maps are very large
+    std::cout << "Adding landmark factors " << std::endl;
+
+    // for(int i = 0; i< lm_idx.size(); i++){
+    //     auto existing_lm = lm_idx_vec_.begin();
+    //     existing_lm = std::find_if(existing_lm, lm_idx_vec_.end(), [&](const int existing_lm_id)
+    //                                { return existing_lm_id == lm_idx.at(i); });
+    //     // If new landmark, add to record containing real indexes and mapped ones
+    //     if (existing_lm == lm_idx_vec_.end())
+    //     {
+    //         lm_idx_vec_.push_back(lm_idx.at(i));
+    //         lm_mapped_idx_vec_.push_back(lm_mapped_idx_vec_.size());
+    //         lm_idx.at(i) = lm_mapped_idx_vec_.size();
+    //     }
+    //     // If reobserved landmark, remapped only the latest lm_idx vector
+    //     else{
+    //         lm_idx.at(i) = lm_mapped_idx_vec_.at(existing_lm - lm_mapped_idx_vec_.begin());
+    //     }
+    // }
+
+    unsigned int i = 0;
     bool lc_detected = false;
     for (PointT &point : landmarks){
         // If known association is on, the landmarks are already in map frame
         Point3 lm = Eigen::Vector3f(point.x, point.y, point.z).cast<double>();
         
-        // Add 3D Bearing-range factor for every landmark        
-        graph_->emplace_shared<BearingRangeFactor<Pose3, Point3> >(
-            Symbol('x', step+1), Symbol('l', lm_idx.at(i)), 
+        // Add 3D Bearing-range factor for every landmark
+        graph_->emplace_shared<BearingRangeFactor<Pose3, Point3>>(
+            Symbol('x', step), Symbol('l', lm_idx.at(i)),
             submap_pose.bearing(lm), submap_pose.range(lm), brNoise_);
 
         // Add initial estimate for landmarks unless already added (LC)
-        if (!initValues_->exists(Symbol('l', lm_idx.at(i)))) {
+        if (!initValues_->exists(Symbol('l', lm_idx.at(i))))
+        {
             // Point3 mapLandmark = submap_pose.transformFrom(lm);
             initValues_->insert(Symbol('l', lm_idx.at(i)), lm);
         }
         else{
             // Check that the landmark revisited doesn't belong to the previous submap
             auto prev_lm = lm_idx_prev_.begin();
-            prev_lm = std::find_if(prev_lm, lm_idx_prev_.end(), [&](const int prev_lm_id) {
-                return prev_lm_id == lm_idx.at(i);
-            });
+            prev_lm = std::find_if(prev_lm, lm_idx_prev_.end(), [&](const int prev_lm_id)
+                                   { return prev_lm_id == lm_idx.at(i); });
+
             // If it doesn't belong to the previous submap, it's a new LC
             if(prev_lm == lm_idx_prev_.end()){
                 lc_detected = true;
-                // std::cout << "LC with landmark " << lm_idx.at(i) << std::endl;
             }
         }
         i++;
@@ -115,15 +138,18 @@ void samGraph::updateISAM2(int iterations)
             isam_->update();
         }
     }
+    std::cout << "ISAM updated" << std::endl;
 
     // initValues_->print("Init estimate: ");
     graph_.reset(new NonlinearFactorGraph());
     initValues_.reset(new Values());
-    std::cout << "ISAM updated" << std::endl;
+    std::cout << "ISAM reseted" << std::endl;
 }
 
 Values samGraph::computeEstimate()
 {
+    // Values estimate = LevenbergMarquardtOptimizer(*graph_, *initValues_).optimize();
+
     Values estimate = isam_->calculateEstimate();
     estimate.print("Estimated values: ");
 

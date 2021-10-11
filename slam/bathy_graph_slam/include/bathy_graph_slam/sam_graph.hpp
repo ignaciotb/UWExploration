@@ -57,8 +57,6 @@ public:
     Pose3 lastPose_;
     // Keep track of landmarks observed
     int num_landmarks_;
-    // std::vector<int> lm_idx_vec_;
-    // std::vector<int> lm_mapped_idx_vec_;
     std::vector<int> lm_idx_prev_;
 
     // TODO: this has to be an input parameter

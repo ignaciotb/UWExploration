@@ -101,8 +101,6 @@ void submapConstructor::pingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
 
 void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
 {
-    std::cout << "Calling submap constructor" << std::endl;
-
     // Store submap tf
     tf::Transform tf_submap_i = std::get<1>(submap_pings.at(submap_pings.size() / 2));
     ros::Time submap_time = std::get<0>(submap_pings.at(submap_pings.size() / 2))->header.stamp;
@@ -189,11 +187,9 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     }
     else{
         // See which known landmarks are contained in the submap area
-        std::cout << "Extracting known landmarks " << std::endl;
         PointCloudT::Ptr cloud_lm;
         std::vector<int> lm_idx;
         this->extractLandmarksKnown(submap_i, cloud_lm, lm_idx);
-        std::cout << "Known landmarks extracted " << std::endl;
 
         // Check for loop closures 
         // This is unnecessary when using known landmarks. The LC will be detected

@@ -168,3 +168,32 @@ void samGraph::saveResults(const Values &result, const std::string &outfilename)
     fs.close();
     std::cout << "Results saved" << std::endl;
 }
+
+void samGraph::saveG2oResults(const Values &result, const std::string &outfilename){
+    std::cout << "Results saved to G2o format" << std::endl;
+    writeG2o(*graph_, result, outfilename+".g2o");
+}
+
+void samGraph::saveSerial(const NonlinearFactorGraph &graph, const Values &values,
+                          const std::string &outfilename){
+    // std::string serialized;
+    // serialized = gtsam::serialize(graph);
+    // std::cout << serialized;
+
+    std::string OutputFile(outfilename + "_serial.txt");
+    std::ofstream OfsOutput(OutputFile.c_str());
+    boost::archive::text_oarchive OaOutput(OfsOutput);
+    OaOutput << graph;
+    OfsOutput.close();
+
+    std::string OutputValsFile(outfilename + "_values_serial.txt");
+    std::ofstream OfsValsOutput(OutputValsFile.c_str());
+    boost::archive::text_oarchive OaValsOutput(OfsValsOutput);
+    OaValsOutput << values;
+    OfsValsOutput.close();
+
+    // serializeGraphToFile(graph, outfilename + "_graph.dat"));
+    // serializeValuesToFile(values, outfilename + "_values.dat"));
+    std::cout << "Graph and estimate serialized" << std::endl;
+
+}

@@ -40,6 +40,7 @@
 #include <Eigen/Core>
 
 #include <bathy_graph_slam/sam_graph.hpp>
+#include <bathy_graph_slam/serial.hpp> 
 
 class BathySlamNode
 {

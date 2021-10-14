@@ -8,6 +8,7 @@
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/slam/BetweenFactor.h>
 #include <gtsam/slam/StereoFactor.h>
+#include <gtsam/slam/dataset.h>
 #include <gtsam/sam/BearingRangeFactor.h>
 #include <gtsam/geometry/BearingRange.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
@@ -31,7 +32,7 @@ typedef pcl::PointXYZ PointT;
 
 class samGraph
 {
-    typedef BearingRangeFactor<Pose3, Point3> BearingRangeFactor3D;
+    // typedef BearingRangeFactor<Pose3, Point3> BearingRangeFactor3D;
 
 public:
     samGraph();
@@ -66,6 +67,7 @@ public:
     std::vector<int> lm_idx_prev_;
 
     // TODO: this has to be an input parameter
+    SharedDiagonal priorNoise_;
     SharedDiagonal odoNoise_;
     SharedDiagonal brNoise_;
 };

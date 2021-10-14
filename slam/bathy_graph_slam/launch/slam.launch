@@ -10,7 +10,7 @@
 
   	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="1.0" />
+	<arg name="mbes_open_angle" default="0.8" />
 
 	<!-- Frames -->
 	<arg name="world_frame"	default="world"/>
@@ -46,8 +46,8 @@
 			<param name="synch_topic" value="/$(arg app)/synch" />
 			<param name="submaps_topic" value="/$(arg app)/submaps" />
 			<param name="landmarks_idx_topic" value="/$(arg app)/lm_idx" />
-			<param name="graph_init_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_init.txt" />
-			<param name="graph_solved_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_solved.txt" />
+			<param name="graph_init_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_init" />
+			<param name="graph_solved_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/graph_solved" />
 		</node>
 	</group>
 

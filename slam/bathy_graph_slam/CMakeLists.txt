@@ -158,6 +158,18 @@ include_directories(
   ${SubmapsTools_INCLUDE_DIR}
 )
 
+# add_executable(test_serial
+#     src/test_serial.cpp)
+
+# add_dependencies(test_serial
+#     ${${PROJECT_NAME}_EXPORTED_TARGETS}
+#     ${catkin_EXPORTED_TARGETS})
+
+# target_link_libraries(test_serial
+#    gtsam
+# )
+
+
 add_executable(${PROJECT_NAME}_node
     src/bathy_slam_node.cpp
     src/sam_graph.cpp)

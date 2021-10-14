@@ -17,6 +17,8 @@
 #include <gtsam/nonlinear/NonlinearISAM.h>
 #include <gtsam/nonlinear/ISAM2.h>
 
+#include <gtsam/base/serialization.h>
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
@@ -49,6 +51,10 @@ public:
 
     void saveResults(const Values &result, const std::string &outfilename);
 
+    void saveG2oResults(const Values &result, const std::string &outfilename);
+
+    void saveSerial(const NonlinearFactorGraph& graph, const Values& values, 
+                    const std::string & outfilename);
 
     // Create a factor graph
     NonlinearFactorGraph::shared_ptr graph_;

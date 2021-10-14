@@ -3,7 +3,6 @@
 BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name),
                                                                            nh_(&nh)
 {
-
     std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top, indexes_top;
     nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
     nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
@@ -113,13 +112,15 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
                                                         lm_idx_vec, current_pose);
 
     // If LCs detected
-    if(lc_detected){
+    if (lc_detected)
+    {
         ROS_INFO("Loop closure detected");
         // For testing, save init estimate in file for plotting
         graph_solver->saveResults(*graph_solver->initValues_, graph_init_path_);
+        graph_solver->saveSerial(*graph_solver->graph_, * graph_solver->initValues_, graph_init_path_);
 
         // Update and solve ISAM2
-        int updateIterations = 1;
+        int updateIterations = 10;
         graph_solver->updateISAM2(updateIterations);
         Values current_estimate = graph_solver->computeEstimate();
         

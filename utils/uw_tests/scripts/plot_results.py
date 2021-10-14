@@ -70,7 +70,7 @@ if result is not None:
  plot.plot(poses[:, 0], poses[:, 1], '*', alpha=0.5, color="green")
  plot.plot(poses[0, 0], poses[0, 1], '*', alpha=0.5, color="blue")
  plot.plot(poses[:, 0], poses[:, 1], '-', alpha=0.5, color="blue")
-#  ax2.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
+ #  plot.plot(landmarks[:, 0], landmarks[:, 1], '*', alpha=0.5, color="red")
  #  ax2.set_xlim([-250, 200])
  #  ax2.set_ylim([-200, 300])
 

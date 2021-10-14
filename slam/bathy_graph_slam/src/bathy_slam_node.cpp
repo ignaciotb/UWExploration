@@ -99,9 +99,6 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
     // Update graph DR concatenating odom msgs between submaps
     Pose3 current_pose;
     Pose3 odom_step = this->odomStep(lm_pcl_msg->header.stamp.toSec(), current_pose);
-    // current_pose.print("Current pose ");
-    current_pose.print("Current pose ");
-    odom_step.print("odom_step  ");
     graph_solver->addOdomFactor(current_pose, odom_step, submaps_cnt_);
 
     // Add landmarks to graph as 3D range-bearing measurements from the current DR pose
@@ -167,7 +164,8 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
     pos_prev = pose_prev_map.translation();
     pos_now = pose_now_map.translation();
     Eigen::Vector3d pos_step = pos_now - pos_prev;
-    double step = pos_step.norm() * cos(euler_step[2]);
+    double step = pos_step.norm(); //* cos(euler_step[2]);
+    // double step = std::sqrt((pos_now ^ 2) + (pos_prev ^ 2));
 
     // Store odom from current submap as prev
     prev_submap_odom_.reset(new nav_msgs::Odometry(*current_odom));
@@ -179,6 +177,7 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
     current_pose = Pose3(Rot3::Ypr(euler_now[2], euler_now[1], euler_now[0]), 
                          Point3(pos_now[0], pos_now[1], pos_now[2]));
 
+    std::cout << "Odom step " << step << std::endl;
     std::cout << "Euler angles " << euler_step.transpose() << std::endl;
     // Return odom step as gtsam pose
     return Pose3(Rot3::Ypr(euler_step[2], euler_step[1], euler_step[0]), 

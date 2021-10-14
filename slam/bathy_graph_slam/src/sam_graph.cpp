@@ -11,8 +11,10 @@ samGraph::samGraph()
     num_landmarks_ = 0;
 
     // TODO: this has to be an input param
-    odoNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 0.1, 0.1, 0,1,
-                                            0, 0, M_PI / 100.0).finished());
+    priorNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 0.1, 0.1, 0.,
+                                            0, 0, 0.0).finished());
+    odoNoise_ = noiseModel::Diagonal::Sigmas((Vector(6) << 1., 1., 0.,
+                                            0, 0, M_PI_2).finished());
     brNoise_ = noiseModel::Diagonal::Sigmas((Vector(3)<<0.01,0.03,0.05).finished());
     
     // Instantiate pointers
@@ -31,15 +33,15 @@ samGraph::~samGraph()
 void samGraph::addPrior(Pose3& initPose)
 {
     // Add a prior at time 0 and update isam
-    graph_->addPrior(Symbol('x', 0), initPose, odoNoise_);
+    graph_->addPrior(Symbol('x', 0), initPose, priorNoise_);
     initValues_->insert(Symbol('x', 0), initPose);
     // Init last pose where the odom frame is
     lastPose_ = initPose;
 
     // TODO: do we need to update isam here?
-    isam_->update(*graph_, *initValues_);
-    graph_->resize(0);
-    initValues_->clear();
+    // isam_->update(*graph_, *initValues_);
+    // graph_->resize(0);
+    // initValues_->clear();
     std::cerr << "Prior added " << std::endl;
 }
 
@@ -50,17 +52,18 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
                                                   odom_step, odoNoise_);
 
     // Predict pose and add as initial estimate
-    // Pose3 predictedPose = lastPose_.compose(odom_step);
-    // lastPose_ = predictedPose;
-    // predictedPose.print("Node added ");
-    initValues_->insert(Symbol('x', step), factor_pose);
-    std::cerr << "Odom factor added" << std::endl;
+    Pose3 predictedPose = lastPose_.compose(odom_step);
+    lastPose_ = predictedPose;
+    // predictedPose.print("Predicted pose ");
+    // factor_pose.print("Odom pose ");
+    initValues_->insert(Symbol('x', step), predictedPose);
+    // std::cerr << "Odom factor added" << std::endl;
 }
 
 bool samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step, 
                                   std::vector<int>& lm_idx, Pose3 submap_pose)
 {
-    std::cout << "Adding landmark factors " << std::endl;
+    // std::cout << "Adding landmark factors " << std::endl;
 
     unsigned int i = 0;
     bool lc_detected = false;
@@ -96,7 +99,7 @@ bool samGraph::addLandmarksFactor(PointCloudT& landmarks, size_t step,
     // Store latest landmarks for next round
     lm_idx_prev_.clear();
     lm_idx_prev_ = lm_idx;
-    std::cout << "RB factors added" << std::endl;
+    // std::cout << "RB factors added" << std::endl;
 
     return lc_detected;
 } 
@@ -126,7 +129,7 @@ Values samGraph::computeEstimate()
     // Values estimate = LevenbergMarquardtOptimizer(*graph_, *initValues_).optimize();
 
     Values estimate = isam_->calculateEstimate();
-    estimate.print("Estimated values: ");
+    // estimate.print("Estimated values: ");
 
     return estimate;
 }
@@ -134,7 +137,7 @@ Values samGraph::computeEstimate()
 
 void samGraph::saveResults(const Values &result, const std::string &outfilename)
 {
-    std::fstream fs(outfilename.c_str(), std::fstream::out);
+    std::fstream fs((outfilename + ".txt").c_str(), std::fstream::out);
 
     auto index = [](gtsam::Key key){ return Symbol(key).index(); };
 

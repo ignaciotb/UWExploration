@@ -30,36 +30,39 @@ class MapPCLPublisher(object):
 
         print("Map from MBES pings")
         cloud = np.load(self.cloud_path)
-        
+
         mbes_pcloud = PointCloud2()
         header = Header()
         header.frame_id = self.map_frame
         fields = [PointField('x', 0, PointField.FLOAT32, 1),
                   PointField('y', 4, PointField.FLOAT32, 1),
                   PointField('z', 8, PointField.FLOAT32, 1)]
-        
+
         mbes_pcloud = point_cloud2.create_cloud(header, fields, cloud)
         cloud = None
-        
-        if self.gp_cloud_path != "":    
+
+        if self.gp_cloud_path != "":
             print("Map from GP")
             gp_cloud = np.load(self.gp_cloud_path)
             gp_cloud = gp_cloud[:,0:3]
-            
+
             gp_pcloud = PointCloud2()
             header = Header()
             header.frame_id = self.map_frame
             fields = [PointField('x', 0, PointField.FLOAT32, 1),
                       PointField('y', 4, PointField.FLOAT32, 1),
                       PointField('z', 8, PointField.FLOAT32, 1)]
-            
+
             gp_pcloud = point_cloud2.create_cloud(header, fields, gp_cloud)
             gp_cloud = None
 
-        rate = rospy.Rate(0.5)
+        #TODO: maybe better to make it a latched topic instead of publishing often
+        rate = rospy.Rate(0.01)
         while not rospy.is_shutdown():
             header.stamp = rospy.Time.now()
             self.map_pub.publish(mbes_pcloud)
+            rospy.loginfo("Publishing map %s on frame %s", self.cloud_path,
+                          self.map_frame)
 
             if self.gp_cloud_path:
                 self.map_gp_pub.publish(gp_pcloud)

@@ -6,11 +6,12 @@ import rospy
 import sys
 import numpy as np
 import tf2_ros
+# import tf
 from scipy.spatial.transform import Rotation as rot
 from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
-from geometry_msgs.msg import Transform, Quaternion
+from geometry_msgs.msg import Transform, Quaternion, TransformStamped
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Header, Bool
 from rospy_tutorials.msg import Floats
@@ -46,8 +47,8 @@ class auv_pf(object):
         # Read necessary parameters
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self.mbes_frame = rospy.get_param('~mbes_link', 'lolo/enu/mbes_link') # mbes frame_id
+        odom_frame = rospy.get_param('~odom_frame', 'lolo/odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
@@ -56,6 +57,7 @@ class auv_pf(object):
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
         tf2_ros.TransformListener(tfBuffer)
+        self.tf_broadcaster = tf2_ros.StaticTransformBroadcaster()
 
         # Read covariance values
         meas_std = float(rospy.get_param('~measurement_std', 0.01))
@@ -83,6 +85,13 @@ class auv_pf(object):
         self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
+        # Subscription to real mbes pings
+        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb)
+
+        # Establish subscription to odometry message (intentionally last)
+        odom_top = rospy.get_param("~odometry_topic", 'odom')
+        rospy.Subscriber(odom_top, Odometry, self.odom_callback)
         self.poses = PoseArray()
         self.poses.header.frame_id = odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
@@ -131,9 +140,9 @@ class auv_pf(object):
         print("Size of draper: ", sys.getsizeof(self.draper))
 
         # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))
+        # gp_path = rospy.get_param("~gp_path", 'gp.path')
+        # self.gp = gp.SVGP.load(1000, gp_path)
+        # print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
         sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
@@ -174,26 +183,54 @@ class auv_pf(object):
 
         # Transforms from auv_2_ros
         try:
-            rospy.loginfo("Waiting for transforms")
-            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
-                                                rospy.Time(0), rospy.Duration(35))
+            rospy.loginfo("Waiting for transform lolo/base_link -> lolo/enu/mbes_link")
+            mbes_tf = tfBuffer.lookup_transform('lolo/base_link', 'lolo/enu/mbes_link',
+                                                # rospy.Time(), rospy.Duration(35))
+                                                rospy.Time())
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
+            rospy.loginfo("Transform lolo/base_link -> lolo/enu/mbes_link locked - pf node")
+        except:
+            rospy.logerr("Could not lookup transform from lolo/base_link -> lolo/enu/mbes_link")
 
+        try:
+            rospy.loginfo("Waiting for transform %s -> %s", self.map_frame, odom_frame)
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
-                                               rospy.Time(0), rospy.Duration(35))
+                                               # rospy.Time(), rospy.Duration(35))
+                                               rospy.Time())
+            self.m2o_mat = matrix_from_tf(m2o_tf)
+            rospy.loginfo("Transform %s -> %s locked - pf node", self.map_frame, odom_frame)
+        except:
+            rospy.logwarn("Could not lookup transform %s -> %s, setting to zero", self.map_frame, odom_frame)
+            m2o_tf = TransformStamped()
+            m2o_tf.transform.rotation.w = 1.0
+            m2o_tf.header.stamp = rospy.Time.now()
+            m2o_tf.header.frame_id = self.map_frame
+            m2o_tf.child_frame_id = odom_frame
+            self.tf_broadcaster.sendTransform(m2o_tf)
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
-            rospy.loginfo("Transforms locked - pf node")
+        try:
+            rospy.loginfo("Waiting for transform %s -> lolo/base_link", self.map_frame)
+            base_tf = tfBuffer.lookup_transform(self.map_frame, 'lolo/base_link',
+                                                rospy.Time(), rospy.Duration(1.0))
+                                                # rospy.Time())
+            self.map2base_mat = matrix_from_tf(base_tf)
+            rospy.loginfo("Transform %s -> lolo/base_link locked - pf node", self.map_frame)
         except:
-            rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
+            rospy.logerr("Could not lookup transform from %s -> lolo/base_link", self.map_frame)
 
         # Initialize list of particles
+        # self.particles = np.empty(self.pc, dtype=object)
+        # for i in range(self.pc):
+            # self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
+                                         # self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
+                                         # process_cov=motion_cov)
         self.particles = np.empty(self.pc, dtype=object)
         for i in range(self.pc):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
-                                         self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
+                                         self.map2base_mat, self.m2o_mat,
+                                         init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
         self.synch_pub.publish(msg)
@@ -207,9 +244,12 @@ class auv_pf(object):
         self.old_time = rospy.Time.now().to_sec()
 
         # Create particle to compute DR
+        # self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
+                                    # self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
+                                    # process_cov=motion_cov)
         self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
-                                    self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
-                                    process_cov=motion_cov)
+                                    self.map2base_mat, self.m2o_mat, init_cov=[0.]*6,
+                                    meas_std=meas_std, process_cov=motion_cov)
 
         rospy.spin()
 
@@ -361,7 +401,8 @@ class auv_pf(object):
         self.time = odom_msg.header.stamp.to_sec()
         if self.old_time and self.time > self.old_time:
             # Motion prediction
-            self.predict(odom_msg)
+            self.predict_pos(odom_msg)
+
 
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
@@ -374,6 +415,11 @@ class auv_pf(object):
                 self.publish_stats(odom_msg)
 
         self.old_time = self.time
+
+    def predict_pos(self, odom_t):
+        for i in range(0, self.pc):
+            self.particles[i].motion_pred_pos(odom_t)
+        self.dr_particle.motion_pred_pos(odom_t)
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
@@ -426,6 +472,7 @@ class auv_pf(object):
             # IGL-based meas model
             exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
                                                  self.beams_num, self.mbes_angle)
+            #TODO:(aldoteran)
             exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
 
             # Publish (for visualization)
@@ -434,7 +481,7 @@ class auv_pf(object):
             p_inv = rot_inv.dot(p_part)
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
-            mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+            mbes_pcloud = pack_cloud("lolo/enu/mbes_link", mbes)
 
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)
@@ -476,7 +523,6 @@ class auv_pf(object):
                          self.cov[2,2]], dtype=np.float32)
 
         self.stats.publish(stats)
-
 
     def ping2ranges(self, point_cloud):
         ranges = []
@@ -531,7 +577,6 @@ class auv_pf(object):
             self.particles[lost[i]].p_pose = self.particles[dupes[i]].p_pose
 
     def average_pose(self, pose_list):
-
         poses_array = np.array(pose_list)
         ave_pose = poses_array.mean(axis = 0)
         self.avg_pose.pose.pose.position.x = ave_pose[0]

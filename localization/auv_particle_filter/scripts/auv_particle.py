@@ -16,6 +16,7 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 from tf.transformations import rotation_matrix, rotation_from_matrix
+from tf.transformations import euler_from_matrix
 
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
@@ -26,8 +27,8 @@ from sensor_msgs import point_cloud2
 
 
 class Particle(object):
-    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix,
-                 init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
+    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, map2base_matrix,
+                 m2o_matrix, init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
                  process_cov=[0.,0.,0.,0.,0.,0.]):
 
         self.p_num = p_num
@@ -35,7 +36,14 @@ class Particle(object):
 
         self.beams_num = beams_num
         # self.weight = 1.
-        self.p_pose = [0.]*6
+
+        # Initialize particles with current pose from odom->base_link
+        # self.p_pose = [0.]*6
+        orientation = euler_from_matrix(map2base_matrix)
+        translation = map2base_matrix[:-1,-1]
+        self.p_pose = [translation[0], translation[1], translation[2],
+                       orientation[0], orientation[1], orientation[2]]
+
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
@@ -52,6 +60,19 @@ class Particle(object):
         current_pose = np.asarray(self.p_pose)
         noisy_pose = current_pose + np.sqrt(noise_cov).dot(np.random.randn(6,1)).T
         self.p_pose = noisy_pose[0]
+
+    def motion_pred_pos(self, odom_t):
+        # Generate noise
+        noise_vec = (np.sqrt(self.process_cov)*np.random.randn(1, 6)).flatten()
+        self.p_pose[0] = odom_t.pose.pose.position.x + noise_vec[0]
+        self.p_pose[1] = odom_t.pose.pose.position.y + noise_vec[1]
+        self.p_pose[2] = odom_t.pose.pose.position.z + noise_vec[2]
+        quat = [odom_t.pose.pose.orientation.x, odom_t.pose.pose.orientation.y,
+                odom_t.pose.pose.orientation.z, odom_t.pose.pose.orientation.w]
+        euler = euler_from_quaternion(quat)
+        self.p_pose[3] = euler[0] + noise_vec[3]
+        self.p_pose[4] = euler[1] + noise_vec[4]
+        self.p_pose[5] = euler[2] + noise_vec[5]
 
     def motion_pred(self, odom_t, dt):
         # Generate noise
@@ -73,7 +94,7 @@ class Particle(object):
         vel_p = np.array([odom_t.twist.twist.linear.x,
                          odom_t.twist.twist.linear.y,
                          odom_t.twist.twist.linear.z])
-        
+
         rot_mat_t = rot.from_euler("xyz", [roll_t,pitch_t, yaw_t]).as_dcm()
         step_t = np.matmul(rot_mat_t, vel_p * dt) + noise_vec[0:3]
 
@@ -83,7 +104,7 @@ class Particle(object):
         self.p_pose[2] = odom_t.pose.pose.position.z
 
     def compute_weight(self, exp_mbes, real_mbes_ranges):
-        # Predict mbes ping given current particle pose and m 
+        # Predict mbes ping given current particle pose and m
         exp_mbes_ranges = self.list2ranges(exp_mbes)
         #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
         #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
@@ -96,7 +117,7 @@ class Particle(object):
         else:
             self.w = 0.0
             rospy.logwarn("Range of exp meas equals zero")
-    
+
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             grad_meas = np.gradient(mbes_meas_ranges)
@@ -107,7 +128,7 @@ class Particle(object):
             rospy.logwarn("missing pings!")
             w_i = 0.0
         return w_i
-        
+
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges,
@@ -116,7 +137,7 @@ class Particle(object):
             rospy.logwarn("missing pings!")
             w_i = 0.0
         return w_i
-      
+
     def weight_avg(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             #  w_i = 1./self.p_num
@@ -128,18 +149,18 @@ class Particle(object):
             #  w_i = 1./self.p_num
             w_i = 0.0
         return w_i
-    
+
     def get_p_mbes_pose(self):
-        # Find particle's mbes_frame pose in the map frame 
+        # Find particle's mbes_frame pose in the map frame
         t_particle = translation_matrix(self.p_pose[0:3])
         r_particle = rot.from_euler('xyz', self.p_pose[3:6], degrees=False)
         q_particle = quaternion_matrix(r_particle.as_quat())
         mat = np.dot(t_particle, q_particle)
-        
+
         trans_mat = self.m2o_tf_mat.dot(mat.dot(self.mbes_tf_mat))
         self.p = trans_mat[0:3, 3]
         self.R = trans_mat[0:3, 0:3]
-        
+
         return (self.p, self.R)
 
     # Extract the z coordinate from exp pings (in map frame)
@@ -150,11 +171,11 @@ class Particle(object):
 
         return np.asarray(ranges)
 
-    
+
 # Extract the z coordinate from real pings (in map frame)
 def pcloud2ranges(point_cloud, p_map_mbes_z):
     ranges = []
-    for p in pc2.read_points(point_cloud, 
+    for p in pc2.read_points(point_cloud,
                              field_names = ("x", "y", "z"), skip_nans=True):
         ranges.append(p_map_mbes_z + p[2])
 
@@ -162,13 +183,13 @@ def pcloud2ranges(point_cloud, p_map_mbes_z):
 
 def pcloud2ranges_full(point_cloud):
     ranges = []
-    for p in pc2.read_points(point_cloud, 
+    for p in pc2.read_points(point_cloud,
                              field_names = ("x", "y", "z"), skip_nans=True):
         ranges.append(p)
 
     return np.asarray(ranges)
 
-# Create PointCloud2 msg out of ping    
+# Create PointCloud2 msg out of ping
 def pack_cloud(frame, mbes):
     mbes_pcloud = PointCloud2()
     header = Header()
@@ -180,10 +201,10 @@ def pack_cloud(frame, mbes):
 
     mbes_pcloud = point_cloud2.create_cloud(header, fields, mbes)
 
-    return mbes_pcloud 
+    return mbes_pcloud
 
 def matrix_from_pose(pose):
-    trans = np.array([pose.position.x, 
+    trans = np.array([pose.position.x,
              pose.position.y,
              pose.position.z])
 
@@ -191,8 +212,8 @@ def matrix_from_pose(pose):
                          pose.orientation.y,
                          pose.orientation.z,
                          pose.orientation.w]).as_dcm()
-    
-    return (trans, rot_mat) 
+
+    return (trans, rot_mat)
 
 def matrix_from_tf(transform):
     if transform._type == 'geometry_msgs/TransformStamped':

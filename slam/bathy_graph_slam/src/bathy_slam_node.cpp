@@ -112,16 +112,19 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
     if (lc_detected)
     {
         ROS_INFO("Loop closure detected");
-        // For testing, save init estimate in file for plotting
+        // For testing, save init graph and estimate in disk
         graph_solver->saveResults(*graph_solver->initValues_, graph_init_path_);
         graph_solver->saveSerial(*graph_solver->graph_, * graph_solver->initValues_, graph_init_path_);
+        // std::cout << "Computing marginals" << std::endl;
+        // Marginals *marginals = new Marginals(*graph_solver->graph_, *graph_solver->initValues_);
+        // marginals->print();
 
-        // Update and solve ISAM2
-        int updateIterations = 10;
-        graph_solver->updateISAM2(updateIterations);
-        Values current_estimate = graph_solver->computeEstimate();
+        // // Update and solve ISAM2
+        // int updateIterations = 10;
+        // graph_solver->updateISAM2(updateIterations);
+        // Values current_estimate = graph_solver->computeEstimate();
         
-        graph_solver->saveResults(current_estimate, graph_solved_path_);
+        // graph_solver->saveResults(current_estimate, graph_solved_path_);
     }
 
     submaps_cnt_++;

@@ -204,6 +204,20 @@ target_link_libraries(submap_constructor_node
    ${PCL_LIBRARIES}
 )
 
+
+add_executable(graph_gp_training_node
+    src/graph_gp_training.cpp)
+
+add_dependencies(graph_gp_training_node
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(graph_gp_training_node
+   ${catkin_LIBRARIES}
+   gtsam
+)
+
+
 #############
 ## Install ##
 #############

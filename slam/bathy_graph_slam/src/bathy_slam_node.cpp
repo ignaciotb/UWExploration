@@ -130,6 +130,7 @@ void BathySlamNode::updateGraphCB(const sensor_msgs::PointCloud2Ptr &lm_pcl_msg,
 Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
 {
     // Find odom msg corresponding to submap at time t_step
+    // TODO: clear odomVec_ once in a while
     auto current_odom = odomVec_.begin();
     current_odom = std::find_if(current_odom, odomVec_.end(), [&](const nav_msgs::Odometry& odom) {
         return std::abs(odom.header.stamp.toSec() - t_step) < 0.01;
@@ -137,6 +138,23 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
     if(current_odom == odomVec_.end()){
         std::cout << "Not found current odom that matches submap" << std::endl;
     }
+
+    // auto last_odom = odomVec_.begin();
+    // last_odom = std::find_if(last_odom, odomVec_.end(), [&](const nav_msgs::Odometry &odom)
+    //                          { return std::abs(odom.header.stamp.toSec() - prev_submap_odom_->header.stamp.toSec()) < 0.01; });
+    // if (last_odom == odomVec_.end())
+    // {
+    //     last_odom = odomVec_.begin();
+    //     std::cout << "Not found last odom that matches submap" << std::endl;
+    // }
+
+    // double step_odom = 0;
+    // double t = (odomVec_.begin() + 30)->header.stamp.toSec() - (odomVec_.begin()+29)->header.stamp.toSec();
+    // std::cout << "Time step " << t << std::endl;
+    // for (auto it = last_odom; it != current_odom; ++it)
+    // {
+    //     step_odom += it->twist.twist.linear.x * t;
+    // }
 
     // Base pose in odom frame for t and t-1
     Eigen::Affine3d pose_now, pose_prev, map_2_odom;
@@ -170,18 +188,17 @@ Pose3 BathySlamNode::odomStep(double t_step, Pose3 &current_pose)
     // Store odom from current submap as prev
     prev_submap_odom_.reset(new nav_msgs::Odometry(*current_odom));
 
-    // TODO: clear odomVec_ once in a while
-
     // Convert current_odom to gtsam pose for landmarks computation
     Eigen::Vector3d euler_now = q_now.normalized().toRotationMatrix().eulerAngles(0, 1, 2);
     current_pose = Pose3(Rot3::Ypr(euler_now[2], euler_now[1], euler_now[0]), 
                          Point3(pos_now[0], pos_now[1], pos_now[2]));
 
     std::cout << "Odom step " << step << std::endl;
+    // std::cout << "Second Odom step " << step_odom << std::endl;
     std::cout << "Euler angles " << euler_step.transpose() << std::endl;
     // Return odom step as gtsam pose
-    return Pose3(Rot3::Ypr(euler_step[2], euler_step[1], euler_step[0]), 
-                Point3(step, 0, 0));
+    return Pose3(Rot3::Ypr(euler_step[2], euler_step[1], euler_step[0]),
+                 Point3(step, 0, 0));
 }
 
 int main(int argc, char** argv){

@@ -54,9 +54,9 @@ void samGraph::addOdomFactor(Pose3 factor_pose, Pose3 odom_step, size_t step)
     // Predict pose and add as initial estimate
     Pose3 predictedPose = lastPose_.compose(odom_step);
     lastPose_ = predictedPose;
-    // predictedPose.print("Predicted pose ");
-    // factor_pose.print("Odom pose ");
-    initValues_->insert(Symbol('x', step), predictedPose);
+    predictedPose.print("Predicted pose ");
+    factor_pose.print("Real pose ");
+    initValues_->insert(Symbol('x', step), factor_pose);
     // std::cerr << "Odom factor added" << std::endl;
 }
 

@@ -105,7 +105,7 @@ public:
     void executeCB(const svgp_mapping::batch_trainingGoalConstPtr &goal)
     {
         bool success = true;
-        ROS_INFO("-----------Request received------------");
+        ROS_DEBUG("-----------Request received------------");
 
         // Parse goal into KeyVector lm
         KeyVector lm;
@@ -113,33 +113,25 @@ public:
         for (int i = 0; i < goal->keys.size(); i++)
         {
             lm.push_back(landmarksKeys_.at(goal->keys.at(i)));
-            // std::cout << "Landmark key " << landmarksKeys_.at(goal->keys.at(i)) << std::endl;
             lmPoses.push_back(landmarksPoses_.at(goal->keys.at(i)));
         }
-        // std::cout << "Landmarks requested " << lmPoses.size() << std::endl;
 
-        // Key val = Symbol('l', 223686);
-        // Matrix joint = marginals_->marginalCovariance(val);
-        // std::cout << joint.matrix() << std::endl;
-
-        JointMarginal joint = marginals_->jointMarginalCovariance(lm);
-        std::cout << "Marginals computed " << std::endl;
-
-        // std::cout << joint.fullMatrix() << std::endl;
-        // std::cout << "Number of landmarks requested " << lm.size() << std::endl;
-
-        if (success)
+        // Result containing the landmarks vector and its upper triangular cov matrix (requested)
+        std::vector<double> lm_vec;
+        for (int i = 0; i < lmPoses.size(); i++)
         {
-            // Result containing the landmarks vector and its upper triangular cov matrix
-            std::vector<double> lm_vec;
-            for (int i = 0; i < lmPoses.size(); i++)
-            {
-                for (int j = 0; j < 3; j++)
-                { // TODO: make size-agnostic
-                    lm_vec.push_back(lmPoses.at(i)[j]);
-                }
+            for (int j = 0; j < 3; j++)
+            { // TODO: make size-agnostic
+                lm_vec.push_back(lmPoses.at(i)[j]);
             }
-            a_result_.lm_vec = lm_vec;
+        }
+        a_result_.lm_vec = lm_vec;
+
+        if (goal->covs)
+        {
+            JointMarginal joint = marginals_->jointMarginalCovariance(lm);
+            // std::cout << joint.fullMatrix() << std::endl;
+            // std::cout << "Number of landmarks requested " << lm.size() << std::endl;
 
             // Store upper triangular half of cov matrix
             std::vector<double> cov_vec;
@@ -157,10 +149,10 @@ public:
                 cnt++;
             }
             a_result_.ut_cov_mat = cov_vec;
-
-            ROS_DEBUG("%s: Succeeded", node_name_.c_str());
-            as_.setSucceeded(a_result_);
         }
+
+        ROS_DEBUG("%s: Succeeded", node_name_.c_str());
+        as_.setSucceeded(a_result_);
     }
 
     void saveResults(const Values &result, const string &outfilename)

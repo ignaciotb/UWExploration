@@ -52,7 +52,7 @@ void AUVMotionModel::thrustCB(const std_msgs::Float64ConstPtr& thrust_msg){
 }
 
 void AUVMotionModel::throttleCB(const std_msgs::Float64ConstPtr& throttle_msg){
-    latest_throttle_ = throttle_msg->data * 0.2;
+    latest_throttle_ = throttle_msg->data;
 }
 
 void AUVMotionModel::inclinationCB(const std_msgs::Float64ConstPtr& inclination_msg){

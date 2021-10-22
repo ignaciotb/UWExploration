@@ -51,7 +51,7 @@ submapConstructor::submapConstructor(std::string node_name, ros::NodeHandle &nh)
     first_sift_map_ = true;
 
     // SLAM problem
-    known_association_ = true;
+    known_association_ = false;
 
     // GICP registration class
     gicp_reg_.reset(new SubmapRegistration());

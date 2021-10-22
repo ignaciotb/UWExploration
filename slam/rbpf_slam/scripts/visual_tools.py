@@ -24,7 +24,7 @@ class PFStatsVisualization(object):
         self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
-        self.survey_name = rospy.get_param('~survey_name', 'survey')
+        self.result_path = rospy.get_param('~result_path', 'survey')
 
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -32,8 +32,8 @@ class PFStatsVisualization(object):
         # PF ping subscriber
         pf_pings_top = rospy.get_param("~particle_sim_mbes_topic", 'pf_mbes_pings')
 
-        if not os.path.exists(self.survey_name + 'plot_result/'):
-            os.makedirs(self.survey_name + 'plot_result/')
+        if not os.path.exists(self.result_path + 'plot_result/'):
+            os.makedirs(self.result_path + 'plot_result/')
 
         self.real_pings_sub = message_filters.Subscriber(mbes_pings_top, PointCloud2)
         self.pf_pings_sub = message_filters.Subscriber(pf_pings_top, PointCloud2)
@@ -95,7 +95,7 @@ class PFStatsVisualization(object):
         plt.title('Path')
         plt.xlabel('x axis (m)')
         plt.ylabel('y axis (m)')
-        plt.savefig(self.survey_name + "trajectories.png")  
+        plt.savefig(self.result_path + "trajectories.png")  
 
         ### Errors
         plt.cla()
@@ -126,7 +126,7 @@ class PFStatsVisualization(object):
         plt.legend(['Trace of cov matrix'])
         plt.xlabel('Time')
         plt.ylabel('Error')
-        plt.savefig(self.survey_name + "errors.png")
+        plt.savefig(self.result_path + "errors.png")
 
 
 
@@ -148,7 +148,7 @@ class PFStatsVisualization(object):
 
     def synch_cb(self, finished_msg):
         self.survey_finished = finished_msg.data
-        np.savez(self.survey_name+".npz", full_dataset=self.filt_vec.tolist())
+        np.savez(self.result_path+".npz", full_dataset=self.filt_vec.tolist())
         rospy.loginfo("Stats node: Survey finished received")
 
 

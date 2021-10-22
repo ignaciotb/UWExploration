@@ -17,7 +17,7 @@
 	<arg name="gamma" default=".3"/>        <!--How many procent of the beams that needs to be withing th_reg  -->
 	<arg name="th_reg" default="45."/>      <!--How close mbes x-y pose is to the first ping, when it's time for training.  -->
   <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
-  <arg name="results_path"   default="/$(find rbpf_slam)/data/results/" /> <!-- Where to save the results  -->
+  <arg name="results_path"   default="/$(find rbpf_slam)/data/" /> <!-- Where to save the results  -->
   <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
 
   <!-- final map  -->
@@ -28,7 +28,7 @@
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="4"/> <!--50 -->
+  <arg name="particle_count"                    default="10"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
   <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/> -->
   <arg name="init_covariance" default="[10., 5., 0.0, 0.0, 0.0, 0.0]"/>
@@ -57,7 +57,7 @@
       <param name="odom_frame"                              value="$(arg odom_frame)" />
 			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
 			<param name="synch_topic"                             value="$(arg filter)/synch" />
-      <param name="data_path"                               value="$(arg results_path)" />
+      <param name="result_path"                             value="$(arg results_path)" />
       <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
@@ -87,7 +87,6 @@
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
       <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
-      <param name="survey_name" value="$(arg results_path)" />
       <param name="result_path" value="$(arg results_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />

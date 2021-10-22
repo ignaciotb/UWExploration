@@ -95,28 +95,7 @@ class PFStatsVisualization(object):
         plt.title('Path')
         plt.xlabel('x axis (m)')
         plt.ylabel('y axis (m)')
-        plt.savefig(self.survey_name + 'gp_result/' + "trajectories.png")
-
-        # fig 1 zoomed
-        plt.figure(1)
-        # plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
-        #                                 -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
-        # #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
-        # plt.plot(self.filt_vec[8,:],
-        #             self.filt_vec[9,:], "-r")
-        
-        # plt.plot(self.filt_vec[2,:],
-        #             self.filt_vec[3,:], "-k")
-
-        # plt.plot(self.filt_vec[5,:],
-        #          self.filt_vec[6,:], "-g")
-        plt.axis([0, 180, -30, 150])
-        plt.title('Path')
-        plt.xlabel('x axis (m)')
-        plt.ylabel('y axis (m)')
-        plt.savefig(self.survey_name + 'gp_result/' + "trajectories_zoomed.png")
-
-        
+        plt.savefig(self.survey_name + "trajectories.png")  
 
         ### Errors
         plt.cla()
@@ -147,7 +126,7 @@ class PFStatsVisualization(object):
         plt.legend(['Trace of cov matrix'])
         plt.xlabel('Time')
         plt.ylabel('Error')
-        plt.savefig(self.survey_name + 'gp_result/' + "errors.png")
+        plt.savefig(self.survey_name + "errors.png")
 
 
 
@@ -310,42 +289,7 @@ class PFStatsVisualization(object):
 
                 plt.grid(True)
             
-
             plt.pause(0.0001)
-
-            # if self.survey_finished: #when you press 'm' in: Save_trajectory.py
-            #     # fig 1
-            #     plt.figure(1)
-            #     plt.legend(['GT', 'PF'])
-            #     plt.title('Resulting path')
-            #     plt.xlabel('x axis (m)')
-            #     plt.ylabel('y axis (m)')
-            #     plt.savefig(self.survey_name + 'plot_result/' + "_tracks.png")
-            #     # fig 1 zoomed
-            #     plt.figure(1)
-            #     plt.axis([-250, 150, -100, 300])
-            #     plt.legend(['GT', 'PF'])
-            #     plt.title('Zoomed path')
-            #     plt.xlabel('x axis (m)')
-            #     plt.ylabel('y axis (m)')
-            #     plt.savefig(self.survey_name + 'plot_result/' + "_zoomed.png")
-            #     # fig 2
-            #     # plt.figure(2)
-            #     # plt.subplot(3, 1, 1)
-            #     # plt.legend(['error between DR PF and GT'])
-            #     # plt.subplot(3, 1, 2)
-            #     # plt.legend(['Error between PF and GT'])
-            #     # plt.subplot(3,1,3)
-            #     # plt.legend(['trace of cov matrix'])
-            #     # plt.savefig(self.survey_name + 'plot_result/' + "_error.png")
-            #     # # fig 1
-            #     # plt.figure(3)
-            #     # plt.legend(['k', 'b'])
-            #     # plt.title('Real vs mbes')
-            #     # plt.savefig(self.survey_name + 'plot_result/' + "_real_vs_mbes.png")
-
-            #     rospy.loginfo("Saving down image of the tracks.")
-            #     self.survey_finished = False
 
 
 

@@ -12,10 +12,10 @@ from scipy.ndimage import gaussian_filter1d
 from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import Quaternion, Transform
 
-from tf.transformations import quaternion_from_euler, euler_from_quaternion
+# from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
-from tf.transformations import rotation_matrix, rotation_from_matrix
+# from tf.transformations import rotation_matrix, rotation_from_matrix
 
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
@@ -115,28 +115,28 @@ class Particle(object):
             rospy.logwarn("Range of exp meas equals zero")
     
 
-    def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
-        if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check
+    # def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
+    #     if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check
 
-            # time_start = time.time()
+    #         # time_start = time.time()
 
-            # Run gpytorch regression on sim data
-            print("\nTraining GP on particle: ", self.index)
-            observed_pred_sim = mbes_gpytorch_regression(mbes_sim_ranges)
-            # print("\nsim train time (s): ", time.time() - train_sim_start, "\n")
+    #         # Run gpytorch regression on sim data
+    #         print("\nTraining GP on particle: ", self.index)
+    #         observed_pred_sim = mbes_gpytorch_regression(mbes_sim_ranges)
+    #         # print("\nsim train time (s): ", time.time() - train_sim_start, "\n")
 
-            # Calculate KL divergence
-            kl_div = KLgp_div(real_mbes_GP_pred, observed_pred_sim)
-            w_i = 1. / kl_div
+    #         # Calculate KL divergence
+    #         kl_div = KLgp_div(real_mbes_GP_pred, observed_pred_sim)
+    #         w_i = 1. / kl_div
 
-            # print("\nTotal weight time (s): ", time.time() - time_start, "\n")
-            print('kl_div:    {}'.format(kl_div, precision=3))
-            print('gp weight: {}'.format(w_i, precision=3))
-        else:
-            rospy.logwarn("missing pings!")
-            w_i = 1.e-50
+    #         # print("\nTotal weight time (s): ", time.time() - time_start, "\n")
+    #         print('kl_div:    {}'.format(kl_div, precision=3))
+    #         print('gp weight: {}'.format(w_i, precision=3))
+    #     else:
+    #         rospy.logwarn("missing pings!")
+    #         w_i = 1.e-50
 
-        return w_i
+    #     return w_i
 
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):

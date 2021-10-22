@@ -46,7 +46,6 @@
   <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
-  <!-- <arg name="train_gp_topic"                    default="/trained_gps" -->
 
     <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
@@ -58,14 +57,8 @@
       <param name="odom_frame"                              value="$(arg odom_frame)" />
 			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
 			<param name="synch_topic"                             value="$(arg filter)/synch" />
-      <param name="l_max"                                   value="$(arg l_max)" /> 
-      <param name="gamma"                                   value="$(arg gamma)" />
-      <param name="th_reg"                                   value="$(arg th_reg)" />
-      <param name="n_inducing"                              value="$(arg n_inducing)" />
       <param name="data_path"                               value="$(arg results_path)" />
-      <param name="queue_size"                              value="$(arg queue_size)" />
-      <param name="record_data"                             value="$(arg record_data)" />
-      <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+      <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
@@ -75,30 +68,18 @@
       <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
       <param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
-      <param name="gp_path" value="$(find rbpf_slam)/data/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
-      <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
-      <param name="mbes_sim_as" value="/mbes_sim_server" />    
       <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
       <param name="sample_gp_server" value="$(arg sample_plot_server)"/>     
     </node>
 
-    <!-- <node type="train_pf_gp.py" pkg="rbpf_slam" name="train_pf_gp" output="screen" >
-      <param name="n_inducing"                              value="$(arg n_inducing)" />
-      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-      <param name="data_path"                               value="$(arg results_path)" />
-      <param name="queue_size"                              value="$(arg queue_size)" />
-      <param name="l_max"                                   value="$(arg l_max)" /> 
-
-    </node> -->
-
+    <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
     <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
       <param name="num_particles" value="$(arg particle_count)"/>     
       <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
     </node> -->
-
 
     <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
@@ -111,12 +92,6 @@
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
    </node>
-
-<!-- for first run ... > -->
-<!--  catkin_make -DCMAKE_BUILD_TYPE=Release install  -->
-<!-- rviz -d /home/stine/catkin_ws/src/UWExploration/real_auv/bathy_mapper/rviz/bathy_map.rviz -->
-<!-- roslaunch rbpf_slam rbpf_slam.launch  -->
-<!-- for first run ...^  -->
 
     <!-- UW environment -->
     <include file="$(find auv_model)/launch/auv_sim.launch" >

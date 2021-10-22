@@ -260,11 +260,6 @@ class rbpf_slam(object):
 
         # For LC detection
         self.lc_detected = False
-        
-        # Empty service to synch the applications waiting for this node to start
-        rospy.loginfo("RBPF successfully instantiated")
-        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
-        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
 
         # Main timer for RBPF
         rbpf_period = rospy.get_param("~rbpf_period", '/survey_finished')
@@ -273,7 +268,12 @@ class rbpf_slam(object):
         # Subscription to real mbes pings 
         lc_manual_topic = rospy.get_param("~lc_manual_topic", 'manual_lc')
         rospy.Subscriber(lc_manual_topic, Bool, self.manual_lc, queue_size=1)
-        
+
+        # Empty service to synch the applications waiting for this node to start
+        rospy.loginfo("RBPF successfully instantiated")
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
+
         rospy.spin()
 
     def empty_srv(self, req):

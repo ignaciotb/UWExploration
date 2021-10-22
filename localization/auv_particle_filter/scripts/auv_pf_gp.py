@@ -177,14 +177,7 @@ class auv_pf(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-
-        # PF filter created. Start auv_2_ros survey playing
-        rospy.loginfo("Particle filter class successfully created")
-
-        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
-        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
-        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
-        
+      
         # Topic to signal end of survey
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
@@ -198,6 +191,14 @@ class auv_pf(object):
         self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
                                     self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
+
+        # PF filter created. Start auv_2_ros survey playing
+        rospy.loginfo("Particle filter class successfully created")
+
+        # Empty service to synch the applications waiting for this node to start
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
+
         rospy.spin()
 
 

@@ -17,12 +17,16 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");
     nh_->param<std::string>("mbes_sim_as", mbes_sim_as, "mbes_sim_action");
     nh_->param<int>("n_beams_mbes", beams_num_, 100);
+    nh_->param<std::string>("synch_topic", synch_name_, "/pf/synch");
 
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 1);
     thruster_sub_ = nh_->subscribe(thruster_top, 1, &AUVMotionModel::thrustCB, this);
     incl_sub_ = nh_->subscribe(inclination_top, 1, &AUVMotionModel::inclinationCB, this);
     throttle_sub_ = nh_->subscribe(throttle_top, 1, &AUVMotionModel::throttleCB, this);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 3);
+
+    start_replay_ = false;
+
 
     ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_sim_as, true);
 
@@ -87,11 +91,30 @@ void AUVMotionModel::init(){
         ros::Duration(1.0).sleep();
     }
 
+    // Synch signal to start simulated survey
+    if (start_replay_ == false)
+    {
+        while (!ros::service::waitForService(synch_name_, -1) && ros::ok())
+        {
+            std::cout << synch_name_ << std::endl;
+            ROS_DEBUG_NAMED(node_name_, "AUV sim node waiting for app ");
+        }
+        ROS_INFO("Sim AUV node UP");
+        start_replay_ = true;
+        time_prev_ = ros::Time::now();
+    }
+
     ROS_INFO("Initialized AUV motion model");
 }
 
 
 void AUVMotionModel::updateMotion(const ros::TimerEvent&){
+
+    // Don't start survey until PF is up
+    if(start_replay_ != true){
+        ROS_INFO_NAMED(node_name_, "AUV Sim model waiting for PF to send synch signal");
+        return;
+    }
 
     time_now_ = ros::Time::now();
     double dt = (time_now_ - time_prev_).toSec();
@@ -159,29 +182,34 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 void AUVMotionModel::updateMeas(const ros::TimerEvent&){
 
 //        clock_t tStart = clock();
+    // Don't start survey until PF is up
+    if(start_replay_ != true){
+        ROS_INFO_NAMED(node_name_, "AUV Sim model waiting for PF to send synch signal");
+        return;
+    }
 
-        // Transformation map-->mbes
-        tf::Transform tf_odom_base;
-        tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
-        tf::Transform tf_map_mbes = tf_map_odom_ * tf_odom_base * tf_base_mbes_;
-        geometry_msgs::Transform transform_msg;
-        tf::transformTFToMsg(tf_map_mbes, transform_msg);
+    // Transformation map-->mbes
+    tf::Transform tf_odom_base;
+    tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
+    tf::Transform tf_map_mbes = tf_map_odom_ * tf_odom_base * tf_base_mbes_;
+    geometry_msgs::Transform transform_msg;
+    tf::transformTFToMsg(tf_map_mbes, transform_msg);
 
-        auv_2_ros::MbesSimGoal mbes_goal;
-        mbes_goal.mbes_pose.header.frame_id = map_frame_;
-        mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
-        mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
-        mbes_goal.mbes_pose.transform = transform_msg;
-        mbes_goal.beams_num.data = beams_num_;
-        ac_->sendGoal(mbes_goal);
+    auv_2_ros::MbesSimGoal mbes_goal;
+    mbes_goal.mbes_pose.header.frame_id = map_frame_;
+    mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
+    mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
+    mbes_goal.mbes_pose.transform = transform_msg;
+    mbes_goal.beams_num.data = beams_num_;
+    ac_->sendGoal(mbes_goal);
 
-        ac_->waitForResult(ros::Duration(1.0));
-        actionlib::SimpleClientGoalState state = ac_->getState();
-        if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
-            sensor_msgs::PointCloud2 mbes_msg;
-            auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
-            mbes_msg = mbes_res.sim_mbes;
-            sim_ping_pub_.publish(mbes_msg);
-        }
-//        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+    ac_->waitForResult(ros::Duration(1.0));
+    actionlib::SimpleClientGoalState state = ac_->getState();
+    if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
+        sensor_msgs::PointCloud2 mbes_msg;
+        auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
+        mbes_msg = mbes_res.sim_mbes;
+        sim_ping_pub_.publish(mbes_msg);
+    }
+    //        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 }

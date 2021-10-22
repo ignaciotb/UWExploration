@@ -2,25 +2,23 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-    <arg name="mode" default="gt"/>
+    <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="dataset" default="overnight_2020"/>
     <arg name="app" default="pf"/>
     <arg name="debug" default="0"/>
 
 	<!-- Rates for simulating missions  -->
-    <arg name="odom_rate" default="0.1"/>
-	<arg name="meas_rate" default="0.1"/>
-    <arg name="replay_rate" default="0.1"/>
+    <arg name="odom_rate" default="0.3"/>
+	<arg name="meas_rate" default="0.3"/>
+	<!-- Rate for replaying real missions  -->
+    <arg name="replay_rate" default="0.3"/>
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
 	<arg name="mbes_open_angle" default="0.50" />
-	<!-- For lost targets -->
-	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
     <!-- Real data  -->
-    <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
     <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
@@ -30,7 +28,7 @@
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/>
+	<arg name="yaw" default="1.0"/>
 
 	<group ns="$(arg namespace)">
 
@@ -43,8 +41,8 @@
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
 			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
 			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_1000_0.01.npy"/>
-			<!-- <param name="map_sift_path"  value=""/> -->
-			<param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/>
+			<param name="map_sift_path"  value=""/>
+			<!-- <param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/> -->
 			<param name="map_frame" value="map" />
 			<param name="map_mbes" value="/map_mbes" />
 			<param name="use_pings_cloud" type= "bool" value="True" />
@@ -79,6 +77,7 @@
 				<param name="mbes_pings_topic" value="/sim/mbes_pings" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
+				<param name="synch_topic" value="/$(arg app)/synch" />
 			</node>
 
 			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
@@ -95,10 +94,17 @@
 				<param name="mbes_sim_as" value="/mbes_sim_server" /> 
 				<param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
 				<param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
-				<param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
-			    <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/mesh.npz" />       
+				<!-- <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />        -->
+      			<param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
+      			<param name="mesh_path" value="$(arg path)/mesh.npz" />       
 			</node>
 
+			<!-- Useful rosbags for replaying controls -->
+			<!-- <node pkg="rosbag" type="play" name="test_mission_ctrl" output="screen" 
+					args="$(find rbpf_slam)/launch/lc_test_1.bag"/> -->
+			
+			<!-- <node pkg="rosbag" type="record" name="record_mission_ctrl" output="screen" 
+					args="-O $(find rbpf_slam)/launch/lc_test.bag /hugin/throttle_cmd /hugin/thruster_cmd /hugin/inclination_cmd"/> -->
   		</group>
 
 		<!-- Reproduce real Hugin survey -->

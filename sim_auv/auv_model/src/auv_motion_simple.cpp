@@ -4,7 +4,7 @@
 AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string synch_name, sim_odom_top, sim_pings_top, throttle_top, thruster_top, inclination_top, mbes_sim_as;
+    std::string sim_odom_top, sim_pings_top, throttle_top, thruster_top, inclination_top, mbes_sim_as;
     nh_->param<std::string>("odom_sim", sim_odom_top, "/sim_auv/odom");
     nh_->param<std::string>("world_frame", world_frame_, "world");
     nh_->param<std::string>("map_frame", map_frame_, "map");
@@ -17,16 +17,13 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");
     nh_->param<std::string>("mbes_sim_as", mbes_sim_as, "mbes_sim_action");
     nh_->param<int>("n_beams_mbes", beams_num_, 100);
-    nh_->param<std::string>("synch_topic", synch_name, "/pf/synch");
-
-
+    nh_->param<std::string>("synch_topic", synch_name_, "/pf/synch");
 
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 1);
     thruster_sub_ = nh_->subscribe(thruster_top, 1, &AUVMotionModel::thrustCB, this);
     incl_sub_ = nh_->subscribe(inclination_top, 1, &AUVMotionModel::inclinationCB, this);
     throttle_sub_ = nh_->subscribe(throttle_top, 1, &AUVMotionModel::throttleCB, this);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 3);
-    pf_synch_sub_ = nh_->subscribe(synch_name, 1, &AUVMotionModel::synchCB, this);
 
     start_replay_ = false;
 
@@ -37,13 +34,6 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
 }
 
 AUVMotionModel::~AUVMotionModel(){
-
-}
-
-void AUVMotionModel::synchCB(const std_msgs::BoolConstPtr& synch_msg){
-    std::cout << "Synch signal received" << std::endl;
-    start_replay_ = synch_msg->data;
-    time_prev_ = ros::Time::now();
 
 }
 
@@ -99,6 +89,19 @@ void AUVMotionModel::init(){
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
         ros::Duration(1.0).sleep();
+    }
+
+    // Synch signal to start simulated survey
+    if (start_replay_ == false)
+    {
+        while (!ros::service::waitForService(synch_name_, -1) && ros::ok())
+        {
+            std::cout << synch_name_ << std::endl;
+            ROS_DEBUG_NAMED(node_name_, "AUV sim node waiting for app ");
+        }
+        ROS_INFO("Sim AUV node UP");
+        start_replay_ = true;
+        time_prev_ = ros::Time::now();
     }
 
     ROS_INFO("Initialized AUV motion model");

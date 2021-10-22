@@ -17,6 +17,7 @@ from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Header, Bool, Float32MultiArray, ByteMultiArray
+from std_srvs.srv import Empty
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
@@ -206,12 +207,6 @@ class rbpf_slam(object):
 
         self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
-        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
-        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
-        self.synch_pub = rospy.Publisher(synch_top, Bool, queue_size=10)
-        msg = Bool()
-        msg.data = True
-
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False
         # self.time_wo_motion = 5.
@@ -265,10 +260,11 @@ class rbpf_slam(object):
 
         # For LC detection
         self.lc_detected = False
-
-        # PF filter created. Start auv_2_ros survey playing
+        
+        # Empty service to synch the applications waiting for this node to start
         rospy.loginfo("RBPF successfully instantiated")
-        self.synch_pub.publish(msg)
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
 
         # Main timer for RBPF
         rbpf_period = rospy.get_param("~rbpf_period", '/survey_finished')
@@ -279,6 +275,10 @@ class rbpf_slam(object):
         rospy.Subscriber(lc_manual_topic, Bool, self.manual_lc, queue_size=1)
         
         rospy.spin()
+
+    def empty_srv(self, req):
+        rospy.loginfo("RBPF Ready")
+        return None
 
     def manual_lc(self, lc_msg):
         self.lc_detected = True

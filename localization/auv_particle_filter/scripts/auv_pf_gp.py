@@ -42,8 +42,8 @@ class auv_pf(object):
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
+        self.base_frame = rospy.get_param('~base_link', 'base_link') # mbes frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
-        meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
@@ -159,7 +159,7 @@ class auv_pf(object):
         # Transforms from auv_2_ros
         try:
             rospy.loginfo("Waiting for transforms")
-            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
+            mbes_tf = tfBuffer.lookup_transform(self.base_frame, self.mbes_frame,
                                                 rospy.Time(0), rospy.Duration(35))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
 

@@ -49,6 +49,7 @@
       <param name="map_frame"                               value="$(arg map_frame)" />
       <param name="odom_frame"                              value="$(arg odom_frame)" />
 			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
+			<param name="base_link"                               value="$(arg namespace)/base_link" />
 			<param name="synch_topic"                             value="/$(arg app)/synch" />
       <param name="result_path"                             value="$(arg results_path)" />
       <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />

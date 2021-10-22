@@ -11,7 +11,7 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
     nh_->param<std::string>("base_link", base_frame_, "base_link");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
-    nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes_pings");
+    nh_->param<std::string>("mbes_pings_topic", sim_pings_top, "/sim/mbes_pings");
     nh_->param<std::string>("throttle_cmd", throttle_top, "/throttle");
     nh_->param<std::string>("thruster_cmd", thruster_top, "/thruster");
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");

@@ -267,11 +267,12 @@ class rbpf_slam(object):
         self.lc_detected = False
 
         # PF filter created. Start auv_2_ros survey playing
+        rospy.loginfo("RBPF successfully instantiated")
         self.synch_pub.publish(msg)
-        rospy.loginfo("Particle filter class successfully created")
 
         # Main timer for RBPF
-        rospy.Timer(rospy.Duration(1), self.rbpf_update, oneshot=False)
+        rbpf_period = rospy.get_param("~rbpf_period", '/survey_finished')
+        rospy.Timer(rospy.Duration(rbpf_period), self.rbpf_update, oneshot=False)
 
         # Subscription to real mbes pings 
         lc_manual_topic = rospy.get_param("~lc_manual_topic", 'manual_lc')

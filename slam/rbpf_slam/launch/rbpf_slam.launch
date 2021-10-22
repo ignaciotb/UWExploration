@@ -6,29 +6,15 @@
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
+	<arg name="app" default="rbpf"/>
+  <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
-	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+	<arg name="n_beams_mbes" default="50"/>	
+	<arg name="mbes_open_angle" value="1.050" /> 
 
-  <!-- mine added args -->
-  <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
-	<arg name="l_max" default="50."/>       <!--lengthscale has to be lower that l_max -->
-	<arg name="gamma" default=".3"/>        <!--How many procent of the beams that needs to be withing th_reg  -->
-	<arg name="th_reg" default="45."/>      <!--How close mbes x-y pose is to the first ping, when it's time for training.  -->
-  <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
-  <arg name="results_path"   default="/$(find rbpf_slam)/data/" /> <!-- Where to save the results  -->
-  <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
-
-  <!-- final map  -->
-  <arg name="survey_finished_top" default="/gt/survey_finished"/>
-  <arg name="gp_plot_server" default="/gp/plot_server"/>
-  <arg name="sample_plot_server" default="/gp/sample_server"/>
-  
-  <arg name="filter" default="pf"/>
-
-  <!-- Define args -->
-  <arg name="particle_count"                    default="10"/> <!--50 -->
+  <!-- RBPF params  -->
+  <arg name="particle_count"                    default="3"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
   <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/> -->
   <arg name="init_covariance" default="[10., 5., 0.0, 0.0, 0.0, 0.0]"/>
@@ -37,15 +23,22 @@
   <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/> -->
   <!-- <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>  -->
   <arg name="measurement_std"  default="3"/>
+  <arg name="survey_finished_top" default="/gt/survey_finished"/>
+  <arg name="gp_plot_server" default="/gp/plot_server"/>
+  <arg name="sample_plot_server" default="/gp/sample_server"/>
+  <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
+  <arg name="rbpf_period"   default="0.3" />
+
+
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
   <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
-  <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
-  <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
-  <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
-  <arg name="average_mbes_topic"                default="/$(arg filter)/avg_mbes"/>
+  <arg name="average_pose_topic"                default="/$(arg app)/avg_pose"/>
+  <arg name="particle_poses_topic"              default="/$(arg app)/particle_poses"/>
+  <arg name="particle_sim_mbes_topic"           default="/$(arg app)/sim_mbes"/>
+  <arg name="average_mbes_topic"                default="/$(arg app)/avg_mbes"/>
 
     <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
@@ -56,7 +49,7 @@
       <param name="map_frame"                               value="$(arg map_frame)" />
       <param name="odom_frame"                              value="$(arg odom_frame)" />
 			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
-			<param name="synch_topic"                             value="$(arg filter)/synch" />
+			<param name="synch_topic"                             value="/$(arg app)/synch" />
       <param name="result_path"                             value="$(arg results_path)" />
       <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
@@ -67,12 +60,13 @@
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
       <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
-      <param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
+      <param name="mesh_path" value="$(arg path)/mesh.npz" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
+      <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
       <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
-      <param name="sample_gp_server" value="$(arg sample_plot_server)"/>     
+      <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
+      <param name="rbpf_period" value="$(arg rbpf_period)"/>  
     </node>
 
     <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
@@ -93,13 +87,14 @@
    </node>
 
     <!-- UW environment -->
-    <include file="$(find auv_model)/launch/auv_sim.launch" >
+    <include file="$(find auv_model)/launch/auv_environment.launch" >
       <arg name="mode" value="$(arg mode)"/>
-      <arg name="filter" value="$(arg filter)"/>
       <arg name="namespace" value="$(arg namespace)"/>
+      <arg name="debug" default="0"/>
+      <arg name="app" value="$(arg app)"/>
+      <arg name="dataset" value="$(arg dataset)" />
       <arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
       <arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
-      <arg name="dataset" value="$(arg dataset)" />
     </include>
 
 </launch>

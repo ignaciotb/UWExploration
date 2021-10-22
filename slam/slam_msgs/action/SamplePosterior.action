@@ -1,0 +1,10 @@
+#goal definition
+sensor_msgs/PointCloud2 ping
+---
+#result definition
+float64[] mu
+float64[] sigma
+---
+#feedback (not used)
+# std_msgs/bool feedback
+

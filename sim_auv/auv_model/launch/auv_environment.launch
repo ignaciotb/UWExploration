@@ -2,13 +2,14 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-    <arg name="mode" default="gt"/>
+    <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="dataset" default="overnight_2020"/>
     <arg name="app" default="pf"/>
     <arg name="debug" default="0"/>
 
 	<!-- Rates for simulating missions  -->
+<<<<<<< HEAD:sim_auv/auv_model/launch/auv_environment.launch
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
     <arg name="replay_rate" default="0.1"/>
@@ -20,7 +21,6 @@
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
     <!-- Real data  -->
-    <arg name="map_name" default="demo_02"/> <!-- Name of UFO map to be loaded (if exists) or saved when gt mission is over -->
     <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
@@ -30,7 +30,7 @@
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/>
+	<arg name="yaw" default="1.0"/>
 
 	<group ns="$(arg namespace)">
 
@@ -79,13 +79,14 @@
 				<param name="mbes_pings_topic" value="/sim/mbes_pings" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
+				<param name="synch_topic" value="/$(arg filter)/synch" />
 			</node>
 
-			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
+			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
 				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
-			</node>
+			</node> -->
 
 			<node pkg="auv_model" type="auv_mbes_model.py" name="auv_mbes_model" output="screen">
 				<param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
@@ -93,10 +94,16 @@
 				<param name="mbes_sim_as" value="/mbes_sim_server" /> 
 				<param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
 				<param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
-				<param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
-			    <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/mesh.npz" />       
+				<!-- <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />        -->
+      			<param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
+      			<param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
 			</node>
 
+			<!-- <node pkg="rosbag" type="play" name="test_mission_ctrl" output="screen" 
+					args="$(find rbpf_slam)/launch/lc_test_1.bag"/> -->
+			
+			<!-- <node pkg="rosbag" type="record" name="record_mission_ctrl" output="screen" 
+					args="-O $(find rbpf_slam)/launch/lc_test.bag /hugin/throttle_cmd /hugin/thruster_cmd /hugin/inclination_cmd"/> -->
   		</group>
 
 		<!-- Reproduce real Hugin survey -->

@@ -23,6 +23,7 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -45,6 +46,8 @@ public:
 
     void updateMeas(const ros::TimerEvent &);
 
+    void synchCB(const std_msgs::BoolConstPtr& synch_msg);
+
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -53,6 +56,7 @@ private:
     ros::Publisher odom_pub_;
     ros::Subscriber throttle_sub_;
     ros::Subscriber incl_sub_;
+    ros::Subscriber pf_synch_sub_;
     ros::Subscriber thruster_sub_;
 
     tf2_ros::Buffer tfBuffer_;
@@ -81,6 +85,7 @@ private:
     void inclinationCB(const std_msgs::Float64ConstPtr& inclination_msg);
 
     int beams_num_;
+    bool start_replay_;
 };
 
 

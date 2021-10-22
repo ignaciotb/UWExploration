@@ -8,25 +8,40 @@
 	<arg name="dataset" default="overnight_2020"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" value="2.250" />
+	<arg name="n_beams_mbes" default="50"/>	<!--100 --> <!--good to keep high, look at more landmarks, better accuracy-->
+	<arg name="mbes_open_angle" value="1.050" /> <!--2.250 --> <!-- how wide area the mbes should have, how long the white line is-->
+
+  <!-- mine added args -->
+  <arg name="record_data" default="20"/> <!-- After how many pings tp record the data -->
+	<arg name="l_max" default="50."/>       <!--lengthscale has to be lower that l_max -->
+	<arg name="gamma" default=".3"/>        <!--How many procent of the beams that needs to be withing th_reg  -->
+	<arg name="th_reg" default="45."/>      <!--How close mbes x-y pose is to the first ping, when it's time for training.  -->
+  <arg name="n_inducing"  default="200"/> <!-- number of induction points-->
+  <arg name="results_path"   default="/$(find rbpf_slam)/data/" /> <!-- Where to save the results  -->
+  <arg name="queue_size"  default="100"/> <!-- to pub/sub to gp training -->
+
+  <!-- final map  -->
+  <arg name="survey_finished_top" default="/gt/survey_finished"/>
+  <arg name="gp_plot_server" default="/gp/plot_server"/>
+  <arg name="sample_plot_server" default="/gp/sample_server"/>
   
   <arg name="filter" default="pf"/>
 
   <!-- Define args -->
-  <arg name="particle_count"                    default="50"/>
+  <arg name="particle_count"                    default="10"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]"/> -->
-  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
-  <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
+  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/> -->
+  <arg name="init_covariance" default="[10., 5., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00005]"/>
+  <arg name="resampling_noise_covariance" default="[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]"/>
+  <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/> -->
+  <!-- <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>  -->
   <arg name="measurement_std"  default="3"/>
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/odom"/>
-  <arg name="mbes_pings_topic"                  default="/gt/mbes_pings"/>
+  <arg name="mbes_pings_topic"                  default="/$(arg mode)/mbes_pings"/>
   <arg name="average_pose_topic"                default="/$(arg filter)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg filter)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg filter)/sim_mbes"/>
@@ -34,44 +49,48 @@
 
     <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-      <param name="init_covariance"                  value="$(arg init_covariance)" />
-      <param name="resampling_noise_covariance"                  value="$(arg resampling_noise_covariance)" />
-      <param name="measurement_std"                  value="$(arg measurement_std)" />
+      <param name="init_covariance"                         value="$(arg init_covariance)" />
+      <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
+      <param name="measurement_std"                         value="$(arg measurement_std)" />
       <param name="motion_covariance"                       value="$(arg motion_covariance)" />
       <param name="map_frame"                               value="$(arg map_frame)" />
-      <param name="odom_frame"                               value="$(arg odom_frame)" />
-			<param name="mbes_link" value="$(arg namespace)/mbes_link" />
-			<param name="synch_topic" value="$(arg filter)/synch" />
-
-      <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+      <param name="odom_frame"                              value="$(arg odom_frame)" />
+			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
+			<param name="synch_topic"                             value="$(arg filter)/synch" />
+      <param name="result_path"                             value="$(arg results_path)" />
+      <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
       <param name="odometry_topic"                          value="$(arg odometry_topic)" />
       <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
       <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
   	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
       <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
       <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-      <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
-      <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
+      <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
+      <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
       <param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
-      <param name="gp_path" value="$(find rbpf_slam)/data/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
-      <!-- <param name="sound_velocity_prof" value="/home/torroba/Downloads/post_deployment/KTH_PI_SVP_20180807_1251_573365N_0115014E_004.asvp" />        -->
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
-      <param name="mbes_sim_as" value="/mbes_sim_server" />     
+      <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
+      <param name="sample_gp_server" value="$(arg sample_plot_server)"/>     
     </node>
+
+    <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
+    <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+      <param name="num_particles" value="$(arg particle_count)"/>     
+      <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+    </node> -->
 
     <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
-      <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="background_img_path" value="/home/torroba/workspaces/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
-      <param name="survey_name" value="overnight_20"/>
+      <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+      <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
+      <param name="result_path" value="$(arg results_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
    </node>
-
 
     <!-- UW environment -->
     <include file="$(find auv_model)/launch/auv_sim.launch" >

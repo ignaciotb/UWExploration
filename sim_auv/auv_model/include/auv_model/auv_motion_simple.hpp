@@ -46,8 +46,6 @@ public:
 
     void updateMeas(const ros::TimerEvent &);
 
-    void synchCB(const std_msgs::BoolConstPtr& synch_msg);
-
 private:
     std::string node_name_;
     ros::NodeHandle* nh_;
@@ -56,7 +54,6 @@ private:
     ros::Publisher odom_pub_;
     ros::Subscriber throttle_sub_;
     ros::Subscriber incl_sub_;
-    ros::Subscriber pf_synch_sub_;
     ros::Subscriber thruster_sub_;
 
     tf2_ros::Buffer tfBuffer_;
@@ -77,7 +74,7 @@ private:
     geometry_msgs::TransformStamped new_base_link_;
 //    geometry_msgs::TransformStamped tfmsg_map_odom_;
 
-    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, synch_name_;
 
     double latest_thrust_, latest_throttle_, latest_inclination_;
     void thrustCB(const std_msgs::Float64ConstPtr& thrust_msg);

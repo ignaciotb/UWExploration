@@ -181,7 +181,7 @@ class auv_pf(object):
         # PF filter created. Start auv_2_ros survey playing
         rospy.loginfo("Particle filter class successfully created")
 
-        # Start to play survey data. Necessary to keep the PF and auv_2_ros in synch
+        # Empty service to synch the applications waiting for this node to start
         synch_top = rospy.get_param("~synch_topic", '/pf_synch')
         self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
         

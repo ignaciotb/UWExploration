@@ -15,7 +15,7 @@ import numpy as np
 class particle_map(object):
 
     def __init__(self):
-        self.gp = SVGP(50)
+        self.gp = SVGP(20) # num of inducing points
 
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
@@ -114,7 +114,7 @@ class particle_map(object):
 
             print("Training GP ", self.particle_number)
             self.training = True
-            self.gp.fit(beams[:,0:2], beams[:,2], n_samples= 500, 
+            self.gp.fit(beams[:,0:2], beams[:,2], n_samples= 200, 
                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
                         ntol=100, auto=False, verbose=False)
 

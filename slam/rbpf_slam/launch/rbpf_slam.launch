@@ -94,10 +94,10 @@
 
     </node> -->
 
-    <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+    <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
       <param name="num_particles" value="$(arg particle_count)"/>     
       <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
-    </node>
+    </node> -->
 
 
     <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">

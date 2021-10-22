@@ -92,7 +92,31 @@ class PFStatsVisualization(object):
         plt.plot(self.filt_vec[5,:],
                  self.filt_vec[6,:], "-g")
 
+        plt.title('Path')
+        plt.xlabel('x axis (m)')
+        plt.ylabel('y axis (m)')
         plt.savefig(self.survey_name + 'gp_result/' + "trajectories.png")
+
+        # fig 1 zoomed
+        plt.figure(1)
+        # plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
+        #                                 -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
+        # #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
+        # plt.plot(self.filt_vec[8,:],
+        #             self.filt_vec[9,:], "-r")
+        
+        # plt.plot(self.filt_vec[2,:],
+        #             self.filt_vec[3,:], "-k")
+
+        # plt.plot(self.filt_vec[5,:],
+        #          self.filt_vec[6,:], "-g")
+        plt.axis([0, 180, -30, 150])
+        plt.title('Path')
+        plt.xlabel('x axis (m)')
+        plt.ylabel('y axis (m)')
+        plt.savefig(self.survey_name + 'gp_result/' + "trajectories_zoomed.png")
+
+        
 
         ### Errors
         plt.cla()
@@ -102,6 +126,7 @@ class PFStatsVisualization(object):
                     np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2,
                                 axis=0)), "-k")
         plt.grid(True)
+        plt.legend(['Error between DR and GT'])
 
         # Error between PF and GT
         plt.subplot(3, 1, 2)
@@ -111,6 +136,7 @@ class PFStatsVisualization(object):
                                 axis=0)), "-b")
 
         plt.grid(True)
+        plt.legend(['Error between PF and GT'])
 
         # Plot trace of cov matrix
         plt.subplot(3, 1, 3)
@@ -118,7 +144,9 @@ class PFStatsVisualization(object):
         plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
                     np.asarray(self.cov_traces), "-k")
         plt.grid(True)
-
+        plt.legend(['Trace of cov matrix'])
+        plt.xlabel('Time')
+        plt.ylabel('Error')
         plt.savefig(self.survey_name + 'gp_result/' + "errors.png")
 
 

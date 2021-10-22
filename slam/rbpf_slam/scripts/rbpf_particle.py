@@ -60,7 +60,7 @@ class Particle(object):
         self.ctr = 0
 
         # Nacho
-        # self.gp = SVGP(300)
+        self.gp = SVGP(75)
         self.pose_history = []
 
 
@@ -104,9 +104,6 @@ class Particle(object):
         exp_mbes_z = self.list2ranges(exp_mbes)
         #  exp_mbes_ranges = gaussian_filter1d(exp_mbes_ranges , sigma=10)
         #  real_mbes_ranges = gaussian_filter1d(real_mbes_ranges , sigma=10)
-        print("Diffs in depths")
-        print(exp_mbes_z - real_mbes)
-        print("---------------")
         
         if len(exp_mbes_z) > 0:
             # Update particle weights

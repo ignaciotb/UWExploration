@@ -15,7 +15,7 @@
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="1.908" />
+	<arg name="mbes_open_angle" default="0.50" />
 	<!-- For lost targets -->
 	<!-- <arg name="mbes_open_angle" value="1.308" /> -->
 
@@ -25,8 +25,8 @@
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="-200.0"/>
-	<arg name="y" default="-200.0"/>
+	<arg name="x" default="0.0"/>
+	<arg name="y" default="0.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
@@ -41,7 +41,7 @@
 
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl_33_over.npy" />
+			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
 			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_1000_0.01.npy"/>
 			<!-- <param name="map_sift_path"  value=""/> -->
 			<param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/>
@@ -81,11 +81,13 @@
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
 			</node>
 
-			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
+			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
 				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
-			</node>
+			</node> -->
+
+			<node pkg="rosbag" type="play" name="controls" args="$(find uw_tests)/slam/$(arg dataset)/big_loop.bag"/>
 
 			<node pkg="auv_model" type="auv_mbes_model.py" name="auv_mbes_model" output="screen">
 				<param name="mbes_open_angle" value="$(arg mbes_open_angle)" />

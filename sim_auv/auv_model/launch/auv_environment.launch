@@ -80,13 +80,11 @@
 				<param name="synch_topic" value="/$(arg app)/synch" />
 			</node>
 
-			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
+			<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
 				<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
-			</node> -->
-
-			<node pkg="rosbag" type="play" name="controls" args="$(find uw_tests)/slam/$(arg dataset)/big_loop.bag"/>
+			</node>
 
 			<node pkg="auv_model" type="auv_mbes_model.py" name="auv_mbes_model" output="screen">
 				<param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
@@ -100,8 +98,8 @@
 			</node>
 
 			<!-- Useful rosbags for replaying controls -->
-			<!-- <node pkg="rosbag" type="play" name="test_mission_ctrl" output="screen" 
-					args="$(find rbpf_slam)/launch/lc_test_1.bag"/> -->
+			<!-- <node pkg="rosbag" type="play" name="controls" 
+					args="$(find uw_tests)/slam/$(arg dataset)/big_loop.bag"/> -->
 			
 			<!-- <node pkg="rosbag" type="record" name="record_mission_ctrl" output="screen" 
 					args="-O $(find rbpf_slam)/launch/lc_test.bag /hugin/throttle_cmd /hugin/thruster_cmd /hugin/inclination_cmd"/> -->

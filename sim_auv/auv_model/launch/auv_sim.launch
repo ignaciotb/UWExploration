@@ -96,6 +96,7 @@
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
 				<param name="mbes_sim_as" value="/mbes_sim_server" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
+				<param name="synch_topic" value="/$(arg filter)/synch" />
 			</node>
 
 			<!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
@@ -103,6 +104,17 @@
 				<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
 				<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
 			</node> -->
+
+			<node pkg="auv_model" type="auv_mbes_model.py" name="auv_mbes_model" output="screen">
+				<param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+				<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+				<param name="mbes_sim_as" value="/mbes_sim_server" /> 
+				<param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
+				<param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
+				<!-- <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />        -->
+      			<param name="sound_velocity_prof" value="$(find rbpf_slam)/data/$(arg dataset)/svp.cereal" />       
+      			<param name="mesh_path" value="$(find rbpf_slam)/data/$(arg dataset)/mesh.npz" />       
+			</node>
 
 			<!-- <node pkg="rosbag" type="play" name="test_mission_ctrl" output="screen" 
 					args="$(find rbpf_slam)/launch/lc_test_1.bag"/> -->

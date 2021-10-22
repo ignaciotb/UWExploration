@@ -184,9 +184,9 @@ class rbpf_slam(object):
         # print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
-        sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
-        self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
-                                                    execute_cb=self.mbes_as_cb, auto_start=True)
+        # sim_mbes_as = rospy.get_param('~mbes_sim_as', '/mbes_sim_server')
+        # self.as_ping = actionlib.SimpleActionServer('/mbes_sim_server', MbesSimAction, 
+        #                                             execute_cb=self.mbes_as_cb, auto_start=True)
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
@@ -213,7 +213,7 @@ class rbpf_slam(object):
         
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_callback)
+        rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
 
         # Create expected MBES beams directions
         angle_step = self.mbes_angle/self.beams_num
@@ -238,6 +238,13 @@ class rbpf_slam(object):
         self.synch_pub = rospy.Publisher(synch_top, Bool, queue_size=10)
         msg = Bool()
         msg.data = True
+
+        # Timer for end of mission: finish when no more odom is being received
+        self.time_wo_motion = 5.
+        self.mission_finished = False
+        # rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
+        self.odom_latest = Odometry()
+        self.odom_end = Odometry()
 
         # Transforms from auv_2_ros
         try:
@@ -270,10 +277,6 @@ class rbpf_slam(object):
         self.particles[i].ID = self.p_ID
         self.p_ID += 1
         
-        # PF filter created. Start auv_2_ros survey playing
-        rospy.loginfo("Particle filter class successfully created")
-        self.synch_pub.publish(msg)
-        
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
@@ -287,18 +290,24 @@ class rbpf_slam(object):
                                     self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
 
-        # Timer for end of mission: finish when no more odom is being received
-        self.time_wo_motion = 5.
-        rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
-        self.mission_finished = False
-        self.odom_latest = Odometry()
-        self.odom_end = Odometry()
-
         # For LC detection
         self.lc_detected = False
 
+        # PF filter created. Start auv_2_ros survey playing
+        self.synch_pub.publish(msg)
+        rospy.loginfo("Particle filter class successfully created")
+
+        # Main timer for RBPF
+        rospy.Timer(rospy.Duration(1), self.rbpf_update, oneshot=False)
+
+        # Subscription to real mbes pings 
+        lc_manual_topic = rospy.get_param("~lc_manual_topic", 'manual_lc')
+        rospy.Subscriber(lc_manual_topic, Bool, self.manual_lc, queue_size=1)
+        
         rospy.spin()
 
+    def manual_lc(self, lc_msg):
+        self.lc_detected = True
 
     def mission_finished_cb(self, event):
         if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
@@ -331,60 +340,39 @@ class rbpf_slam(object):
         return mbes_gp, sigma, mu
 
     def mbes_real_cb(self, msg):
-        # Beams in vehicle mbes frame
-        real_mbes_full = pcloud2ranges_full(msg)
-        # Selecting only self.beams_num of beams in the ping
-        idx = np.round(np.linspace(0, len(real_mbes_full)-1,
-                                           self.beams_num)).astype(int)
-        # Store in pings history
-        self.mbes_history.append(real_mbes_full[idx])
+        if not self.mission_finished:
+            # Beams in vehicle mbes frame
+            real_mbes_full = pcloud2ranges_full(msg)
+            # Selecting only self.beams_num of beams in the ping
+            idx = np.round(np.linspace(0, len(real_mbes_full)-1,
+                                            self.beams_num)).astype(int)
+            # Store in pings history
+            self.mbes_history.append(real_mbes_full[idx])
+            
+            # Store latest mbes msg for timing
+            self.latest_mbes = msg
 
-        # When ping received, update particles trajectory histories
-        for i in range(self.pc):
-            self.particles[i].update_pose_history()
-        
-        # Store latest mbes msg for timing
-        self.latest_mbes = msg
+            self.count_pings += 1
+            for i in range(self.pc):
+                self.particles[i].ctr += 1
 
-        self.pings_since_training += 1
+            self.pings_since_training += 1
 
+    def rbpf_update(self, event):
+        if not self.mission_finished:
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
+            # Measurement update if new one received
+                self.update_maps(self.latest_mbes, self.odom_latest)
+                self.prev_mbes = self.latest_mbes
 
-    # Action server to simulate MBES for the sim AUV
-    def mbes_as_cb(self, goal):
+                # If potential LC detected
+                if(self.lc_detected ):
+                    # Recompute weights
+                    weights = self.update_particles_weights(self.latest_mbes, self.odom_latest)
+                    # Particle resampling
+                    self.resample(weights)
+                    self.lc_detected = False
 
-        # Unpack goal
-        p_mbes = [goal.mbes_pose.transform.translation.x, 
-                 goal.mbes_pose.transform.translation.y, 
-                 goal.mbes_pose.transform.translation.z]
-        r_mbes = quaternion_matrix([goal.mbes_pose.transform.rotation.x,
-                                    goal.mbes_pose.transform.rotation.y,
-                                    goal.mbes_pose.transform.rotation.z,
-                                    goal.mbes_pose.transform.rotation.w])[0:3, 0:3]
-                
-        # IGL sim ping
-        # The sensor frame on IGL needs to have the z axis pointing opposite from the actual sensor direction
-        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
-        mbes = self.draper.project_mbes(np.asarray(p_mbes), r_mbes,
-                                        goal.beams_num.data, self.mbes_angle)
-        
-        mbes = mbes[::-1] # Reverse beams for same order as real pings
-        
-        # Transform points to MBES frame (same frame than real pings)
-        rot_inv = r_mbes.transpose()
-        p_inv = rot_inv.dot(p_mbes)
-        mbes = np.dot(rot_inv, mbes.T)
-        mbes = np.subtract(mbes.T, p_inv)
-
-        # Pack result with ping in map frame
-        mbes_cloud = pack_cloud(self.mbes_frame, mbes)
-        result = MbesSimResult()
-        result.sim_mbes = mbes_cloud
-        self.as_ping.set_succeeded(result)
-
-        # self.latest_mbes = result.sim_mbes 
-        self.count_pings += 1
-        for i in range(self.pc):
-            self.particles[i].ctr += 1
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -396,23 +384,10 @@ class rbpf_slam(object):
             if self.old_time and self.time > self.old_time:
                 # Motion prediction
                 self.predict(odom_msg)    
-                
-                if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
-                    # Measurement update if new one received
-                    self.update_maps(self.latest_mbes, odom_msg)
-                    self.prev_mbes = self.latest_mbes
-
-                    # If potential LC detected
-                    if(self.lc_detected ):
-                        # Recompute weights
-                        weights = self.update_particles_weights(self.latest_mbes, odom_msg)
-                        # Particle resampling
-                        self.resample(weights)
-                        self.lc_detected = False
-                        self.mission_finished = True 
-                        
-                    self.update_rviz()
-                    self.publish_stats(odom_msg)
+            
+            # Update stats and visual
+            self.update_rviz()
+            self.publish_stats(self.odom_latest)
 
         self.old_time = self.time
 
@@ -421,9 +396,9 @@ class rbpf_slam(object):
         R = self.base2mbes_mat.transpose()[0:3,0:3]
 
         for i in range(0, self.pc):
-            ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
-                                                    PlotPosteriorAction)
-            ac_plot.wait_for_server()
+            # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
+            #                                         PlotPosteriorAction)
+            # ac_plot.wait_for_server()
 
             part_ping_map = []
             for j in range(0, len(self.mbes_history)): 
@@ -435,15 +410,20 @@ class rbpf_slam(object):
                 part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
             # As array
             pings_i = np.asarray(part_ping_map)
-            pings_i = np.reshape(pings_i, (-1,3))            
+            pings_i = np.reshape(pings_i, (-1,3))   
+
+            self.gp.plot(pings_i[:,0:2], pings_i[:,2], 
+                self.storage_path + 'gp_result/' + 'particle_' + str(i) 
+                + '_training_' + str(self.count_training) + '.png',
+                n=100, n_contours=100 )        
                 
             # Publish (for visualization)
-            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            goal = PlotPosteriorGoal(mbes_pcloud)
+            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            # goal = PlotPosteriorGoal(mbes_pcloud)
 
-            ac_plot.send_goal(goal)
+            # ac_plot.send_goal(goal)
 
-            ac_plot.wait_for_result()
+            # ac_plot.wait_for_result()
             print("GP ", i, " posterior plotted ")
 
 
@@ -451,6 +431,7 @@ class rbpf_slam(object):
         dt = self.time - self.old_time
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
+            self.particles[i].update_pose_history()
 
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
@@ -540,9 +521,9 @@ class rbpf_slam(object):
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
             # AS for particle i
-            ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
-                                                    SamplePosteriorAction)
-            ac_sample.wait_for_server()
+            # ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
+            #                                         SamplePosteriorAction)
+            # ac_sample.wait_for_server()
 
             # Convert ping from particle MBES to map frame
             p_part, r_mbes = self.particles[i].pose_history[-1]
@@ -551,18 +532,21 @@ class rbpf_slam(object):
             latest_mbes_map = np.add(latest_mbes_map.T, p_part)
 
             # As array
-            pings_i = np.asarray(latest_mbes_map)
-            pings_i = np.reshape(pings_i, (-1,3))                            
-            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            goal = SamplePosteriorGoal(mbes_pcloud)
+            beams_i = np.asarray(latest_mbes_map)
+            beams_i = np.reshape(beams_i, (-1,3))         
+            mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
+            
+            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            # goal = SamplePosteriorGoal(mbes_pcloud)
 
-            # Send to as and wait
-            ac_sample.send_goal(goal)
-            ac_sample.wait_for_result()
-            result = ac_sample.get_result()  
+            # # Send to as and wait
+            # ac_sample.send_goal(goal)
+            # ac_sample.wait_for_result()
+            # result = ac_sample.get_result()  
 
             # Sample GP with the ping in map frame
-            mu, sigma = result.mu, result.sigma
+            # mu, sigma = result.mu, result.sigma
+            
             mu_array = np.array([mu])
 
             # TODO: use the sigmas from the GP on the weight calculation
@@ -615,19 +599,19 @@ class rbpf_slam(object):
                 self.pcloud_pub = rospy.Publisher("/particle_" + str(i) + self.mbes_pc_top, PointCloud2, queue_size=10)
                 self.pcloud_pub.publish(mbes_pcloud)
 
-                # # Retrain the particle's GP
-                # print("Training GP ", i)
-                # # n_samples = a fourth of the total number of beams
-                # self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= int(pings_i.shape[0]/4), 
-                #                          max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                #                          ntol=100, auto=False, verbose=False)
+                # Retrain the particle's GP
+                print("Training GP ", i)
+                # n_samples = a fourth of the total number of beams
+                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 475, 
+                                         max_iter=250, learning_rate=1e-1, rtol=1e-4, 
+                                         ntol=100, auto=False, verbose=False)
                 # # Plot posterior
                 # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
                 #                           self.storage_path + 'gp_result/' + 'particle_' + str(i) 
                 #                           + '_training_' + str(self.count_training) + '.png',
                 #                           n=100, n_contours=100 )
                 
-                # print("GP trained ", i)
+                print("GP trained ", i)
 
                 # exp_ping_map, exp_sigs, mu_obs = self.gp_meas_model(real_mbes_full, p_part, r_base)
                 # self.particles[i].meas_cov = np.diag(exp_sigs)

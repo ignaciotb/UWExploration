@@ -92,6 +92,7 @@ class mbes_model(object):
         # Add noise
         # mbes = gaussian_filter1d(mbes , sigma=0.5)
 
+
         # Pack result
         mbes_cloud = self.pack_cloud(self.mbes_frame, mbes)
         result = MbesSimResult()
@@ -122,3 +123,4 @@ if __name__ == '__main__':
     except rospy.ROSInterruptException:
         rospy.logerr("Couldn't launch mbes_model")
         pass
+

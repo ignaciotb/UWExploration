@@ -23,6 +23,7 @@
 #include <nav_msgs/Odometry.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <std_msgs/Float64.h>
+#include <std_msgs/Bool.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -73,7 +74,7 @@ private:
     geometry_msgs::TransformStamped new_base_link_;
 //    geometry_msgs::TransformStamped tfmsg_map_odom_;
 
-    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_;
+    std::string world_frame_, map_frame_, odom_frame_, base_frame_, mbes_frame_, synch_name_;
 
     double latest_thrust_, latest_throttle_, latest_inclination_;
     void thrustCB(const std_msgs::Float64ConstPtr& thrust_msg);
@@ -81,6 +82,7 @@ private:
     void inclinationCB(const std_msgs::Float64ConstPtr& inclination_msg);
 
     int beams_num_;
+    bool start_replay_;
 };
 
 

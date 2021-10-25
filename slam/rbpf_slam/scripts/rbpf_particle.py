@@ -23,7 +23,7 @@ import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
-from bathy_gps.gp import SVGP # GP
+from gp_mapping import gp  # GP
 
 
 class Particle(object):
@@ -60,7 +60,7 @@ class Particle(object):
         self.ctr = 0
 
         # Nacho
-        self.gp = SVGP(75)
+        self.gp = gp.SVGP(50)
         self.pose_history = []
 
 

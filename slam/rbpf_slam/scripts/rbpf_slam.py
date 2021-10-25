@@ -38,13 +38,11 @@ from resampling import residual_resample, naive_resample, systematic_resample, s
 
 # Auvlib
 from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data, all_data, std_data
+from auvlib.data_tools import csv_data
 
 from scipy.ndimage.filters import gaussian_filter
 
 # gpytorch
-from bathy_gps import gp
-import time 
 
 from rospy.numpy_msg import numpy_msg
 
@@ -70,7 +68,7 @@ class rbpf_slam(object):
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         self.base_frame = rospy.get_param('~base_link', 'base_link') # mbes frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
@@ -110,9 +108,9 @@ class rbpf_slam(object):
         self.count_pings = 0
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
-        self.poses.header.frame_id = odom_frame
+        self.poses.header.frame_id = self.odom_frame
         self.avg_pose = PoseWithCovarianceStamped()
-        self.avg_pose.header.frame_id = odom_frame
+        self.avg_pose.header.frame_id = self.odom_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
         self.one_time = True
@@ -221,7 +219,7 @@ class rbpf_slam(object):
                                                 rospy.Time(0), rospy.Duration(35))
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
 
-            m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
+            m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
@@ -292,26 +290,9 @@ class rbpf_slam(object):
         
         self.odom_end = self.odom_latest
 
-
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 
         # rospy.signal_shutdown("Survey finished")
-
-
-    def gp_meas_model(self, real_mbes, p_part, r_base):
-        # Transform beams to particle mbes frame and compute map coordinates
-        real_mbes = np.dot(r_base, real_mbes.T)
-        real_mbes = np.add(real_mbes.T, p_part)
-
-        # Sample GP here
-        mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
-        mu_array = np.array([mu])
-        # sigma_array = np.array([sigma])
-        
-        # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
-                                  mu_array.T), axis=1)
-        return mbes_gp, sigma, mu
 
     def mbes_real_cb(self, msg):
         if not self.mission_finished:
@@ -386,7 +367,7 @@ class rbpf_slam(object):
             pings_i = np.asarray(part_ping_map)
             pings_i = np.reshape(pings_i, (-1,3))   
 
-            self.gp.plot(pings_i[:,0:2], pings_i[:,2], 
+            self.particles[i].gp.plot(pings_i[:, 0:2], pings_i[:, 2],
                 self.storage_path + 'gp_result/' + 'particle_' + str(i) 
                 + '_training_' + str(self.count_training) + '.png',
                 n=100, n_contours=100 )        
@@ -497,7 +478,8 @@ class rbpf_slam(object):
                     part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
                 # As array
                 pings_i = np.asarray(part_ping_map)
-                pings_i = np.reshape(pings_i, (-1,3))            
+                pings_i = np.reshape(pings_i, (-1,3))     
+                print(pings_i)       
                     
                 # Publish (for visualization)
                 mbes_pcloud = pack_cloud(self.map_frame, pings_i)
@@ -508,8 +490,8 @@ class rbpf_slam(object):
                 # Retrain the particle's GP
                 print("Training GP ", i)
                 # n_samples = a fourth of the total number of beams
-                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 475, 
-                                         max_iter=250, learning_rate=1e-1, rtol=1e-4, 
+                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 100, 
+                                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
                                          ntol=100, auto=False, verbose=False)
                 # # Plot posterior
                 # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 

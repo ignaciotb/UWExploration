@@ -3,8 +3,7 @@
 BathySlamNode::BathySlamNode(std::string node_name, ros::NodeHandle &nh) : node_name_(node_name),
                                                                            nh_(&nh)
 {
-    std::string pings_top, debug_pings_top, odom_top, synch_top, submap_top, indexes_top;
-    nh_->param<std::string>("mbes_pings", pings_top, "/gt/mbes_pings");
+    std::string debug_pings_top, odom_top, synch_top, submap_top, indexes_top;
     nh_->param<std::string>("odom_topic", odom_top, "/gt/odom");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");

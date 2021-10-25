@@ -7,10 +7,10 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     std::string gt_pings_top, debug_pings_top, mbes_as_name, gt_odom_top,
     sim_pings_top, enable_top;
 
-    nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
-    nh_->param<std::string>("sim_pings", sim_pings_top, "/sim/mbes");
+    // nh_->param<std::string>("mbes_pings", gt_pings_top, "/gt/mbes_pings");
+    nh_->param<std::string>("mbes_pings_topic", gt_pings_top, "/gt/mbes");
     nh_->param<std::string>("debug_pings", debug_pings_top, "/debug_pings");
-    nh_->param<std::string>("odom_gt", gt_odom_top, "/gt/odom");
+    nh_->param<std::string>("odom_topic", gt_odom_top, "/gt/odom");
     nh_->param<std::string>("world_frame", world_frame_, "world");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
@@ -27,7 +27,7 @@ BathymapConstructor::BathymapConstructor(std::string node_name, ros::NodeHandle 
     nh_->param<int>("end_mission_ping_num", last_ping_, 0);
 
     ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(gt_pings_top, 100);
-    sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 1);
+    // sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 1);
     test_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(debug_pings_top, 1);
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(gt_odom_top, 100);
     enable_pub_ = nh_->advertise<std_msgs::Bool>(enable_top, 1);

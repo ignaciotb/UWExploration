@@ -85,13 +85,7 @@
 	<group if="$(eval mode == 'sim')">
 		<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" 
 				args="0 0 0 0 0 0 world map 50" />
-
-		<node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
-			<param name="throttle_cmd" value="/throttle_cmd" />
-			<param name="thruster_cmd" value="/thruster_cmd" />
-			<param name="inclination_cmd" value="/inclination_cmd" />
-		</node>
-				
+			
 		<include file="$(find auv_model)/launch/auv_model.launch" >
 			<arg name="mode" value="$(arg mode)"/>
 			<arg name="namespace" value="$(arg namespace)"/>

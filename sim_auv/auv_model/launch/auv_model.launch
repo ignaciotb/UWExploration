@@ -57,12 +57,6 @@
             <param name="synch_topic" value="/$(arg app)/synch" />
         </node>
 
-        <!-- <node pkg="auv_model" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
-			<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
-			<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
-			<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
-		</node> -->
-
         <node pkg="auv_model" type="auv_mbes_model.py" name="auv_mbes_model" output="screen">
             <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
             <param name="mbes_link" value="$(arg namespace)/mbes_link" />

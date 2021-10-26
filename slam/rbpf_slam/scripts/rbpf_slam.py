@@ -65,9 +65,9 @@ class rbpf_slam(object):
     def __init__(self):
         # Read necessary parameters
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
-        self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
-        self.base_frame = rospy.get_param('~base_link', 'base_link') # mbes frame_id
+        self.map_frame = rospy.get_param('~map_frame', 'map') 
+        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') 
+        self.base_frame = rospy.get_param('~base_link', 'base_link') 
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)

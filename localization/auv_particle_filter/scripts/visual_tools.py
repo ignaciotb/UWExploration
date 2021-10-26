@@ -156,7 +156,7 @@ class PFStatsVisualization(object):
                     lambda event: [exit(0) if event.key == 'escape' else None])
 
             # Plot x,y from GT, odom and PF
-            if True:
+            if False:
                 plt.cla()
                 #  Center image on odom frame
                 plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
@@ -174,7 +174,7 @@ class PFStatsVisualization(object):
                 self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
             # Plot error between DR PF and GT
-            if False:
+            if True:
                 plt.subplot(3, 1, 1)
                 plt.cla()
                 plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),

@@ -175,9 +175,9 @@ class rbpf_slam(object):
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
         self.sample_gp_server = rospy.get_param('~sample_gp_server', 'gp_plot_server')
 
-        # Publish to record data
-        train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
-        self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=100)
+        # # Publish to record data
+        # train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
+        # self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=100)
 
         # Subscription to real mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -260,7 +260,7 @@ class rbpf_slam(object):
         self.lc_detected = False
 
         # Main timer for RBPF
-        rbpf_period = rospy.get_param("~rbpf_period", '/survey_finished')
+        rbpf_period = rospy.get_param("~rbpf_period")
         rospy.Timer(rospy.Duration(rbpf_period), self.rbpf_update, oneshot=False)
 
         # Subscription to real mbes pings 
@@ -334,7 +334,6 @@ class rbpf_slam(object):
         self.odom_latest = odom_msg
         
         # Flag to finish mission
-        # self.time_wo_motion seconds
         if not self.mission_finished:
             if self.old_time and self.time > self.old_time:
                 # Motion prediction

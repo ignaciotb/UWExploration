@@ -132,11 +132,11 @@ class auv_pf(object):
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb)
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=100)
         
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_callback)
+        rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
 
         # Create expected MBES beams directions
         angle_step = self.mbes_angle/self.beams_num
@@ -203,6 +203,12 @@ class auv_pf(object):
         synch_top = rospy.get_param("~synch_topic", '/pf_synch')
         self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
 
+        # Main timer for PF
+        self.mission_finished = False
+        self.odom_latest = Odometry()
+        pf_period = rospy.get_param("~pf_period")
+        rospy.Timer(rospy.Duration(pf_period), self.pf_update, oneshot=False)
+
         rospy.spin()
 
 
@@ -231,23 +237,30 @@ class auv_pf(object):
         return mbes_gp, sigma
 
     def mbes_cb(self, msg):
-        self.latest_mbes = msg
+        if not self.mission_finished:
+            self.latest_mbes = msg
+
+    def pf_update(self, event):
+        if not self.mission_finished:
+            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
+                # Measurement update if new one received
+                weights = self.update(self.latest_mbes, self.odom_latest)
+                self.prev_mbes = self.latest_mbes
+
+                # Particle resampling
+                self.resample(weights)
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
-        if self.old_time and self.time > self.old_time:
-            # Motion prediction
-            self.predict(odom_msg)    
-            
-            if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
-                # Measurement update if new one received
-                weights = self.update(self.latest_mbes, odom_msg)
-                self.prev_mbes = self.latest_mbes
+        self.odom_latest = odom_msg
+
+        if not self.mission_finished:
+            if self.old_time and self.time > self.old_time:
+                # Motion prediction
+                self.predict(odom_msg)    
                 
-                # Particle resampling
-                self.resample(weights)
-                self.update_rviz()
-                self.publish_stats(odom_msg)
+            self.update_rviz()
+            self.publish_stats(odom_msg)
 
         self.old_time = self.time
 
@@ -290,14 +303,14 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model
-            # exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
+            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
+            self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
                   
             # IGL-based meas model
-            exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-                                                self.beams_num, self.mbes_angle)
-            exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+            # exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+            #                                     self.beams_num, self.mbes_angle)
+            # exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
             
             # Publish (for visualization)
             # Transform points to MBES frame (same frame than real pings)

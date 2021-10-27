@@ -420,7 +420,6 @@ class auv_pf(object):
                                                                                 pitch,
                                                                                 yaw))
         self.avg_pose.header.stamp = rospy.Time.now()
-        self.avg_pub.publish(self.avg_pose)
         
         # Calculate covariance
         self.cov = np.zeros((3, 3))
@@ -431,9 +430,14 @@ class auv_pf(object):
             self.cov[0,2] += dx[0]*dx[2] 
             self.cov[1,2] += dx[1]*dx[2] 
         self.cov /= self.pc
+        print(self.cov)
 
-        # TODO: exp meas from average pose of the PF, for change detection
-
+        self.avg_pose.pose.covariance = [0.]*36
+        for i in range(3):
+            for j in range(3):
+                self.avg_pose.pose.covariance[i*3 + j] = self.cov[i,j]
+        
+        self.avg_pub.publish(self.avg_pose)
 
     # TODO: publish markers instead of poses
     #       Optimize this function

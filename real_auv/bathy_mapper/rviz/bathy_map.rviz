@@ -4,13 +4,10 @@ Panels:
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /TF1/Status1
         - /TF1/Frames1
-        - /Odometry1/Shape1
-        - /Odometry1/Covariance1
-        - /PointCloud22
-        - /PoseArray1
-      Splitter Ratio: 0.4941176474094391
-    Tree Height: 865
+      Splitter Ratio: 0.550000011920929
+    Tree Height: 445
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -56,10 +53,48 @@ Visualization Manager:
       Reference Frame: <Fixed Frame>
       Value: true
     - Class: rviz/TF
-      Enabled: false
+      Enabled: true
       Frame Timeout: 15
       Frames:
         All Enabled: false
+        hugin/base_link:
+          Value: true
+        hugin/mbes_link:
+          Value: true
+        hugin/odom:
+          Value: true
+        hugin_1/base_link:
+          Value: true
+        hugin_1/mbes_link:
+          Value: true
+        hugin_1/odom:
+          Value: true
+        hugin_2/base_link:
+          Value: true
+        hugin_2/mbes_link:
+          Value: true
+        hugin_2/odom:
+          Value: true
+        map:
+          Value: true
+        submap_0:
+          Value: true
+        submap_1:
+          Value: true
+        submap_2:
+          Value: true
+        submap_3:
+          Value: true
+        submap_4:
+          Value: true
+        submap_5:
+          Value: true
+        submap_6:
+          Value: true
+        submap_7:
+          Value: true
+        world:
+          Value: true
       Marker Alpha: 1
       Marker Scale: 10
       Name: TF
@@ -67,9 +102,62 @@ Visualization Manager:
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        world:
+          map:
+            hugin/odom:
+              hugin/base_link:
+                hugin/mbes_link:
+                  {}
+            hugin_2/odom:
+              hugin_2/base_link:
+                hugin_2/mbes_link:
+                  {}
+            submap_0:
+              {}
+            submap_1:
+              {}
+            submap_2:
+              {}
+            submap_3:
+              {}
+            submap_4:
+              {}
+            submap_5:
+              {}
+            submap_6:
+              {}
+            submap_7:
+              {}
       Update Interval: 0
-      Value: false
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: -20.78296661376953
+        Min Value: -122.33214569091797
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /map_mbes
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
     - Alpha: 1
       Class: rviz/RobotModel
       Collision Enabled: false
@@ -96,78 +184,6 @@ Visualization Manager:
       Update Interval: 0
       Value: true
       Visual Enabled: true
-    - Class: ufomap_rviz_plugin/Octree
-      Enabled: false
-      Min. Depth: 0
-      Name: Octree
-      Queue size: 10
-      Ufomap Topic: /hugin/bathy_mapper_server_nodelet/map
-      Use BBX:
-        Maximum:
-          X: 1000
-          Y: 1000
-          Z: 1000
-        Minimum:
-          X: -1000
-          Y: -1000
-          Z: -1000
-        Value: false
-      Value: false
-      Voxel Rendering:
-        Free:
-          Alpha: 0.029999999329447746
-          Coloring:
-            Color: 0; 255; 0
-            Factor: 0.800000011920929
-            Value: Fixed
-          Style: Flat squares
-          Value: false
-        Occupied:
-          Alpha: 1
-          Coloring:
-            Color: 0; 0; 255
-            Factor: 0.800000011920929
-            Value: Z-Axis
-          Style: Points
-          Value: true
-        Unknown:
-          Alpha: 0.029999999329447746
-          Coloring:
-            Color: 255; 255; 255
-            Factor: 0.800000011920929
-            Value: Fixed
-          Style: Flat squares
-          Value: false
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: -7.5
-        Min Value: -25.100000381469727
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 52; 101; 164
-      Color Transformer: AxisColor
-      Decay Time: 0
-      Enabled: true
-      Invert Rainbow: false
-      Max Color: 239; 41; 41
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 2
-      Size (m): 0.009999999776482582
-      Style: Points
-      Topic: /hugin/bathy_mapper_server_nodelet/map_cloud
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: true
     - Angle Tolerance: 0.10000000149011612
       Class: rviz/Odometry
       Covariance:
@@ -206,29 +222,27 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -10.782966613769531
-        Min Value: -112.33214569091797
+        Max Value: -56.84249496459961
+        Min Value: -87.7104721069336
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 255; 255; 255
+      Color: 52; 101; 164
       Color Transformer: AxisColor
-      Decay Time: 0
+      Decay Time: 1000
       Enabled: true
       Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
+      Max Color: 239; 41; 41
       Min Color: 0; 0; 0
-      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
-      Size (Pixels): 3
+      Size (Pixels): 2
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /map_mbes
+      Topic: /sim/hugin/mbes_pings
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -242,15 +256,13 @@ Visualization Manager:
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 239; 41; 41
+      Color: 255; 255; 255
       Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: true
+      Decay Time: 1
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 4096
       Min Color: 0; 0; 0
-      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -258,7 +270,63 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /sim/mbes_pings
+      Topic: /gt/hugin/mbes_pings
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 239; 41; 41
+      Color Transformer: FlatColor
+      Decay Time: 100
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /particle_0/rbpf/sim_mbes
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 252; 233; 79
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /rbpf/avg_mbes
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -280,35 +348,13 @@ Visualization Manager:
       Topic: /pf/particle_poses
       Unreliable: false
       Value: true
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz/PointCloud2
-      Color: 255; 255; 255
-      Color Transformer: FlatColor
-      Decay Time: 1
+    - Class: rviz/MarkerArray
       Enabled: true
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 4096
-      Min Color: 0; 0; 0
-      Min Intensity: 0
-      Name: PointCloud2
-      Position Transformer: XYZ
-      Queue Size: 10
-      Selectable: true
-      Size (Pixels): 3
-      Size (m): 0.009999999776482582
-      Style: Points
-      Topic: /pf/sim_mbes
-      Unreliable: false
-      Use Fixed Frame: true
-      Use rainbow: true
+      Marker Topic: /pf/particle_markers
+      Name: MarkerArray
+      Namespaces:
+        {}
+      Queue Size: 100
       Value: true
     - Alpha: 1
       Axes Length: 10
@@ -344,21 +390,19 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: -64.73827362060547
+        Min Value: -75.40977478027344
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/PointCloud2
-      Color: 252; 233; 79
-      Color Transformer: FlatColor
-      Decay Time: 0
+      Color: 255; 255; 255
+      Color Transformer: AxisColor
+      Decay Time: 100
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 4096
       Min Color: 0; 0; 0
-      Min Intensity: 0
       Name: PointCloud2
       Position Transformer: XYZ
       Queue Size: 10
@@ -366,41 +410,133 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /pf/avg_mbes
+      Topic: /slam/submaps
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
       Value: true
-    - Class: rviz/MarkerArray
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
       Enabled: true
-      Marker Topic: /pf/particle_markers
-      Name: MarkerArray
-      Namespaces:
-        {}
-      Queue Size: 100
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        hugin_1/base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        hugin_1/mbes_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: hugin_1/robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: -61.22317123413086
+        Min Value: -72.18426513671875
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 52; 101; 164
+      Color Transformer: AxisColor
+      Decay Time: 1000
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 239; 41; 41
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
+      Queue Size: 10
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /sim/hugin_1/mbes_pings
+      Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
       Value: true
     - Alpha: 1
-      Arrow Length: 3
-      Axes Length: 0.30000001192092896
-      Axes Radius: 0.009999999776482582
-      Class: rviz/PoseArray
-      Color: 255; 25; 0
+      Class: rviz/RobotModel
+      Collision Enabled: false
       Enabled: true
-      Head Length: 2
-      Head Radius: 3
-      Name: PoseArray
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        hugin_2/base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        hugin_2/mbes_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: hugin_2/robot_description
+      TF Prefix: ""
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: -65.75831604003906
+        Min Value: -79.13121032714844
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz/PointCloud2
+      Color: 52; 101; 164
+      Color Transformer: AxisColor
+      Decay Time: 1000
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 239; 41; 41
+      Min Color: 0; 0; 0
+      Name: PointCloud2
+      Position Transformer: XYZ
       Queue Size: 10
-      Shaft Length: 0.699999988079071
-      Shaft Radius: 0.10000000149011612
-      Shape: Arrow (3D)
-      Topic: /detection_pose
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic: /sim/hugin_2/mbes_pings
       Unreliable: false
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Class: rviz/InteractiveMarkers
+      Enable Transparency: true
+      Enabled: true
+      Name: InteractiveMarkers
+      Show Axes: false
+      Show Descriptions: true
+      Show Visual Aids: false
+      Update Topic: /waypoint_nav/update
       Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: odom
+    Fixed Frame: map
     Frame Rate: 30
   Name: root
   Tools:
@@ -420,11 +556,16 @@ Visualization Manager:
     - Class: rviz/PublishPoint
       Single click: true
       Topic: /clicked_point
+    - Class: waypoint_nav_plugin/WaypointNav
+      WaypointsTool:
+        default_height: 0
+        frame_id: map
+        topic: /waypoints
   Value: true
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 139.00634765625
+      Distance: 1719.968017578125
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -432,25 +573,25 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: -5.259729385375977
-        Y: 1.2175724506378174
-        Z: -8.117788092931733e-05
+        X: 396.85089111328125
+        Y: -311.0892639160156
+        Z: 0.000503928866237402
       Focal Shape Fixed Size: false
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3547968864440918
-      Target Frame: hugin/base_link
-      Yaw: 5.085392951965332
+      Pitch: 1.544796347618103
+      Target Frame: hugin/odom
+      Yaw: 4.695409297943115
     Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 1163
+  Height: 1016
   Hide Left Dock: false
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd000000040000000000000156000003edfc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d000003ed000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f00000363fc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d00000363000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d0065010000000000000450000000000000000000000624000003ed00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000400000000000001e30000035afc0200000009fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000005c00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c006100790073010000003d00000249000000c900fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261fb000000260057006100790070006f0069006e00740020004e0061007600690067006100740069006f006e010000028c0000010b0000010b00ffffff000000010000010f0000035afc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a00560069006500770073000000003d0000035a000000a400fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000007800000003efc0100000002fb0000000800540069006d0065010000000000000780000002eb00fffffffb0000000800540069006d00650100000000000004500000000000000000000005970000035a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:
@@ -459,6 +600,8 @@ Window Geometry:
     collapsed: false
   Views:
     collapsed: true
+  Waypoint Navigation:
+    collapsed: false
   Width: 1920
-  X: 1920
-  Y: 0
+  X: 0
+  Y: 27

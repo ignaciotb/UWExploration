@@ -9,7 +9,7 @@
   <arg name="app" default="pf"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="n_beams_mbes" default="50"/>	
 	<arg name="mbes_open_angle" default="1.250" />
 
   <!-- Frames -->
@@ -18,6 +18,8 @@
 
   <!-- PF args -->
   <arg name="particle_count"                    default="50"/>
+  <arg name="pf_period"   default="0.3" />
+
   <!-- [x, y, z, roll, pitch, yaw] -->
   <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
@@ -53,6 +55,7 @@
       <!-- <param name="mbes_sim_as" value="/mbes_sim_server" />  -->
       <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
       <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/>    
+      <param name="pf_period" value="$(arg pf_period)"/>  
     </node>
   </group>
 

@@ -25,11 +25,15 @@ class W2WMissionPlanner(object):
         #self.heading_offset = rospy.get_param('~heading_offsets', 5.)
         self.planner_as_name = rospy.get_param('~path_planner_as')
         self.path_topic = rospy.get_param('~path_topic')
+        self.wp_topic = rospy.get_param('~wp_topic')
         self.map_frame = rospy.get_param('~map_frame', 'map')
 
         # The waypoints as a path
-        rospy.Subscriber(self.path_topic, Path, self.path_callback, queue_size=1)
+        rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
         self.latest_path = Path()
+
+        # LC waypoints, individually
+        rospy.Subscriber(self.wp_topic, PoseStamped, self.wp_cb, queue_size=1)
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -58,10 +62,15 @@ class W2WMissionPlanner(object):
                 rospy.Rate(1).sleep()
 
 
-    def path_callback(self, path_msg):
+    def path_cb(self, path_msg):
         self.latest_path = path_msg
         rospy.loginfo("Path received with number of wp: %d",
                       len(self.latest_path.poses))
+
+    def wp_cb(self, wp_msg):
+        # Waypoints for LC from the backseat driver
+        rospy.loginfo("LC wp received")
+        self.latest_path.poses.insert(0, wp_msg)
 
 
 if __name__ == '__main__':

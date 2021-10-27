@@ -5,6 +5,7 @@
 	<arg name="namespace" default="hugin"/>
     <arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
+    <arg name="app" default="pf"/>
 
 	<group ns="navigation">
 
@@ -12,6 +13,7 @@
             <param name="path_planner_as"  value="path_planner" />
             <param name="path_topic"  value="/waypoints" />
             <param name="map_frame"  value="map" />
+            <param name="wp_topic"  value="/navigation/lc_wp" />
         </node>
 
         <node type="w2w_planner.py" pkg="basic_navigation" name="path_planner" output="screen">
@@ -25,6 +27,16 @@
             <param name="thruster_cmd" value="/thruster_cmd" />
             <param name="inclination_cmd" value="/inclination_cmd" />
             <param name="path_planner_as"  value="path_planner" />
+        </node>
+
+        <node type="backseat_pf_driver.py" pkg="backseat_driver" name="backseat_driver" output="screen">
+            <param name="path_topic"  value="/waypoints" />
+            <param name="map_frame"  value="map" />
+            <param name="base_frame"  value="$(arg namespace)/base_link" />
+            <param name="average_pose_topic"  value="/$(arg app)/avg_pose" />
+            <param name="cov_threshold"  value="150." />
+            <param name="wp_topic"  value="/navigation/lc_wp" />
+            <param name="goal_tolerance"  value="5.0" />
         </node>
 
     	<!-- <node pkg="basic_navigation" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">

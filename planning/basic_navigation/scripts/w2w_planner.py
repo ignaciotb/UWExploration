@@ -105,26 +105,16 @@ class W2WPathPlanner(object):
             #rospy.loginfo_throttle(30, "Nav goal is None!")
             return
 
+        # Check if the goal has been reached
         try:
             (trans, rot) = self.listener.lookupTransform(
                 self.nav_goal_frame, self.base_frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             return
 
-        # TODO: we could use this code for the other check also
-        goal_point = PointStamped()
-        goal_point.header.frame_id = self.nav_goal_frame
-        goal_point.header.stamp = rospy.Time(0)
-        goal_point.point.x = self.nav_goal.position.x
-        goal_point.point.y = self.nav_goal.position.y
-        goal_point.point.z = self.nav_goal.position.z
-
-        #print("Checking if nav goal is reached!")
-
         start_pos = np.array(trans)
         end_pos = np.array(
             [self.nav_goal.position.x, self.nav_goal.position.y, self.nav_goal.position.z])
-
 
         rospy.logdebug("diff " + str(np.linalg.norm(start_pos - end_pos)))
         if np.linalg.norm(start_pos - end_pos) < self.goal_tolerance:

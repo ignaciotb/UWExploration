@@ -52,6 +52,8 @@ class auv_pf(object):
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
+        self.gp_meas_model = rospy.get_param("~gp_meas_model")
+        self.gp_torch = rospy.get_param("~gptorch_meas_model")
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -106,35 +108,43 @@ class auv_pf(object):
         mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
         
-        # Load mesh
-        svp_path = rospy.get_param('~sound_velocity_prof')
-        mesh_path = rospy.get_param('~mesh_path')
-        
-        if svp_path.split('.')[1] != 'cereal':
-            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
-        else:
-            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
+        # Load mesh for raytracing
+        if not self.gp_meas_model:
+            print("PF loading mesh")
 
-        data = np.load(mesh_path)
-        V, F, bounds = data['V'], data['F'], data['bounds'] 
-        print("Mesh loaded")
+            svp_path = rospy.get_param('~sound_velocity_prof')
+            mesh_path = rospy.get_param('~mesh_path')
+            
+            if svp_path.split('.')[1] != 'cereal':
+                sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
+            else:
+                sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
 
-        # Create draper
-        self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
-        self.draper.set_ray_tracing_enabled(False)            
-        data = None
-        V = None
-        F = None
-        bounds = None 
-        sound_speeds = None
-        print("draper created")
-        print("Size of draper: ", sys.getsizeof(self.draper))        
+            data = np.load(mesh_path + "mesh.npz")
+            V, F, bounds = data['V'], data['F'], data['bounds'] 
+
+            # Create draper
+            self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
+            self.draper.set_ray_tracing_enabled(False)            
+            data = None
+            V = None
+            F = None
+            bounds = None 
+            sound_speeds = None
+            print("draper created")
+            print("Size of draper: ", sys.getsizeof(self.draper))        
  
         # # Load GP
-        gp_path = rospy.get_param("~gp_path", 'gp.path')
-        self.gp = gp.SVGP.load(1000, gp_path)
-        # self.gp = tf.saved_model.load(gp_path + "/svgp")
-        # print("Size of GP: ", sys.getsizeof(self.gp))
+        if self.gp_meas_model:
+            gp_path = rospy.get_param("~gp_path", 'gp.path')
+            if self.gp_torch:
+                rospy.loginfo("Loading GPtorch GP model")
+                self.gp = gp.SVGP.load(1000, gp_path + "svgp.pth")
+            else:
+                rospy.loginfo("Loading GPflow GP model")
+                self.gp = tf.saved_model.load(gp_path + "/svgp")
+            
+            print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -226,38 +236,42 @@ class auv_pf(object):
         rospy.loginfo("PF node: Survey finished received") 
         #  rospy.signal_shutdown("Survey finished")
 
-    def gpflow_meas_model(self, real_mbes, p_part, r_base):
-        # Transform beams to particle mbes frame and compute map coordinates
-        real_mbes = np.dot(r_base, real_mbes.T)
-        real_mbes = np.add(real_mbes.T, p_part)
-
+    def gpflow_meas_model(self, real_mbes_all, real_mbes_ranges):
         # Sample GP here
-        mu, sigma = self.gp.predict_y_compiled(real_mbes[:, 0:2])
-        mu_array = np.array(mu)
-        sigma_array = np.array([sigma])
+        mu_all, sigma_all = self.gp.predict_y_compiled(
+            np.ndarray.tolist(real_mbes_all[:, 0:2]))
+        mu_all_array = np.array(mu_all)
+        sigma_array = np.array([sigma_all])
+
+        # Compute weights
+        weights = []
+        for i in range(0, self.pc):
+            mbes_gp = np.concatenate((np.asarray(real_mbes_all[i*self.beams_num:(i*self.beams_num)+self.beams_num])[:, 0:2],
+                                      mu_all_array[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
+
+            self.particles[i].compute_weight(mbes_gp, real_mbes_ranges)
+            weights.append(self.particles[i].w)
+
+        return weights
+
+    def gptorch_meas_model(self, real_mbes_all, real_mbes_ranges):
+
+        mu_all, sigma_all = self.gp.sample(real_mbes_all[:, 0:2])
+        mu_all_array = np.array([mu_all])
+        sigma_array = np.array([sigma_all])
         
-        # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
-                                  mu_array), axis=1)
-        #  print(sigma)
-        return mbes_gp, sigma
+        # Compute weights
+        weights = []
+        for i in range(0, self.pc):
+            mbes_gp = np.concatenate((np.asarray(real_mbes_all[i*self.beams_num:(i*self.beams_num)+self.beams_num])[:, 0:2],
+                                      mu_all_array.T[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
 
+            self.particles[i].compute_weight(mbes_gp, real_mbes_ranges)
+            weights.append(self.particles[i].w)
 
-    def gptorch_meas_model(self, real_mbes, p_part, r_base):
-        # Transform beams to particle mbes frame and compute map coordinates
-        real_mbes = np.dot(r_base, real_mbes.T)
-        real_mbes = np.add(real_mbes.T, p_part)
-
-        # Sample GP here
-        mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
-        mu_array = np.array([mu])
-        sigma_array = np.array([sigma])
-
-        # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2],
-                                mu_array.T), axis=1)
-        #  print(sigma)
-        return mbes_gp, sigma
+        return weights
 
     def mbes_cb(self, msg):
         if not self.mission_finished:
@@ -320,39 +334,57 @@ class auv_pf(object):
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
+
         # Measurement update of each particle
-        for i in range(0, self.pc):
-            # Compute base_frame from mbes_frame
-            p_part, r_mbes = self.particles[i].get_p_mbes_pose()
-            r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-
-            # First GP meas model
-            # exp_mbes, exp_sigs = self.gpflow_meas_model(real_mbes_full, p_part, r_base)
-            exp_mbes, exp_sigs = self.gptorch_meas_model(real_mbes_full, p_part, r_base)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
-            #  print(exp_sigs)
-                  
-            # IGL-based meas model
-            # exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
-            #                                     self.beams_num, self.mbes_angle)
-            # exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
-            
-            # Publish (for visualization)
-            # Transform points to MBES frame (same frame than real pings)
-            rot_inv = r_mbes.transpose()
-            p_inv = rot_inv.dot(p_part)
-            mbes = np.dot(rot_inv, exp_mbes.T)
-            mbes = np.subtract(mbes.T, p_inv)
-            mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-            
-            #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
-            self.pcloud_pub.publish(mbes_pcloud)
-
-            self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
-        
+        real_mbes_full_all = []
         weights = []
-        for i in range(self.pc):
-            weights.append(self.particles[i].w)
+        for i in range(0, self.pc):
+            # Current particle pose in the map frame
+            p_part, r_mbes = self.particles[i].get_p_mbes_pose()
+            
+            # For raytracing on mesh meas model
+            if not self.gp_meas_model:
+                exp_mbes = self.draper.project_mbes(np.asarray(p_part), r_mbes,
+                                                    self.beams_num, self.mbes_angle)
+                exp_mbes = exp_mbes[::-1] # Reverse beams for same order as real pings
+
+                # For visualization
+                mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
+                self.pcloud_pub.publish(mbes_pcloud)
+
+                self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
+                weights.append(self.particles[i].w)
+            
+            # For both GP-based meas models
+            if self.gp_meas_model:
+                # Compute particle mbes_frame to map frame transform
+                r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+                real_mbes = np.dot(r_base, real_mbes_full.T)
+                real_mbes = np.add(real_mbes.T, p_part)
+                real_mbes_full_all.append(real_mbes)
+            
+        if self.gp_meas_model:
+            real_mbes_full_all = np.vstack(real_mbes_full_all)
+            
+            # First GP meas model
+            if self.gp_torch:
+                weights = self.gptorch_meas_model(
+                    real_mbes_full_all, real_mbes_ranges)
+
+            # Second GP meas model
+            else:
+                weights = self.gpflow_meas_model(
+                    real_mbes_full_all, real_mbes_ranges)
+
+        # Publish (for visualization)
+        # Transform points to MBES frame (same frame than real pings)
+        # rot_inv = r_mbes.transpose()
+        # p_inv = rot_inv.dot(p_part)
+        # mbes = np.dot(rot_inv, exp_mbes.T)
+        # mbes = np.subtract(mbes.T, p_inv)
+        # mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
+        #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
+        # self.pcloud_pub.publish(mbes_pcloud)
 
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)

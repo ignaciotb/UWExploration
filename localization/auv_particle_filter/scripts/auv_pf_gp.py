@@ -35,6 +35,11 @@ from scipy.ndimage.filters import gaussian_filter
 from gp_mapping import gp
 import time 
 
+# for GPflow GPs
+import tensorflow as tf
+import pathlib
+import tempfile
+
 class auv_pf(object):
 
     def __init__(self):
@@ -125,10 +130,11 @@ class auv_pf(object):
         print("draper created")
         print("Size of draper: ", sys.getsizeof(self.draper))        
  
-        # Load GP
+        # # Load GP
         gp_path = rospy.get_param("~gp_path", 'gp.path')
         self.gp = gp.SVGP.load(1000, gp_path)
-        print("Size of GP: ", sys.getsizeof(self.gp))
+        # self.gp = tf.saved_model.load(gp_path + "/svgp")
+        # print("Size of GP: ", sys.getsizeof(self.gp))
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -220,7 +226,24 @@ class auv_pf(object):
         rospy.loginfo("PF node: Survey finished received") 
         #  rospy.signal_shutdown("Survey finished")
 
-    def gp_meas_model(self, real_mbes, p_part, r_base):
+    def gpflow_meas_model(self, real_mbes, p_part, r_base):
+        # Transform beams to particle mbes frame and compute map coordinates
+        real_mbes = np.dot(r_base, real_mbes.T)
+        real_mbes = np.add(real_mbes.T, p_part)
+
+        # Sample GP here
+        mu, sigma = self.gp.predict_y_compiled(real_mbes[:, 0:2])
+        mu_array = np.array(mu)
+        sigma_array = np.array([sigma])
+        
+        # Concatenate sampling points x,y with sampled z
+        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
+                                  mu_array), axis=1)
+        #  print(sigma)
+        return mbes_gp, sigma
+
+
+    def gptorch_meas_model(self, real_mbes, p_part, r_base):
         # Transform beams to particle mbes frame and compute map coordinates
         real_mbes = np.dot(r_base, real_mbes.T)
         real_mbes = np.add(real_mbes.T, p_part)
@@ -229,10 +252,10 @@ class auv_pf(object):
         mu, sigma = self.gp.sample(np.asarray(real_mbes)[:, 0:2])
         mu_array = np.array([mu])
         sigma_array = np.array([sigma])
-        
+
         # Concatenate sampling points x,y with sampled z
-        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2], 
-                                  mu_array.T), axis=1)
+        mbes_gp = np.concatenate((np.asarray(real_mbes)[:, 0:2],
+                                mu_array.T), axis=1)
         #  print(sigma)
         return mbes_gp, sigma
 
@@ -244,9 +267,10 @@ class auv_pf(object):
         if not self.mission_finished:
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
+                start = time.time()
                 weights = self.update(self.latest_mbes, self.odom_latest)
                 self.prev_mbes = self.latest_mbes
-
+                print(time.time() - start)
                 # Particle resampling
                 self.resample(weights)
 
@@ -303,8 +327,9 @@ class auv_pf(object):
             r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
             # First GP meas model
-            exp_mbes, exp_sigs = self.gp_meas_model(real_mbes_full, p_part, r_base)
-            self.particles[i].meas_cov = np.diag(exp_sigs)
+            # exp_mbes, exp_sigs = self.gpflow_meas_model(real_mbes_full, p_part, r_base)
+            exp_mbes, exp_sigs = self.gptorch_meas_model(real_mbes_full, p_part, r_base)
+            # self.particles[i].meas_cov = np.diag(exp_sigs)
             #  print(exp_sigs)
                   
             # IGL-based meas model
@@ -443,7 +468,7 @@ class auv_pf(object):
             self.cov[0,2] += dx[0]*dx[2] 
             self.cov[1,2] += dx[1]*dx[2] 
         self.cov /= self.pc
-        print(self.cov)
+        # print(self.cov)
 
         self.avg_pose.pose.covariance = [0.]*36
         for i in range(3):

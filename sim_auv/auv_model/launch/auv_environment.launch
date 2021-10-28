@@ -36,7 +36,7 @@
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
 			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
-			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_1000_0.01.npy"/>
+			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/post_gptorch.npy"/>
 			<param name="map_sift_path"  value=""/>
 			<!-- <param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/> -->
 			<param name="map_frame" value="map" />

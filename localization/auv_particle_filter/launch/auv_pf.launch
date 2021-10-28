@@ -47,15 +47,17 @@
       <param name="particle_sim_mbes_topic"                 value="/$(arg app)/sim_mbes"/>
       <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
-      <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/mesh.npz" />       
-      <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/svgp.pth" />    <!--Only needed for GPs-->   
+      <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
+      <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />    <!--Only needed for GPs-->   
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
       <!-- <param name="mbes_sim_as" value="/mbes_sim_server" />  -->
-      <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
-      <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/>    
+      <!-- <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
+      <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/>     -->
       <param name="pf_period" value="$(arg pf_period)"/>  
+      <param name="gp_meas_model" value="False"/>  
+      <param name="gptorch_meas_model" value="True"/>  
     </node>
   </group>
 

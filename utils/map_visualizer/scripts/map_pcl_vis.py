@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import open3d as o3d
 
 import rospy
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
-import open3d as o3d
 
 class MapPCLPublisher(object):
 
@@ -36,6 +34,7 @@ class MapPCLPublisher(object):
         cloud = None
         
         if self.gp_cloud_path != "":    
+            import open3d as o3d
             print("Map from GP")
             gp_cloud = np.load(self.gp_cloud_path)
             gp_cloud = gp_cloud[:,0:3]

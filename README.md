@@ -28,3 +28,10 @@ This is a collection of ROS packages. Just clone the repo within your catking wo
 rosdep install --from-paths catkin_ws --ignore-src --rosdistro=$ROS_DISTRO -y
 catkin_make -DCMAKE_BUILD_TYPE=Release install
 ```
+## Troubleshooting
+If you experience errors with GTSAM libraries not being found, add this line at the end of your .bashrc
+
+    export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+
+## Running 
+Coming soon

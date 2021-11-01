@@ -12,6 +12,7 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 sudo apt install python3-pygame python3-scipy python3-configargparse python3-numpy
 pip install configargparse pygame 
 ```
+Make sure your scipy version is >= 1.4.0
 
 If you're going to be working with Gaussian Processes maps, also install
 * Pytorch [here](https://pytorch.org/)

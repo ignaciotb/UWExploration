@@ -31,12 +31,7 @@ from auvlib.data_tools import csv_data
 
 from scipy.ndimage.filters import gaussian_filter
 
-# gpytorch
-from gp_mapping import gp
 import time 
-
-# for GPflow GPs
-import tensorflow as tf
 import pathlib
 import tempfile
 
@@ -138,9 +133,13 @@ class auv_pf(object):
         if self.gp_meas_model:
             gp_path = rospy.get_param("~gp_path", 'gp.path')
             if self.gp_torch:
+                # gpytorch
+                from gp_mapping import gp
                 rospy.loginfo("Loading GPtorch GP model")
                 self.gp = gp.SVGP.load(1000, gp_path + "svgp.pth")
             else:
+                # for GPflow GPs
+                import tensorflow as tf
                 rospy.loginfo("Loading GPflow GP model")
                 self.gp = tf.saved_model.load(gp_path + "/svgp")
             

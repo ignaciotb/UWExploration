@@ -2,7 +2,8 @@
 
 Collection of ROS packages for localization, map building and SLAM with autonomous underwater vehicles and sonar sensing.
 
-## Dependencies (tested on Ubuntu 16.04 and 18.04)
+## Dependencies (tested on Ubuntu 20.04)
+* ROS Noetic
 * AUVLIB [here](https://github.com/ignaciotb/auvlib/tree/extended_bm) And set the same cmake flags required for Ubuntu 18.
 * Bathymetric SLAM [here](https://github.com/ignaciotb/bathymetric_slam)
 * GTSAM [here](https://github.com/borglab/gtsam)

@@ -17,7 +17,7 @@
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
 
   <!-- PF args -->
-  <arg name="particle_count"                    default="50"/>
+  <arg name="particle_count"                    default="100"/>
   <arg name="pf_period"   default="0.3" />
 
   <!-- [x, y, z, roll, pitch, yaw] -->
@@ -48,12 +48,12 @@
       <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
       <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
       <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
-      <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />    <!--Only needed for GPs-->   
+      <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
       <param name="pf_stats_top" value="/stats/pf_data" />  
       <param name="pf_period" value="$(arg pf_period)"/>  
-      <param name="gp_meas_model" value="False"/>  
+      <param name="gp_meas_model" value="True"/>  
       <param name="gptorch_meas_model" value="True"/>  
     </node>
   </group>

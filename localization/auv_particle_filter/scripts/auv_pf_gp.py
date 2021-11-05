@@ -237,7 +237,9 @@ class auv_pf(object):
 
     def gpflow_meas_model(self, real_mbes_all, real_mbes_ranges):
         # Sample GP here
-        mu_all, sigma_all = self.gp.predict_y_compiled(
+        # mu_all, sigma_all = self.gp.predict_y_compiled(
+            # np.ndarray.tolist(real_mbes_all[:, 0:2]))
+        mu_all, sigma_all = self.gp.predict_f_compiled(
             np.ndarray.tolist(real_mbes_all[:, 0:2]))
         mu_all_array = np.array(mu_all)
         sigma_array = np.array([sigma_all])

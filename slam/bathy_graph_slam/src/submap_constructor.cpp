@@ -152,7 +152,7 @@ void submapConstructor::addSubmap(std::vector<ping_raw> submap_pings)
     //     return tf_buffer_.lookupTransform(frame_id_, msg->header.frame_id,
     //     msg->header.stamp, tr ansform_timeout_);
 
-    // Save for testing
+    // Save for testing 
     // pcl::io::savePCDFileASCII ("/home/torroba/Downloads/submaps/submap_"+ std::to_string(submaps_cnt_)+".pcd",
     //                            submap_i.submap_pcl_);
     

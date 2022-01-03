@@ -48,7 +48,7 @@ In order to run the AUV manually with the keyboard (w=forward, s=backward a,d=+/
 ```
 roslaunch basic_navigation basic_mission.launch manual_control:=True
 ```
-To plan and execute autonomous waypoint navigation missions, install [this package](https://github.com/KumarRobotics/waypoint_navigation_plugin).
+Alternatively, to plan and execute autonomous waypoint navigation missions, install [this package](https://github.com/KumarRobotics/waypoint_navigation_plugin).
 ```
 roslaunch basic_navigation basic_mission.launch manual_control:=False
 ```
@@ -64,3 +64,17 @@ roslaunch basic_navigation basic_mission.launch manual_control:=True
 ```
 *WP navigation isn't implemented yet for several AUVs.
 
+### Particle filter localization
+Check 'auv_pf.launch' for the main filter parameters
+```
+roslaunch auv_particle_filter auv_pf.launch particle_count:=50
+roslaunch basic_navigation basic_mission.launch manual_control:=False
+```
+### RBPF SLAM
+Check 'auv_pf.launch' for the main filter parameters. A decent GPU is required for this one.
+```
+roslaunch rbpf_slam rbpf_slam.launch particle_count:=5
+roslaunch basic_navigation basic_mission.launch manual_control:=False
+```
+### Submap graph SLAM
+Coming

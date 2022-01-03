@@ -207,8 +207,8 @@ class rbpf_slam(object):
 
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False
-        # self.time_wo_motion = 5.
-        # rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
+        self.time_wo_motion = 5.
+        rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
         self.odom_latest = Odometry()
         self.odom_end = Odometry()
 
@@ -284,9 +284,9 @@ class rbpf_slam(object):
     def mission_finished_cb(self, event):
         if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
             print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
-            # self.mission_finished = True
+            self.mission_finished = True
             # self.lc_detected = True
-            # self.plot_gp_maps()
+            self.plot_gp_maps()
         
         self.odom_end = self.odom_latest
 
@@ -349,7 +349,14 @@ class rbpf_slam(object):
         print("------ Plot final maps --------")
         R = self.base2mbes_mat.transpose()[0:3,0:3]
 
+        # For sequential plotting on this node
+        # Wait until GP training is done to not overload GPU. 
+        while not rospy.is_shutdown() and self.pings_since_training != 0:
+            rospy.loginfo("Waiting to finish GP training")
+            rospy.Rate(1.).sleep()
+
         for i in range(0, self.pc):
+            # For parallel plotting on secondary node 
             # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
             #                                         PlotPosteriorAction)
             # ac_plot.wait_for_server()
@@ -366,11 +373,13 @@ class rbpf_slam(object):
             pings_i = np.asarray(part_ping_map)
             pings_i = np.reshape(pings_i, (-1,3))   
 
+            # For sequential plotting on this node
             self.particles[i].gp.plot(pings_i[:, 0:2], pings_i[:, 2],
-                self.storage_path + 'gp_result/' + 'particle_' + str(i) 
+                self.storage_path + 'particle_' + str(i) 
                 + '_training_' + str(self.count_training) + '.png',
                 n=100, n_contours=100 )        
                 
+            # For parallel plotting on secondary node 
             # Send to GP particle server
             # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
             # goal = PlotPosteriorGoal(mbes_pcloud)

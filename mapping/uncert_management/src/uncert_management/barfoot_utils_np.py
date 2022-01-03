@@ -32,7 +32,7 @@ def plot_cov(mu, C, k):
         b = 0
 
     beta = math.atan2(eig_vec[1, big_ind], eig_vec[0, big_ind])
-    rot_t = rot.from_euler('z', beta).as_dcm()[0:2, 0:2]
+    rot_t = rot.from_euler('z', beta).as_matrix()[0:2, 0:2]
     e = np.sqrt(1 - (b/a)**2)
 
     px = []
@@ -51,7 +51,7 @@ def plot_cov(mu, C, k):
 
 # Create sympy rotation matrix as Rz*Ry*Rx
 def create_rot(Xrot):
-    rot_mat = rot.from_euler("xyz", Xrot, degrees=False).as_dcm()
+    rot_mat = rot.from_euler("xyz", Xrot, degrees=False).as_matrix()
     return rot_mat
 
 # Build a homogenous transformation matrix the standard way

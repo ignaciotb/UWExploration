@@ -58,7 +58,7 @@ class auv_ui(object):
         self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
 
-        self.survey_name = rospy.get_param('~survey_name', 'survey')
+        self.survey_name = rospy.get_param('~dataset', 'survey')
         
         # Transforms from auv_2_ros
         tfBuffer = tf2_ros.Buffer()
@@ -78,7 +78,7 @@ class auv_ui(object):
         
         # Noise models
         self.Q_3d = np.diag([0.00001, 0.00001, 0.00001]) # Meas noise (x,y,z)
-        self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
+        # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
         self.R = np.diag([0.000001,0.000001,0.000001,0.000001,0.000001,0.00001]) # Motion noise
 
         try:
@@ -126,7 +126,7 @@ class auv_ui(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
         self.covs_all = []
-        self.beams_all = []
+        self.means_all = []
 
         # Subscribe when ready
         odom_top = rospy.get_param("~odometry_topic", 'odom')
@@ -135,11 +135,33 @@ class auv_ui(object):
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb)
 
-        rospy.spin()
+        # Timer for visualization
+        # vis_period = rospy.get_param("~visualization_period")
+        # rospy.Timer(rospy.Duration(vis_period), self.visualize, oneshot=False)
+
+        self.pings_num = 0
+        self.pings_num_prev = 0
+        while not rospy.is_shutdown():
+            if self.pings_num > self.pings_num_prev:
+                self.visualize()
+                self.pings_num_prev += 1
+            
+            rospy.Rate(0.5).sleep()
+
+        # Use this instead of synch callback?
+        # rospy.on_shutdown(self.save)
+
+        # rospy.spin()
+
+    def save(self):
+        np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
+                covs=self.covs_all)
+        rospy.loginfo("AUV ui node: Survey finished received")
+        rospy.signal_shutdown("It's over bitches")
 
     def synch_cb(self, finished_msg):
         self.survey_finished = finished_msg.data
-        np.savez(self.survey_name+"_svgp_input"+".npz", points=self.beams_all,
+        np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
                 covs=self.covs_all)
         rospy.loginfo("AUV ui node: Survey finished received")
         rospy.signal_shutdown("It's over bitches")
@@ -161,7 +183,7 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        N = 40
+        N = 3
         idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
         beams_mbes_filt = beams_mbes[idx]
         print("Covs for N beams")
@@ -182,12 +204,13 @@ class auv_ui(object):
 
             # Store data for saving on disk
             self.covs_all.append(yspcov[0:3,0:3])
-            self.beams_all.append(beam_map[0:3])
+            self.means_all.append(beam_map[0:3])
 
+        self.pings_num += 1
         # # Plotting
-        self.visualize()
+        # self.visualize()
     
-    def visualize(self):
+    def visualize(self, save=False):
            
         ## Plotting    
         plt.gcf().canvas.mpl_connect('key_release_event',
@@ -197,6 +220,7 @@ class auv_ui(object):
         # Transform to odom frame before plotting
         plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
                                      -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
+        plt.axis([-250, 150, -100, 300])
 
         #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
         mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
@@ -211,16 +235,19 @@ class auv_ui(object):
             plt.plot(self.ysp_vec[n][0],
                      self.ysp_vec[n][1], "+")
         
-        # Motion, sigma points
+        # # Motion, sigma points
         cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
-        px, py = self.plot_covariance(mu_t, cov_mat, 6)
+        px, py = self.plot_covariance(mu_t, cov_mat, 5)
         plt.plot(px, py, "--r")
         for n in range(N):
-            px, py = self.plot_covariance(self.ysp_vec[n], self.yspcov_vec[n], 6)
+            px, py = self.plot_covariance(self.ysp_vec[n], self.yspcov_vec[n], 5)
             plt.plot(px, py, "--g")
 
         plt.grid(True)
         plt.pause(0.00001)
+
+        if save:
+            plt.savefig(self.survey_name + "_survey.png")
 
 
     def plot_covariance(self, xEst, C, k):  # pragma: no cover
@@ -251,7 +278,7 @@ class auv_ui(object):
         x = [a * math.cos(it) for it in t]
         y = [b * math.sin(it) for it in t]
         angle = math.atan2(eig_vec[1, big_ind], eig_vec[0, big_ind])
-        rot = Rot.from_euler('z', angle).as_dcm()[0:2, 0:2]
+        rot = Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
         fx = np.stack([x, y]).T @ rot
 
         px = np.array(fx[:, 0] + xEst[0]).flatten()
@@ -293,9 +320,9 @@ class auv_ui(object):
     def motion_model(self, X, V, dt):
         g_r = Matrix([X[3:6]]) + Matrix([V[3:6]]).multiply(dt)
         g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], g_r[0]),
-                                          (X[4], g_r[1]), 
-                                          (X[5], g_r[2])]).multiply(
-                                              Matrix([V[0:3]]).T).multiply(dt)
+                                               (X[4], g_r[1]), 
+                                               (X[5], g_r[2])]).multiply(
+                                                   Matrix([V[0:3]]).T).multiply(dt)
         g = Matrix(BlockMatrix([[g_p], [g_r.T]]))
         
         return g

@@ -57,7 +57,7 @@ class W2WPathPlanner(object):
                 goal_point_local = self.listener.transformPoint(
                     self.base_frame, goal_point)
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                print("Not transforming point to world local")
+                print("Not transforming point to base frame")
             pass
 
             #Compute throttle error

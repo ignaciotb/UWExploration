@@ -208,7 +208,7 @@ class rbpf_slam(object):
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False
         self.time_wo_motion = 5.
-        rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
+        # rospy.Timer(rospy.Duration(self.time_wo_motion), self.mission_finished_cb, oneshot=False)
         self.odom_latest = Odometry()
         self.odom_end = Odometry()
 

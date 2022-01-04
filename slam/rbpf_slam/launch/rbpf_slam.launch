@@ -13,6 +13,14 @@
 	<arg name="n_beams_mbes" default="50"/>	
 	<arg name="mbes_open_angle" value="1.050" /> 
 
+  <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
+	<arg name="x" default="0.0"/>
+	<arg name="y" default="0.0"/>
+	<arg name="z" default="0.0"/>
+	<arg name="roll" default="0.0"/>
+	<arg name="pitch" default="0.0"/>
+	<arg name="yaw" default="0.0"/>
+
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="3"/> <!--50 -->
   <!-- [x, y, z, roll, pitch, yaw] -->
@@ -33,40 +41,45 @@
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
   <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
   <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
-  <arg name="average_pose_topic"                default="/$(arg app)/avg_pose"/>
-  <arg name="particle_poses_topic"              default="/$(arg app)/particle_poses"/>
-  <arg name="particle_sim_mbes_topic"           default="/$(arg app)/sim_mbes"/>
-  <arg name="average_mbes_topic"                default="/$(arg app)/avg_mbes"/>
+  <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
+  <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
+  <arg name="particle_sim_mbes_topic"           default="/$(arg namespace)/$(arg app)/sim_mbes"/>
+  <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
-    <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
-      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-      <param name="init_covariance"                         value="$(arg init_covariance)" />
-      <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
-      <param name="measurement_std"                         value="$(arg measurement_std)" />
-      <param name="motion_covariance"                       value="$(arg motion_covariance)" />
-      <param name="odometry_topic"                          value="$(arg odometry_topic)" />
-      <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
-      <param name="map_frame"                               value="$(arg map_frame)" />
-      <param name="odom_frame"                              value="$(arg odom_frame)" />
-			<param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
-			<param name="base_link"                               value="$(arg namespace)/base_link" />
-			<param name="synch_topic"                             value="/$(arg app)/synch" />
-      <param name="result_path"                             value="$(arg results_path)" />
-      <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
-      <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
-  	  <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
-      <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
-      <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-      <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
-      <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
-      <param name="mesh_path" value="$(arg path)/mesh.npz" />       
-      <param name="survey_finished_top" value="/gt/survey_finished" />       
-      <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
-      <param name="pf_stats_top" value="/stats/pf_data" />  
-      <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
-      <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
-      <param name="rbpf_period" value="$(arg rbpf_period)"/>  
-    </node>
+
+  <group ns="$(arg app)">
+    <group ns="$(arg namespace)">
+      <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
+        <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
+        <param name="init_covariance"                         value="$(arg init_covariance)" />
+        <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
+        <param name="measurement_std"                         value="$(arg measurement_std)" />
+        <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+        <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+        <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
+        <param name="map_frame"                               value="$(arg map_frame)" />
+        <param name="odom_frame"                              value="$(arg odom_frame)" />
+        <param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
+        <param name="base_link"                               value="$(arg namespace)/base_link" />
+        <param name="synch_topic"                             value="/$(arg app)/synch" />
+        <param name="result_path"                             value="$(arg results_path)" />
+        <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
+        <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+        <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
+        <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
+        <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
+        <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
+        <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
+        <param name="mesh_path" value="$(arg path)/mesh.npz" />       
+        <param name="survey_finished_top" value="/gt/survey_finished" />       
+        <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
+        <param name="pf_stats_top" value="/stats/pf_data" />  
+        <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
+        <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
+        <param name="rbpf_period" value="$(arg rbpf_period)"/>  
+      </node>
+    </group>
+  </group>
 
     <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
     <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
@@ -94,6 +107,12 @@
       <arg name="dataset" value="$(arg dataset)" />
       <arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
       <arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+      <arg name="x" value="$(arg x)"/>
+      <arg name="y" value="$(arg y)"/>
+      <arg name="z" value="$(arg z)"/>
+      <arg name="roll" value="$(arg roll)"/>
+      <arg name="pitch" value="$(arg pitch)"/>
+      <arg name="yaw" value="$(arg yaw)"/>
     </include>
 
 </launch>

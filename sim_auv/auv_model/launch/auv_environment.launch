@@ -13,7 +13,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
-    <arg name="replay_rate" default="0.3"/>
+    <arg name="replay_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
@@ -24,33 +24,14 @@
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings_33.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="-300.0"/>
-	<arg name="y" default="-400.0"/>
+	<arg name="x" default="0.0"/>
+	<arg name="y" default="0.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>
 
 	<group ns="$(arg namespace)">
-
-		<!-- Publish map as pcl  -->
-		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
-			<!-- <param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/post_gptorch.npy"/> -->
-			<param name="map_gp_path"  value=""/>
-			<param name="map_sift_path"  value=""/>
-			<!-- <param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/> -->
-			<param name="map_frame" value="map" />
-			<param name="map_mbes" value="/map_mbes" />
-			<param name="use_pings_cloud" type= "bool" value="True" />
-		</node>
-
-		<!-- Extract SIFT features from map  -->
-		<!-- <node type="sift_extractor_node" pkg="map_features" name="sift_extractor_node" output="screen">
-			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl_33_over.npy" />
-			<param name="map_frame" value="map" />
-			<param name="map_mbes" value="/map_mbes" />
-		</node> -->
 
 		<!-- Reproduce real Hugin survey -->
   		<group unless="$(eval mode == 'sim')">
@@ -87,32 +68,32 @@
 			
 		</group>
 
-	</group>
-
-	<!-- Simulate Hugin AUV -->
-	<group if="$(eval mode == 'sim')">
-		<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" 
-				args="0 0 0 0 0 0 world map 50" />
-			
-		<include file="$(find auv_model)/launch/auv_model.launch" >
-			<arg name="mode" value="$(arg mode)"/>
-			<arg name="namespace" value="$(arg namespace)"/>
-			<arg name="dataset" value="$(arg dataset)"/>
-			<arg name="app" value="$(arg app)"/>
-			<arg name="debug" value="$(arg debug)"/>
-			<arg name="odom_rate" value="$(arg odom_rate)"/>
-			<arg name="meas_rate" value="$(arg meas_rate)"/>
-			<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>	
-			<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
-			<arg name="path" value="$(arg path)" />
-			<arg name="x" value="$(arg x)"/>
-			<arg name="y" value="$(arg y)"/>
-			<arg name="z" value="$(arg z)"/>
-			<arg name="roll" value="$(arg roll)"/>
-			<arg name="pitch" value="$(arg pitch)"/>
-			<arg name="yaw" value="$(arg yaw)"/>
-			<arg name="multi_agent" value="$(arg multi_agent)"/>
-		</include>
+		<!-- Simulate Hugin AUV -->
+		<group if="$(eval mode == 'sim')">
+			<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" 
+					args="0 0 0 0 0 0 world map 50" />
+				
+			<include file="$(find auv_model)/launch/auv_model.launch" >
+				<arg name="mode" value="$(arg mode)"/>
+				<arg name="namespace" value="$(arg namespace)"/>
+				<arg name="dataset" value="$(arg dataset)"/>
+				<arg name="app" value="$(arg app)"/>
+				<arg name="debug" value="$(arg debug)"/>
+				<arg name="odom_rate" value="$(arg odom_rate)"/>
+				<arg name="meas_rate" value="$(arg meas_rate)"/>
+				<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>	
+				<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+				<arg name="path" value="$(arg path)" />
+				<arg name="x" value="$(arg x)"/>
+				<arg name="y" value="$(arg y)"/>
+				<arg name="z" value="$(arg z)"/>
+				<arg name="roll" value="$(arg roll)"/>
+				<arg name="pitch" value="$(arg pitch)"/>
+				<arg name="yaw" value="$(arg yaw)"/>
+				<arg name="multi_agent" value="$(arg multi_agent)"/>
+			</include>
+		</group>
+	
 	</group>
 
 </launch>

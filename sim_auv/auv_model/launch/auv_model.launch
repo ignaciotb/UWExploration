@@ -49,9 +49,9 @@
             <param name="odom_frame" value="$(arg namespace)/odom" />
             <param name="base_link" value="$(arg namespace)/base_link" />
             <param name="mbes_link" value="$(arg namespace)/mbes_link" />
-            <param name="throttle_cmd" value="/throttle_cmd" />
-            <param name="thruster_cmd" value="/thruster_cmd" />
-            <param name="inclination_cmd" value="/inclination_cmd" />
+            <param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
+            <param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
+            <param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
             <param name="mbes_sim_as" value="/$(arg namespace)/mbes_sim_server" />
             <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
             <param name="synch_topic" value="/$(arg app)/synch" />

@@ -40,6 +40,7 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 Run the AUV model with an MBES in a given underwater scenario
 ```
 roslaunch auv_model auv_environment.launch
+roslaunch auv_model auv_env_aux.launch
 ```
 You should see in RVIZ the AUV and it's MBES pings.
 
@@ -58,22 +59,26 @@ And add and publish waypoints through RVIZ as in their tutorial.
 Example of multiagent mission
 ```
 roslaunch auv_model auv_environment.launch namespace:=hugin_0
-roslaunch auv_model auv_model.launch namespace:=hugin_1 y:=10
-roslaunch auv_model auv_model.launch namespace:=hugin_2 y:=-10
+roslaunch auv_model auv_environment.launch namespace:=hugin_1 y:=10
+roslaunch auv_model auv_environment.launch namespace:=hugin_2 y:=-10
+roslaunch auv_model auv_env_aux.launch
 roslaunch basic_navigation basic_mission.launch manual_control:=True
 ```
 *WP navigation isn't implemented yet for several AUVs.
 
-### Particle filter localization
+### Particle filter localization with two AUVs
 Check 'auv_pf.launch' for the main filter parameters
 ```
-roslaunch auv_particle_filter auv_pf.launch particle_count:=50
-roslaunch basic_navigation basic_mission.launch manual_control:=False
+roslaunch auv_particle_filter auv_pf.launch namespace:=hugin_0 x:=-300 y:=-400
+roslaunch auv_particle_filter auv_pf.launch namespace:=hugin_1 x:=-330 y:=-430
+roslaunch auv_model auv_env_aux.launch
+roslaunch basic_navigation basic_mission.launch manual_control:=True
 ```
 ### RBPF SLAM
 Check 'auv_pf.launch' for the main filter parameters. A decent GPU is required for this one.
 ```
 roslaunch rbpf_slam rbpf_slam.launch particle_count:=5
+roslaunch auv_model auv_env_aux.launch
 roslaunch basic_navigation basic_mission.launch manual_control:=False
 ```
 ### Submap graph SLAM

@@ -273,7 +273,7 @@ class auv_pf(object):
         for i in range(0, self.pc):
             mbes_gp = np.concatenate((np.asarray(real_mbes_all[i*self.beams_num:(i*self.beams_num)+self.beams_num])[:, 0:2],
                                       mu_all_array.T[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
+            self.particles[i].exp_meas_cov = np.diag(sigma_array)
 
             # For visualization
             mbes_pcloud = pack_cloud(self.map_frame, mbes_gp)
@@ -363,6 +363,9 @@ class auv_pf(object):
                 mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
                 self.pcloud_pub.publish(mbes_pcloud)
 
+                # Uncertainty of expected meas from raytracing: leave equal to that of real MBES
+                self.particles[i].exp_meas_cov = self.particles[i].meas_cov
+                # Compute particle weight
                 self.particles[i].compute_weight(exp_mbes, real_mbes_ranges)
                 weights.append(self.particles[i].w)
             

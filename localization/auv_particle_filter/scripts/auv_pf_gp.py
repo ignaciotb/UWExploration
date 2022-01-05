@@ -253,6 +253,10 @@ class auv_pf(object):
                                       mu_all_array[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
             # self.particles[i].meas_cov = np.diag(exp_sigs)
 
+            # For visualization
+            mbes_pcloud = pack_cloud(self.map_frame, mbes_gp)
+            self.pcloud_pub.publish(mbes_pcloud)
+
             self.particles[i].compute_weight(mbes_gp, real_mbes_ranges)
             weights.append(self.particles[i].w)
 
@@ -270,6 +274,10 @@ class auv_pf(object):
             mbes_gp = np.concatenate((np.asarray(real_mbes_all[i*self.beams_num:(i*self.beams_num)+self.beams_num])[:, 0:2],
                                       mu_all_array.T[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
             # self.particles[i].meas_cov = np.diag(exp_sigs)
+
+            # For visualization
+            mbes_pcloud = pack_cloud(self.map_frame, mbes_gp)
+            self.pcloud_pub.publish(mbes_pcloud)
 
             self.particles[i].compute_weight(mbes_gp, real_mbes_ranges)
             weights.append(self.particles[i].w)
@@ -378,17 +386,7 @@ class auv_pf(object):
             else:
                 weights = self.gpflow_meas_model(
                     real_mbes_full_all, real_mbes_ranges)
-
-        # Publish (for visualization)
-        # Transform points to MBES frame (same frame than real pings)
-        # rot_inv = r_mbes.transpose()
-        # p_inv = rot_inv.dot(p_part)
-        # mbes = np.dot(rot_inv, exp_mbes.T)
-        # mbes = np.subtract(mbes.T, p_inv)
-        # mbes_pcloud = pack_cloud(self.mbes_frame, mbes)
-        #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
-        # self.pcloud_pub.publish(mbes_pcloud)
-
+                    
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
         self.miss_meas = weights.count(0.0)

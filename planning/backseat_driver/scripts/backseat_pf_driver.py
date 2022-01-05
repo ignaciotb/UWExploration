@@ -44,11 +44,15 @@ class BackseatDriver(object):
         self.sim_pf_launch = rospy.get_param('~auv_pf_launch_file', "particle.launch") 
         self.mission_launch = rospy.get_param('~mission_launch_file', "particle.launch") 
         self.sim_path_topic = rospy.get_param('~sim_path_topic')
+        self.relocalize_topic = rospy.get_param('~relocalize_topic')
 
+        self.listener = tf.TransformListener()
+        
         # To send LC wp to the mission planner
         self.wp_pub = rospy.Publisher(self.wp_topic, PoseStamped, queue_size=1)
 
-        self.listener = tf.TransformListener()
+        # Stop missiong while choosing revisiting area
+        self.pause_mission_pub = rospy.Publisher(self.relocalize_topic, Bool, queue_size=1)
 
         # The waypoints as a path
         rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
@@ -65,23 +69,22 @@ class BackseatDriver(object):
         self.e_mbes_pub = rospy.Publisher(self.enable_pf_update_topic, Bool, queue_size=1)
         self.sim_path_pub = rospy.Publisher(self.sim_path_topic, Path, queue_size=1)
 
-
         # The LC waypoints, as a path
         self.lc_waypoints = Path()
         self.lc_waypoints.header.frame_id = self.map_frame
         # Two LC wp for testing
         lc_wp = PoseStamped()
         lc_wp.header.frame_id = self.map_frame
-        lc_wp.pose.position.x = -180.
-        lc_wp.pose.position.y = -300.
+        lc_wp.pose.position.x = -190.
+        lc_wp.pose.position.y = -330.
         lc_wp.pose.position.z = 0.
         lc_wp.pose.orientation.w = 1
         self.lc_waypoints.poses.append(lc_wp)
 
         lc_wp = PoseStamped()
         lc_wp.header.frame_id = self.map_frame
-        lc_wp.pose.position.x = -100.
-        lc_wp.pose.position.y = -400.
+        lc_wp.pose.position.x = -90.
+        lc_wp.pose.position.y = -375.
         lc_wp.pose.position.z = 0.
         lc_wp.pose.orientation.w = 1
         self.lc_waypoints.poses.append(lc_wp)
@@ -98,35 +101,48 @@ class BackseatDriver(object):
 
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
-
-
         # rospy.spin()
 
         self.trc = 0.
         # This has to be in the main thread to be able to use roslaunch
         while not rospy.is_shutdown():
-            rospy.loginfo("Current PF trace ", self.trc)
+
+            print("Current PF trace ", self.trc)
             if self.trc > self.cov_threshold and not self.closing_loop:
                 # Pose uncertainty too high, closing the loop to relocalize
                 rospy.loginfo("Uncertainty over threshold. Looking for best revisit")
+
+                # Pause current mission after reaching current wp
+                self.pause_mission_pub.publish(True)
+
                 # Choose which WP to revisit
+                sigmas = []
+                gains = []
                 for wp in self.lc_waypoints.poses:
                     # Run the simulated PF to that WP and compute expected uncertainty
                     sigma_k = self.sim_sigma(wp)
-                    # Compute gain
-                    gain_k = self.calculate_gain(wp)    
+                    # Compute gain as inverse of distance to area
+                    gain_k = 1./self.calculate_gain(wp)    
                     print("Sigma_k ", np.sum(np.diag(sigma_k)))            
                     print("Gain_k ", gain_k)            
+                    sigmas.append(np.sum(np.diag(sigma_k)))
+                    gains.append(gain_k)
 
                 # Utility WP_k: normalize sigmas and gains and compute utilities
+                alpha = 0.5
+                sigmas /= np.max(sigmas)
+                gains /= np.max(gains)
+                u = (1-alpha)* np.asarray(gains) - alpha * np.asarray(sigmas)
+                print("Utilities ", u)
 
-                # Choose WP_k with max utility
-                k = 0
+                # Choose WP_k with max utility and send to mission planner
+                k = max(range(len(u)), key=u.__getitem__)
+                print("Chosen revisit area ", k)
                 self.new_wp = self.lc_waypoints.poses[k]
-
-                # Preempt current waypoint/path
-
                 self.wp_pub.publish(self.new_wp)
+
+                # Let mission planner continue
+                self.pause_mission_pub.publish(False)
                 rospy.loginfo("Sent LC waypoint")
                 self.closing_loop = True
             
@@ -140,26 +156,25 @@ class BackseatDriver(object):
 
 
     def pf_cb(self, pf_msg):
-        # Reconstruct covariance 
+        # Reconstruct PF pose and covariance 
         self.cov = np.zeros((6, 6))
         for i in range(3):
             for j in range(3):
                 self.cov[i, j] = pf_msg.pose.covariance[i*3 + j]
-
-        # Reconstruct pose estimate
         self.pf_pose = pf_msg.pose.pose
         
         # Monitor trace. If too high, start revisit place selection in main thread
         self.trc = np.sum(np.diag(self.cov))
         # print("Trace ", self.trc)
 
+        # Closing loop
         if self.closing_loop:
             rospy.loginfo("Going for a loop closure!")
-
             dist = self.distance_wp_frame(self.new_wp, self.base_frame)
-
             rospy.loginfo("BS driver diff " + str(dist))
-            if dist < self.goal_tolerance:
+            # Stop loop closure when revisit area reached
+            # or filter cov already under threshold
+            if dist < self.goal_tolerance or self.trc < self.cov_threshold:
                 # Goal reached
                 rospy.loginfo("Loop closed!")
                 self.closing_loop = False
@@ -188,22 +203,22 @@ class BackseatDriver(object):
         roslaunch_args = cli_args[1:]
         roslaunch_file = [(roslaunch.rlutil.resolve_launch_arguments(cli_args)[0], roslaunch_args)]
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-        roslaunch.configure_logging(uuid)
+        # roslaunch.configure_logging(uuid)
         parent_pf = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
         parent_pf.start()
         rospy.loginfo("Sim launched")
 
         # Launch simulation mission planner
         cli_args = [self.mission_launch ,'namespace:=pf_sim', 'manual_control:=False',
-        'max_throttle:=' + str(4.0)]
+        'max_throttle:=' + str(8.0)]
         roslaunch_args = cli_args[1:]
         roslaunch_file = [(roslaunch.rlutil.resolve_launch_arguments(cli_args)[0], roslaunch_args)]
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
-        roslaunch.configure_logging(uuid)
+        # roslaunch.configure_logging(uuid)
         parent_mp = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
         parent_mp.start()
         rospy.loginfo("Sim planner launched")
-        rospy.sleep(2)
+        rospy.sleep(3)
 
         # Send WP_k to sim w2w_mission_planner
         sim_path = Path()
@@ -212,21 +227,23 @@ class BackseatDriver(object):
 
         # Wait for sim AUV PF to reach WP k
         sim_finished = False
+        thres_eps = 5.0 # How far from the actual revisit area activate the MBES of the sim filter
         while not rospy.is_shutdown() and not sim_finished:
             # rospy.loginfo("Sim moving to WP!")
             dist = self.distance_wp_frame(wp_k, 'pf_sim/base_link')
 
-            if dist < self.goal_tolerance*4.:
-                # Goal reached
-                rospy.loginfo("Sim has reached WP!")
-                sim_finished = True
-            rospy.Rate(5).sleep()
+            if dist < self.goal_tolerance*thres_eps:
+                if thres_eps != 5.0:
+                    # Goal reached. Finished simulation
+                    sim_finished = True
+                    # self.e_mbes_pub.publish(False)
 
-        # # When wp_k reached, enable MBES pings and wait 
-        # # TODO: check filter state for convergence instead of waiting
-        self.e_mbes_pub.publish(True)
-        rospy.sleep(5)
-        self.e_mbes_pub.publish(False)
+                rospy.loginfo("Sim has reached WP!")
+                # When wp_k reached, enable MBES pings and wait 
+                self.e_mbes_pub.publish(True)
+                thres_eps = 1.0
+                
+            rospy.Rate(5).sleep()
 
         # When the PF has converged, store output and kill launch file
         sigma_k = self.cov_k

@@ -14,11 +14,13 @@
 	<group ns="navigation">
 		<group ns="$(arg namespace)">
 			<group unless="$(arg manual_control)">
+			
 				<node type="w2w_mission_planner.py" pkg="basic_navigation" name="mission_planner" output="screen">
 					<param name="path_planner_as"  value="path_planner" />
 					<param name="path_topic"  value="/$(arg namespace)/waypoints" />
 					<param name="map_frame"  value="map" />
 					<param name="wp_topic"  value="/navigation/lc_wp" />
+					<param name="relocalize_topic"  value="/$(arg namespace)/pause_planner"/>
 				</node>
 
 				<node type="w2w_planner.py" pkg="basic_navigation" name="path_planner" output="screen">

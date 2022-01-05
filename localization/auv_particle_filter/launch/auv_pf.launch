@@ -17,10 +17,6 @@
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
 
-  <!-- PF args -->
-  <arg name="particle_count"                    default="50"/>
-  <arg name="pf_period"   default="0.3" />
-
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<arg name="x" default="0.0"/>
 	<arg name="y" default="0.0"/>
@@ -29,8 +25,12 @@
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>
 
+  <!-- PF args -->
+  <arg name="particle_count"  default="50"/>
+  <arg name="pf_period"   default="0.3" />
+
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="init_covariance" default="[10., 60., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
   <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="measurement_std"  default="20"/>
@@ -63,8 +63,8 @@
         <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
-        <param name="gp_meas_model" value="False"/>  
-        <param name="gptorch_meas_model" value="True"/>  
+        <param name="gp_meas_model" value="False"/>  <!-- GP or mesh map? -->
+        <param name="gptorch_meas_model" value="True"/>  <!-- If GP map True, GPytorch or GPflow? -->
         <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
 				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
       </node>

@@ -174,9 +174,6 @@ class auv_pf(object):
         # Transforms from auv_2_ros
         try:
             rospy.loginfo("Waiting for transforms")
-            rospy.loginfo(self.base_frame)
-            rospy.loginfo(self.mbes_frame)
-            rospy.loginfo(self.odom_frame)
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.m2o_mat = matrix_from_tf(m2o_tf)
@@ -199,7 +196,7 @@ class auv_pf(object):
       
         # Topic to signal end of survey
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
-        self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
+        rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.survey_finished = False
 
         # Start timing now
@@ -224,8 +221,15 @@ class auv_pf(object):
         pf_period = rospy.get_param("~pf_period")
         rospy.Timer(rospy.Duration(pf_period), self.pf_update, oneshot=False)
 
+        # For active localization PF simulation
+        self.enable_pf_update = rospy.get_param("~enable_pf_update")
+        self.enable_pf_update_topic = rospy.get_param("~enable_pf_update_topic")
+        rospy.Subscriber(self.enable_pf_update_topic, Bool, self.enable_updates)
+
         rospy.spin()
 
+    def enable_updates(self, msg):
+        self.enable_pf_update = msg.data
 
     def empty_srv(self, req):
         rospy.loginfo("PF Ready")
@@ -277,7 +281,7 @@ class auv_pf(object):
             self.latest_mbes = msg
 
     def pf_update(self, event):
-        if not self.mission_finished:
+        if not self.mission_finished and self.enable_pf_update:
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:
                 # Measurement update if new one received
                 start = time.time()
@@ -499,6 +503,7 @@ class auv_pf(object):
             self.cov[0,2] += dx[0]*dx[2] 
             self.cov[1,2] += dx[1]*dx[2] 
         self.cov /= self.pc
+        self.cov[1,0] = self.cov[0,1]
         # print(self.cov)
 
         self.avg_pose.pose.covariance = [0.]*36

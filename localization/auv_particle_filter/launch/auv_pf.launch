@@ -11,6 +11,7 @@
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="50"/>	
 	<arg name="mbes_open_angle" default="1.250" />
+	<arg name="enable_pf_update" default="True" />
 
   <!-- Frames -->
   <arg name="map_frame"                         default="map"/>
@@ -63,7 +64,9 @@
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
         <param name="gp_meas_model" value="False"/>  
-        <param name="gptorch_meas_model" value="False"/>  
+        <param name="gptorch_meas_model" value="True"/>  
+        <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
+				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
       </node>
     </group>
   </group>

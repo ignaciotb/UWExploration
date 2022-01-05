@@ -39,6 +39,7 @@ class Particle(object):
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
         self.meas_cov = np.diag([meas_std**2]*beams_num)
+        self.exp_meas_cov = np.diag([0]*beams_num)
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
         self.log_w = 0.
@@ -108,9 +109,10 @@ class Particle(object):
         return w_i
         
     def weight_mv(self, mbes_meas_ranges, mbes_sim_ranges ):
+
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             w_i = multivariate_normal.pdf(mbes_sim_ranges, mean=mbes_meas_ranges,
-                                          cov=self.meas_cov)
+                                          cov=self.meas_cov + self.exp_meas_cov)
         else:
             rospy.logwarn("missing pings!")
             w_i = 0.0

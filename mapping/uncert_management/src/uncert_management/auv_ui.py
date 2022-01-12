@@ -55,9 +55,9 @@ class auv_ui(object):
         self.img = plt.imread(self.path_img)
 
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')
-
+        self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
+        self.base_frame = rospy.get_param('~base_link', 'base_link')
         self.survey_name = rospy.get_param('~dataset', 'survey')
         
         # Transforms from auv_2_ros
@@ -71,7 +71,7 @@ class auv_ui(object):
 
         # Initial state
         self.mu_t = np.array([0., 0., 0., 0., 0., 0.])
-        self.sigma_t = np.diag([0.0001,0.0001,0.0001,0.000001,0.000001,0.00001])
+        self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.000001])
         self.mu_vec = np.zeros((3,1)) # For plotting
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
@@ -79,11 +79,11 @@ class auv_ui(object):
         # Noise models
         self.Q_3d = np.diag([0.00001, 0.00001, 0.00001]) # Meas noise (x,y,z)
         # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
-        self.R = np.diag([0.000001,0.000001,0.000001,0.000001,0.000001,0.00001]) # Motion noise
+        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.00001]) # Motion noise
 
         try:
             rospy.loginfo("Waiting for transforms")
-            mbes_tf = tfBuffer.lookup_transform('hugin/base_link', 'hugin/mbes_link',
+            mbes_tf = tfBuffer.lookup_transform(self.base_frame, self.mbes_frame,
                                                 rospy.Time(0), rospy.Duration(35))
             self.T_base_mbes = matrix_from_tf(mbes_tf)
 
@@ -130,10 +130,10 @@ class auv_ui(object):
 
         # Subscribe when ready
         odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_cb)
+        rospy.Subscriber(odom_top, Odometry, self.odom_cb, queue_size=10)
         
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb)
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=10)
 
         # Timer for visualization
         # vis_period = rospy.get_param("~visualization_period")
@@ -150,8 +150,9 @@ class auv_ui(object):
 
         # Use this instead of synch callback?
         # rospy.on_shutdown(self.save)
+        # self.save()
 
-        # rospy.spin()
+        rospy.spin()
 
     def save(self):
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
@@ -160,132 +161,12 @@ class auv_ui(object):
         rospy.signal_shutdown("It's over bitches")
 
     def synch_cb(self, finished_msg):
+        rospy.loginfo("AUV ui node: Survey finished received. Wrapping up")
+        rospy.sleep(20)
         self.survey_finished = finished_msg.data
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
                 covs=self.covs_all)
-        rospy.loginfo("AUV ui node: Survey finished received")
         rospy.signal_shutdown("It's over bitches")
-
-        
-    def mbes_cb(self, mbes_ping):
-        # Measurements
-        self.yspcov_vec.clear()
-        self.ysp_vec.clear()
-        self.m_vec.clear()
-        
-        # T map to mbes and compound cov at time t
-        T_odom_base = vec2homMat(self.mu_t.T) 
-        Tm2mbes = np.matmul(np.matmul(self.T_map_odom, T_odom_base), self.T_base_mbes)
-        Covt = self.compound_covs(self.sigma_t, self.Q_3d)
-
-        # Ping as array in homogeneous coordinates
-        beams_mbes = pcloud2ranges_full(mbes_ping)
-        beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
-
-        # Use only N beams
-        N = 3
-        idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
-        beams_mbes_filt = beams_mbes[idx]
-        print("Covs for N beams")
-        for n in range(N):
-            # Create landmark as expected patch of seabed to be hit (in map frame)
-            beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
-        
-            # Expected measurement to beam_map as 3D coordinates
-            ht_3d = self.meas_model_3D(Tm2mbes, Tm2mbes, beam_map)
-            
-            ## Sigma points cov calculation at time t in vehicle domain
-            ysp, yspcov = self.sigmapoints_cov(Tm2mbes, Covt, beam_map, ht_3d)
-            
-            # Save results for plotting
-            self.ysp_vec.append(ysp)
-            self.yspcov_vec.append(yspcov[0:3,0:3])
-            self.m_vec.append(beam_map[0:3])
-
-            # Store data for saving on disk
-            self.covs_all.append(yspcov[0:3,0:3])
-            self.means_all.append(beam_map[0:3])
-
-        self.pings_num += 1
-        # # Plotting
-        # self.visualize()
-    
-    def visualize(self, save=False):
-           
-        ## Plotting    
-        plt.gcf().canvas.mpl_connect('key_release_event',
-                                     lambda event: [exit(0) if event.key == 'escape' else None])
-        plt.cla()
-
-        # Transform to odom frame before plotting
-        plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
-                                     -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
-        plt.axis([-250, 150, -100, 300])
-
-        #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
-        mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
-        self.mu_vec = np.hstack((self.mu_vec, mu_t.reshape(3,1)))
-        # Plot mut, sigmat, sigma points and mc 
-        plt.plot(self.mu_vec[0, :],
-                 self.mu_vec[1, :], "-k")
-
-        # Plot sigma points means
-        N = len(self.ysp_vec)
-        for n in range(N):
-            plt.plot(self.ysp_vec[n][0],
-                     self.ysp_vec[n][1], "+")
-        
-        # # Motion, sigma points
-        cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
-        px, py = self.plot_covariance(mu_t, cov_mat, 5)
-        plt.plot(px, py, "--r")
-        for n in range(N):
-            px, py = self.plot_covariance(self.ysp_vec[n], self.yspcov_vec[n], 5)
-            plt.plot(px, py, "--g")
-
-        plt.grid(True)
-        plt.pause(0.00001)
-
-        if save:
-            plt.savefig(self.survey_name + "_survey.png")
-
-
-    def plot_covariance(self, xEst, C, k):  # pragma: no cover
-        eig_val, eig_vec = np.linalg.eig(C[0:2,0:2])
-
-        if eig_val[0] >= eig_val[1]:
-            big_ind = 0
-            small_ind = 1
-        else:
-            big_ind = 1
-            small_ind = 0
-
-        t = np.arange(0, 2 * math.pi + 0.1, 0.1)
-
-        # eig_val[big_ind] or eiq_val[small_ind] were occasionally negative
-        # numbers extremely close to 0 (~10^-20), catch these cases and set
-        # the respective variable to 0
-        try:
-            a = k * math.sqrt(eig_val[big_ind])
-        except ValueError:
-            a = 0
-
-        try:
-            b = k * math.sqrt(eig_val[small_ind])
-        except ValueError:
-            b = 0
-
-        x = [a * math.cos(it) for it in t]
-        y = [b * math.sin(it) for it in t]
-        angle = math.atan2(eig_vec[1, big_ind], eig_vec[0, big_ind])
-        rot = Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
-        fx = np.stack([x, y]).T @ rot
-
-        px = np.array(fx[:, 0] + xEst[0]).flatten()
-        py = np.array(fx[:, 1] + xEst[1]).flatten()
-
-        return px, py
-
 
     # Base pose on odom frame
     def odom_cb(self, odom_msg):
@@ -301,20 +182,67 @@ class auv_ui(object):
 
         ## Prediction
         mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
-                
-        # Sigma hat
-        Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
-                            axis=0).reshape(6,6)
-        sigma_hat_t = np.matmul(np.matmul(Gt, self.sigma_t), Gt.transpose()) + self.R
-
-        # We leave the update step here for now
-        ## Update
         for i in range(3,5): # Wrap angles
             mu_hat_t[i] = (mu_hat_t[i] + np.pi) % (2 * np.pi) - np.pi
+        
+        Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
+                            axis=0).reshape(6,6)
+        sigma_hat_t = Gt @ self.sigma_t @ Gt.T + self.R
+        print(sigma_hat_t)
+
+        ## Update
         self.mu_t = mu_hat_t
         self.sigma_t = sigma_hat_t
 
         self.old_time = self.time
+
+        
+    def mbes_cb(self, mbes_ping):
+        # Measurements
+        self.yspcov_vec.clear()
+        self.ysp_vec.clear()
+        self.m_vec.clear()
+        
+        # T map to mbes and compound cov at time t
+        T_odom_base = vec2homMat(self.mu_t.T) 
+        Tm2mbes = self.T_map_odom @ T_odom_base @ self.T_base_mbes
+        # self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.000001])
+        Covt = self.compound_covs(self.sigma_t, self.Q_3d)
+
+        # Ping as array in homogeneous coordinates
+        beams_mbes = pcloud2ranges_full(mbes_ping)
+        beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
+
+        # Use only N beams
+        N = 3
+        idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
+        beams_mbes_filt = beams_mbes[idx]
+        print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
+        # for n in range(len(beams_mbes)):
+        for n in range(N):
+            # Create landmark as expected patch of seabed to be hit (in map frame)
+            beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
+            # beam_map = np.matmul(Tm2mbes, beams_mbes[n])
+            # print(beam_map[0:3])
+        
+            # Expected measurement to beam_map as 3D coordinates
+            ht_3d = self.meas_model_3D(Tm2mbes, Tm2mbes, beam_map)
+            
+            ## Sigma points cov calculation at time t in vehicle domain
+            ysp, yspcov = self.sigmapoints_cov(Tm2mbes, Covt, beam_map, ht_3d)
+            
+            # Save results for plotting
+            self.ysp_vec.append(ysp)
+            self.yspcov_vec.append(yspcov[0:3,0:3])
+            self.m_vec.append(beam_map[0:3])
+
+            # Store real MBES beams and approximated covariances
+            self.covs_all.append(yspcov[0:3,0:3])
+            self.means_all.append(beam_map[0:3])
+
+        self.pings_num += 1
+        # # Plotting
+        # self.visualize()
 
     # Motion model in 3D
     def motion_model(self, X, V, dt):
@@ -377,6 +305,84 @@ class auv_ui(object):
     def compound_covs(self, sigma, Q):
         return np.block([[sigma, np.zeros((6,3))], [np.zeros((3,6)), Q]])
     
+
+    def visualize(self, save=False):
+           
+        ## Plotting    
+        plt.gcf().canvas.mpl_connect('key_release_event',
+                                     lambda event: [exit(0) if event.key == 'escape' else None])
+        plt.cla()
+
+        # Transform to odom frame before plotting
+        plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
+                                     -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
+        plt.axis([-250, 650, -100, 600])
+
+        #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
+        mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
+        self.mu_vec = np.hstack((self.mu_vec, mu_t.reshape(3,1)))
+        
+        # Plot mut, sigmat, sigma points and mc 
+        plt.plot(self.mu_vec[0, :],
+                 self.mu_vec[1, :], "-k")
+
+        # Plot sigma points means
+        N = len(self.ysp_vec)
+        # for n in range(N):
+        #     plt.plot(self.ysp_vec[n][0],
+        #              self.ysp_vec[n][1], "+")
+        
+        # # Covariances of motion and sigma points
+        cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
+        # px, py = self.plot_covariance(mu_t, cov_mat, 5)
+        # plt.plot(px, py, "--r")
+        for n in range(N):
+            px, py = self.plot_covariance(self.ysp_vec[n], self.yspcov_vec[n], 5)
+            print(self.yspcov_vec[n])
+            plt.plot(px, py, "--g")
+
+        plt.grid(True)
+        plt.pause(0.00001)
+
+        if save:
+            plt.savefig(self.survey_name + "_survey.png")
+
+
+    def plot_covariance(self, xEst, C, k):  # pragma: no cover
+        eig_val, eig_vec = np.linalg.eig(C[0:2,0:2])
+
+        if eig_val[0] >= eig_val[1]:
+            big_ind = 0
+            small_ind = 1
+        else:
+            big_ind = 1
+            small_ind = 0
+
+        t = np.arange(0, 2 * math.pi + 0.1, 0.1)
+
+        # eig_val[big_ind] or eiq_val[small_ind] were occasionally negative
+        # numbers extremely close to 0 (~10^-20), catch these cases and set
+        # the respective variable to 0
+        try:
+            a = k * math.sqrt(eig_val[big_ind])
+        except ValueError:
+            a = 0
+
+        try:
+            b = k * math.sqrt(eig_val[small_ind])
+        except ValueError:
+            b = 0
+
+        x = [a * math.cos(it) for it in t]
+        y = [b * math.sin(it) for it in t]
+        angle = math.atan2(eig_vec[1, big_ind], eig_vec[0, big_ind])
+        rot = Rot.from_euler('z', angle).as_matrix()[0:2, 0:2]
+        fx = np.stack([x, y]).T @ rot
+
+        px = np.array(fx[:, 0] + xEst[0]).flatten()
+        py = np.array(fx[:, 1] + xEst[1]).flatten()
+
+        return px, py
 
 if __name__ == '__main__':
 

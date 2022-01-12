@@ -206,7 +206,7 @@ class BackseatDriver(object):
         # roslaunch.configure_logging(uuid)
         parent_pf = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
         parent_pf.start()
-        rospy.loginfo("Sim launched")
+        rospy.loginfo("Sim PF launched")
 
         # Launch simulation mission planner
         cli_args = [self.mission_launch ,'namespace:=pf_sim', 'manual_control:=False',
@@ -218,7 +218,7 @@ class BackseatDriver(object):
         parent_mp = roslaunch.parent.ROSLaunchParent(uuid, roslaunch_file)
         parent_mp.start()
         rospy.loginfo("Sim planner launched")
-        rospy.sleep(3)
+        rospy.sleep(4)
 
         # Send WP_k to sim w2w_mission_planner
         sim_path = Path()
@@ -274,7 +274,7 @@ class BackseatDriver(object):
             (trans, rot) = self.listener.lookupTransform(
                 self.map_frame, frame, rospy.Time(0))
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            rospy.logwarn("Not transform found ", frame)
+            rospy.logwarn("No transform found ", frame)
             return
 
         start_pos = np.array(trans)

@@ -13,7 +13,8 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
-    <arg name="replay_rate" default="0.1"/>
+    <arg name="replay_rate" default="0.15"/>
+    <!-- <arg name="replay_rate" default="1"/> -->
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
@@ -56,8 +57,8 @@
 				<param name="synch_topic" value="/$(arg app)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="0" />
-				<!-- <param name="end_mission_ping_num" value="28000" /> -->
+				<param name="start_mission_ping_num" value="30" />
+				<param name="end_mission_ping_num" value="0" /> <!-- 0 = last ping of survey-->
 			</node>
 		    
 			<group if="$(eval app == 'basic')">

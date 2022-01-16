@@ -7,6 +7,7 @@ import sensor_msgs.point_cloud2 as pc2
 from std_msgs.msg import Bool
 import tf2_ros
 from tf.transformations import translation_matrix, quaternion_matrix 
+import tf
 
 from sympy import *
 import matplotlib.pyplot as plt
@@ -71,7 +72,8 @@ class auv_ui(object):
 
         # Initial state
         self.mu_t = np.array([0., 0., 0., 0., 0., 0.])
-        self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.000001])
+        self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.0000001]) 
+        
         self.mu_vec = np.zeros((3,1)) # For plotting
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
@@ -79,7 +81,7 @@ class auv_ui(object):
         # Noise models
         self.Q_3d = np.diag([0.00001, 0.00001, 0.00001]) # Meas noise (x,y,z)
         # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
-        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.00001]) # Motion noise
+        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.0000001]) # Motion noise
 
         try:
             rospy.loginfo("Waiting for transforms")
@@ -119,7 +121,7 @@ class auv_ui(object):
 
         # 3D motion model and Jacobian
         self.g = sym.lambdify([self.X, V, dt], self.motion_model(self.X,V,dt), "numpy")
-        self.G = sym.lambdify([self.X,V,dt], self.motion_model(self.X, V, dt).jacobian(self.X), "numpy")
+        self.G = sym.lambdify([self.X, V, dt], self.motion_model(self.X, V, dt).jacobian(self.X), "numpy")
 
         # Signal to end survey and save data
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
@@ -141,12 +143,12 @@ class auv_ui(object):
 
         self.pings_num = 0
         self.pings_num_prev = 0
-        while not rospy.is_shutdown():
-            if self.pings_num > self.pings_num_prev:
-                self.visualize()
-                self.pings_num_prev += 1
+        # while not rospy.is_shutdown():
+        #     if self.pings_num > self.pings_num_prev:
+        #         self.visualize()
+        #         self.pings_num_prev += 1
             
-            rospy.Rate(0.5).sleep()
+        #     rospy.Rate(1).sleep()
 
         # Use this instead of synch callback?
         # rospy.on_shutdown(self.save)
@@ -162,6 +164,9 @@ class auv_ui(object):
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("AUV ui node: Survey finished received. Wrapping up")
+        print("Final AUV sigma")
+        print(self.sigma_t)
+
         rospy.sleep(20)
         self.survey_finished = finished_msg.data
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
@@ -182,13 +187,29 @@ class auv_ui(object):
 
         ## Prediction
         mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
-        for i in range(3,5): # Wrap angles
+        for i in range(3,6): # Wrap angles
             mu_hat_t[i] = (mu_hat_t[i] + np.pi) % (2 * np.pi) - np.pi
+        
+        ## For testing
+        # print("-----")
+        # quaternion = (odom_msg.pose.pose.orientation.x,
+        #                 odom_msg.pose.pose.orientation.y,
+        #                 odom_msg.pose.pose.orientation.z,
+        #                 odom_msg.pose.pose.orientation.w)
+        # euler = tf.transformations.euler_from_quaternion(quaternion)
+        
+        # pose_t = np.array([odom_msg.pose.pose.position.x,
+        #                    odom_msg.pose.pose.position.y,
+        #                    odom_msg.pose.pose.position.z,
+        #                    euler[0],
+        #                    euler[1], 
+        #                    euler[2]])
+        # print("Prediction error: ", pose_t - mu_hat_t)
         
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
                             axis=0).reshape(6,6)
         sigma_hat_t = Gt @ self.sigma_t @ Gt.T + self.R
-        print(sigma_hat_t)
+        # print(sigma_hat_t)
 
         ## Update
         self.mu_t = mu_hat_t
@@ -214,10 +235,11 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        N = 3
+        N = 50
         idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
         beams_mbes_filt = beams_mbes[idx]
         print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
+        
         # for n in range(len(beams_mbes)):
         for n in range(N):
             # Create landmark as expected patch of seabed to be hit (in map frame)
@@ -247,9 +269,9 @@ class auv_ui(object):
     # Motion model in 3D
     def motion_model(self, X, V, dt):
         g_r = Matrix([X[3:6]]) + Matrix([V[3:6]]).multiply(dt)
-        g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], g_r[0]),
-                                               (X[4], g_r[1]), 
-                                               (X[5], g_r[2])]).multiply(
+        g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], X[3]),
+                                               (X[4], X[4]), 
+                                               (X[5], X[5])]).multiply(
                                                    Matrix([V[0:3]]).T).multiply(dt)
         g = Matrix(BlockMatrix([[g_p], [g_r.T]]))
         
@@ -326,19 +348,26 @@ class auv_ui(object):
         plt.plot(self.mu_vec[0, :],
                  self.mu_vec[1, :], "-k")
 
-        # Plot sigma points means
-        N = len(self.ysp_vec)
+        # Local copies for plotting
+        ysp_vec_plot = self.ysp_vec
+        yspcov_vec_plot = self.yspcov_vec
+        N = len(ysp_vec_plot)
         # for n in range(N):
-        #     plt.plot(self.ysp_vec[n][0],
-        #              self.ysp_vec[n][1], "+")
+            # Plot sigma points means
+            # plt.plot(ysp_vec_plot[n][0],
+            #          ysp_vec_plot[n][1], "+")
+            # Plot real mbes hits
+            # plt.plot(self.m_vec[n][0],
+            #          self.m_vec[n][1], "x")
         
-        # # Covariances of motion and sigma points
+        # Covariances of motion and sigma points
         cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
-        # px, py = self.plot_covariance(mu_t, cov_mat, 5)
-        # plt.plot(px, py, "--r")
+        px, py = self.plot_covariance(mu_t, cov_mat, 5)
+        plt.plot(px, py, "--r")
+
         for n in range(N):
-            px, py = self.plot_covariance(self.ysp_vec[n], self.yspcov_vec[n], 5)
-            print(self.yspcov_vec[n])
+            px, py = self.plot_covariance(ysp_vec_plot[n], yspcov_vec_plot[n], 5)
+            print(yspcov_vec_plot[n])
             plt.plot(px, py, "--g")
 
         plt.grid(True)

@@ -74,7 +74,8 @@ class auv_ui(object):
         self.mu_t = np.array([0., 0., 0., 0., 0., 0.])
         self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.0000001]) 
         
-        self.mu_vec = np.zeros((3,1)) # For plotting
+        self.mu_vec = np.zeros((3, 1))  # For plotting
+        self.gt_pose_vec = np.zeros((3, 1))  # For plotting
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
         
@@ -143,12 +144,13 @@ class auv_ui(object):
 
         self.pings_num = 0
         self.pings_num_prev = 0
-        # while not rospy.is_shutdown():
-        #     if self.pings_num > self.pings_num_prev:
-        #         self.visualize()
-        #         self.pings_num_prev += 1
+        self.save_img = False
+        while not rospy.is_shutdown():
+            if self.pings_num > self.pings_num_prev:
+                self.visualize(self.save_img)
+                self.pings_num_prev += 1
             
-        #     rospy.Rate(1).sleep()
+            rospy.Rate(2).sleep()
 
         # Use this instead of synch callback?
         # rospy.on_shutdown(self.save)
@@ -167,7 +169,8 @@ class auv_ui(object):
         print("Final AUV sigma")
         print(self.sigma_t)
 
-        rospy.sleep(20)
+        self.save_img = True
+        rospy.sleep(3)
         self.survey_finished = finished_msg.data
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
                 covs=self.covs_all)
@@ -183,29 +186,30 @@ class auv_ui(object):
                        odom_msg.twist.twist.linear.z,
                        odom_msg.twist.twist.angular.x,
                        odom_msg.twist.twist.angular.y,
-                       odom_msg.twist.twist.angular.z])
+                       odom_msg.twist.twist.angular.z + np.random.normal(0, 0.0001, 1)])
 
         ## Prediction
         mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
         for i in range(3,6): # Wrap angles
             mu_hat_t[i] = (mu_hat_t[i] + np.pi) % (2 * np.pi) - np.pi
         
-        ## For testing
+        ## GT for testing
         # print("-----")
-        # quaternion = (odom_msg.pose.pose.orientation.x,
-        #                 odom_msg.pose.pose.orientation.y,
-        #                 odom_msg.pose.pose.orientation.z,
-        #                 odom_msg.pose.pose.orientation.w)
-        # euler = tf.transformations.euler_from_quaternion(quaternion)
+        quaternion = (odom_msg.pose.pose.orientation.x,
+                        odom_msg.pose.pose.orientation.y,
+                        odom_msg.pose.pose.orientation.z,
+                        odom_msg.pose.pose.orientation.w)
+        euler = tf.transformations.euler_from_quaternion(quaternion)
         
-        # pose_t = np.array([odom_msg.pose.pose.position.x,
-        #                    odom_msg.pose.pose.position.y,
-        #                    odom_msg.pose.pose.position.z,
-        #                    euler[0],
-        #                    euler[1], 
-        #                    euler[2]])
-        # print("Prediction error: ", pose_t - mu_hat_t)
-        
+        self.pose_t = np.array([odom_msg.pose.pose.position.x,
+                           odom_msg.pose.pose.position.y,
+                           odom_msg.pose.pose.position.z,
+                           euler[0],
+                           euler[1],
+                           euler[2]])
+        for i in range(3,6): # Wrap angles
+            self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
+
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
                             axis=0).reshape(6,6)
         sigma_hat_t = Gt @ self.sigma_t @ Gt.T + self.R
@@ -214,6 +218,8 @@ class auv_ui(object):
         ## Update
         self.mu_t = mu_hat_t
         self.sigma_t = sigma_hat_t
+        # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
+        #                  for row in self.sigma_t]))
 
         self.old_time = self.time
 
@@ -235,7 +241,7 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        N = 50
+        N = 10
         idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
         beams_mbes_filt = beams_mbes[idx]
         print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
@@ -348,32 +354,45 @@ class auv_ui(object):
         plt.plot(self.mu_vec[0, :],
                  self.mu_vec[1, :], "-k")
 
+        # Plot ground truth pose
+        gt_pose_t = self.T_map_odom[0:3, 0:3].dot(self.pose_t[0:3])
+        self.gt_pose_vec = np.hstack(
+            (self.gt_pose_vec, gt_pose_t.reshape(3, 1)))
+        
+        # Plot mut, sigmat, sigma points and mc 
+        plt.plot(self.gt_pose_vec[0, :],
+                 self.gt_pose_vec[1, :], "-b")
+
+
         # Local copies for plotting
         ysp_vec_plot = self.ysp_vec
         yspcov_vec_plot = self.yspcov_vec
-        N = len(ysp_vec_plot)
+        m_vec_plot = self.m_vec
+        N = len(m_vec_plot)
+
         # for n in range(N):
-            # Plot sigma points means
-            # plt.plot(ysp_vec_plot[n][0],
-            #          ysp_vec_plot[n][1], "+")
-            # Plot real mbes hits
-            # plt.plot(self.m_vec[n][0],
-            #          self.m_vec[n][1], "x")
+        #     # Plot sigma points means
+        #     # plt.plot(ysp_vec_plot[n][0],
+        #     #          ysp_vec_plot[n][1], "+")
+        #     # Plot real mbes hits
+        #     plt.plot(m_vec_plot[n][0],
+        #              m_vec_plot[n][1], "x")
         
-        # Covariances of motion and sigma points
+        # # Covariances of motion and sigma points
         cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
         px, py = self.plot_covariance(mu_t, cov_mat, 5)
         plt.plot(px, py, "--r")
 
-        for n in range(N):
-            px, py = self.plot_covariance(ysp_vec_plot[n], yspcov_vec_plot[n], 5)
-            print(yspcov_vec_plot[n])
-            plt.plot(px, py, "--g")
+        # for n in range(N):
+        #     px, py = self.plot_covariance(ysp_vec_plot[n], yspcov_vec_plot[n], 5)
+        #     #  print(yspcov_vec_plot[n])
+        #     plt.plot(px, py, "--g")
 
         plt.grid(True)
         plt.pause(0.00001)
 
         if save:
+            print("Saving final plot")
             plt.savefig(self.survey_name + "_survey.png")
 
 

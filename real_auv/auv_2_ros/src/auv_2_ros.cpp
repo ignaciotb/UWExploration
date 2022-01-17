@@ -282,13 +282,13 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         addMiniCar(mini_name);
     }
 
-//    std::cout << "ping " << ping_cnt_ << std::endl;
+   std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < last_ping_ && !survey_finished_){
         this->publishMeas(ping_cnt_);
         // if(change_detection_){
         //     this->publishExpectedMeas();
         // }
-        // ping_cnt_ += 1;
+        // ping_cnt_ += 100;
         ping_cnt_++;
     }
     

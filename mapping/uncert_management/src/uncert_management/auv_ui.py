@@ -18,6 +18,7 @@ from barfoot_utils_np import *
 from auvlib.data_tools import std_data, all_data
 from optparse import OptionParser
 from scipy.spatial.transform import Rotation as Rot
+import os
 
 
 def pcloud2ranges_full(point_cloud):
@@ -40,6 +41,9 @@ def matrix_from_tf(transform):
              transform.rotation.y,
              transform.rotation.z,
              transform.rotation.w)
+
+    # euler = tf.transformations.euler_from_quaternion(quat_)
+    # print(euler)
 
     tmat = translation_matrix(trans)
     qmat = quaternion_matrix(quat_)
@@ -93,6 +97,8 @@ class auv_ui(object):
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.T_map_odom = matrix_from_tf(m2o_tf)
+            # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
+            #              for row in self.T_map_odom]))
 
             rospy.loginfo("Transforms locked - auv_ui node")
         except:
@@ -158,22 +164,28 @@ class auv_ui(object):
 
         rospy.spin()
 
-    def save(self):
-        np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
-                covs=self.covs_all)
-        rospy.loginfo("AUV ui node: Survey finished received")
-        rospy.signal_shutdown("It's over bitches")
+    # def save(self):
+    #     np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
+    #             covs=self.covs_all)
+    #     rospy.loginfo("AUV ui node: Survey finished received")
+    #     rospy.signal_shutdown("It's over bitches")
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("AUV ui node: Survey finished received. Wrapping up")
-        print("Final AUV sigma")
-        print(self.sigma_t)
-
         self.save_img = True
         rospy.sleep(3)
+
         self.survey_finished = finished_msg.data
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
                 covs=self.covs_all)
+        np.save(self.survey_name+ "_svgp_input_dr.npy", self.means_all)
+
+        duration = 2  # seconds
+        freq = 440  # Hz
+        # os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
+        
+        print("Final AUV sigma")
+        print(self.sigma_t)
         rospy.signal_shutdown("It's over bitches")
 
     # Base pose on odom frame
@@ -181,12 +193,15 @@ class auv_ui(object):
         self.time = odom_msg.header.stamp.to_sec()
         dt_real = self.time - self.old_time 
         
+        # Turn off np warning
+        np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) 
         vt = np.array([odom_msg.twist.twist.linear.x,
                        odom_msg.twist.twist.linear.y,
                        odom_msg.twist.twist.linear.z,
                        odom_msg.twist.twist.angular.x,
                        odom_msg.twist.twist.angular.y,
-                       odom_msg.twist.twist.angular.z + np.random.normal(0, 0.0001, 1)])
+                    #    odom_msg.twist.twist.angular.z], dtype=object)
+                       odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)], dtype=object)
 
         ## Prediction
         mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
@@ -210,10 +225,11 @@ class auv_ui(object):
         for i in range(3,6): # Wrap angles
             self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
 
+        print(self.pose_t - mu_hat_t)
+        
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
                             axis=0).reshape(6,6)
         sigma_hat_t = Gt @ self.sigma_t @ Gt.T + self.R
-        # print(sigma_hat_t)
 
         ## Update
         self.mu_t = mu_hat_t
@@ -241,7 +257,7 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        N = 10
+        N = 50
         idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
         beams_mbes_filt = beams_mbes[idx]
         print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
@@ -275,6 +291,10 @@ class auv_ui(object):
     # Motion model in 3D
     def motion_model(self, X, V, dt):
         g_r = Matrix([X[3:6]]) + Matrix([V[3:6]]).multiply(dt)
+        # g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], g_r[0]),
+        #                                        (X[4], g_r[1]), 
+        #                                        (X[5], g_r[2])]).multiply(
+        #                                            Matrix([V[0:3]]).T).multiply(dt)
         g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], X[3]),
                                                (X[4], X[4]), 
                                                (X[5], X[5])]).multiply(
@@ -344,7 +364,7 @@ class auv_ui(object):
         # Transform to odom frame before plotting
         plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
                                      -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
-        plt.axis([-250, 650, -100, 600])
+        # plt.axis([-250, 650, -100, 600])
 
         #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
         mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
@@ -352,7 +372,7 @@ class auv_ui(object):
         
         # Plot mut, sigmat, sigma points and mc 
         plt.plot(self.mu_vec[0, :],
-                 self.mu_vec[1, :], "-k")
+                 self.mu_vec[1, :], "-r")
 
         # Plot ground truth pose
         gt_pose_t = self.T_map_odom[0:3, 0:3].dot(self.pose_t[0:3])

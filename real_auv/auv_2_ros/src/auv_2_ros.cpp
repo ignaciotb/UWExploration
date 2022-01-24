@@ -93,9 +93,9 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         ROS_INFO("Locked transform base --> sensor");
 
         // Hack to fix init of overnight 2020 beginning of mission
-        tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
-        tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
-        ROS_INFO("Locked transform map --> odom");
+        // tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+        // tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
+        // ROS_INFO("Locked transform map --> odom");
     }
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
@@ -150,27 +150,27 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_odom_tf_ = map_mbes_tf_;// * mbes_base_mat_;
 
     // Hack to fix init of overnight 2020 beginning of mission
-    // map_odom_tfmsg_.header.frame_id = map_frame_;
-    // map_odom_tfmsg_.child_frame_id = odom_frame_;
-    // map_odom_tfmsg_.transform.translation.x = map_odom_tf_.translation()[0];
-    // map_odom_tfmsg_.transform.translation.y = map_odom_tf_.translation()[1];
-    // map_odom_tfmsg_.transform.translation.z = map_odom_tf_.translation()[2];
-    // euler = map_odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
-    // tf::Quaternion quatm2o;
-    // quatm2o.setRPY(euler[0], euler[1], euler[2]);
-    // quatm2o.normalize();
-    // map_odom_tfmsg_.transform.rotation.x = quatm2o.x();
-    // map_odom_tfmsg_.transform.rotation.y = quatm2o.y();
-    // map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
-    // map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
+    map_odom_tfmsg_.header.frame_id = map_frame_;
+    map_odom_tfmsg_.child_frame_id = odom_frame_;
+    map_odom_tfmsg_.transform.translation.x = map_odom_tf_.translation()[0];
+    map_odom_tfmsg_.transform.translation.y = map_odom_tf_.translation()[1];
+    map_odom_tfmsg_.transform.translation.z = map_odom_tf_.translation()[2];
+    euler = map_odom_tf_.linear().matrix().eulerAngles(0, 1, 2);
+    tf::Quaternion quatm2o;
+    quatm2o.setRPY(euler[0], euler[1], euler[2]);
+    quatm2o.normalize();
+    map_odom_tfmsg_.transform.rotation.x = quatm2o.x();
+    map_odom_tfmsg_.transform.rotation.y = quatm2o.y();
+    map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
+    map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
 
-    // std::cout << "Map to odom tf " << std::endl;
-    // std::cout << map_odom_tf_.translation().transpose() << std::endl;
-    // std::cout << euler.transpose() << std::endl;
+    std::cout << "Map to odom tf " << std::endl;
+    std::cout << map_odom_tf_.translation().transpose() << std::endl;
+    std::cout << euler.transpose() << std::endl;
 
-    // tf::Transform tf_map_odom;
-    // tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
-    // tf_odom_map_ = tf_map_odom.inverse();
+    tf::Transform tf_map_odom;
+    tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
+    tf_odom_map_ = tf_map_odom.inverse();
     // Until here: Hack to fix init of overnight 2020 beginning of mission
 
     survey_finished_ = false;
@@ -231,9 +231,10 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     world_map_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(world_map_tfmsg_);
 
+    // Hack
     // BR map-->odom frames
-    // map_odom_tfmsg_.header.stamp = time_now_;
-    // static_broadcaster_.sendTransform(map_odom_tfmsg_);
+    map_odom_tfmsg_.header.stamp = time_now_;
+    static_broadcaster_.sendTransform(map_odom_tfmsg_);
 
     // BR map-->mini frames
     for(geometry_msgs::TransformStamped& mini_frame: map_mini_tfmsgs_){
@@ -367,8 +368,8 @@ void BathymapConstructor::publishMeas(int ping_num){
     tf::Transform tf_odom_base;
     tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
     // Hack to fix init of overnight 2020 beginning of mission
-    tf::Transform tf_map_mbes = tf_odom_base * tf_mbes_base_.inverse();
-    // tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
+    // tf::Transform tf_map_mbes = tf_odom_base * tf_mbes_base_.inverse();
+    tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
     
     // Publish pings in MBES frame
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_map_mbes.inverse());

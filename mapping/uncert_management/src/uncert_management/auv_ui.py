@@ -76,7 +76,7 @@ class auv_ui(object):
 
         # Initial state
         self.mu_t = np.array([0., 0., 0., 0., 0., 0.])
-        self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.0000001]) 
+        self.sigma_t = np.diag([0.00001,0.00001,0.000001,0.0000001,0.0000001,0.0000001]) 
         
         self.mu_vec = np.zeros((3, 1))  # For plotting
         self.gt_pose_vec = np.zeros((3, 1))  # For plotting
@@ -84,9 +84,10 @@ class auv_ui(object):
         self.old_time = rospy.Time.now().to_sec()
         
         # Noise models
-        self.Q_3d = np.diag([0.00001, 0.00001, 0.00001]) # Meas noise (x,y,z)
+        self.Q_3d = np.diag([0.0001, 0.0001, 0.0001]) # Meas noise (x,y,z)
         # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
-        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.0000001]) # Motion noise
+        self.R = np.diag([0.000000,0.000000,0.00000,0.000000005,0.00000,0.00000000]) # Motion noise
+        # self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.000000005]) # Motion noise
 
         try:
             rospy.loginfo("Waiting for transforms")
@@ -181,8 +182,8 @@ class auv_ui(object):
         np.save(self.survey_name+ "_svgp_input_dr.npy", self.means_all)
 
         duration = 2  # seconds
-        freq = 440  # Hz
-        # os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
+        freq = 340  # Hz
+        os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
         
         print("Final AUV sigma")
         print(self.sigma_t)
@@ -192,12 +193,14 @@ class auv_ui(object):
     def odom_cb(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
         dt_real = self.time - self.old_time 
+        dt_real = 0.2
         
         # Turn off np warning
         np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) 
         vt = np.array([odom_msg.twist.twist.linear.x,
                        odom_msg.twist.twist.linear.y,
                        odom_msg.twist.twist.linear.z,
+                    #    odom_msg.twist.twist.angular.x + np.random.normal(0, 0.001, 1),
                        odom_msg.twist.twist.angular.x,
                        odom_msg.twist.twist.angular.y,
                     #    odom_msg.twist.twist.angular.z], dtype=object)
@@ -224,7 +227,6 @@ class auv_ui(object):
                            euler[2]])
         for i in range(3,6): # Wrap angles
             self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
-
         print(self.pose_t - mu_hat_t)
         
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
@@ -362,9 +364,15 @@ class auv_ui(object):
         plt.cla()
 
         # Transform to odom frame before plotting
-        plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
-                                     -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
+        # Overnight 20
+        # plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
+        #                              -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
         # plt.axis([-250, 650, -100, 600])
+
+        # Borno 21
+        # -250 +173
+        plt.imshow(self.img, extent=[-984-self.T_map_odom[0,3], 193-self.T_map_odom[0,3],
+                                     -667-self.T_map_odom[1,3], 1175-self.T_map_odom[1,3]])
 
         #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
         mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
@@ -409,6 +417,7 @@ class auv_ui(object):
         #     plt.plot(px, py, "--g")
 
         plt.grid(True)
+        plt.tight_layout()
         plt.pause(0.00001)
 
         if save:

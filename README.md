@@ -16,8 +16,6 @@ Make sure your scipy version is >= 1.4.0
 
 If you're going to be working with Gaussian Processes maps, also install
 * Pytorch [here](https://pytorch.org/)
-* TensorFlow2 [here](https://www.tensorflow.org/install)
-* GPflow latest source from Github [here](https://github.com/GPflow/GPflow)
 ```
 pip install gpytorch open3d 
 ```

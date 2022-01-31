@@ -4,7 +4,7 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 
 ## Dependencies (tested on Ubuntu 20.04)
 * ROS Noetic
-* AUVLIB [here](https://github.com/ignaciotb/auvlib/tree/extended_bm) And set the same cmake flags required for Ubuntu 18.
+* AUVLIB [here](https://github.com/nilsbore/auvlib) And set the same cmake flags required for Ubuntu 18.
 * Bathymetric SLAM [here](https://github.com/ignaciotb/bathymetric_slam)
 * GTSAM [here](https://github.com/borglab/gtsam)
 

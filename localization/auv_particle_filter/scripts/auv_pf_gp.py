@@ -34,6 +34,7 @@ from scipy.ndimage.filters import gaussian_filter
 import time 
 import pathlib
 import tempfile
+import os
 
 class auv_pf(object):
 
@@ -136,7 +137,10 @@ class auv_pf(object):
                 # gpytorch
                 from gp_mapping import gp
                 rospy.loginfo("Loading GPtorch GP model")
-                self.gp = gp.SVGP.load(1000, gp_path + "svgp.pth")
+                self.gp = gp.SVGP.load(1000, gp_path)
+                # toggle evaluation mode
+                self.gp.eval()
+                self.gp.likelihood.eval()
             else:
                 # for GPflow GPs
                 import tensorflow as tf
@@ -226,6 +230,15 @@ class auv_pf(object):
         self.enable_pf_update_topic = rospy.get_param("~enable_pf_update_topic")
         rospy.Subscriber(self.enable_pf_update_topic, Bool, self.enable_updates)
 
+        # To save PF mission results
+        self.survey_name = rospy.get_param('~survey_name', 'survey')
+        self.test_num = rospy.get_param('~test')
+        self.datagram_size = 17
+        self.stats_full = np.zeros((self.datagram_size, 1))
+        
+        # To run the PFs in a loop
+        self.synch_loop_pub = rospy.Publisher("/gt/pf_finished", Bool, queue_size=10)
+
         rospy.spin()
 
     def enable_updates(self, msg):
@@ -236,8 +249,10 @@ class auv_pf(object):
         return None
 
     def synch_cb(self, finished_msg):
+        np.savez(self.survey_name+ "_" + str(self.test_num)+".npz", full_dataset=self.stats_full.tolist())
         rospy.loginfo("PF node: Survey finished received") 
-        #  rospy.signal_shutdown("Survey finished")
+        self.synch_loop_pub.publish(True)
+        # rospy.signal_shutdown("Survey finished")
 
     def gpflow_meas_model(self, real_mbes_all, real_mbes_ranges):
         # Sample GP here
@@ -297,7 +312,7 @@ class auv_pf(object):
                 self.prev_mbes = self.latest_mbes
                 print(time.time() - start)
                 # Particle resampling
-                self.resample(weights)
+                # self.resample(weights)
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -418,9 +433,10 @@ class auv_pf(object):
                           self.cov[0,2],
                           self.cov[1,1],
                           self.cov[1,2],
-                         self.cov[2,2]], dtype=np.float32)
+                          self.cov[2,2]], dtype=np.float32)
 
         self.stats.publish(stats) 
+        self.stats_full = np.hstack((self.stats_full, stats.reshape(self.datagram_size,1)))
 
 
     def ping2ranges(self, point_cloud):

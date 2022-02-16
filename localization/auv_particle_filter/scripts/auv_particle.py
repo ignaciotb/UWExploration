@@ -34,7 +34,8 @@ class Particle(object):
 
         self.beams_num = beams_num
         # self.weight = 1.
-        self.p_pose = [0.]*6
+        self.p_pose = [0.,-20.,0.,0.,0.,0.]
+        # self.p_pose = [0.]*6
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov

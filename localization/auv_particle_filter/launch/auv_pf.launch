@@ -2,14 +2,16 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-  <arg name="mode" default="sim"/>
-	<arg name="namespace" default="hugin"/>
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin_0"/>
   <arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
   <arg name="app" default="pf"/>
+  <arg name="gp_type" default="svgp_uui_2d"/>
+  <arg name="test" default="0"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	
+	<arg name="n_beams_mbes" default="30"/>	
 	<arg name="mbes_open_angle" default="1.250" />
 	<arg name="enable_pf_update" default="True" />
 
@@ -26,14 +28,14 @@
 	<arg name="yaw" default="0.0"/>
 
   <!-- PF args -->
-  <arg name="particle_count"  default="50"/>
-  <arg name="pf_period"   default="0.3" />
+  <arg name="particle_count"  default="60"/>
+  <arg name="pf_period"   default="0.15" />
 
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[10., 60., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
-  <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_std"  default="20"/>
+  <arg name="init_covariance" default="[5., 70., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]"/>
+  <arg name="resampling_noise_covariance" default="[10., 10., 0.0, 0.0, 0.0, 0.001]"/>
+  <arg name="measurement_std"  default="4."/>
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
@@ -58,31 +60,34 @@
         <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
         <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
-        <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />    <!--Only needed for GPs-->   
+        <param name="gp_path" value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/test_20/$(arg gp_type).pth" />    <!--Only needed for GPs-->   
         <param name="survey_finished_top" value="/gt/survey_finished" />       
         <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
-        <param name="gp_meas_model" value="False"/>  <!-- GP or mesh map? -->
+        <param name="gp_meas_model" value="True"/>  <!-- GP or mesh map? -->
         <param name="gptorch_meas_model" value="True"/>  <!-- If GP map True, GPytorch or GPflow? -->
         <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
 				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
+        <param name="survey_name" value="$(find uw_tests)/pf/$(arg dataset)/$(arg gp_type)"/>
+        <param name="test" value="$(arg test)" />
       </node>
     </group>
   </group>
 
-  <!-- <group ns="stats">
+  <group ns="stats">
     <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
-      <param name="survey_name" value="overnight_20"/>
+      <param name="survey_name" value="$(find uw_tests)/pf/$(arg dataset)/$(arg gp_type)"/>
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
     </node>
-  </group> -->
+  </group>
   
   <!-- UW environment -->
   <include file="$(find auv_model)/launch/auv_environment.launch" >

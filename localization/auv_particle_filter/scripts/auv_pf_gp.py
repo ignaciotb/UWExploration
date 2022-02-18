@@ -45,10 +45,13 @@ class auv_pf(object):
 
     def __init__(self):
         # Read necessary parameters
+        self.namespace = rospy.get_param('~namespace')
         self.pc = rospy.get_param('~particle_count', 10) # Particle Count
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        self.mbes_frame = rospy.get_param('~mbes_link', 'lolo/enu/mbes_link') # mbes frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'lolo/odom')
+        self.mbes_frame = rospy.get_param('~mbes_link',
+                                          self.namespace + '/enu/mbes_link')
+        odom_frame = rospy.get_param('~odom_frame',
+                                     self.namespace + '/odom')
         meas_model_as = rospy.get_param('~mbes_as', '/mbes_sim_server') # map frame_id
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
@@ -183,14 +186,15 @@ class auv_pf(object):
 
         # Transforms from auv_2_ros
         try:
-            rospy.loginfo("Waiting for transform lolo/base_link -> lolo/enu/mbes_link")
-            mbes_tf = tfBuffer.lookup_transform('lolo/base_link', 'lolo/enu/mbes_link',
+            rospy.loginfo("Waiting for transform base_link -> mbes_link")
+            mbes_tf = tfBuffer.lookup_transform(self.namespace + '/base_link',
+                                                self.namespace + '/enu/mbes_link',
                                                 # rospy.Time(), rospy.Duration(35))
                                                 rospy.Time())
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
-            rospy.loginfo("Transform lolo/base_link -> lolo/enu/mbes_link locked - pf node")
+            rospy.loginfo("Transform base_link -> mbes_link locked - pf node")
         except:
-            rospy.logerr("Could not lookup transform from lolo/base_link -> lolo/enu/mbes_link")
+            rospy.logerr("Could not lookup transform from base_link -> mbes_link")
 
         try:
             rospy.loginfo("Waiting for transform %s -> %s", self.map_frame, odom_frame)
@@ -210,14 +214,15 @@ class auv_pf(object):
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
         try:
-            rospy.loginfo("Waiting for transform %s -> lolo/base_link", self.map_frame)
-            base_tf = tfBuffer.lookup_transform(self.map_frame, 'lolo/base_link',
+            rospy.loginfo("Waiting for transform %s -> base_link", self.map_frame)
+            base_tf = tfBuffer.lookup_transform(self.map_frame,
+                                                self.namespace + '/base_link',
                                                 rospy.Time(), rospy.Duration(1.0))
                                                 # rospy.Time())
             self.map2base_mat = matrix_from_tf(base_tf)
-            rospy.loginfo("Transform %s -> lolo/base_link locked - pf node", self.map_frame)
+            rospy.loginfo("Transform %s -> base_link locked - pf node", self.map_frame)
         except:
-            rospy.logerr("Could not lookup transform from %s -> lolo/base_link", self.map_frame)
+            rospy.logerr("Could not lookup transform from %s -> base_link", self.map_frame)
 
         # Initialize list of particles
         # self.particles = np.empty(self.pc, dtype=object)
@@ -481,7 +486,7 @@ class auv_pf(object):
             p_inv = rot_inv.dot(p_part)
             mbes = np.dot(rot_inv, exp_mbes.T)
             mbes = np.subtract(mbes.T, p_inv)
-            mbes_pcloud = pack_cloud("lolo/enu/mbes_link", mbes)
+            mbes_pcloud = pack_cloud(self.namespace + "/enu/mbes_link", mbes)
 
             #  mbes_pcloud = pack_cloud(self.map_frame, exp_mbes)
             self.pcloud_pub.publish(mbes_pcloud)

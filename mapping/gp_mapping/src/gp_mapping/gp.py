@@ -1,5 +1,4 @@
-# Stochastic variational Gaussian process
-# Christopher Iliffe Sprague
+#!/usr/bin/env python3
 
 import torch, numpy as np, tqdm, matplotlib.pyplot as plt
 from gpytorch.models import VariationalGP, ExactGP

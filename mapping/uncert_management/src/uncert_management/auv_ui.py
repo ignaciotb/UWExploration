@@ -14,7 +14,6 @@ import numpy as np
 import math
 from barfoot_utils import create_rot_sym
 from barfoot_utils_np import *
-from auvlib.data_tools import std_data, all_data
 from optparse import OptionParser
 from scipy.spatial.transform import Rotation as Rot
 

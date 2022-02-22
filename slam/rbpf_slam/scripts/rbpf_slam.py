@@ -36,14 +36,6 @@ from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
-# Auvlib
-from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data
-
-from scipy.ndimage.filters import gaussian_filter
-
-# gpytorch
-
 from rospy.numpy_msg import numpy_msg
 
 # For large numbers 
@@ -73,7 +65,6 @@ class rbpf_slam(object):
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         self.storage_path = rospy.get_param("~result_path")
-
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -145,35 +136,10 @@ class rbpf_slam(object):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
-        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        
-        # Load mesh
-        svp_path = rospy.get_param('~sound_velocity_prof')
-        mesh_path = rospy.get_param('~mesh_path')
-        
-        if svp_path.split('.')[1] != 'cereal':
-            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
-        else:
-            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
-
-        data = np.load(mesh_path)
-        V, F, bounds = data['V'], data['F'], data['bounds'] 
-        print("Mesh loaded")
-
-        # Create draper
-        self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
-        self.draper.set_ray_tracing_enabled(False)            
-        data = None
-        V = None
-        F = None
-        bounds = None 
-        sound_speeds = None
-        print("draper created")
-        print("Size of draper: ", sys.getsizeof(self.draper))        
-
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
         self.sample_gp_server = rospy.get_param('~sample_gp_server', 'gp_plot_server')
+        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')    
 
         # # Publish to record data
         # train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
@@ -186,24 +152,6 @@ class rbpf_slam(object):
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
         rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
-
-        # Create expected MBES beams directions
-        angle_step = self.mbes_angle/self.beams_num
-        self.beams_dir = []
-        for i in range(0, self.beams_num):
-            roll_step = rotation_matrix(-self.mbes_angle/2.
-                                        + angle_step * i, (1,0,0))[0:3, 0:3]
-            rot = roll_step[:,2]
-            self.beams_dir.append(rot/np.linalg.norm(rot))
-        
-        # Shift for fast ray tracing in 2D
-        beams = np.asarray(self.beams_dir)
-        n_beams = len(self.beams_dir)
-        self.beams_dir_2d = np.concatenate((beams[:,0].reshape(n_beams,1), 
-                                            np.roll(beams[:, 1:3], 1, 
-                                                    axis=1).reshape(n_beams,2)), axis=1)
-
-        self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False

@@ -99,7 +99,7 @@
    </node> -->
 
     <!-- UW environment -->
-    <include file="$(find auv_model)/launch/auv_environment.launch" >
+    <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
       <arg name="mode" value="$(arg mode)"/>
       <arg name="namespace" value="$(arg namespace)"/>
       <arg name="debug" default="0"/>
@@ -113,7 +113,10 @@
       <arg name="roll" value="$(arg roll)"/>
       <arg name="pitch" value="$(arg pitch)"/>
       <arg name="yaw" value="$(arg yaw)"/>
-    </include>
+    </include> -->
 
+    <!-- Lolo environment -->
+    <!-- Add here a launch file for Lolo's interface -->
+    
 </launch>
 

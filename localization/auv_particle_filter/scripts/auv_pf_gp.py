@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 # Standard dependencies
+from re import A
 import rospy
 import sys
 import numpy as np
@@ -15,11 +16,11 @@ from std_srvs.srv import Empty
 from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
-from tf.transformations import quaternion_from_euler
-from tf.transformations import rotation_matrix
+from tf.transformations import quaternion_from_euler, euler_from_quaternion, rotation_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
+from visualization_msgs.msg import Marker, MarkerArray
 
 # For sim mbes action client
 from auv_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
@@ -89,6 +90,8 @@ class auv_pf(object):
         # Initialize particle poses publisher
         pose_array_top = rospy.get_param("~particle_poses_topic", '/particle_poses')
         self.pf_pub = rospy.Publisher(pose_array_top, PoseArray, queue_size=10)
+
+        self.markers_pub = rospy.Publisher("/pf/markers", MarkerArray, queue_size=1)
 
         # Initialize average of poses publisher
         avg_pose_top = rospy.get_param("~average_pose_topic", '/average_pose')
@@ -212,13 +215,6 @@ class auv_pf(object):
                                     self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
 
-        # PF filter created. Start auv_2_ros survey playing
-        rospy.loginfo("Particle filter class successfully created")
-
-        # Empty service to synch the applications waiting for this node to start
-        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
-        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
-
         # Main timer for PF
         self.mission_finished = False
         self.odom_latest = Odometry()
@@ -233,11 +229,18 @@ class auv_pf(object):
         # To save PF mission results
         self.survey_name = rospy.get_param('~survey_name', 'survey')
         self.test_num = rospy.get_param('~test')
-        self.datagram_size = 17
+        self.datagram_size = 20
         self.stats_full = np.zeros((self.datagram_size, 1))
         
         # To run the PFs in a loop
         self.synch_loop_pub = rospy.Publisher("/gt/pf_finished", Bool, queue_size=10)
+
+        # PF filter created. Start auv_2_ros survey playing
+        rospy.loginfo("Particle filter class successfully created")
+
+        # Empty service to synch the applications waiting for this node to start
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
 
         rospy.spin()
 
@@ -416,18 +419,36 @@ class auv_pf(object):
     
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
+        quaternion = (
+            gt_odom.pose.pose.orientation.x,
+            gt_odom.pose.pose.orientation.y,
+            gt_odom.pose.pose.orientation.z,
+            gt_odom.pose.pose.orientation.w)
+        euler_gt = euler_from_quaternion(quaternion)
+
+        quaternion = (
+            self.avg_pose.pose.pose.orientation.x,
+            self.avg_pose.pose.pose.orientation.y,
+            self.avg_pose.pose.pose.orientation.z,
+            self.avg_pose.pose.pose.orientation.w)
+        euler_pf = euler_from_quaternion(quaternion)
+
         p_odom = self.dr_particle.p_pose
+
         stats = np.array([self.n_eff_filt,
                           self.pc/2.,
                           gt_odom.pose.pose.position.x,
                           gt_odom.pose.pose.position.y,
                           gt_odom.pose.pose.position.z,
+                          euler_gt[2],
                           self.avg_pose.pose.pose.position.x,
                           self.avg_pose.pose.pose.position.y,
                           self.avg_pose.pose.pose.position.z,
+                          euler_pf[2], 
                           p_odom[0],
                           p_odom[1],
                           p_odom[2],
+                          p_odom[5],
                           self.cov[0,0],
                           self.cov[0,1],
                           self.cov[0,2],
@@ -550,8 +571,42 @@ class auv_pf(object):
         
         # Publish particles with time odometry was received
         self.poses.header.stamp = rospy.Time.now()
-        self.pf_pub.publish(self.poses)
         self.average_pose(pose_list)
+
+        # Publish particles as markers
+        markerArray = MarkerArray()
+        for i in range(self.pc):
+            markerArray.markers.append(self.make_marker(i, self.particles[i].p_pose))
+
+        self.markers_pub.publish(markerArray)
+        # self.pf_pub.publish(self.poses)
+
+    def make_marker(self, i, p_pose):
+        # make a visualization marker array for the occupancy grid
+        marker = Marker()
+        marker.header.frame_id = self.odom_frame
+        marker.id = i
+        orientation = Quaternion(*quaternion_from_euler(p_pose[3],
+                                                        p_pose[4],
+                                                        p_pose[5]))
+
+        marker.type = Marker.MESH_RESOURCE
+        marker.mesh_resource = "package://hugin_description/mesh/Hugin_big_meter.dae"
+        marker.pose.position.x = p_pose[0] 
+        marker.pose.position.y = p_pose[1] 
+        marker.pose.position.z = p_pose[2] 
+        marker.pose.orientation.x = orientation.x
+        marker.pose.orientation.y = orientation.y
+        marker.pose.orientation.z = orientation.z
+        marker.pose.orientation.w = orientation.w
+        marker.scale.x = 0.001
+        marker.scale.y = 0.001
+        marker.scale.z = 0.001
+        marker.color.a = 1.0
+        marker.color.r = 0.5
+        marker.color.g = 0.5
+        marker.color.b = 0.8
+        return marker
 
 
 if __name__ == '__main__':

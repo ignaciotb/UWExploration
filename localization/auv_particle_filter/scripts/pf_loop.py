@@ -15,7 +15,7 @@ class pf_data_gen(object):
         self.synch_pub = rospy.Subscriber("/gt/pf_finished", Bool, self.synch_cb)
         self.finished = False
 
-        for i in range(4, 11):
+        for i in range(0, 10):
 
             cli_args = ['/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/localization/auv_particle_filter/launch/auv_pf.launch', 'test:=' + str(i)]
             roslaunch_args = cli_args[1:]

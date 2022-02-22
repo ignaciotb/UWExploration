@@ -34,7 +34,7 @@
   <!-- [x, y, z, roll, pitch, yaw] -->
   <arg name="init_covariance" default="[5., 70., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]"/>
-  <arg name="resampling_noise_covariance" default="[10., 10., 0.0, 0.0, 0.0, 0.001]"/>
+  <arg name="resampling_noise_covariance" default="[2., 2., 0.0, 0.0, 0.0, 0.001]"/>
   <arg name="measurement_std"  default="4."/>
 
   <group ns="$(arg app)">
@@ -75,7 +75,7 @@
     </group>
   </group>
 
-  <group ns="stats">
+  <!-- <group ns="stats">
     <node type="visual_tools.py" pkg="auv_particle_filter" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
@@ -87,7 +87,7 @@
       <param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
       <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
     </node>
-  </group>
+  </group> -->
   
   <!-- UW environment -->
   <include file="$(find auv_model)/launch/auv_environment.launch" >

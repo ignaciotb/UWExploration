@@ -94,9 +94,6 @@ class auv_ui(object):
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.T_map_odom = matrix_from_tf(m2o_tf)
-            # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
-            #              for row in self.T_map_odom]))
-
             rospy.loginfo("Transforms locked - auv_ui node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
@@ -104,21 +101,12 @@ class auv_ui(object):
         ## Symbols
         # State
         x, y, z, rho, phi, theta = symbols('x y z rho phi theta', real=True)
-        xn, yn, zn, rhon, phin, thetan = symbols('xn yn zn rhon phin thetan', real=True)
-        # Landmark
-        mx, my, mz = symbols('mx my mz', real=True)
         # Control input
         vx, vy, vz, wx, wy, wz = symbols('vx vy vz wx wy wz', real=True)
         dt = Symbol('dt', real=True)
-
-        # For the MC 
-        rng = np.random.default_rng()
-
-        # Vehicle state and landmark
+        # Vehicle state
         self.X = Matrix([x,y,z, rho, phi, theta])
-        Xn = Matrix([xn,yn,zn, rhon, phin, thetan])
         V = Matrix([vx,vy,vz, wx, wy, wz])
-        m = Matrix([mx, my, mz])
 
         # Rotation matrices
         self.Rxyz = create_rot_sym(self.X[3:6])

@@ -91,13 +91,18 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         tflistener_.waitForTransform(mbes_frame_, base_frame_, ros::Time(0), ros::Duration(10.0) );
         tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
         ROS_INFO("Locked transform base --> sensor");
+
+        // Hack to fix init of overnight 2020 beginning of mission
+        // tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+        // tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
+        // ROS_INFO("Locked transform map --> odom");
     }
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
         ros::Duration(1.0).sleep();
     }
     tf::transformTFToEigen(tf_mbes_base_, mbes_base_mat_);
-    
+
     // Read pings
     std_data::mbes_ping::PingsT std_pings = std_data::read_data<std_data::mbes_ping::PingsT>(auv_path);
     ping_total_ = std_pings.size();
@@ -111,7 +116,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     world_map_tf_ = world_mbes_tf_;// * mbes_base_mat_;
 
     // If the last ping is not set, replay the full mission
-    last_ping_= (last_ping_ == 0)? ping_total_-1:last_ping_;
+    last_ping_= (last_ping_ == 0)? ping_total_-11:last_ping_;
 
     std::cout << "First ping " << first_ping_ << std::endl;
     std::cout << "Last ping " << last_ping_ << std::endl;
@@ -144,6 +149,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Map to odom transform (setting the odom where the base starts replying the survey)
     map_odom_tf_ = map_mbes_tf_;// * mbes_base_mat_;
 
+    // Hack to fix init of overnight 2020 beginning of mission
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
     map_odom_tfmsg_.transform.translation.x = map_odom_tf_.translation()[0];
@@ -165,6 +171,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     tf::Transform tf_map_odom;
     tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
     tf_odom_map_ = tf_map_odom.inverse();
+    // Until here: Hack to fix init of overnight 2020 beginning of mission
 
     survey_finished_ = false;
 
@@ -224,6 +231,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     world_map_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(world_map_tfmsg_);
 
+    // Hack
     // BR map-->odom frames
     map_odom_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(map_odom_tfmsg_);
@@ -282,18 +290,17 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         addMiniCar(mini_name);
     }
 
-//    std::cout << "ping " << ping_cnt_ << std::endl;
-    if(ping_cnt_ < last_ping_ && !survey_finished_){
+    // std::cout << "ping " << ping_cnt_ << std::endl;
+    if(ping_cnt_ < last_ping_){
         this->publishMeas(ping_cnt_);
         // if(change_detection_){
         //     this->publishExpectedMeas();
         // }
-        // ping_cnt_ += 1;
+        // ping_cnt_ += 100;
         ping_cnt_++;
     }
-    
-    if(ping_cnt_ == last_ping_ && !survey_finished_){
-        ROS_INFO_STREAM("Survey finished");
+    else {
+        std::cout << "Survey finished" << std::endl;
         survey_finished_ = true;
         std_msgs::Bool msg;
         msg.data = true;
@@ -360,6 +367,8 @@ void BathymapConstructor::publishMeas(int ping_num){
     // Transformation map-->mbes
     tf::Transform tf_odom_base;
     tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
+    // Hack to fix init of overnight 2020 beginning of mission
+    // tf::Transform tf_map_mbes = tf_odom_base * tf_mbes_base_.inverse();
     tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
     
     // Publish pings in MBES frame

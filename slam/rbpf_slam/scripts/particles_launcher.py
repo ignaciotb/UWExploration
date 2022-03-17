@@ -4,8 +4,8 @@ from subprocess import call, Popen
 
 class particles_launcher():
     def __init__(self):
-        self.num_particles = rospy.get_param('~num_particles', 2) # Particle Count
-        launch_file = rospy.get_param('~particle_launch_file', "particle.launch") # Particle Count
+        self.num_particles = rospy.get_param('~num_particles', 2) 
+        launch_file = rospy.get_param('~particle_launch_file', "particle.launch") 
         
         print("Launching particles: ", self.num_particles)
         for i in range(0, self.num_particles):

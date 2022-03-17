@@ -24,7 +24,8 @@ class PFStatsVisualization(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
-
+        self.particle_count = rospy.get_param('~particle_count')
+        
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
 
@@ -55,6 +56,7 @@ class PFStatsVisualization(object):
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.m2o_mat = matrix_from_tf(m2o_tf)
+
             rospy.loginfo("Transforms locked - stats node")
         except:
             rospy.logerr("Stats node: Could not lookup transforms")
@@ -65,6 +67,10 @@ class PFStatsVisualization(object):
         self.survey_finished = False
 
         self.cov_traces = [0.]
+
+        while not rospy.is_shutdown():
+                self.visualize()        
+                rospy.Rate(2).sleep()
 
         rospy.spin()
 
@@ -86,7 +92,8 @@ class PFStatsVisualization(object):
 
     def synch_cb(self, finished_msg):
         self.survey_finished = finished_msg.data
-        np.savez(self.survey_name+".npz", full_dataset=self.filt_vec.tolist())
+        # np.savez(self.survey_name+".npz", full_dataset=self.filt_vec.tolist(),
+        # covs_traces=self.cov_traces)
         rospy.loginfo("Stats node: Survey finished received")
 
 
@@ -150,6 +157,9 @@ class PFStatsVisualization(object):
 
         self.filt_vec = np.hstack((self.filt_vec, data_t))
         self.filter_cnt += 1
+    
+    def visualize(self):
+
         if self.filter_cnt > 0:
             
             plt.gcf().canvas.mpl_connect('key_release_event',
@@ -194,8 +204,14 @@ class PFStatsVisualization(object):
                 # Plot trace of cov matrix
                 plt.subplot(3, 1, 3)
                 plt.cla()
-                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                         np.asarray(self.cov_traces), "-k")
+                # plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                #          np.asarray(self.cov_traces), "-k")
+
+                # Plot N_eff
+                plt.plot(np.linspace(0, self.filter_cnt, self.filter_cnt),
+                        np.tile(np.asarray(self.particle_count/2.), (self.filter_cnt, 1)), "-r")
+                plt.plot(np.linspace(0, self.filter_cnt, self.filter_cnt),
+                        np.asarray(self.filt_vec[0, :]), "-k")
                 plt.grid(True)
 
             # Plot real pings vs expected meas
@@ -224,8 +240,8 @@ class PFStatsVisualization(object):
 
             plt.pause(0.0001)
 
-            if self.survey_finished:
-                plt.savefig(self.survey_name+"_tracks.png")
+            # if self.survey_finished:
+                # plt.savefig(self.survey_name+".png")
 
 
 

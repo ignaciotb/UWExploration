@@ -164,9 +164,9 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     map_odom_tfmsg_.transform.rotation.z = quatm2o.z();
     map_odom_tfmsg_.transform.rotation.w = quatm2o.w();
 
-    std::cout << "Map to odom tf " << std::endl;
-    std::cout << map_odom_tf_.translation().transpose() << std::endl;
-    std::cout << euler.transpose() << std::endl;
+    // std::cout << "Map to odom tf " << std::endl;
+    // std::cout << map_odom_tf_.translation().transpose() << std::endl;
+    // std::cout << euler.transpose() << std::endl;
 
     tf::Transform tf_map_odom;
     tf::transformMsgToTF(map_odom_tfmsg_.transform, tf_map_odom);
@@ -290,7 +290,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         addMiniCar(mini_name);
     }
 
-    std::cout << "ping " << ping_cnt_ << std::endl;
+    // std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < last_ping_){
         this->publishMeas(ping_cnt_);
         // if(change_detection_){

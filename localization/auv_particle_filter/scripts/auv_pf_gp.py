@@ -36,6 +36,8 @@ import time
 import pathlib
 import tempfile
 import os
+from pathlib import Path
+
 
 class auv_pf(object):
 
@@ -50,7 +52,6 @@ class auv_pf(object):
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         self.gp_meas_model = rospy.get_param("~gp_meas_model")
-        self.gp_torch = rospy.get_param("~gptorch_meas_model")
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -79,7 +80,7 @@ class auv_pf(object):
         # Global variables
         self.pred_odom = None
         self.n_eff_filt = 0.
-        self.n_eff_mask = [self.pc]*3
+        self.n_eff_mask = [self.pc]*5
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
@@ -136,19 +137,13 @@ class auv_pf(object):
         # # Load GP
         if self.gp_meas_model:
             gp_path = rospy.get_param("~gp_path", 'gp.path')
-            if self.gp_torch:
-                # gpytorch
-                from gp_mapping import gp
-                rospy.loginfo("Loading GPtorch GP model")
-                self.gp = gp.SVGP.load(1000, gp_path)
-                # toggle evaluation mode
-                self.gp.eval()
-                self.gp.likelihood.eval()
-            else:
-                # for GPflow GPs
-                import tensorflow as tf
-                rospy.loginfo("Loading GPflow GP model")
-                self.gp = tf.saved_model.load(gp_path + "/svgp")
+            # gpytorch
+            from gp_mapping import gp
+            rospy.loginfo("Loading GPtorch GP model")
+            self.gp = gp.SVGP.load(1000, gp_path)
+            # toggle evaluation mode
+            self.gp.eval()
+            self.gp.likelihood.eval()
             
             print("Size of GP: ", sys.getsizeof(self.gp))
 
@@ -231,6 +226,7 @@ class auv_pf(object):
         self.test_num = rospy.get_param('~test')
         self.datagram_size = 20
         self.stats_full = np.zeros((self.datagram_size, 1))
+        self.results_folder = rospy.get_param('~results_folder')
         
         # To run the PFs in a loop
         self.synch_loop_pub = rospy.Publisher("/gt/pf_finished", Bool, queue_size=10)
@@ -252,33 +248,10 @@ class auv_pf(object):
         return None
 
     def synch_cb(self, finished_msg):
-        np.savez(self.survey_name+ "_" + str(self.test_num)+".npz", full_dataset=self.stats_full.tolist())
+        np.savez(self.results_folder + "/" + self.survey_name+ "_" + str(self.test_num)+".npz", full_dataset=self.stats_full.tolist())
         rospy.loginfo("PF node: Survey finished received") 
         self.synch_loop_pub.publish(True)
         # rospy.signal_shutdown("Survey finished")
-
-    def gpflow_meas_model(self, real_mbes_all, real_mbes_ranges):
-        # Sample GP here
-        mu_all, sigma_all = self.gp.predict_y_compiled(
-            np.ndarray.tolist(real_mbes_all[:, 0:2]))
-        mu_all_array = np.array(mu_all)
-        sigma_array = np.array([sigma_all])
-
-        # Compute weights
-        weights = []
-        for i in range(0, self.pc):
-            mbes_gp = np.concatenate((np.asarray(real_mbes_all[i*self.beams_num:(i*self.beams_num)+self.beams_num])[:, 0:2],
-                                      mu_all_array[i*self.beams_num:(i*self.beams_num)+self.beams_num]), axis=1)
-            # self.particles[i].meas_cov = np.diag(exp_sigs)
-
-            # For visualization
-            mbes_pcloud = pack_cloud(self.map_frame, mbes_gp)
-            self.pcloud_pub.publish(mbes_pcloud)
-
-            self.particles[i].compute_weight(mbes_gp, real_mbes_ranges)
-            weights.append(self.particles[i].w)
-
-        return weights
 
     def gptorch_meas_model(self, real_mbes_all, real_mbes_ranges):
 
@@ -313,9 +286,9 @@ class auv_pf(object):
                 start = time.time()
                 weights = self.update(self.latest_mbes, self.odom_latest)
                 self.prev_mbes = self.latest_mbes
-                print(time.time() - start)
+                # print(time.time() - start)
                 # Particle resampling
-                # self.resample(weights)
+                self.resample(weights)
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
@@ -396,18 +369,11 @@ class auv_pf(object):
                 real_mbes_full_all.append(real_mbes)
             
         if self.gp_meas_model:
-            real_mbes_full_all = np.vstack(real_mbes_full_all)
-            
-            # First GP meas model
-            if self.gp_torch:
-                weights = self.gptorch_meas_model(
-                    real_mbes_full_all, real_mbes_ranges)
+            real_mbes_full_all = np.vstack(real_mbes_full_all)            
+            # Gpytorch GP meas model
+            weights = self.gptorch_meas_model(
+                real_mbes_full_all, real_mbes_ranges)
 
-            # Second GP meas model
-            else:
-                weights = self.gpflow_meas_model(
-                    real_mbes_full_all, real_mbes_ranges)
-                    
         # Number of particles that missed some beams 
         # (if too many it would mess up the resampling)
         self.miss_meas = weights.count(0.0)
@@ -487,9 +453,9 @@ class auv_pf(object):
 
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
-        self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
-        print ("N_eff ", N_eff)
-        print ("Missed meas ", self.miss_meas)
+        self.n_eff_filt = self.moving_average(self.n_eff_mask, 5) 
+        # print ("N_eff ", N_eff)
+        # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?
         if self.n_eff_filt < self.pc/2. and self.miss_meas < self.pc/2.:

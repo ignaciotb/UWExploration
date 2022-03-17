@@ -42,9 +42,6 @@ def matrix_from_tf(transform):
              transform.rotation.z,
              transform.rotation.w)
 
-    # euler = tf.transformations.euler_from_quaternion(quat_)
-    # print(euler)
-
     tmat = translation_matrix(trans)
     qmat = quaternion_matrix(quat_)
 
@@ -86,8 +83,7 @@ class auv_ui(object):
         # Noise models
         self.Q_3d = np.diag([0.0001, 0.0001, 0.0001]) # Meas noise (x,y,z)
         # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
-        self.R = np.diag([0.000000,0.000000,0.00000,0.000000005,0.00000,0.00000000]) # Motion noise
-        # self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.000000005]) # Motion noise
+        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.000000005]) # Motion noise
 
         try:
             rospy.loginfo("Waiting for transforms")
@@ -164,12 +160,6 @@ class auv_ui(object):
         # self.save()
 
         rospy.spin()
-
-    # def save(self):
-    #     np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
-    #             covs=self.covs_all)
-    #     rospy.loginfo("AUV ui node: Survey finished received")
-    #     rospy.signal_shutdown("It's over bitches")
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("AUV ui node: Survey finished received. Wrapping up")
@@ -251,7 +241,6 @@ class auv_ui(object):
         # T map to mbes and compound cov at time t
         T_odom_base = vec2homMat(self.mu_t.T) 
         Tm2mbes = self.T_map_odom @ T_odom_base @ self.T_base_mbes
-        # self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.000001])
         Covt = self.compound_covs(self.sigma_t, self.Q_3d)
 
         # Ping as array in homogeneous coordinates
@@ -259,16 +248,16 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        N = 50
-        idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
-        beams_mbes_filt = beams_mbes[idx]
-        print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
+        # N = 50
+        # idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
+        # beams_mbes_filt = beams_mbes[idx]
+        # print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
         
-        # for n in range(len(beams_mbes)):
-        for n in range(N):
+        # for n in range(len(beams_mbes_filt)):
+        for n in range(len(beams_mbes)):
             # Create landmark as expected patch of seabed to be hit (in map frame)
-            beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
-            # beam_map = np.matmul(Tm2mbes, beams_mbes[n])
+            # beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
+            beam_map = np.matmul(Tm2mbes, beams_mbes[n])
             # print(beam_map[0:3])
         
             # Expected measurement to beam_map as 3D coordinates
@@ -293,10 +282,6 @@ class auv_ui(object):
     # Motion model in 3D
     def motion_model(self, X, V, dt):
         g_r = Matrix([X[3:6]]) + Matrix([V[3:6]]).multiply(dt)
-        # g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], g_r[0]),
-        #                                        (X[4], g_r[1]), 
-        #                                        (X[5], g_r[2])]).multiply(
-        #                                            Matrix([V[0:3]]).T).multiply(dt)
         g_p = Matrix(X[0:3]) + self.Rxyz.subs([(X[3], X[3]),
                                                (X[4], X[4]), 
                                                (X[5], X[5])]).multiply(
@@ -369,8 +354,6 @@ class auv_ui(object):
         #                              -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
         # plt.axis([-250, 650, -100, 600])
 
-        # Borno 21
-        # -250 +173
         plt.imshow(self.img, extent=[-984-self.T_map_odom[0,3], 193-self.T_map_odom[0,3],
                                      -667-self.T_map_odom[1,3], 1175-self.T_map_odom[1,3]])
 

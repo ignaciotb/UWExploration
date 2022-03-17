@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 import torch
 from torch import Tensor
-import numpy
+
 
 class StoppingCriterion(ABC):
     r"""Base class for evaluating optimization convergence.
@@ -108,9 +108,8 @@ class ExpMAStoppingCriterion(StoppingCriterion):
 
         if not self.minimize:
             rel_delta = -rel_delta
+        # print(torch.max(rel_delta))
         if torch.max(rel_delta) < self.rel_tol:
             return True
 
         return False
-
-

@@ -92,10 +92,10 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
         tflistener_.lookupTransform(mbes_frame_, base_frame_, ros::Time(0), tf_mbes_base_);
         ROS_INFO("Locked transform base --> sensor");
 
-        // Hack to fix init of overnight 2020 beginning of mission
-        // tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
-        // tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
-        // ROS_INFO("Locked transform map --> odom");
+        // Uncomment for hack to fix init of overnight 2020 beginning of mission
+		// tflistener_.waitForTransform(odom_frame_, map_frame_, ros::Time(0), ros::Duration(10.0) );
+		// tflistener_.lookupTransform(odom_frame_, map_frame_, ros::Time(0), tf_odom_map_);
+		// ROS_INFO("Locked transform map --> odom");
     }
     catch(tf::TransformException &exception) {
         ROS_ERROR("%s", exception.what());
@@ -149,7 +149,7 @@ void BathymapConstructor::init(const boost::filesystem::path auv_path){
     // Map to odom transform (setting the odom where the base starts replying the survey)
     map_odom_tf_ = map_mbes_tf_;// * mbes_base_mat_;
 
-    // Hack to fix init of overnight 2020 beginning of mission
+    // Comment for hack to fix init of overnight 2020 beginning of mission
     map_odom_tfmsg_.header.frame_id = map_frame_;
     map_odom_tfmsg_.child_frame_id = odom_frame_;
     map_odom_tfmsg_.transform.translation.x = map_odom_tf_.translation()[0];
@@ -231,7 +231,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
     world_map_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(world_map_tfmsg_);
 
-    // Hack
+    // Comment for hack
     // BR map-->odom frames
     map_odom_tfmsg_.header.stamp = time_now_;
     static_broadcaster_.sendTransform(map_odom_tfmsg_);
@@ -367,8 +367,8 @@ void BathymapConstructor::publishMeas(int ping_num){
     // Transformation map-->mbes
     tf::Transform tf_odom_base;
     tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
-    // Hack to fix init of overnight 2020 beginning of mission
-    // tf::Transform tf_map_mbes = tf_odom_base * tf_mbes_base_.inverse();
+    // First uncommented, second commented for hack to fix init of overnight 2020 beginning of mission
+	// tf::Transform tf_map_mbes = tf_odom_base * tf_mbes_base_.inverse();
     tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
     
     // Publish pings in MBES frame

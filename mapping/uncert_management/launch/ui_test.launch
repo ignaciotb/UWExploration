@@ -2,17 +2,20 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-  <arg name="mode" default="sim"/>
-	<arg name="namespace" default="hugin"/>
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin_0"/>
 	<arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
   <arg name="app" default="basic"/>
+  <arg name="test" default="0"/>
 
   <!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
 	<arg name="mbes_open_angle" value="2.250" />
   
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
+  <!-- Hack to fix overnight2020 beginning of survey.
+			Otherwise this transform is broadcasted by auv_2_ros -->
   <!-- <arg name="x" default="23.939"/>
 	<arg name="y" default="-56.4525"/>
 	<arg name="z" default="-0.3841"/>
@@ -33,17 +36,18 @@
   <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
   <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
 
-  <node type="auv_ui.py" pkg="uncert_management" name="auv_ui" output="screen">
+  <node type="auv_ui.py" pkg="uncert_management" name="auv_ui" output="screen" ns="ui" clear_params="true" >
     <param name="map_frame" value="$(arg map_frame)" />
     <param name="odom_frame" value="$(arg odom_frame)" />
     <param name="base_link" value="$(arg namespace)/base_link" />
     <param name="mbes_link" value="$(arg namespace)/mbes_link" />
     <param name="odometry_topic" value="$(arg odometry_topic)" />
     <param name="mbes_pings_topic" value="$(arg mbes_pings_topic)" />
-    <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
+    <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_ground_truth_mean_depth.png" />       
     <param name="dataset" value="$(arg dataset)" />       
     <param name="visualization_period" value="0.5" />       
     <param name="survey_finished_top" value="/gt/survey_finished" />       
+    <param name="test" value="$(arg test)" />       
   </node>
 
   <!-- UW environment -->

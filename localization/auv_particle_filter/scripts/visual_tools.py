@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 
 import rospy
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
+# import matplotlib.pyplot as plt
 import numpy as np
 import math
 
@@ -24,6 +25,7 @@ class PFStatsVisualization(object):
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.survey_name = rospy.get_param('~survey_name', 'survey')
+        self.particle_count = rospy.get_param('~particle_count')
 
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -194,8 +196,15 @@ class PFStatsVisualization(object):
                 # Plot trace of cov matrix
                 plt.subplot(3, 1, 3)
                 plt.cla()
-                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                         np.asarray(self.cov_traces), "-k")
+                # Plot covariance traces
+                # plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
+                #          np.asarray(self.cov_traces), "-k")
+
+                # Plot N_eff
+                plt.plot(np.linspace(0, self.filter_cnt, self.filter_cnt),
+                         np.tile(np.asarray(self.particle_count/2.), (self.filter_cnt, 1)), "-r")
+                plt.plot(np.linspace(0, self.filter_cnt, self.filter_cnt),
+                         np.asarray(self.filt_vec[0, :]), "-k")
                 plt.grid(True)
 
             # Plot real pings vs expected meas

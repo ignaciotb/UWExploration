@@ -76,7 +76,7 @@ class auv_ui(object):
 
         # Initial state
         self.mu_t = np.array([0., 0., 0., 0., 0., 0.])
-        self.sigma_t = np.diag([0.00001,0.00001,0.000001,0.0000001,0.0000001,0.0000001]) 
+        self.sigma_t = np.diag([0.00001,0.00001,0.0000001,0.0000001,0.0000001,0.0000001]) 
         
         self.mu_vec = np.zeros((3, 1))  # For plotting
         self.gt_pose_vec = np.zeros((3, 1))  # For plotting
@@ -86,8 +86,8 @@ class auv_ui(object):
         # Noise models
         self.Q_3d = np.diag([0.0001, 0.0001, 0.0001]) # Meas noise (x,y,z)
         # self.Q_sens = np.diag([0.01, 0.1, 0.1]) # Meas noise (range, bearing, along track)
-        self.R = np.diag([0.000000,0.000000,0.00000,0.000000005,0.00000,0.00000000]) # Motion noise
-        # self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.000000005]) # Motion noise
+        # self.R = np.diag([0.000000,0.000000,0.00000,0.000000005,0.00000,0.00000000]) # Motion noise
+        self.R = np.diag([0.000000,0.000000,0.00000,0.00000,0.00000,0.0000000005]) # Motion noise
 
         try:
             rospy.loginfo("Waiting for transforms")
@@ -148,6 +148,11 @@ class auv_ui(object):
         # Timer for visualization
         # vis_period = rospy.get_param("~visualization_period")
         # rospy.Timer(rospy.Duration(vis_period), self.visualize, oneshot=False)
+        
+        # For synch when runnning several rounds of data generation
+        self.synch_loop_pub = rospy.Publisher(
+            "/gt/ui_finished", Bool, queue_size=10)
+        self.test_name = rospy.get_param("~test")
 
         self.pings_num = 0
         self.pings_num_prev = 0
@@ -177,14 +182,18 @@ class auv_ui(object):
         rospy.sleep(3)
 
         self.survey_finished = finished_msg.data
-        np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
+        np.savez(self.survey_name+"_svgp_input_" + str(self.test_name) + ".npz", points=self.means_all,
                 covs=self.covs_all)
-        np.save(self.survey_name+ "_svgp_input_dr.npy", self.means_all)
+        np.save(self.survey_name + "_svgp_input_dr_" + str(self.test_name) + ".npy", self.means_all)
 
+        np.savez(self.survey_name+ "_traj_" + str(self.test_name)+".npz", gt=self.gt_pose_vec.tolist(),
+                odom=self.mu_vec.tolist())
+        
         duration = 2  # seconds
         freq = 340  # Hz
         os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
         
+        self.synch_loop_pub.publish(True)
         print("Final AUV sigma")
         print(self.sigma_t)
         rospy.signal_shutdown("It's over bitches")
@@ -193,7 +202,7 @@ class auv_ui(object):
     def odom_cb(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
         dt_real = self.time - self.old_time 
-        dt_real = 0.2
+        dt_real = 0.15
         
         # Turn off np warning
         np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) 
@@ -203,8 +212,8 @@ class auv_ui(object):
                     #    odom_msg.twist.twist.angular.x + np.random.normal(0, 0.001, 1),
                        odom_msg.twist.twist.angular.x,
                        odom_msg.twist.twist.angular.y,
-                    #    odom_msg.twist.twist.angular.z], dtype=object)
-                       odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)], dtype=object)
+                      odom_msg.twist.twist.angular.z], dtype=object)
+                       #  odom_msg.twist.twist.angular.z + np.random.normal(0, 0.001, 1)], dtype=object)
 
         ## Prediction
         mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
@@ -227,7 +236,7 @@ class auv_ui(object):
                            euler[2]])
         for i in range(3,6): # Wrap angles
             self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
-        print(self.pose_t - mu_hat_t)
+        #  print(self.pose_t - mu_hat_t)
         
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
                             axis=0).reshape(6,6)
@@ -251,7 +260,7 @@ class auv_ui(object):
         # T map to mbes and compound cov at time t
         T_odom_base = vec2homMat(self.mu_t.T) 
         Tm2mbes = self.T_map_odom @ T_odom_base @ self.T_base_mbes
-        # self.sigma_t = np.diag([0.0001,0.0001,0.00001,0.000001,0.000001,0.000001])
+        #  self.sigma_t = np.diag([0.00001,0.00001,0.0000001,0.0000001,0.0000001,0.0000001])
         Covt = self.compound_covs(self.sigma_t, self.Q_3d)
 
         # Ping as array in homogeneous coordinates
@@ -270,13 +279,13 @@ class auv_ui(object):
             beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
             # beam_map = np.matmul(Tm2mbes, beams_mbes[n])
             # print(beam_map[0:3])
-        
+
             # Expected measurement to beam_map as 3D coordinates
             ht_3d = self.meas_model_3D(Tm2mbes, Tm2mbes, beam_map)
-            
+
             ## Sigma points cov calculation at time t in vehicle domain
             ysp, yspcov = self.sigmapoints_cov(Tm2mbes, Covt, beam_map, ht_3d)
-            
+
             # Save results for plotting
             self.ysp_vec.append(ysp)
             self.yspcov_vec.append(yspcov[0:3,0:3])
@@ -365,20 +374,20 @@ class auv_ui(object):
 
         # Transform to odom frame before plotting
         # Overnight 20
-        # plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
-        #                              -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
+        plt.imshow(self.img, extent=[-647-self.T_map_odom[0,3], 1081-self.T_map_odom[0,3],
+                                     -1190-self.T_map_odom[1,3], 523-self.T_map_odom[1,3]])
         # plt.axis([-250, 650, -100, 600])
 
         # Borno 21
         # -250 +173
-        plt.imshow(self.img, extent=[-984-self.T_map_odom[0,3], 193-self.T_map_odom[0,3],
-                                     -667-self.T_map_odom[1,3], 1175-self.T_map_odom[1,3]])
+        # plt.imshow(self.img, extent=[-984-self.T_map_odom[0,3], 193-self.T_map_odom[0,3],
+                                    #  -667-self.T_map_odom[1,3], 1175-self.T_map_odom[1,3]])
 
         #  mu_t_np = np.array(self.mu_t[0:3]).astype(np.float64)
         mu_t = self.T_map_odom[0:3,0:3].dot(self.mu_t[0:3])
         self.mu_vec = np.hstack((self.mu_vec, mu_t.reshape(3,1)))
         
-        # Plot mut, sigmat, sigma points and mc 
+        #  Plot mut, sigmat, sigma points and mc
         plt.plot(self.mu_vec[0, :],
                  self.mu_vec[1, :], "-r")
 
@@ -389,7 +398,7 @@ class auv_ui(object):
         
         # Plot mut, sigmat, sigma points and mc 
         plt.plot(self.gt_pose_vec[0, :],
-                 self.gt_pose_vec[1, :], "-b")
+                 self.gt_pose_vec[1, :], "-k")
 
 
         # Local copies for plotting
@@ -406,23 +415,24 @@ class auv_ui(object):
         #     plt.plot(m_vec_plot[n][0],
         #              m_vec_plot[n][1], "x")
         
-        # # Covariances of motion and sigma points
+        # Covariances of motion and sigma points
         cov_mat = (self.T_map_odom[0:3,0:3].transpose().dot(self.sigma_t[0:3,0:3])).dot(self.T_map_odom[0:3,0:3])
         px, py = self.plot_covariance(mu_t, cov_mat, 5)
         plt.plot(px, py, "--r")
-
+#
         # for n in range(N):
         #     px, py = self.plot_covariance(ysp_vec_plot[n], yspcov_vec_plot[n], 5)
         #     #  print(yspcov_vec_plot[n])
         #     plt.plot(px, py, "--g")
 
-        plt.grid(True)
+        #  plt.grid(True)
+        plt.axis('off')
         plt.tight_layout()
         plt.pause(0.00001)
 
         if save:
             print("Saving final plot")
-            plt.savefig(self.survey_name + "_survey.png")
+            plt.savefig(self.survey_name + "_survey_" + str(self.test_name) + ".png")
 
 
     def plot_covariance(self, xEst, C, k):  # pragma: no cover

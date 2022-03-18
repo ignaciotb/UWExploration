@@ -45,7 +45,7 @@ class auv_pf(object):
         self.base_frame = rospy.get_param('~base_link', 'base_link') # mbes frame_id
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
-        self.beams_real = rospy.get_param("~n_beams_mbes", 512)
+        # self.beams_real = rospy.get_param("~n_beams_mbes", 512)
         self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         self.gp_meas_model = rospy.get_param("~gp_meas_model")
         self.gp_torch = rospy.get_param("~gptorch_meas_model")
@@ -147,7 +147,7 @@ class auv_pf(object):
 
         # Subscription to real/sim mbes pings 
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=100)
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=1)
         
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
@@ -341,7 +341,7 @@ class auv_pf(object):
         # The sensor frame on IGL needs to have the z axis pointing 
         # opposite from the actual sensor direction. However the gp ray tracing
         # needs the opposite.
-        R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
+        # R_flip = rotation_matrix(np.pi, (1,0,0))[0:3, 0:3]
         
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]

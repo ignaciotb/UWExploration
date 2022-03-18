@@ -40,10 +40,10 @@
 			<param name="robot_description" command="$(find xacro)/xacro '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 			<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
 			</node>
-            <!-- Hack to fix overnight2020 beginning of survey.
+            <!-- Uncomment for hack to fix overnight2020 beginning of survey.
 			Otherwise this transform is broadcasted by auv_2_ros -->
-	        <node pkg="tf" type="static_transform_publisher" name="tf_map_odom_pub" 
-                args="$(arg x) $(arg y) $(arg z) $(arg yaw) $(arg pitch) $(arg roll) map $(arg namespace)/odom 50" />
+	        <!-- <node pkg="tf" type="static_transform_publisher" name="tf_map_odom_pub" 
+                args="$(arg x) $(arg y) $(arg z) $(arg yaw) $(arg pitch) $(arg roll) map $(arg namespace)/odom 50" /> -->
 
 			<node pkg="auv_2_ros" type="auv_2_ros" name="auv_2_ros" output="screen">
 				<param name="trajectory_cereal" value="$(arg cereal_trajectory)"/>
@@ -62,7 +62,7 @@
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
 				<param name="start_mission_ping_num" value="0" />
-				<param name="end_mission_ping_num" value="0" /> <!-- 0 = last ping of survey-->
+				<param name="end_mission_ping_num" value="53000" /> <!-- 0 = last ping of survey-->
 			</node>
 		    
 			<group if="$(eval app == 'basic')">

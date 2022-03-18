@@ -54,15 +54,15 @@ roslaunch basic_navigation basic_mission.launch manual_control:=False
 And add and publish waypoints through RVIZ as in their tutorial.
 
 ### Manual navigation with multiple AUVs
-Example of multiagent mission
+Example of multi-agent mission:
 ```
 roslaunch auv_model auv_environment.launch namespace:=hugin_0
-roslaunch auv_model auv_environment.launch namespace:=hugin_1 y:=10
-roslaunch auv_model auv_environment.launch namespace:=hugin_2 y:=-10
+roslaunch auv_model auv_model.launch namespace:=hugin_1 y:=10
 roslaunch auv_model auv_env_aux.launch
-roslaunch basic_navigation basic_mission.launch manual_control:=True
+roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=hugin_0
+roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=hugin_1
 ```
-*WP navigation isn't implemented yet for several AUVs.
+*WP navigation isn't implemented yet for several AUVs and currently you'll need a manual controller per AUV, although this is easy to modify in the launch if required.
 
 ### Particle filter localization with two AUVs
 Check 'auv_pf.launch' for the main filter parameters

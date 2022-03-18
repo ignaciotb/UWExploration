@@ -70,7 +70,7 @@ roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=
 ```
 *WP navigation isn't implemented yet for several AUVs and currently you'll need a manual controller per AUV, although this is easy to modify in the launch if required.
 
-### Particle filter localization with an AUVs
+### Particle filter localization with an AUV
 Replay the AUV bathymetric survey with a PF running on a mesh created from the bathymetry
 Check 'auv_pf.launch' for the main filter parameters
 ```

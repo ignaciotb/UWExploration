@@ -33,7 +33,9 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
-## Running 
+## Demos
+We provide a dataset collected with a hull-mounted MBES on a ship for example demos, called ripples.
+
 ### Basic demo with one AUV
 Reproduce a real bathymetric survey (gt):
 ```

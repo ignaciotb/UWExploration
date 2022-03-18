@@ -136,12 +136,12 @@ class auv_ui(object):
         self.pings_num = 0
         self.pings_num_prev = 0
         self.save_img = False
-        while not rospy.is_shutdown():
-            if self.pings_num > self.pings_num_prev:
-                self.visualize(self.save_img)
-                self.pings_num_prev += 1
+        # while not rospy.is_shutdown():
+        #     if self.pings_num > self.pings_num_prev:
+        #         self.visualize(self.save_img)
+        #         self.pings_num_prev += 1
             
-            rospy.Rate(2).sleep()
+        #     rospy.Rate(2).sleep()
 
         # Use this instead of synch callback?
         # rospy.on_shutdown(self.save)
@@ -205,7 +205,7 @@ class auv_ui(object):
                            euler[2]])
         for i in range(3,6): # Wrap angles
             self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
-        print(self.pose_t - mu_hat_t)
+        # print(self.pose_t - mu_hat_t)
         
         Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
                             axis=0).reshape(6,6)
@@ -239,7 +239,7 @@ class auv_ui(object):
         # N = 50
         # idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
         # beams_mbes_filt = beams_mbes[idx]
-        # print("Ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
+        print("UI ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
         
         # for n in range(len(beams_mbes_filt)):
         for n in range(len(beams_mbes)):

@@ -4,11 +4,10 @@
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
-	<arg name="dataset" default="overnight_2020"/>
+	<arg name="dataset" default="ripples"/>
     <arg name="app" default="basic"/>
     <arg name="debug" default="0"/>
     <arg name="multi_agent" default="false"/>
-    <arg name="nr" default="1"/>
 
 	<!-- Rates for simulating missions  -->
     <arg name="odom_rate" default="0.1"/>

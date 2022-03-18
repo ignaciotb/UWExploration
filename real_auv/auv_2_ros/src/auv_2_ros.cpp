@@ -290,7 +290,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         addMiniCar(mini_name);
     }
 
-    // std::cout << "ping " << ping_cnt_ << std::endl;
+    std::cout << "ping " << ping_cnt_ << std::endl;
     if(ping_cnt_ < last_ping_){
         this->publishMeas(ping_cnt_);
         // if(change_detection_){
@@ -372,22 +372,23 @@ void BathymapConstructor::publishMeas(int ping_num){
     tf::Transform tf_map_mbes = tf_odom_map_.inverse() * tf_odom_base * tf_mbes_base_.inverse();
     
     // Publish pings in MBES frame
+    // Resize for ripples demo. Only one MBES head worked on that survey
+    traj_pings_.at(ping_num).submap_pcl_.points.resize(160);
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_map_mbes.inverse());
 
-    // Sample down pings to a fix size
-    // if (traj_pings_.at(ping_num).submap_pcl_.points.size() > 500){
-    //     traj_pings_.at(ping_num).submap_pcl_.points.resize(500);
-    //     for(int i=0; i<beams_num_-1; i++){
-    //         mbes_i_pcl_filt->points.push_back(traj_pings_.at(ping_num).submap_pcl_.points.at(round((500.0-1.0)*i/(beams_num_-1))));
-    //     }
-    // //    std::cout << "Ping size after " << mbes_i_pcl_filt->points.size() << std::endl;
+    // Sample down pings for example demo
+        // if (traj_pings_.at(ping_num).submap_pcl_.points.size() > 500){
+        //     traj_pings_.at(ping_num).submap_pcl_.points.resize(500);
+        //     for(int i=0; i<beams_num_-1; i++){
+        //         mbes_i_pcl_filt->points.push_back(traj_pings_.at(ping_num).submap_pcl_.points.at(round((500.0-1.0)*i/(beams_num_-1))));
+        //     }
 
-    //     std::reverse(mbes_i_pcl_filt->points.begin(), mbes_i_pcl_filt->points.end());
-    //     pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
-    //     mbes_i.header.frame_id = map_frame_;
-    //     mbes_i.header.stamp = time_now_;
-    //     ping_pub_.publish(mbes_i);
-    // }
+        //     std::reverse(mbes_i_pcl_filt->points.begin(), mbes_i_pcl_filt->points.end());
+        //     pcl::toROSMsg(*mbes_i_pcl_filt.get(), mbes_i);
+        //     mbes_i.header.frame_id = map_frame_;
+        //     mbes_i.header.stamp = time_now_;
+        //     ping_pub_.publish(mbes_i);
+        // }
 
     std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
     pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);

@@ -65,9 +65,8 @@ class W2WMissionPlanner(object):
                 rospy.loginfo("WP reached, moving on to next one")
 
             elif not self.latest_path.poses:
-                rospy.loginfo("Mission finished")
+                rospy.loginfo_once("Mission finished")
             
-            rospy.Rate(1).sleep()
 
     def start_relocalize(self, bool_msg):
         self.relocalizing = bool_msg.data

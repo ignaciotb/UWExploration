@@ -5,7 +5,7 @@
   <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
-	<arg name="dataset" default="borno21"/>
+	<arg name="dataset" default="ripples"/>
   <arg name="app" default="basic"/>
 
   <!-- MBES sensor -->
@@ -26,7 +26,6 @@
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>
-
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>

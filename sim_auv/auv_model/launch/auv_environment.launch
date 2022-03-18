@@ -4,7 +4,7 @@
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin_0"/>
-	<arg name="dataset" default="overnight_2020"/>
+	<arg name="dataset" default="ripples"/>
     <arg name="app" default="basic"/>
     <arg name="debug" default="0"/>
     <arg name="multi_agent" default="false"/>
@@ -13,7 +13,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
-    <arg name="replay_rate" default="0.01"/>
+    <arg name="replay_rate" default="0.5"/>
     <!-- <arg name="replay_rate" default="1"/> -->
 	
 	<!-- MBES sim sensor -->

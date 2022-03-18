@@ -5,15 +5,15 @@
   <arg name="mode" default="gt"/>
 	<arg name="namespace" default="hugin_0"/>
   <arg name="debug" default="0"/>
-	<arg name="dataset" default="overnight_2020"/>
+	<arg name="dataset" default="ripples"/>
   <arg name="app" default="pf"/>
   <arg name="gp_type" default="svgp_di"/>
   <arg name="test" default="0"/>
   <arg name="res_folder" default="results"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="30"/>	
-	<arg name="mbes_open_angle" default="1.250" />
+	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="mbes_open_angle" default="1.550" />
 	<arg name="enable_pf_update" default="True" />
 
   <!-- Frames -->
@@ -29,14 +29,14 @@
 	<arg name="yaw" default="0.0"/>
 
   <!-- PF args -->
-  <arg name="particle_count"  default="60"/>
-  <arg name="pf_period"   default="0.15" />
+  <arg name="particle_count"  default="50"/>
+  <arg name="pf_period"   default="0.1" />
 
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[5., 70., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="init_covariance" default="[10., 10., 0.0, 0.0, 0.0, 0.0]"/>
   <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]"/>
   <arg name="resampling_noise_covariance" default="[2., 2., 0.0, 0.0, 0.0, 0.001]"/>
-  <arg name="measurement_std"  default="4."/>
+  <arg name="measurement_std"  default="2."/>
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
@@ -66,7 +66,7 @@
         <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
-        <param name="gp_meas_model" value="True"/>  <!-- GP or mesh map? -->
+        <param name="gp_meas_model" value="False"/>  <!-- GP or mesh map? -->
         <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
 				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
         <param name="survey_name" value="$(arg gp_type)"/>

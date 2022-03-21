@@ -111,7 +111,7 @@ roslaunch uncert_management ui_test.launch mode:=gt namespace:=hugin_0
 ```
 Set the parameters start_mission_ping_num and end_mission_ping_num to adjust the lenght of the survey to be replayed. Once the end ping is reached, the system will save "ripples_svgp_input.npz" under the "~/.ros" folder. This file contains the MBES beams and their associated uncertainties, and can be used to train a SVGP map of the area.
 
-Uncertainty propagation through sigma points can be a heavy process, so make sure you set the reply_rate such that all MBES beams can processed on time, otherwise data will be lost.
+Uncertainty propagation through sigma points can be a heavy process, so make sure you set the reply_rate such that all MBES beams can be processed on time, otherwise data will be lost.
 
 
 ### Stochastic Variational Gaussian Process maps

@@ -102,5 +102,23 @@ roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=
 roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=hugin_1
 
 ```
+
+### Vehicle uncertainty propagation to the MBES beams
+In order to create a dataset with propagated and fused AUV DR uncertainty + MBES noise into the sensor data, run:
+```
+roslaunch auv_model auv_env_aux.launch
+roslaunch uncert_management ui_test.launch mode:=gt namespace:=hugin_0
+```
+Set the parameters start_mission_ping_num and end_mission_ping_num to adjust the lenght of the survey to be replayed. Once the end ping is reached, the system will save "ripples_svgp_input.npz" under the "~/.ros" folder. This file contains the MBES beams and their associated uncertainties, and can be used to train a SVGP map of the area.
+
+
+### Stochastic Variational Gaussian Process maps
+To train a SVGP to regress the bathymetry collected and build a map, run:
+```
+/gp_map_training.py --survey_name ~/.ros/ripples_svgp_input.npz --gp_inputs di
+```
+Note this is not a ROS node. This script is based on the GPytorch implementation of SVGP, take a look at their tutorials to understand and tune the parameters. After the training, it will save the trained SVGP, a point cloud sampled from the SVGP posterior for visualization in RVIZ and some images. The outputs can be directly used for the PF-GP implementation above.
+
+
 ### Submap graph SLAM
-Porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.
+Currently porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.

@@ -60,6 +60,9 @@ The last command provides an interface to run the AUV manually with the keyboard
 
 ### Waypoint navigation with one AUV
 Alternatively, to plan and execute autonomous waypoint navigation missions in simulation, install [this package](https://github.com/KumarRobotics/waypoint_navigation_plugin).
+
+![](utils/media/wp_nav.gif)
+
 ```
 roslaunch basic_navigation basic_mission.launch manual_control:=False namespace:=hugin_0
 ```

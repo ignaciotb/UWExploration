@@ -61,12 +61,12 @@
         <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
         <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
-        <param name="gp_path" value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/test_$(arg test)/$(arg gp_type).pth" />    <!--Only needed for GPs-->   
+        <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di.pth" />    <!--Only needed for GPs-->   
         <param name="survey_finished_top" value="/gt/survey_finished" />       
         <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
-        <param name="gp_meas_model" value="False"/>  <!-- GP or mesh map? -->
+        <param name="gp_meas_model" value="True"/>  <!-- GP or mesh map? -->
         <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
 				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
         <param name="survey_name" value="$(arg gp_type)"/>

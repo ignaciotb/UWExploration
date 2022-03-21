@@ -3,7 +3,6 @@
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
-	<!-- <arg name="namespace" default="hugin"/> -->
 	<arg name="dataset" default="ripples"/>
     <arg name="app" default="basic"/>
 
@@ -12,9 +11,8 @@
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
 			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
-			<!-- <param name="map_cloud_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/test_20/pcl.npy" /> -->
-			<param name="map_gp_path"  value=""/>
-			<!-- <param name="map_gp_path"  value="/home/torroba/workspace/bathymetric_svgp/data/overnight_20/test_20/svgp_uui_2d_post.npy" /> -->
+			<!--<param name="map_gp_path"  value=""/>-->
+			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di_post.npy" />
 			<param name="map_sift_path"  value=""/>
 			<!-- <param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/> -->
 			<param name="map_frame" value="map" />

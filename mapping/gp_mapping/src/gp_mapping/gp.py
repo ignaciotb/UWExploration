@@ -10,7 +10,7 @@ from gpytorch.distributions import MultivariateNormal
 from gpytorch.mlls import VariationalELBO, PredictiveLogLikelihood, ExactMarginalLogLikelihood
 import gpytorch.settings
 #from convergence import ExpMAStoppingCriterion
-from bathy_gps.convergence import ExpMAStoppingCriterion
+from gp_mapping.convergence import ExpMAStoppingCriterion
 import matplotlib.pyplot as plt
 
 # This is not tested

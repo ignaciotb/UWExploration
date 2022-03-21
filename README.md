@@ -83,7 +83,7 @@ roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=
 Replay the AUV bathymetric survey with a PF running on a mesh or a Gaussian process created from the bathymetry.
 Set "gp_meas_model==True" for the GP map, otherwise the PF measurement model will be based on raytracing over the mesh.
 
-Check 'auv_pf.launch' for the main filter parameters
+Note that you'll have to tune the filter parameters in 'auv_pf.launch' for your own application. The terrain provided in this demo is very challenging for localization.
 
 ![](utils/media/pf_gt.gif)
 

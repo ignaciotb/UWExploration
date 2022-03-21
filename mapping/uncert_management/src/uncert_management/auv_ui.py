@@ -171,7 +171,7 @@ class auv_ui(object):
     def odom_cb(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
         dt_real = self.time - self.old_time 
-        dt_real = 0.2
+        # dt_real = 0.2
         
         # Turn off np warning
         np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) 
@@ -236,16 +236,16 @@ class auv_ui(object):
         beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
         # Use only N beams
-        # N = 50
-        # idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
-        # beams_mbes_filt = beams_mbes[idx]
+        N = 100
+        idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
+        beams_mbes_filt = beams_mbes[idx]
         print("UI ping ", self.pings_num, " with: ", len(beams_mbes), " beams")
         
-        # for n in range(len(beams_mbes_filt)):
-        for n in range(len(beams_mbes)):
+        for n in range(len(beams_mbes_filt)):
+        # for n in range(len(beams_mbes)):
             # Create landmark as expected patch of seabed to be hit (in map frame)
-            # beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
-            beam_map = np.matmul(Tm2mbes, beams_mbes[n])
+            beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
+            # beam_map = np.matmul(Tm2mbes, beams_mbes[n])
             # print(beam_map[0:3])
         
             # Expected measurement to beam_map as 3D coordinates

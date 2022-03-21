@@ -88,12 +88,5 @@ roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=
 roslaunch basic_navigation basic_mission.launch manual_control:=True namespace:=hugin_1
 
 ```
-### RBPF SLAM
-Check 'auv_pf.launch' for the main filter parameters. A decent GPU is required for this one.
-```
-roslaunch rbpf_slam rbpf_slam.launch particle_count:=5 namespace:=hugin_0
-roslaunch auv_model auv_env_aux.launch
-roslaunch basic_navigation basic_mission.launch manual_control:=False namespace:=hugin_0
-```
 ### Submap graph SLAM
-Coming
+Porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.

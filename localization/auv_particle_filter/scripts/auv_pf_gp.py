@@ -80,7 +80,7 @@ class auv_pf(object):
         # Global variables
         self.pred_odom = None
         self.n_eff_filt = 0.
-        self.n_eff_mask = [self.pc]*5
+        self.n_eff_mask = [self.pc]*3
         self.latest_mbes = PointCloud2()
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
@@ -453,8 +453,8 @@ class auv_pf(object):
 
         self.n_eff_mask.pop(0)
         self.n_eff_mask.append(N_eff)
-        self.n_eff_filt = self.moving_average(self.n_eff_mask, 5) 
-        # print ("N_eff ", N_eff)
+        self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
+        print ("N_eff ", N_eff)
         # print ("Missed meas ", self.miss_meas)
                 
         # Resampling?

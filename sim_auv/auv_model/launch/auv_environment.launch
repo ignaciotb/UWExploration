@@ -13,7 +13,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
-    <arg name="replay_rate" default="0.3"/>
+    <arg name="replay_rate" default="0.05"/>
     <!-- <arg name="replay_rate" default="1"/> -->
 	
 	<!-- MBES sim sensor -->

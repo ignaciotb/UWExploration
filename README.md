@@ -38,6 +38,9 @@ We provide a dataset collected with a hull-mounted MBES on a ship for example de
 
 ### Basic demo with one AUV
 Reproduce a real bathymetric survey (gt):
+
+![](utils/media/reply_gt.gif)
+
 ```
 roslaunch auv_model auv_environment.launch namespace:=hugin_0 mode:=gt start_mission_ping_num:=0
 roslaunch auv_model auv_env_aux.launch

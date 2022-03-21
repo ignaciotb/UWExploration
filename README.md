@@ -47,7 +47,10 @@ roslaunch auv_model auv_env_aux.launch
 ```
 You should see in RVIZ the AUV and the MBES pings.
 
-Simulate a bathymetric survey (sim): you
+Simulate a bathymetric survey (sim):
+
+![](utils/media/play_sim.gif)
+
 ```
 roslaunch auv_model auv_environment.launch namespace:=hugin_0 mode:=sim
 roslaunch auv_model auv_env_aux.launch

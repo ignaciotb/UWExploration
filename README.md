@@ -121,7 +121,7 @@ To train a SVGP to regress the bathymetry collected and build a map with DIs or 
 ```
 <img src="utils/media/svgp_di.png" height="400" width="300"/>
 
-Note this is not a ROS node. This script is based on the GPytorch implementation of SVGP, take a look at their tutorials to understand and tune the parameters. After the training, it will save the trained SVGP, a point cloud sampled from the SVGP posterior for visualization in RVIZ and some images. The outputs can be directly used for the PF-GP implementation above.
+Note this is not a ROS node. This script is based on the GPytorch implementation of SVGP, take a look at their tutorials to understand and tune the parameters. After the training, it will save the trained SVGP, a point cloud sampled from the SVGP posterior for visualization in RVIZ and some images. The output SVGP map (.pth) can be directly used for the PF-GP implementation above pointing the auv_pf.launch to it.
 
 
 ### Submap graph SLAM

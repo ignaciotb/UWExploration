@@ -115,10 +115,12 @@ Uncertainty propagation through sigma points can be a heavy process, so make sur
 
 
 ### Stochastic Variational Gaussian Process maps
-To train a SVGP to regress the bathymetry collected and build a map, run:
+To train a SVGP to regress the bathymetry collected and build a map with DIs or UIs, run the following command with the desired type:
 ```
 /gp_map_training.py --survey_name ~/.ros/ripples_svgp_input.npz --gp_inputs di
 ```
+<img src="utils/media/svgp_di.png" height="400" width="300"/>
+
 Note this is not a ROS node. This script is based on the GPytorch implementation of SVGP, take a look at their tutorials to understand and tune the parameters. After the training, it will save the trained SVGP, a point cloud sampled from the SVGP posterior for visualization in RVIZ and some images. The outputs can be directly used for the PF-GP implementation above.
 
 

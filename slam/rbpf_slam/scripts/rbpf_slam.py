@@ -304,6 +304,7 @@ class rbpf_slam(object):
             rospy.Rate(1.).sleep()
 
         for i in range(0, self.pc):
+            # NACHO: create array of AS in instantiation of class
             # For parallel plotting on secondary node 
             # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
             #                                         PlotPosteriorAction)
@@ -363,6 +364,7 @@ class rbpf_slam(object):
         # Calculate expected meas from the particles GP
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
+            # NACHO: create array of AS in instantiation of class
             # AS for particle i
             # ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
             #                                         SamplePosteriorAction)
@@ -440,6 +442,7 @@ class rbpf_slam(object):
                 # Publish (for visualization)
                 mbes_pcloud = pack_cloud(self.map_frame, pings_i)
 
+                # NACHO: create array of publishers in instantiation of class
                 self.pcloud_pub = rospy.Publisher("/particle_" + str(i) + self.mbes_pc_top, PointCloud2, queue_size=10)
                 self.pcloud_pub.publish(mbes_pcloud)
 

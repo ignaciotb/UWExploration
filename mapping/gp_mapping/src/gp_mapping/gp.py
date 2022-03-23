@@ -8,117 +8,10 @@ from gpytorch.kernels import MaternKernel, ScaleKernel, GaussianSymmetrizedKLKer
 from gpytorch.likelihoods import GaussianLikelihood
 from gpytorch.distributions import MultivariateNormal
 from gpytorch.mlls import VariationalELBO, PredictiveLogLikelihood, ExactMarginalLogLikelihood
-#  from convergence import ExpMAStoppingCriterion
+import gpytorch.settings
+#from convergence import ExpMAStoppingCriterion
+from gp_mapping.convergence import ExpMAStoppingCriterion
 import matplotlib.pyplot as plt
-
-import typing  # noqa F401
-from torch import Tensor
-from abc import ABC, abstractmethod
-
-
-class StoppingCriterion(ABC):
-    r"""Base class for evaluating optimization convergence.
-    Stopping criteria are implemented as a objects rather than a function, so that they
-    can keep track of past function values between optimization steps.
-    """
-
-    @abstractmethod
-    def evaluate(self, fvals: Tensor) -> bool:
-        r"""Evaluate the stopping criterion.
-        Args:
-            fvals: tensor containing function values for the current iteration. If
-                `fvals` contains more than one element, then the stopping criterion is
-                evaluated element-wise and True is returned if the stopping criterion is
-                true for all elements.
-        Returns:
-            Stopping indicator (if True, stop the optimziation).
-        """
-        pass  # pragma: no cover
-
-
-
-
-
-class ExpMAStoppingCriterion(StoppingCriterion):
-    r"""Exponential moving average stopping criterion.
-    Computes an exponentially weighted moving average over window length `n_window`
-    and checks whether the relative decrease in this moving average between steps
-    is less than a provided tolerance level. That is, in iteration `i`, it computes
-        v[i,j] := fvals[i - n_window + j] * w[j]
-    for all `j = 0, ..., n_window`, where `w[j] = exp(-eta * (1 - j / n_window))`.
-    Letting `ma[i] := sum_j(v[i,j])`, the criterion evaluates to `True` whenever
-        (ma[i-1] - ma[i]) / abs(ma[i-1]) < rel_tol (if minimize=True)
-        (ma[i] - ma[i-1]) / abs(ma[i-1]) < rel_tol (if minimize=False)
-    """
-
-    def __init__(
-        self,
-        maxiter: int = 10000,
-        minimize: bool = True,
-        n_window: int = 10,
-        eta: float = 1.0,
-        rel_tol: float = 1e-5,
-    ) -> None:
-        r"""Exponential moving average stopping criterion.
-        Args:
-            maxiter: Maximum number of iterations.
-            minimize: If True, assume minimization.
-            n_window: The size of the exponential moving average window.
-            eta: The exponential decay factor in the weights.
-            rel_tol: Relative tolerance for termination.
-        """
-        self.maxiter = maxiter
-        self.minimize = minimize
-        self.n_window = n_window
-        self.rel_tol = rel_tol
-        self.iter = 0
-        weights = torch.exp(torch.linspace(-eta, 0, self.n_window))
-        self.weights = weights / weights.sum()
-        self._prev_fvals = None
-
-    def evaluate(self, fvals: Tensor) -> bool:
-        r"""Evaluate the stopping criterion.
-        Args:
-            fvals: tensor containing function values for the current iteration. If
-                `fvals` contains more than one element, then the stopping criterion is
-                evaluated element-wise and True is returned if the stopping criterion is
-                true for all elements.
-        TODO: add support for utilizing gradient information
-        Returns:
-            Stopping indicator (if True, stop the optimziation).
-        """
-        self.iter += 1
-        if self.iter == self.maxiter:
-            return True
-
-        if self._prev_fvals is None:
-            self._prev_fvals = fvals.unsqueeze(0)
-        else:
-            self._prev_fvals = torch.cat(
-                [self._prev_fvals[-self.n_window :], fvals.unsqueeze(0)]
-            )
-
-        if self._prev_fvals.size(0) < self.n_window + 1:
-            return False
-
-        weights = self.weights
-        weights = weights.to(fvals)
-        if self._prev_fvals.ndim > 1:
-            weights = weights.unsqueeze(-1)
-
-        # TODO: Update the exp moving average efficiently
-        prev_ma = (self._prev_fvals[:-1] * weights).sum(dim=0)
-        ma = (self._prev_fvals[1:] * weights).sum(dim=0)
-        # TODO: Handle approx. zero losses (normalize by min/max loss range)
-        rel_delta = (prev_ma - ma) / prev_ma.abs()
-
-        if not self.minimize:
-            rel_delta = -rel_delta
-        if torch.max(rel_delta) < self.rel_tol:
-            return True
-
-        return False
-
 
 # This is not tested
 class RGP(ExactGP):
@@ -152,7 +45,7 @@ class RGP(ExactGP):
         cov = self.cov(inputs)
         return MultivariateNormal(mean, cov)
 
-    def fit(self, max_iter=100, learning_rate=1e-3, rtol=1e-2, ntol=100, auto=False, verbose=True):
+    def fit(self, max_iter=100, learning_rate=1e-3, rtol=1e-2, n_window=100, auto=False, verbose=True):
 
         # loss function
         mll = ExactMarginalLogLikelihood(self.likelihood, self)
@@ -161,7 +54,7 @@ class RGP(ExactGP):
         opt = torch.optim.Adam(self.parameters(),lr=learning_rate)
 
         # convergence criterion
-        if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, n_window=ntol)
+        if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, n_window=n_window)
 
         # episode iteratior
         epochs = range(max_iter)
@@ -293,7 +186,8 @@ class SVGP(VariationalGP):
         v = self.cov(input)
         return MultivariateNormal(m, v)
 
-    def fit(self, inputs, targets, covariances=None, n_samples=5000, max_iter=10000, learning_rate=1e-3, rtol=1e-4, ntol=100, auto=True, verbose=True):
+    def fit(self, inputs, targets, covariances=None, n_samples=5000, max_iter=10000, 
+            learning_rate=1e-3, rtol=1e-4, n_window=100, auto=True, verbose=True):
 
         '''
         Optimises the hyperparameters of the GP kernel and likelihood.
@@ -308,13 +202,6 @@ class SVGP(VariationalGP):
         verbose: if True show progress bar, else nothing
         '''
 
-        # sanity
-        assert inputs.shape[0] == targets.shape[0]
-        assert inputs.shape[1] == 2
-        if covariances is not None: 
-            assert covariances.shape[0] == inputs.shape[0]
-            assert covariances.shape[1] == covariances.shape[2] == 2
-
         # inducing points randomly distributed over data
         indpts = np.random.choice(inputs.shape[0], self.m, replace=True)
         self.variational_strategy.inducing_points.data = torch.from_numpy(inputs[indpts]).to(self.device).float()
@@ -328,9 +215,11 @@ class SVGP(VariationalGP):
 
         # stochastic optimiser
         opt = torch.optim.Adam(self.parameters(),lr=learning_rate)
+        # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # convergence criterion
-        if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, n_window=ntol)
+        print("N window ", n_window)
+        if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, minimize=True, n_window=n_window)
 
         # episode iteratior
         epochs = range(max_iter)
@@ -339,19 +228,21 @@ class SVGP(VariationalGP):
         # train
         self.train()
         self.likelihood.train()
+        self.loss = list()
         for _ in epochs:
 
             # randomly sample from the dataset
             idx = np.random.choice(inputs.shape[0], n, replace=False)
-            input = torch.from_numpy(inputs[idx]).to(self.device).float()
+            
+            ## UI covariance
+            if covariances is None or covariances.shape[1] == 2:
+                input = torch.from_numpy(inputs[idx]).to(self.device).float()
+                target = torch.from_numpy(targets[idx]).to(self.device).float()
 
             # if the inputs are distributional, sample them
             if covariances is not None:
                 covariance = torch.from_numpy(covariances[idx]).to(self.device).float()
                 input = MultivariateNormal(input, covariance).rsample()
-
-            # training targets
-            target = torch.from_numpy(targets[idx]).to(self.device).float()
 
             # compute loss, compute gradient, and update
             loss = -mll(self(input), target)
@@ -362,6 +253,7 @@ class SVGP(VariationalGP):
             # verbosity and convergence check
             if verbose:
                 epochs.set_description('Loss {:.4f}'.format(loss.item()))
+                self.loss.append(loss.detach().cpu().numpy())
             if auto and criterion.evaluate(loss.detach()):
                 break
 
@@ -375,15 +267,18 @@ class SVGP(VariationalGP):
             sigma: (n,) numpy array of predictive variance at x
         '''
 
+        ## On your source code, call:
+        # self.likelihood.eval()
+        # self.eval()
+        ## before using this function to toggle evaluation mode
+
         # sanity
         assert len(x.shape) == x.shape[1] == 2
 
-        # toggle evaluation mode
-        self.eval()
-        self.likelihood.eval()
-
         # sample posterior
-        with torch.no_grad():
+        # TODO: fast_pred_var activates LOVE. Test performance on PF
+        # https://towardsdatascience.com/gaussian-process-regression-using-gpytorch-2c174286f9cc
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
             x = torch.from_numpy(x).to(self.device).float()
             dist = self.likelihood(self(x))
             return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
@@ -399,12 +294,6 @@ class SVGP(VariationalGP):
         xlb, xub: lower and upper bounds of x sampling locations
         ylb, yub: lower and upper bounds of y sampling locations
         fname: path to save array at (use .npy extension)
-
-        returns: (n,4) array:
-        cloud[:,0] = x
-        cloud[:,1] = y
-        cloud[:,2] = mu_z
-        cloud[:,3] = sigma_z
         '''
 
         # sanity
@@ -446,7 +335,7 @@ class SVGP(VariationalGP):
         # save it
         np.save(fname, cloud)
 
-    def plot(self, inputs, targets, fname, n=100, n_contours=50):
+    def plot(self, inputs, targets, fname, n=80, n_contours=50):
 
         '''
         Plots:
@@ -493,7 +382,7 @@ class SVGP(VariationalGP):
         cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
         indpts = self.variational_strategy.inducing_points.data.cpu().numpy()
-        ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=3, alpha=0.2)
+        ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)
 
         # colorbars
         fig.colorbar(cr, ax=ax[0])
@@ -516,6 +405,21 @@ class SVGP(VariationalGP):
         # save
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
+    def plot_loss(self, fname):
+
+        # plot
+        fig, ax = plt.subplots(1)
+        ax.plot(self.loss, 'k-')
+
+        # format
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('ELBO')
+        ax.set_yscale('log')
+        plt.tight_layout()
+
+        # save
+        fig.savefig(fname, bbox_inches='tight', dpi=1000)
+        
     def save(self, fname):
         torch.save(self.state_dict(), fname)
 
@@ -525,9 +429,3 @@ class SVGP(VariationalGP):
         gp.load_state_dict(torch.load(fname))
         return gp
 
-
-
-
-if __name__ == '__main__':
-
-    RGP.test()

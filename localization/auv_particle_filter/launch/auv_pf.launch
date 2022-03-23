@@ -2,23 +2,23 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-  <arg name="mode" default="sim"/>
-	<arg name="namespace" default="hugin"/>
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin_0"/>
   <arg name="debug" default="0"/>
-	<arg name="dataset" default="overnight_2020"/>
+	<arg name="dataset" default="ripples"/>
   <arg name="app" default="pf"/>
+  <arg name="gp_type" default="svgp_di"/>
+  <arg name="test" default="0"/>
+  <arg name="res_folder" default="results"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	
-	<arg name="mbes_open_angle" default="1.250" />
+	<arg name="n_beams_mbes" default="80"/>	
+	<arg name="mbes_open_angle" default="1.550" />
+	<arg name="enable_pf_update" default="True" />
 
   <!-- Frames -->
-  <arg name="map_frame"                         default="map"/>
-  <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
-
-  <!-- PF args -->
-  <arg name="particle_count"                    default="50"/>
-  <arg name="pf_period"   default="0.3" />
+  <arg name="map_frame" default="map"/>
+  <arg name="odom_frame"  default="$(arg namespace)/odom"/>
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<arg name="x" default="0.0"/>
@@ -28,11 +28,15 @@
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>
 
+  <!-- PF args -->
+  <arg name="particle_count"  default="50"/>
+  <arg name="pf_period"   default="0.1" />
+
   <!-- [x, y, z, roll, pitch, yaw] -->
-  <arg name="init_covariance" default="[20., 20., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]"/>
-  <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="measurement_std"  default="20"/>
+  <arg name="init_covariance" default="[10., 50., 0.0, 0.0, 0.0, 0.0]"/>
+  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]"/>
+  <arg name="resampling_noise_covariance" default="[2., 2., 0.0, 0.0, 0.0, 0.001]"/>
+  <arg name="measurement_std"  default="1.2"/>
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
@@ -57,13 +61,17 @@
         <param name="num_beams_sim" value="$(arg n_beams_mbes)" />
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />       
         <param name="mesh_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />       
-        <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/" />    <!--Only needed for GPs-->   
+        <param name="gp_path" value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di.pth" />    <!--Only needed for GPs-->   
         <param name="survey_finished_top" value="/gt/survey_finished" />       
         <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />       
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="pf_period" value="$(arg pf_period)"/>  
-        <param name="gp_meas_model" value="False"/>  
-        <param name="gptorch_meas_model" value="False"/>  
+        <param name="gp_meas_model" value="True"/>  <!-- GP or mesh map? -->
+        <param name="enable_pf_update" value="$(arg enable_pf_update)"/>  
+				<param name="enable_pf_update_topic"  value="/$(arg namespace)/enable_pf_mbes"/>
+        <param name="survey_name" value="$(arg gp_type)"/>
+        <param name="results_folder" value="$(find uw_tests)/pf/$(arg dataset)/$(arg res_folder)"/>
+        <param name="test" value="$(arg test)" />
       </node>
     </group>
   </group>
@@ -75,9 +83,10 @@
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="/gt/survey_finished" />       
       <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
-      <param name="survey_name" value="overnight_20"/>
+      <param name="survey_name" value="$(find uw_tests)/pf/$(arg dataset)/$(arg gp_type)"/>
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="/$(arg app)/sim_mbes" />
+      <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
     </node>
   </group> -->
   

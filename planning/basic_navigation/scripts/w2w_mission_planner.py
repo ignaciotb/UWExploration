@@ -27,6 +27,7 @@ class W2WMissionPlanner(object):
         self.path_topic = rospy.get_param('~path_topic')
         self.wp_topic = rospy.get_param('~wp_topic')
         self.map_frame = rospy.get_param('~map_frame', 'map')
+        self.relocalize_topic = rospy.get_param('~relocalize_topic')
 
         # The waypoints as a path
         rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
@@ -34,6 +35,11 @@ class W2WMissionPlanner(object):
 
         # LC waypoints, individually
         rospy.Subscriber(self.wp_topic, PoseStamped, self.wp_cb, queue_size=1)
+
+        # The bs driver can be fairly slow on the simulations, so it's necessary
+        # to stop the vehicle until the LC area has been selected
+        rospy.Subscriber(self.relocalize_topic, Bool, self.start_relocalize, queue_size=1)
+        self.relocalizing = False
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -45,7 +51,7 @@ class W2WMissionPlanner(object):
 
         while not rospy.is_shutdown():
             
-            if self.latest_path.poses:
+            if self.latest_path.poses and not self.relocalizing:
                 # Get next waypoint in path
                 rospy.loginfo("Sending WP")
                 wp = self.latest_path.poses[0]
@@ -58,9 +64,12 @@ class W2WMissionPlanner(object):
                 self.ac.wait_for_result()
                 rospy.loginfo("WP reached, moving on to next one")
 
-            else:
-                rospy.Rate(1).sleep()
+            elif not self.latest_path.poses:
+                rospy.loginfo_once("Mission finished")
+            
 
+    def start_relocalize(self, bool_msg):
+        self.relocalizing = bool_msg.data
 
     def path_cb(self, path_msg):
         self.latest_path = path_msg

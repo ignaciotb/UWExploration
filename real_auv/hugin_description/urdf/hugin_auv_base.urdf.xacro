@@ -13,7 +13,6 @@
   <xacro:macro name="hugin_auv_base" params="namespace debug">
     <link name="${namespace}/base_link">
       <visual>
-        <!-- <origin xyz="0 -10.0 0" rpy="0 0 0"/> --> <!-- To trick the eye with Hugin on Ping survey -->
         <origin xyz="0 0 0" rpy="0 0 0"/>
         <geometry>
           <mesh filename="${visual_mesh_file}" scale="0.001 0.001 0.001" />
@@ -40,7 +39,7 @@
     <joint name="${namespace}/mbes_joint" type="fixed">
       <!--Ping in lost_targets-->
       <!-- <origin xyz="4.0 0.0 0.0" rpy="${M_PI - 0.38} 0 0" />  -->
-      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+      <origin xyz="-10.0 0.0 0.0" rpy="0.0 0.0 0.0" />  <!-- MBES for ripples -->
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/mbes_link"/>
     </joint>

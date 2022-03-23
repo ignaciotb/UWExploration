@@ -64,9 +64,9 @@ class Particle(object):
 
         rot_t = np.array(self.p_pose[3:6]) + vel_rot * dt + noise_vec[3:6]
 
-        roll_t = ((rot_t[0]) + 2 * np.pi) % (2 * np.pi)
-        pitch_t = ((rot_t[1]) + 2 * np.pi) % (2 * np.pi)
-        yaw_t = ((rot_t[2]) + 2 * np.pi) % (2 * np.pi)
+        roll_t = (rot_t[0] + np.pi) % (2 * np.pi) - np.pi
+        pitch_t = (rot_t[1] + np.pi) % (2 * np.pi) - np.pi
+        yaw_t = (rot_t[2] + np.pi) % (2 * np.pi) - np.pi
         self.p_pose[3:6] = [roll_t, pitch_t, yaw_t]
 
         # Linear motion

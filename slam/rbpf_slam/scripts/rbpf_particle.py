@@ -12,7 +12,7 @@ from scipy.ndimage import gaussian_filter1d
 from geometry_msgs.msg import Pose, PoseStamped
 from geometry_msgs.msg import Quaternion, Transform
 
-# from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 # from tf.transformations import rotation_matrix, rotation_from_matrix
@@ -26,7 +26,7 @@ from gp_mapping import gp  # GP
 
 
 class Particle(object):
-    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix,
+    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix, o2b_pose,
                  init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
                  process_cov=[0.,0.,0.,0.,0.,0.]):
 
@@ -35,7 +35,9 @@ class Particle(object):
 
         self.beams_num = beams_num
         # self.weight = 1.
-        self.p_pose = [0.]*6
+        # self.p_pose = [0.]*6
+        self.p_pose = o2b_pose
+
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
@@ -97,6 +99,7 @@ class Particle(object):
         self.p_pose[1] += step_t[1]
         # Seems to be a problem when integrating depth from Ping vessel, so we just read it
         self.p_pose[2] = odom_t.pose.pose.position.z
+
 
     def compute_weight(self, exp_mbes, real_mbes):
         # Compare only absolute z values of real and expected measurements 

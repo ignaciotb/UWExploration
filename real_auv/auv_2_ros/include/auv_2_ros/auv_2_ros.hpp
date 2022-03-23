@@ -89,10 +89,7 @@ private:
 
     ros::Time time_now_, time_prev_;
     tf::StampedTransform tf_mbes_base_;
-    // Hack to fix init of overnight 2020 beginning of mission
-    // tf::StampedTransform tf_odom_map_;
     tf::Transform tf_odom_map_;
-    //
     geometry_msgs::TransformStamped prev_base_link_;
     geometry_msgs::TransformStamped new_base_link_;
     geometry_msgs::TransformStamped map_odom_tfmsg_;

@@ -6,7 +6,7 @@ import numpy as np
 import math
 import os
 
-from scipy.spatial.transform import Rotation as Rot
+# from scipy.spatial.transform import Rotation as Rot
 from rospy_tutorials.msg import Floats
 from std_msgs.msg import Bool
 from rospy.numpy_msg import numpy_msg

@@ -8,13 +8,10 @@ from optparse import OptionParser
 import numpy as np
 
 
-def train_svgp(gp_inputs_type, test_name):
+def train_svgp(gp_inputs_type, survey_name):
 
-    test_name += "/"
-    data_path = "../../data/overnight_20/"
-
-    print("Loading ", test_name)
-    cloud = np.load(data_path + test_name + 'overnight_2020_svgp_input.npz')
+    print("Loading ", survey_name)
+    cloud = np.load(survey_name)
     points = cloud['points']
     inputs = points[:, [0,1]]
     print("Inputs ", inputs.shape)
@@ -34,32 +31,28 @@ def train_svgp(gp_inputs_type, test_name):
     # initialise GP with 1000 inducing points
     gp = SVGP(1000)
     gp.fit(inputs, targets, covariances=covariances, n_samples=4000, 
-            max_iter=20000, learning_rate=1e-1, rtol=1e-12, n_window=2000, 
-            auto=True, verbose=True)
-
-    duration = 2  # seconds
-    freq = 340  # Hz
-    os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
-    
+            max_iter=1000, learning_rate=1e-1, rtol=1e-12, n_window=2000, 
+            auto=False, verbose=True)
+   
     # Save GP
     print("Saving trained GP")
-    gp.save(data_path + test_name + name + '.pth')
+    gp.save(name + '.pth')
 
     # save figures
     print("Plotting results")
-    gp.plot(inputs, targets, data_path + test_name + name + '.png',
+    gp.plot(inputs, targets, name + '.png',
              n=100, n_contours=100)
-    gp.plot_loss(data_path + test_name + name + '_loss.png')
+    gp.plot_loss(name + '_loss.png')
     
     # Save loss for tunning of stopping criterion
-    np.save(data_path + test_name + name + '_loss.npy', np.asarray(gp.loss))
+    np.save(name + '_loss.npy', np.asarray(gp.loss))
 
     # Save posterior
     print("Saving posterior")
     x = inputs[:,0]
     y = inputs[:,1]
     gp.save_posterior(1000, min(x), max(x), min(y), max(y), 
-                    data_path + test_name + name + '_post.npy', verbose=False)
+                      name + '_post.npy', verbose=False)
 
 
 def trace_kernel(gp_path):
@@ -77,13 +70,13 @@ if __name__ == '__main__':
 
     parser = OptionParser()
     parser.add_option("--gp_inputs", dest="gp_inputs",
-                  default="", help="di or uui inputs for training.")
-    parser.add_option("--test_name", dest="test_name",
+                  default="", help="di or ui inputs for training.")
+    parser.add_option("--survey_name", dest="survey_name",
                   default="", help="Name for folder to store results.")
 
     (options, args) = parser.parse_args()
     gp_inputs_type = options.gp_inputs
-    test_name = options.test_name
+    survey_name = options.survey_name
 
-    train_svgp(gp_inputs_type, test_name)
-    # trace_kernel(test_name)
+    train_svgp(gp_inputs_type, survey_name)
+    # trace_kernel(survey_name)

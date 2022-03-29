@@ -281,14 +281,14 @@ class rbpf_slam(object):
     def manual_lc(self, lc_msg):
         self.lc_detected = True
 
-    def mission_finished_cb(self, event):
-        if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
-            print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
-            self.mission_finished = True
-            # self.lc_detected = True
-            self.plot_gp_maps()
+    # def mission_finished_cb(self, event):
+    #     if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
+    #         print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
+    #         self.mission_finished = True
+    #         # self.lc_detected = True
+    #         self.plot_gp_maps()
         
-        self.odom_end = self.odom_latest
+    #     self.odom_end = self.odom_latest
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 

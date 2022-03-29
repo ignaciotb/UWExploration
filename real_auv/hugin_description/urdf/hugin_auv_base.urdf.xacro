@@ -39,7 +39,7 @@
     <joint name="${namespace}/mbes_joint" type="fixed">
       <!--Ping in lost_targets-->
       <!-- <origin xyz="4.0 0.0 0.0" rpy="${M_PI - 0.38} 0 0" />  -->
-      <origin xyz="-10.0 0.0 0.0" rpy="0.0 0.0 0.0" />  <!-- MBES for ripples -->
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />  <!-- MBES for ripples -->
       <parent link="${namespace}/base_link"/>
       <child link="${namespace}/mbes_link"/>
     </joint>

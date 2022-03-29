@@ -240,7 +240,7 @@ class rbpf_slam(object):
         self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                          process_cov=[0.]*6)
-        self.particles[i].ID = self.p_ID
+        self.particles[i+1].ID = self.p_ID
         self.p_ID += 1
         
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
@@ -292,6 +292,9 @@ class rbpf_slam(object):
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 
+        self.mission_finished = True
+        self.plot_gp_maps()
+        rospy.loginfo("We done bitches") 
         # rospy.signal_shutdown("Survey finished")
 
     def mbes_real_cb(self, msg):
@@ -351,15 +354,15 @@ class rbpf_slam(object):
 
         # For sequential plotting on this node
         # Wait until GP training is done to not overload GPU. 
-        while not rospy.is_shutdown() and self.pings_since_training != 0:
-            rospy.loginfo("Waiting to finish GP training")
-            rospy.Rate(1.).sleep()
+        # while not rospy.is_shutdown() and self.pings_since_training != 0:
+        #     rospy.loginfo("Waiting to finish GP training")
+        #     rospy.Rate(1.).sleep()
 
         for i in range(0, self.pc):
             # For parallel plotting on secondary node 
-            # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
-            #                                         PlotPosteriorAction)
-            # ac_plot.wait_for_server()
+            ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
+                                                    PlotPosteriorAction)
+            ac_plot.wait_for_server()
 
             part_ping_map = []
             for j in range(0, len(self.mbes_history)): 
@@ -374,17 +377,17 @@ class rbpf_slam(object):
             pings_i = np.reshape(pings_i, (-1,3))   
 
             # For sequential plotting on this node
-            self.particles[i].gp.plot(pings_i[:, 0:2], pings_i[:, 2],
-                self.storage_path + 'particle_' + str(i) 
-                + '_training_' + str(self.count_training) + '.png',
-                n=100, n_contours=100 )        
+            # self.particles[i].gp.plot(pings_i[:, 0:2], pings_i[:, 2],
+            #     self.storage_path + 'particle_' + str(i) 
+            #     + '_training_' + str(self.count_training) + '.png',
+            #     n=100, n_contours=100 )        
                 
             # For parallel plotting on secondary node 
             # Send to GP particle server
-            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            # goal = PlotPosteriorGoal(mbes_pcloud)
-            # ac_plot.send_goal(goal)
-            # ac_plot.wait_for_result()
+            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            goal = PlotPosteriorGoal(mbes_pcloud)
+            ac_plot.send_goal(goal)
+            ac_plot.wait_for_result()
 
             print("GP ", i, " posterior plotted ")
 
@@ -416,9 +419,9 @@ class rbpf_slam(object):
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
             # AS for particle i
-            # ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
-            #                                         SamplePosteriorAction)
-            # ac_sample.wait_for_server()
+            ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
+                                                    SamplePosteriorAction)
+            ac_sample.wait_for_server()
 
             # Convert ping from particle MBES to map frame
             p_part, r_mbes = self.particles[i].pose_history[-1]
@@ -429,18 +432,18 @@ class rbpf_slam(object):
             # As array
             beams_i = np.asarray(latest_mbes_map)
             beams_i = np.reshape(beams_i, (-1,3))         
-            mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
+            # mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
             
-            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            # goal = SamplePosteriorGoal(mbes_pcloud)
+            mbes_pcloud = pack_cloud(self.map_frame, beams_i)
+            goal = SamplePosteriorGoal(mbes_pcloud)
 
-            # # Send to as and wait
-            # ac_sample.send_goal(goal)
-            # ac_sample.wait_for_result()
-            # result = ac_sample.get_result()  
+            # Send to as and wait
+            ac_sample.send_goal(goal)
+            ac_sample.wait_for_result()
+            result = ac_sample.get_result()  
 
             # Sample GP with the ping in map frame
-            # mu, sigma = result.mu, result.sigma
+            mu, sigma = result.mu, result.sigma
             
             mu_array = np.array([mu])
 
@@ -496,18 +499,18 @@ class rbpf_slam(object):
                 self.pcloud_pub.publish(mbes_pcloud)
 
                 # Retrain the particle's GP
-                print("Training GP ", i)
+                # print("Training GP ", i)
                 # n_samples = a fourth of the total number of beams
-                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 100, 
-                                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                                         ntol=100, auto=False, verbose=False)
+                # self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 100, 
+                #                          max_iter=200, learning_rate=1e-1, rtol=1e-4, 
+                #                          ntol=100, auto=False, verbose=False)
                 # # Plot posterior
                 # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
                 #                           self.storage_path + 'gp_result/' + 'particle_' + str(i) 
                 #                           + '_training_' + str(self.count_training) + '.png',
                 #                           n=100, n_contours=100 )
                 
-                print("GP trained ", i)
+                # print("GP trained ", i)
 
             # Reset pings for training
             self.count_training += 1

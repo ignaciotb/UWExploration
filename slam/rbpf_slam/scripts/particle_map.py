@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import rospy
-from bathy_gps.gp import SVGP # GP
+# from bathy_gps.gp import SVGP # GP
+from gp_mapping import gp
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
@@ -15,7 +16,7 @@ import numpy as np
 class particle_map(object):
 
     def __init__(self):
-        self.gp = SVGP(20) # num of inducing points
+        self.gp = gp.SVGP(20) # num of inducing points
 
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
@@ -87,9 +88,9 @@ class particle_map(object):
         print("Plotting GP ", self.particle_number)
         self.plotting = True
         self.gp.plot(beams[:,0:2], beams[:,2], 
-                     self.storage_path + 'gp_result/' + 'particle_' + str(self.particle_number) 
+                     self.storage_path + 'particle_' + str(self.particle_number) 
                      + '_training_' + str(self.count_training-1) + '.png',
-                     n=100, n_contours=100 )
+                     n=50, n_contours=100 )
 
         # Set action as success
         result = PlotPosteriorResult()
@@ -116,7 +117,7 @@ class particle_map(object):
             self.training = True
             self.gp.fit(beams[:,0:2], beams[:,2], n_samples= 200, 
                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                        ntol=100, auto=False, verbose=False)
+                        n_window=100, auto=False, verbose=False)
 
             # # Plot posterior and save it to image
             # Uncomment this when running with one particle to plot maps after training

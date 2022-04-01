@@ -11,6 +11,7 @@ class particles_launcher():
         for i in range(0, self.num_particles):
             print("Launching particle: ", i)
             proc = Popen(["roslaunch", launch_file, "node_name:=particle_" + str(i)])
+            rospy.sleep(1)
 
         rospy.spin()
 

@@ -310,6 +310,10 @@ class rbpf_slam(object):
                     self.resample(weights)
                     self.lc_detected = False
 
+                    # Nacho: This is only here for testing simple missions
+                    self.mission_finished = True
+                    self.plot_gp_maps()
+
 
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()

@@ -51,7 +51,7 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="num_particle_handlers" value="6"/>     
+    <param name="num_particle_handlers" value="4"/>     
     <param name="num_particles_per_handler" value="4"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>

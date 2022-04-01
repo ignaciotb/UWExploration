@@ -26,13 +26,18 @@ import actionlib
 
 import numpy as np
 
+import warnings
+
 class SVGP_Particle(VariationalGP):
 
-    def __init__(self, n_inducing):
+    def __init__(self, particle_id):
+        
+        self.particle_id = particle_id
 
-        # number of inducing points and optimisation samples
-        assert isinstance(n_inducing, int)
-        self.s = n_inducing
+        # Number of inducing points
+        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
+        assert isinstance(num_inducing, int)
+        self.s = num_inducing
 
         # variational distribution and strategy
         # NOTE: we put random normal dumby inducing points
@@ -66,39 +71,65 @@ class SVGP_Particle(VariationalGP):
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
         
-        self.node_name = rospy.get_name()
-        self.particle_number = int(self.node_name.split('_')[1])
-
-        # Subscription to GP inducing points from RBPF
-        ip_top = rospy.get_param("~inducing_points_top")
-        rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
-        self.inducing_points_received = False
-
         # AS for plotting results
         plot_gp_name = rospy.get_param("~plot_gp_server")
-        self._as_plot = actionlib.SimpleActionServer(self.node_name + plot_gp_name, PlotPosteriorAction, 
+        self._as_plot = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + plot_gp_name, PlotPosteriorAction, 
                                                 execute_cb=self.plot_posterior, auto_start = False)
         self._as_plot.start()
 
         # AS for expected meas
         sample_gp_name = rospy.get_param("~sample_gp_server")
-        self._as_sample = actionlib.SimpleActionServer(self.node_name + sample_gp_name, SamplePosteriorAction, 
+        self._as_sample = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + sample_gp_name, SamplePosteriorAction, 
                                                 execute_cb=self.sample_posterior, auto_start = False)
         self._as_sample.start()
 
         self.training = False
         self.plotting = False
 
+        # Remove Qt out of main thread warning (use with caution)
+        warnings.filterwarnings("ignore")
+
+
+    def setup_svgp(self):
+
         # AS for minibath training data from RBPF
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         self.ac_mb.wait_for_server()
 
-        print("Particle ", self.particle_number, " instantiated")
-        print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
-        print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
-        print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
+        # Set up SVGP optimization
+        self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
+        self.lr = rospy.get_param("~svpg_learning_rate", 1e-1)
+        self.rtol = rospy.get_param("~svpg_rtol", 1e-4)
+        self.n_window = rospy.get_param("~svpg_n_window", 100)
+        self.auto = rospy.get_param("~svpg_auto_stop", False)
+        self.verbose = rospy.get_param("~svpg_verbose", True)
+
+        mll = VariationalELBO(self.likelihood, self, self.mb_size, combine_terms=True)
+        opt = torch.optim.Adam(self.parameters(),lr=float(self.lr))
+        # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
+
+        # convergence criterion
+        if self.auto: self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
+                                                    minimize=True, n_window=self.n_window)
+        # Toggle training mode
+        self.train()
+        self.likelihood.train()
+        self.loss = list()
+        self.iterations = 0
+
+        # Subscription to GP inducing points from RBPF
+        ip_top = rospy.get_param("~inducing_points_top")
+        rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
+        self.inducing_points_received = False
+
+        print("Particle ", self.particle_id, " set up")
+        # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
+        # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
+        # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
         # rospy.spin()
+
+        return(mll, opt)
 
     def forward(self, input):
         m = self.mean(input)
@@ -106,107 +137,43 @@ class SVGP_Particle(VariationalGP):
         return MultivariateNormal(m, v)
 
     def ip_cb(self, ip_cloud):
-        print("Inducing points received")
 
-        # Store beams as array of 3D points
-        wp_locations = []
-        for p in pc2.read_points(ip_cloud, 
-                                field_names = ("x", "y", "z"), skip_nans=True):
-            wp_locations.append(p)
-        wp_locations = np.asarray(wp_locations)
-        wp_locations = np.reshape(wp_locations, (-1,3))
+        if not self.inducing_points_received:
+            # Store beams as array of 3D points
+            wp_locations = []
+            for p in pc2.read_points(ip_cloud, 
+                                    field_names = ("x", "y", "z"), skip_nans=True):
+                wp_locations.append(p)
+            wp_locations = np.asarray(wp_locations)
+            wp_locations = np.reshape(wp_locations, (-1,3))
 
-        # Inducing points distributed on grid over survey area
-        ip_locations = [
-            np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), round(np.sqrt(self.s))),
-            np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), round(np.sqrt(self.s)))
-        ]
-        inputst = np.meshgrid(*ip_locations)
-        inputst = [_.flatten() for _ in inputst]
-        inputst = np.vstack(inputst).transpose()
-        self.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
+            # Inducing points distributed on grid over survey area
+            ip_locations = [
+                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), round(np.sqrt(self.s))),
+                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), round(np.sqrt(self.s)))
+            ]
+            inputst = np.meshgrid(*ip_locations)
+            inputst = [_.flatten() for _ in inputst]
+            inputst = np.vstack(inputst).transpose()
+            self.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
 
-        self.inducing_points_received = True
-        print("Inducing points received")
+            self.inducing_points_received = True
+            print("Particle ", self.particle_id, ". Inducing points received")
 
 
-    def train_map(self, mb_size=5000, learning_rate=1e-3, 
-                  rtol=1e-4, n_window=100, auto=True, verbose=True):
+    def train_map(self, mll, opt):
 
-        '''
-        Optimises the hyperparameters of the GP kernel and likelihood.
-        inputs: (nx2) numpy array
-        targets: (n,) numpy array
-        n_samples: number of samples to take from the inputs/targets at every optimisation epoch
-        max_iter: maximum number of optimisation epochs
-        learning_rate: optimiser step size
-        rtol: change between -MLL values over ntol epoch that determine termination if auto==True
-        ntol: number of epochs required to maintain rtol in order to terminate if auto==True
-        auto: if True terminate based on rtol and ntol, else terminate at max_iter
-        verbose: if True show progress bar, else nothing
-        '''
+        # Don't train until the inducing points from the RBPF node have been received
+        if not self.inducing_points_received:
+            rospy.loginfo_once("Waiting for inducing points")
+            return
 
-        # Wait for the inducing points from the RBPF node
-        while not rospy.is_shutdown() and not self.inducing_points_received:
-            print("Particle ", self.particle_number, " waiting for inducing points")
-            rospy.sleep(1)
-
-        # Get beams for minibatch training as pcl
-        goal = MinibatchTrainingGoal()
-        goal.particle_id = self.particle_number
-        goal.mb_size = mb_size
-        self.ac_mb.send_goal(goal)
-        self.ac_mb.wait_for_result()
-        result = self.ac_mb.get_result()
-
-        # Wait for server to have enough pings to start training
-        while not rospy.is_shutdown() and not result.success:
-            self.ac_mb.send_goal(goal)
-            self.ac_mb.wait_for_result()
-            result = self.ac_mb.get_result()
-            print("Particle ", self.particle_number, " w waiting for MB data to be available")
-            rospy.sleep(1)
-
-        # Store beams as array of 3D points
-        beams = []
-        for p in pc2.read_points(result.minibatch, 
-                                field_names = ("x", "y", "z"), skip_nans=True):
-            beams.append(p)
-        beams = np.asarray(beams)
-        beams = np.reshape(beams, (-1,3))
-
-        # number of random samples
-        n = beams.shape[0]
-        n = mb_size if n >= mb_size else n
-        print("Particle ", self.particle_number, " starting the training")
-
-        # objective
-        mll = VariationalELBO(self.likelihood, self, n, combine_terms=True)
-
-        # stochastic optimiser
-        opt = torch.optim.Adam(self.parameters(),lr=learning_rate)
-        # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
-
-        # convergence criterion
-        if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, 
-                                                    minimize=True, n_window=n_window)
-
-        # # episode iteratior
-        # epochs = range(max_iter)
-        # epochs = tqdm.tqdm(epochs) if verbose else epochs
-
-        # train
-        self.train()
-        self.likelihood.train()
-        self.loss = list()
-        # for _ in epochs:
-        self.iterations = 0
-        while not rospy.is_shutdown() and not self.plotting:
+        if not self.plotting:
 
             # Get beams for minibatch training as pcl
             goal = MinibatchTrainingGoal()
-            goal.particle_id = self.particle_number
-            goal.mb_size = n
+            goal.particle_id = self.particle_id
+            goal.mb_size = self.mb_size
             self.ac_mb.send_goal(goal)
             self.ac_mb.wait_for_result()
             result = self.ac_mb.get_result()
@@ -214,56 +181,46 @@ class SVGP_Particle(VariationalGP):
             # If minibatch received from server
             if result.success:
                 # Store beams as array of 3D points
-                beams = []
-                for p in pc2.read_points(result.minibatch, 
-                                        field_names = ("x", "y", "z"), skip_nans=True):
-                    beams.append(p)
-                beams = np.asarray(beams)
+                beams = np.asarray(list(pc2.read_points(result.minibatch, 
+                                        field_names = ("x", "y", "z"), skip_nans=True)))
                 beams = np.reshape(beams, (-1,3))
 
                 self.training = True
                 input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
                 target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
-                # indpts = np.random.choice(beams.shape[0], self.s, replace=False)        
-                # self.variational_strategy.inducing_points.data = torch.from_numpy(beams[indpts, 0:2]).to(self.device).float()
-
                 # compute loss, compute gradient, and update
                 loss = -mll(self(input), target)
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
-                # print("GP ", self.particle_number, " training iteration ", self.iterations)
+                # print("GP ", self.particle_id, " training iteration ", self.iterations)
                 self.training = False
 
                 # verbosity and convergence check
                 # if verbose:
                     # epochs.set_description('Loss {:.4f}'.format(loss.item()))
                 self.loss.append(loss.detach().cpu().numpy())
-                if auto and criterion.evaluate(loss.detach()):
-                    break
+                # if self.auto and self.criterion.evaluate(loss.detach()):
+                #     break
 
                 self.iterations += 1
             
             else:
                 rospy.sleep(1)
             
-        print("Done with the training ", self.particle_number)
-        print("GP ", self.particle_number, " training iteration ", self.iterations)
+        # print("Done with the training ", self.particle_id)
+        # print("GP ", self.particle_id, " training iteration ", self.iterations)
 
     def sample_posterior(self, goal):
 
-        beams = []
-        for p in pc2.read_points(goal.ping, 
-                                field_names = ("x", "y", "z"), skip_nans=True):
-            beams.append(p)
-
-        beams = np.asarray(beams)
+        beams = np.asarray(list(pc2.read_points(goal.ping, 
+                                field_names = ("x", "y", "z"), skip_nans=True)))
         beams = np.reshape(beams, (-1,3)) 
 
-        while self.training:
+        while not rospy.is_shutdown() and self.training:
             rospy.Rate(1).sleep()
-            print("GP ", self.particle_number, " waiting for training before sampling")
+            print("GP ", self.particle_id, " waiting for training before sampling")
 
         mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
 
@@ -273,7 +230,7 @@ class SVGP_Particle(VariationalGP):
         result.sigma = sigma
         self._as_sample.set_succeeded(result)
         # self.plotting = False
-        print("GP ", self.particle_number, " sampled")
+        print("GP ", self.particle_id, " sampled")
 
 
     def plot_posterior(self, goal):
@@ -282,22 +239,20 @@ class SVGP_Particle(VariationalGP):
         self.plotting = True
 
         # Wait for training to stop
-        while self.training:
+        while not rospy.is_shutdown() and self.training:
             rospy.Rate(1).sleep()
-            print("GP ", self.particle_number, " waiting for training before plotting")
+            print("GP ", self.particle_id, " waiting for training before plotting")
 
-        beams = []
-        for p in pc2.read_points(goal.pings, 
-                                field_names = ("x", "y", "z"), skip_nans=True):
-            beams.append(p)
-        beams = np.asarray(beams)
+        beams = np.asarray(list(pc2.read_points(goal.pings, 
+                        field_names = ("x", "y", "z"), skip_nans=True)))
         beams = np.reshape(beams, (-1,3)) 
 
         # Plot posterior and save it to image
-        print("Plotting GP ", self.particle_number)
+        print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
+
         self.plotting = True
         self.plot(beams[:,0:2], beams[:,2], 
-                     self.storage_path + 'particle_' + str(self.particle_number) 
+                     self.storage_path + 'particle_' + str(self.particle_id) 
                      + '_training.png',
                      n=50, n_contours=100 )
 
@@ -306,7 +261,7 @@ class SVGP_Particle(VariationalGP):
         result.success = True
         self._as_plot.set_succeeded(result)
         # self.plotting = False
-        print("GP posterior plotted ", self.particle_number)
+        print("GP posterior plotted ", self.particle_id)
 
 
     def sample(self, x):
@@ -457,8 +412,12 @@ class SVGP_Particle(VariationalGP):
         # save
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
-        self.plot_loss(self.storage_path + 'particle_' + str(self.particle_number) 
+        self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
                         + '_training_loss.png')
+
+        # Free up GPU mem
+        del inputst
+        torch.cuda.empty_cache()
 
     def plot_loss(self, fname):
 
@@ -484,24 +443,28 @@ class SVGP_Particle(VariationalGP):
         gp.load_state_dict(torch.load(fname))
         return gp
 
+
 if __name__ == '__main__':
 
     rospy.init_node('rbpf_svgp' , disable_signals=False)
+    node_name = rospy.get_name()
+    hdl_number = int(node_name.split('_')[2])
+    particles_per_hdl = rospy.get_param("~num_particles_per_handler")
 
     try:
-        num_inducing_points = rospy.get_param("~num_inducing_points", 100)
-        particle_map1 = SVGP_Particle(num_inducing_points)
-        particle_map2 = SVGP_Particle(num_inducing_points)
-        particle_map3 = SVGP_Particle(num_inducing_points)
-        particle_map4 = SVGP_Particle(num_inducing_points)
-        particle_map5 = SVGP_Particle(num_inducing_points)
-        particle_map6 = SVGP_Particle(num_inducing_points)
-        particle_map7 = SVGP_Particle(num_inducing_points)
-        particle_map8 = SVGP_Particle(num_inducing_points)
-        particle_map9 = SVGP_Particle(num_inducing_points)
-        particle_map10 = SVGP_Particle(num_inducing_points)
-        # particle_map.train_map(mb_size=1000, learning_rate=1e-1, 
-        #                        rtol=1e-4, n_window=100, auto=False, verbose=True)
+        particles = []
+        particles_opt = []
+        # Create the SVGP objects of this handler and store their ELBO optimizers
+        for i in range(0, int(particles_per_hdl)):
+            particles.append(SVGP_Particle(int(hdl_number)+i))
+            # (mll, opt) = particle_map.setup_svgp()
+            particles_opt.append(particles[i].setup_svgp())
+
+        # In each round, call one minibatch training iteration per SVGP
+        while not rospy.is_shutdown():
+            for i in range(0, int(particles_per_hdl)):
+                particles[i].train_map(particles_opt[i][0], particles_opt[i][1])  
+
         rospy.spin()
     except rospy.ROSInterruptException:
         rospy.logerr("Couldn't launch rbpf_svgp")

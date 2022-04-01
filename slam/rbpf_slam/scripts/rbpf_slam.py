@@ -146,31 +146,7 @@ class rbpf_slam(object):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
-        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        
-        # Load mesh
-        svp_path = rospy.get_param('~sound_velocity_prof')
-        mesh_path = rospy.get_param('~mesh_path')
-        
-        if svp_path.split('.')[1] != 'cereal':
-            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
-        else:
-            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
-
-        data = np.load(mesh_path)
-        V, F, bounds = data['V'], data['F'], data['bounds'] 
-        print("Mesh loaded")
-
-        # Create draper
-        self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
-        self.draper.set_ray_tracing_enabled(False)            
-        data = None
-        V = None
-        F = None
-        bounds = None 
-        sound_speeds = None
-        print("draper created")
-        print("Size of draper: ", sys.getsizeof(self.draper))        
+        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')     
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')

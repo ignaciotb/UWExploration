@@ -29,24 +29,17 @@ import numpy as np
 import warnings
 import time
 
-class SVGP_Particle(VariationalGP):
+class SVGP(VariationalGP):
 
-    def __init__(self, particle_id):
-        
-        self.particle_id = particle_id
-
-        # Number of inducing points
-        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
-        assert isinstance(num_inducing, int)
-        self.s = num_inducing
+    def __init__(self, num_inducing):
 
         # variational distribution and strategy
         # NOTE: we put random normal dumby inducing points
         # here, which we'll change in self.fit
-        vardist = CholeskyVariationalDistribution(self.s)
+        vardist = CholeskyVariationalDistribution(num_inducing)
         varstra = VariationalStrategy(
             self,
-            torch.randn((self.s, 2)),
+            torch.randn((num_inducing, 2)),
             vardist,
             learn_inducing_locations=True
         )
@@ -57,19 +50,22 @@ class SVGP_Particle(VariationalGP):
         self.cov = MaternKernel(ard_num_dims=2)
         # self.cov = GaussianSymmetrizedKLKernel()
         self.cov = ScaleKernel(self.cov, ard_num_dims=2)
-        
-        # likelihood
-        self.likelihood = GaussianLikelihood()
 
-        # hardware allocation
-        # TODO: optimize device allocation
-        # with least_used_cuda_device():
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.likelihood.to(self.device).float()
-        self.to(self.device).float()
+    def forward(self, input):
+        m = self.mean(input)
+        v = self.cov(input)
+        return MultivariateNormal(m, v)
 
+class SVGP_map():
 
-    def setup_svgp(self):
+    def __init__(self, particle_id):
+
+        self.particle_id = particle_id
+
+        # Number of inducing points
+        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
+        assert isinstance(num_inducing, int)
+        self.s = num_inducing
 
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
@@ -106,15 +102,22 @@ class SVGP_Particle(VariationalGP):
         self.auto = rospy.get_param("~svpg_auto_stop", False)
         self.verbose = rospy.get_param("~svpg_verbose", True)
 
-        mll = VariationalELBO(self.likelihood, self, self.mb_size, combine_terms=True)
-        opt = torch.optim.Adam(self.parameters(),lr=float(self.lr))
+        # hardware allocation
+        self.model = SVGP(num_inducing)
+        self.likelihood = GaussianLikelihood()
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.likelihood.to(self.device).float()
+        self.model.to(self.device).float()
+
+        self.mll = VariationalELBO(self.likelihood, self.model, self.mb_size, combine_terms=True)
+        self.opt = torch.optim.Adam(self.model.parameters(),lr=float(self.lr))
         # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # convergence criterion
         if self.auto: self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
                                                     minimize=True, n_window=self.n_window)
         # Toggle training mode
-        self.train()
+        self.model.train()
         self.likelihood.train()
         self.loss = list()
         self.iterations = 0
@@ -130,12 +133,8 @@ class SVGP_Particle(VariationalGP):
         # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
         # rospy.spin()
 
-        return(mll, opt)
+        # return(mll, opt)
 
-    def forward(self, input):
-        m = self.mean(input)
-        v = self.cov(input)
-        return MultivariateNormal(m, v)
 
     def ip_cb(self, ip_cloud):
 
@@ -156,13 +155,13 @@ class SVGP_Particle(VariationalGP):
             inputst = np.meshgrid(*ip_locations)
             inputst = [_.flatten() for _ in inputst]
             inputst = np.vstack(inputst).transpose()
-            self.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
+            self.model.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
 
             self.inducing_points_received = True
             print("Particle ", self.particle_id, " starting training")
 
 
-    def train_map(self, mll, opt):
+    def train_map(self):
 
         # Don't train until the inducing points from the RBPF node have been received
         if not self.inducing_points_received:
@@ -191,10 +190,10 @@ class SVGP_Particle(VariationalGP):
                 target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
                 # compute loss, compute gradient, and update
-                loss = -mll(self(input), target)
-                opt.zero_grad()
+                loss = -self.mll(self.model(input), target)
+                self.opt.zero_grad()
                 loss.backward()
-                opt.step()
+                self.opt.step()
                 # print("GP ", self.particle_id, " training iteration ", self.iterations)
                 self.training = False
 
@@ -289,7 +288,7 @@ class SVGP_Particle(VariationalGP):
         # https://towardsdatascience.com/gaussian-process-regression-using-gpytorch-2c174286f9cc
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
             x = torch.from_numpy(x).to(self.device).float()
-            dist = self.likelihood(self(x))
+            dist = self.likelihood(self.model(x))
             return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
 
     def save_posterior(self, n, xlb, xub, ylb, yub, fname, verbose=True):
@@ -310,7 +309,7 @@ class SVGP_Particle(VariationalGP):
 
         # toggle evaluation mode
         self.likelihood.eval()
-        self.eval()
+        self.model.eval()
         torch.cuda.empty_cache()
 
         # posterior sampling locations
@@ -364,7 +363,7 @@ class SVGP_Particle(VariationalGP):
 
         # toggle evaluation mode
         self.likelihood.eval()
-        self.eval()
+        self.model.eval()
         torch.cuda.empty_cache()
 
         # posterior sampling locations
@@ -380,7 +379,7 @@ class SVGP_Particle(VariationalGP):
 
         # sample
         with torch.no_grad():
-            outputs = self(inputst)
+            outputs = self.model(inputst)
             outputs = self.likelihood(outputs)
             mean = outputs.mean.cpu().numpy().reshape(s)
             variance = outputs.variance.cpu().numpy().reshape(s)
@@ -390,7 +389,7 @@ class SVGP_Particle(VariationalGP):
         cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='viridis', s=0.4, edgecolors='none')
         cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
-        indpts = self.variational_strategy.inducing_points.data.cpu().numpy()
+        indpts = self.model.variational_strategy.inducing_points.data.cpu().numpy()
         ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)
 
         # colorbars
@@ -437,13 +436,13 @@ class SVGP_Particle(VariationalGP):
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
         
     def save(self, fname):
-        torch.save(self.state_dict(), fname)
+        torch.save(self.model.state_dict(), fname)
 
-    @classmethod
-    def load(cls, nind, fname):
-        gp = cls(nind)
-        gp.load_state_dict(torch.load(fname))
-        return gp
+    # @classmethod
+    # def load(cls, nind, fname):
+    #     gp = cls(nind)
+    #     gp.load_state_dict(torch.load(fname))
+    #     return gp
 
 
 if __name__ == '__main__':
@@ -456,16 +455,14 @@ if __name__ == '__main__':
     try:
         particles = []
         particles_opt = []
-        # Create the SVGP objects of this handler and store their ELBO optimizers
+        # Create the SVGP maps for this handler
         for i in range(0, int(particles_per_hdl)):
-            particles.append(SVGP_Particle(int(hdl_number)+i))
-            # (mll, opt) = particle_map.setup_svgp()
-            particles_opt.append(particles[i].setup_svgp())
+            particles.append(SVGP_map(int(hdl_number)+i))
 
         # In each round, call one minibatch training iteration per SVGP
         while not rospy.is_shutdown():
             for i in range(0, int(particles_per_hdl)):
-                particles[i].train_map(particles_opt[i][0], particles_opt[i][1])  
+                particles[i].train_map()  
 
         rospy.spin()
     except rospy.ROSInterruptException:

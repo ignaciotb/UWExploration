@@ -23,7 +23,7 @@ import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
-# from gp_mapping import gp  # GP
+from gp_mapping import gp  # GP
 
 
 class Particle(object):
@@ -60,7 +60,7 @@ class Particle(object):
         self.ctr = 0
 
         # Nacho
-        # self.gp = gp.SVGP(50)
+        # self.gp = gp.SVGP(100)
         self.pose_history = []
 
 
@@ -114,30 +114,6 @@ class Particle(object):
             self.w = 1.e-50 #0.0
             rospy.logwarn("Range of exp meas equals zero")
     
-
-    # def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
-    #     if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check
-
-    #         # time_start = time.time()
-
-    #         # Run gpytorch regression on sim data
-    #         print("\nTraining GP on particle: ", self.index)
-    #         observed_pred_sim = mbes_gpytorch_regression(mbes_sim_ranges)
-    #         # print("\nsim train time (s): ", time.time() - train_sim_start, "\n")
-
-    #         # Calculate KL divergence
-    #         kl_div = KLgp_div(real_mbes_GP_pred, observed_pred_sim)
-    #         w_i = 1. / kl_div
-
-    #         # print("\nTotal weight time (s): ", time.time() - time_start, "\n")
-    #         print('kl_div:    {}'.format(kl_div, precision=3))
-    #         print('gp weight: {}'.format(w_i, precision=3))
-    #     else:
-    #         rospy.logwarn("missing pings!")
-    #         w_i = 1.e-50
-
-    #     return w_i
-
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             grad_meas = np.gradient(mbes_meas_ranges)
@@ -174,8 +150,8 @@ class Particle(object):
         # For particle i, get its all its trajectory in the map frame
         R = self.mbes_tf_mat.transpose()[0:3,0:3]
         p_part, r_mbes = self.get_p_mbes_pose()
-        r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-        self.pose_history.append((p_part, r_base))
+        # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+        self.pose_history.append((p_part, r_mbes))
     
     def get_p_mbes_pose(self):
         # Find particle's mbes_frame pose in the map frame 

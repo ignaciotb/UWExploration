@@ -27,6 +27,7 @@ import actionlib
 import numpy as np
 
 import warnings
+import time
 
 class SVGP_Particle(VariationalGP):
 
@@ -67,7 +68,9 @@ class SVGP_Particle(VariationalGP):
         self.likelihood.to(self.device).float()
         self.to(self.device).float()
 
-        ####### ROS part
+
+    def setup_svgp(self):
+
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
         
@@ -85,12 +88,10 @@ class SVGP_Particle(VariationalGP):
 
         self.training = False
         self.plotting = False
+        self.sampling = False
 
         # Remove Qt out of main thread warning (use with caution)
         warnings.filterwarnings("ignore")
-
-
-    def setup_svgp(self):
 
         # AS for minibath training data from RBPF
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
@@ -158,7 +159,7 @@ class SVGP_Particle(VariationalGP):
             self.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
 
             self.inducing_points_received = True
-            print("Particle ", self.particle_id, ". Inducing points received")
+            print("Particle ", self.particle_id, " starting training")
 
 
     def train_map(self, mll, opt):
@@ -168,7 +169,7 @@ class SVGP_Particle(VariationalGP):
             rospy.loginfo_once("Waiting for inducing points")
             return
 
-        if not self.plotting:
+        if not self.plotting and not self.sampling:
 
             # Get beams for minibatch training as pcl
             goal = MinibatchTrainingGoal()
@@ -222,6 +223,7 @@ class SVGP_Particle(VariationalGP):
             rospy.Rate(1).sleep()
             print("GP ", self.particle_id, " waiting for training before sampling")
 
+        self.sampling = True
         mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
 
         # Set action as success
@@ -229,7 +231,7 @@ class SVGP_Particle(VariationalGP):
         result.mu = mu
         result.sigma = sigma
         self._as_sample.set_succeeded(result)
-        # self.plotting = False
+        self.sampling = False
         print("GP ", self.particle_id, " sampled")
 
 

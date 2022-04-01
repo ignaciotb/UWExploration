@@ -8,6 +8,8 @@
     <arg name="gp_mb_server" default="/gp/minibatch_server"/>
     <arg name="gp_plot_server" default="/gp/plot_server"/>
     <arg name="sample_sample_server" default="/gp/sample_server"/>
+    <arg name="num_particles_per_handler"/>     
+
     
     <!-- <node type="particle_map.py" pkg="rbpf_slam" name="$(arg node_name)" output="screen">
       <param name="training_points_top" value="/$(arg namespace)/$(arg app)/sim_mbes"/>     
@@ -17,10 +19,18 @@
     </node> -->
 
     <node type="rbpf_svgp.py" pkg="rbpf_slam" name="$(arg node_name)" output="screen">
-      <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
       <param name="results_path" value="$(find uw_tests)/$(arg app)/$(arg dataset)/"/>     
       <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>     
       <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
       <param name="sample_gp_server" value="$(arg sample_sample_server)"/>     
+      <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
+      <param name="svgp_num_ind_points" value="100"/>     
+      <param name="svgp_minibatch_size" value="1000"/>     
+      <param name="svpg_learning_rate" value="1e-1"/>     
+      <param name="svpg_rtol" value="1e-4"/>     
+      <param name="svpg_n_window" type="int" value="100"/>     
+      <param name="svpg_auto_stop" value="False"/>     
+      <param name="svpg_verbose" value="True"/>     
+      <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
     </node>
 </launch>

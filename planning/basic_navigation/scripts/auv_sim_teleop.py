@@ -38,7 +38,7 @@ class AUVTeleopServer(object):
 
         thruster_angle = 0.2
         inclination_angle = 0.2
-        throttle_level = 3.
+        throttle_level = 1.
 
         clock = pygame.time.Clock()
         while not rospy.is_shutdown():

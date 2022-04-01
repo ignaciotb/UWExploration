@@ -11,8 +11,6 @@ import random
 import sys
 import numpy as np
 import tf2_ros
-from scipy.spatial.transform import Rotation as rot
-from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
@@ -30,27 +28,15 @@ from tf.transformations import rotation_matrix, rotation_from_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
-from cv_bridge import CvBridge
 
 # For sim mbes action client
 import actionlib
-from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
+# from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
-
-# Auvlib
-from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data
-
-from scipy.ndimage.filters import gaussian_filter
-
-# gpytorch
-
 from rospy.numpy_msg import numpy_msg
-
-# For large numbers 
-from mpmath import mpf
+from scipy.spatial.transform import Rotation as rot
 
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult
 from slam_msgs.msg import PlotPosteriorGoal, PlotPosteriorAction
@@ -150,30 +136,6 @@ class rbpf_slam(object):
         self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
         self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        
-        # Load mesh
-        svp_path = rospy.get_param('~sound_velocity_prof')
-        mesh_path = rospy.get_param('~mesh_path')
-        
-        if svp_path.split('.')[1] != 'cereal':
-            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
-        else:
-            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
-
-        data = np.load(mesh_path)
-        V, F, bounds = data['V'], data['F'], data['bounds'] 
-        print("Mesh loaded")
-
-        # Create draper
-        self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
-        self.draper.set_ray_tracing_enabled(False)            
-        data = None
-        V = None
-        F = None
-        bounds = None 
-        sound_speeds = None
-        print("draper created")
-        print("Size of draper: ", sys.getsizeof(self.draper))        
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
@@ -282,17 +244,21 @@ class rbpf_slam(object):
         self.lc_detected = True
 
     def path_cb(self, wp_path):
-        i_points = []
-        for wp in wp_path.poses:
-            i_points.append(np.array([wp.pose.position.x, wp.pose.position.y, 0]))
+        if not wp_path.poses:
+            print("Empty mission received")
+        
+        else:
+            i_points = []
+            for wp in wp_path.poses:
+                i_points.append(np.array([wp.pose.position.x, wp.pose.position.y, 0]))
 
-        i_points = np.asarray(i_points)
-        i_points = np.reshape(i_points, (-1,3))   
-            
-        # Send inducing points to GP particle servers
-        ip_pcloud = pack_cloud(self.map_frame, i_points)
-        print("Sending inducing points")
-        self.ip_pub.publish(ip_pcloud)
+            i_points = np.asarray(i_points)
+            i_points = np.reshape(i_points, (-1,3))   
+                
+            # Send inducing points to GP particle servers
+            ip_pcloud = pack_cloud(self.map_frame, i_points)
+            print("Sending inducing points")
+            self.ip_pub.publish(ip_pcloud)
 
     # def mission_finished_cb(self, event):
     #     if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
@@ -376,9 +342,9 @@ class rbpf_slam(object):
                 # For particle i, get all its trajectory in the map frame
                 p_part, r_mbes = self.particles[i].pose_history[j]
                 # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-
                 part_i_ping_map = np.dot(r_mbes, self.mbes_history[j].T)
                 part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
+
             # As array
             pings_i = np.asarray(part_ping_map)
             pings_i = np.reshape(pings_i, (-1,3))   
@@ -389,9 +355,6 @@ class rbpf_slam(object):
             goal = PlotPosteriorGoal(mbes_pcloud)
             ac_plot.send_goal(goal)
             ac_plot.wait_for_result()
-
-            print("GP ", i, " posterior plotted ")
-
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
@@ -479,7 +442,7 @@ class rbpf_slam(object):
                                    int(mb_size/10), replace=False)
 
             # To transform from base to mbes
-            R = self.base2mbes_mat.transpose()[0:3,0:3]
+            # R = self.base2mbes_mat.transpose()[0:3,0:3]
             
             # If time to retrain GP map
             # Transform each MBES ping in vehicle frame to the particle trajectory 

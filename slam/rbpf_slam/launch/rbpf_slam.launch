@@ -50,6 +50,11 @@
   <arg name="particle_sim_mbes_topic"           default="/$(arg namespace)/$(arg app)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
+  <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+    <param name="num_particle_handlers" value="6"/>     
+    <param name="num_particles_per_handler" value="4"/>     
+    <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+  </node>
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
@@ -74,9 +79,9 @@
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
         <param name="num_beams_sim" type= "int"               value="$(arg n_beams_mbes)" />
         <param name="n_beams_mbes"   type= "int"                value="$(arg n_beams_mbes)" />       
-        <param name="mesh_path" value="$(arg path)/mesh.npz" />       
         <param name="survey_finished_top" value="/gt/survey_finished" />       
-        <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
+        <!-- <param name="mesh_path" value="$(arg path)/mesh.npz" />        -->
+        <!-- <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />        -->
         <param name="pf_stats_top" value="/stats/pf_data" />  
         <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
         <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
@@ -88,12 +93,6 @@
       </node>
     </group>
   </group>
-
-    <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
-    <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-      <param name="num_particles" value="$(arg particle_count)"/>     
-      <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
-    </node>
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       

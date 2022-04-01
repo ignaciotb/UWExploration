@@ -185,12 +185,16 @@ def pcloud2ranges(point_cloud, p_map_mbes_z):
     return np.asarray(ranges)
 
 def pcloud2ranges_full(point_cloud):
-    ranges = []
-    for p in pc2.read_points(point_cloud, 
-                             field_names = ("x", "y", "z"), skip_nans=True):
-        ranges.append(p)
+    # ranges = []
+    # for p in pc2.read_points(point_cloud, 
+    #                          field_names = ("x", "y", "z"), skip_nans=True):
+    #     ranges.append(p)
 
-    return np.asarray(ranges)
+    beams = np.asarray(list(pc2.read_points(point_cloud, 
+                        field_names = ("x", "y", "z"), skip_nans=True)))
+
+    # return np.asarray(ranges)
+    return beams
 
 # Create PointCloud2 msg out of ping    
 def pack_cloud(frame, mbes):

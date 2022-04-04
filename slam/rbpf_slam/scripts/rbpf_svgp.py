@@ -17,6 +17,8 @@ import matplotlib.pyplot as plt
 import rospy
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
+from rospy.numpy_msg import numpy_msg
+from std_msgs.msg import Float32
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
@@ -60,47 +62,53 @@ class SVGP_map():
 
     def __init__(self, particle_id):
 
+        ## ROS INTERFACE
         self.particle_id = particle_id
-
-        # Number of inducing points
-        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
-        assert isinstance(num_inducing, int)
-        self.s = num_inducing
-
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
         
         # AS for plotting results
         plot_gp_name = rospy.get_param("~plot_gp_server")
         self._as_plot = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + plot_gp_name, PlotPosteriorAction, 
-                                                execute_cb=self.plot_posterior, auto_start = False)
+                                                execute_cb=self.plot_posterior_cb, auto_start = False)
         self._as_plot.start()
 
         # AS for expected meas
         sample_gp_name = rospy.get_param("~sample_gp_server")
         self._as_sample = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + sample_gp_name, SamplePosteriorAction, 
-                                                execute_cb=self.sample_posterior, auto_start = False)
+                                                execute_cb=self.sample_posterior_cb, auto_start = False)
         self._as_sample.start()
 
         self.training = False
         self.plotting = False
         self.sampling = False
 
-        # Remove Qt out of main thread warning (use with caution)
-        warnings.filterwarnings("ignore")
-
         # AS for minibath training data from RBPF
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         self.ac_mb.wait_for_server()
 
-        # Set up SVGP optimization
+        # Subscription to GP inducing points from RBPF
+        ip_top = rospy.get_param("~inducing_points_top")
+        rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
+        self.inducing_points_received = False
+
+        # Subscription to particle resampling indexes from RBPF
+        p_resampling_top = rospy.get_param("~p_resampling_top")
+        rospy.Subscriber(p_resampling_top, numpy_msg(Float32), self.resampling_cb, queue_size=1)
+
+        ## SVGP SETUP
         self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
         self.lr = rospy.get_param("~svpg_learning_rate", 1e-1)
         self.rtol = rospy.get_param("~svpg_rtol", 1e-4)
         self.n_window = rospy.get_param("~svpg_n_window", 100)
         self.auto = rospy.get_param("~svpg_auto_stop", False)
         self.verbose = rospy.get_param("~svpg_verbose", True)
+
+        # Number of inducing points
+        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
+        assert isinstance(num_inducing, int)
+        self.s = num_inducing
 
         # hardware allocation
         self.model = SVGP(num_inducing)
@@ -122,46 +130,30 @@ class SVGP_map():
         self.loss = list()
         self.iterations = 0
 
-        # Subscription to GP inducing points from RBPF
-        ip_top = rospy.get_param("~inducing_points_top")
-        rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
-        self.inducing_points_received = False
-
         print("Particle ", self.particle_id, " set up")
         # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
         # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
         # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
         # rospy.spin()
 
+        # Remove Qt out of main thread warning (use with caution)
+        warnings.filterwarnings("ignore")
+
         # return(mll, opt)
 
+    # def resampling_cb(self, ind_msg):
+    #     indexes = ind_msg.astype(int)
 
-    def ip_cb(self, ip_cloud):
-
-        if not self.inducing_points_received:
-            # Store beams as array of 3D points
-            wp_locations = []
-            for p in pc2.read_points(ip_cloud, 
-                                    field_names = ("x", "y", "z"), skip_nans=True):
-                wp_locations.append(p)
-            wp_locations = np.asarray(wp_locations)
-            wp_locations = np.reshape(wp_locations, (-1,3))
-
-            # Inducing points distributed on grid over survey area
-            ip_locations = [
-                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), round(np.sqrt(self.s))),
-                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), round(np.sqrt(self.s)))
-            ]
-            inputst = np.meshgrid(*ip_locations)
-            inputst = [_.flatten() for _ in inputst]
-            inputst = np.vstack(inputst).transpose()
-            self.model.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
-
-            self.inducing_points_received = True
-            print("Particle ", self.particle_id, " starting training")
-
-
-    def train_map(self):
+    #     # If this particle has been resampled, save the SVGP map to disk 
+    #     # to share it with the rest
+    #     if np.where(indexes==self.particle_id)[0].size > 0:
+    #         self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
+        
+    #     # Else, 
+    #     else:
+            
+            
+    def train_iteration(self):
 
         # Don't train until the inducing points from the RBPF node have been received
         if not self.inducing_points_received:
@@ -212,7 +204,33 @@ class SVGP_map():
         # print("Done with the training ", self.particle_id)
         # print("GP ", self.particle_id, " training iteration ", self.iterations)
 
-    def sample_posterior(self, goal):
+    def ip_cb(self, ip_cloud):
+
+        if not self.inducing_points_received:
+            # Store beams as array of 3D points
+            wp_locations = []
+            for p in pc2.read_points(ip_cloud, 
+                                    field_names = ("x", "y", "z"), skip_nans=True):
+                wp_locations.append(p)
+            wp_locations = np.asarray(wp_locations)
+            wp_locations = np.reshape(wp_locations, (-1,3))
+
+            # Inducing points distributed on grid over survey area
+            ip_locations = [
+                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), round(np.sqrt(self.s))),
+                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), round(np.sqrt(self.s)))
+            ]
+            inputst = np.meshgrid(*ip_locations)
+            inputst = [_.flatten() for _ in inputst]
+            inputst = np.vstack(inputst).transpose()
+            self.model.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
+
+            self.inducing_points_received = True
+            print("Particle ", self.particle_id, " starting training")
+
+
+
+    def sample_posterior_cb(self, goal):
 
         beams = np.asarray(list(pc2.read_points(goal.ping, 
                                 field_names = ("x", "y", "z"), skip_nans=True)))
@@ -233,8 +251,10 @@ class SVGP_map():
         self.sampling = False
         print("GP ", self.particle_id, " sampled")
 
+        # self.save("/home/torroba/Downloads/svgp_" + str(self.particle_id) + ".pth")
 
-    def plot_posterior(self, goal):
+
+    def plot_posterior_cb(self, goal):
 
         # Flag to stop training
         self.plotting = True
@@ -290,6 +310,7 @@ class SVGP_map():
             x = torch.from_numpy(x).to(self.device).float()
             dist = self.likelihood(self.model(x))
             return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
+
 
     def save_posterior(self, n, xlb, xub, ylb, yub, fname, verbose=True):
 
@@ -438,11 +459,9 @@ class SVGP_map():
     def save(self, fname):
         torch.save(self.model.state_dict(), fname)
 
-    # @classmethod
-    # def load(cls, nind, fname):
-    #     gp = cls(nind)
-    #     gp.load_state_dict(torch.load(fname))
-    #     return gp
+    def load(self, fname):
+        self.model.load_state_dict(torch.load(fname))
+        self.model.train()
 
 
 if __name__ == '__main__':
@@ -453,16 +472,17 @@ if __name__ == '__main__':
     particles_per_hdl = rospy.get_param("~num_particles_per_handler")
 
     try:
-        particles = []
-        particles_opt = []
+        particles_svgps = []
+        particles_ids = []
         # Create the SVGP maps for this handler
         for i in range(0, int(particles_per_hdl)):
-            particles.append(SVGP_map(int(hdl_number)+i))
+            particles_svgps.append(SVGP_map(int(hdl_number)+i))
+            particles_ids.append(int(hdl_number)+i)
 
         # In each round, call one minibatch training iteration per SVGP
         while not rospy.is_shutdown():
             for i in range(0, int(particles_per_hdl)):
-                particles[i].train_map()  
+                particles_svgps[i].train_iteration()  
 
         rospy.spin()
     except rospy.ROSInterruptException:

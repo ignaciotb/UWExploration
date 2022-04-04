@@ -15,10 +15,9 @@ import tf2_ros
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header, Bool, Float32MultiArray, ByteMultiArray
+from std_msgs.msg import Bool, Float32, Int32
 from nav_msgs.msg import Path
 from std_srvs.srv import Empty
-from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
@@ -35,7 +34,6 @@ import actionlib
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
-from rospy.numpy_msg import numpy_msg
 from scipy.spatial.transform import Rotation as rot
 
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult
@@ -133,7 +131,7 @@ class rbpf_slam(object):
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
-        self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
+        self.stats = rospy.Publisher(stats_top, numpy_msg(Float32), queue_size=10)
 
         self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
 
@@ -234,6 +232,10 @@ class rbpf_slam(object):
         ip_top = rospy.get_param("~inducing_points_top")
         self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=1)
 
+        # Publisher for particles indexes to be resamples
+        p_resampling_top = rospy.get_param('~p_resampling_top')
+        self.p_resampling_pub = rospy.Publisher(p_resampling_top, numpy_msg(Float32), queue_size=10)
+
         rospy.spin()
 
     def empty_srv(self, req):
@@ -309,10 +311,6 @@ class rbpf_slam(object):
                     # Particle resampling
                     self.resample(weights)
                     self.lc_detected = False
-
-                    # Nacho: This is only here for testing simple missions
-                    self.mission_finished = True
-                    self.plot_gp_maps()
 
 
     def odom_callback(self, odom_msg):
@@ -551,8 +549,10 @@ class rbpf_slam(object):
             self.time2resample = False
             self.ctr = 0
             rospy.loginfo('resampling')
-            print ("Missed meas ", self.miss_meas)
+            # print ("Missed meas ", self.miss_meas)
             indices = residual_resample(weights)
+            print ("Resampling indices: ", indices)
+            
             keep = list(set(indices))
             lost = [i for i in range(self.pc) if i not in keep]
             dupes = indices[:].tolist()
@@ -561,6 +561,9 @@ class rbpf_slam(object):
 
             self.reassign_poses(lost, dupes)
             
+            # Reassign SVGP maps: send winning indexes to SVGP nodes
+            self.p_resampling_pub(np.array(dupes, dtype=np.float32))
+
             # Add noise to particles
             # for i in range(self.pc):
             #     self.particles[i].add_noise(self.res_noise_cov)

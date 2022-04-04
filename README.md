@@ -33,6 +33,18 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
+## Paper introducing the framework
+[Paper](https://arxiv.org/abs/2203.10893)
+If you find the repo and the methods useful, please cite us.
+```
+@article{torroba2022fully,
+  title={Fully-probabilistic Terrain Modelling with Stochastic Variational Gaussian Process Maps},
+  author={Torroba, Ignacio and Sprague, Christopher Illife and Folkesson, John},
+  journal={arXiv preprint arXiv:2203.10893},
+  year={2022}
+}
+```
+
 ## Demos
 We provide a dataset collected with a hull-mounted MBES on a ship for example demos. However the code will need to be tuned for applications in different setups (bathymetry, sensors, vehicle and so on).
 

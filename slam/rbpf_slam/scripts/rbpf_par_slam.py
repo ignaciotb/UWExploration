@@ -233,8 +233,8 @@ class rbpf_slam(object):
         self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=1)
 
         # Publisher for particles indexes to be resamples
-        p_resampling_top = rospy.get_param('~p_resampling_top')
-        self.p_resampling_pub = rospy.Publisher(p_resampling_top, numpy_msg(Float32), queue_size=10)
+        # p_resampling_top = rospy.get_param('~p_resampling_top')
+        # self.p_resampling_pub = rospy.Publisher(p_resampling_top, numpy_msg(Float32), queue_size=10)
 
         rospy.spin()
 

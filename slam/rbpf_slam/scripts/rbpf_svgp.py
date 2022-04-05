@@ -94,8 +94,8 @@ class SVGP_map():
         self.inducing_points_received = False
 
         # Subscription to particle resampling indexes from RBPF
-        p_resampling_top = rospy.get_param("~p_resampling_top")
-        rospy.Subscriber(p_resampling_top, numpy_msg(Float32), self.resampling_cb, queue_size=1)
+        # p_resampling_top = rospy.get_param("~p_resampling_top")
+        # rospy.Subscriber(p_resampling_top, numpy_msg(Float32), self.resampling_cb, queue_size=1)
 
         ## SVGP SETUP
         self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
@@ -108,7 +108,7 @@ class SVGP_map():
         # Number of inducing points
         num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
         assert isinstance(num_inducing, int)
-        self.s = num_inducing
+        self.s = int(num_inducing)
 
         # hardware allocation
         self.model = SVGP(num_inducing)
@@ -217,8 +217,8 @@ class SVGP_map():
 
             # Inducing points distributed on grid over survey area
             ip_locations = [
-                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), round(np.sqrt(self.s))),
-                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), round(np.sqrt(self.s)))
+                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), int(round(np.sqrt(self.s)))),
+                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), int(round(np.sqrt(self.s))))
             ]
             inputst = np.meshgrid(*ip_locations)
             inputst = [_.flatten() for _ in inputst]

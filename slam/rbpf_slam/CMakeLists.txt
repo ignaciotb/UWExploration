@@ -19,7 +19,8 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   actionlib
   eigen_conversions
-  # message_generation
+  pcl_ros
+  message_generation
 )
 
 find_package(Eigen3 REQUIRED)
@@ -129,6 +130,8 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
   include
+  ${EIGEN_INCLUDE_DIRS} 
+	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -137,6 +140,7 @@ add_executable(${PROJECT_NAME}
   src/rbpf_par_slam.cpp
 )
 target_link_libraries(${PROJECT_NAME} 
+  ${PCL_LIBRARIES}
   ${catkin_LIBRARIES}
 )
 

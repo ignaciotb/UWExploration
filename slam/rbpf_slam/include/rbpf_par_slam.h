@@ -36,6 +36,13 @@
 #include <eigen_conversions/eigen_msg.h>
 #include <tf_conversions/tf_eigen.h>
 
+#include <pcl_ros/transforms.h>
+
+#include <actionlib/server/simple_action_server.h>
+#include <slam_msgs/MinibatchTrainingAction.h>
+#include <slam_msgs/MinibatchTrainingGoal.h>
+#include <slam_msgs/MinibatchTrainingResult.h>
+
 using namespace std;
 
 class RbpfSlam
@@ -45,9 +52,6 @@ public:
     RbpfSlam(string node_name, ros::NodeHandle &nh)
     {
         ros::NodeHandle *nh_;
-
-        // nh_->param<double>((node_name_ + "/mhl_dist_mbes"), mh_dist_mbes, 0.2);
-        // nh_->param<std::string>((node_name_ + "/pose_estimate_topic"), pose_topic, "/map_ekf");
 
         // Get parameters from rbpf_slam.launch
         int pc;
@@ -165,6 +169,91 @@ public:
         nav_msgs::Odometry odom_latest;
         nav_msgs::Odometry odom_end;
 
+        // Transforms from auv_2_ros
+        try
+        {
+            ROS_DEBUG("Waiting for transforms");
+
+            tf::StampedTransform mbes_tf;
+            tf::StampedTransform m2o_tf;
+            tfBuffer.waitForTransform(base_frame, mbes_frame, ros::Time(0), ros::Duration(10.0));
+            tfBuffer.lookupTransform(base_frame, mbes_frame, ros::Time(0), mbes_tf);
+            tfBuffer.waitForTransform(map_frame, odom_frame, ros::Time(0), ros::Duration(10.0));
+            tfBuffer.lookupTransform(map_frame, odom_frame, ros::Time(0), m2o_tf);
+
+            Eigen::Matrix4f base2mbes_mat;
+            Eigen::Matrix4f m2o_mat;
+            pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat);
+            pcl_ros::transformAsMatrix(m2o_tf, m2o_mat);
+
+            ROS_DEBUG("Transforms locked - RBPF node");
+        }
+
+        catch(const std::exception& e)
+        {
+            ROS_DEBUG("ERROR: Could not lookup transform from base_link to mbes_link");
+        }
+
+        // Initialize list of particles
+        // TODO, need to create the Particle class first
+        /* 
+        .
+        .
+        .
+        */
+
+       // Subscription to the end of mission topic
+        string finished_top;
+        nh_->param<string>(("~survey_finished_top"), finished_top, "/survey_finished");
+        ros::Subscriber finished_sub = nh.subscribe(finished_top, 100, synch_cb);
+        bool survey_finished = false;
+
+        // Start timing now
+        float time = ros::Time::now().toSec();
+        float old_time = ros::Time::now().toSec();
+
+        // For Loop Closure detection
+        bool lc_detected = false;
+
+        // Main timer for the RBPF
+        float rbpf_period;
+        nh_->param<float>(("~rbpf_period"), rbpf_period, 0.3);
+        ros::Timer timer = nh.createTimer(ros::Duration(rbpf_period), rbpf_update, false);
+
+        // Subscription to real mbes pings
+        string lc_manual_topic;
+        nh_->param<string>(("~lc_manual_topic"), lc_manual_topic, "manual_lc");
+        ros::Subscriber lc_manual_sub = nh.subscribe(lc_manual_topic, 1, manual_lc);
+
+        // Empty service to synch the applications waiting for this node to start
+        ROS_DEBUG("RBPF successfully instantiated");    
+
+        string synch_top;
+        nh_->param<string>(("~synch_topic"), synch_top, "/pf_synch");   
+        ros::ServiceServer srv_server = nh.advertiseService(synch_top, empty_srv);
+
+        // Service for sending minibatches of beams to the SVGP particles
+        string mb_gp_name;
+        nh_->param<string>(("~minibatch_gp_server"), mb_gp_name);
+    	actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server(nh_, mb_gp_name, boost::bind(&mb_cb, _1, &server), false);
+        server.start();
+
+        // The mission waypoints as a path
+        string path_topic;
+        nh_->param<string>(("~path_topic"), path_topic);
+        ros::Subscriber path_sub = nh.subscribe(path_topic, 1, path_cb);
+
+        // Publisher for inducing points to SVGP maps
+        string ip_top;
+        nh_->param<string>(("~inducing_points_top"), ip_top);
+        ros::Publisher ip_pub = nh.advertise<sensor_msgs::PointCloud2>(ip_top, 1);
+
+        // Publisher for particles indexes to be resamples
+        string p_resampling_top;
+        nh_->param<string>(("~p_resampling_top"), p_resampling_top);
+        ros::Publisher p_resampling_pub = nh.advertise<std_msgs::Float32>(p_resampling_top, 10);
+
+        ros::spin();
     }
 
 };

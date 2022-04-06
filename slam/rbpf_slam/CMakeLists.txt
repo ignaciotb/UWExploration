@@ -136,13 +136,22 @@ include_directories(
 )
 
 ## Declare a C++ library
-add_executable(${PROJECT_NAME}
-  src/rbpf_par_slam.cpp
-)
-target_link_libraries(${PROJECT_NAME} 
-  ${PCL_LIBRARIES}
-  ${catkin_LIBRARIES}
-)
+# add_library(${ROJECT_NAME}
+#   src/rbpf_particle.cpp
+#   src/rbpf_par_slam.cpp
+# )
+# add_executable(${PROJECT_NAME}
+#   rbpf_par_slam_node src/rbpf_par_slam_node.cpp
+# )
+# target_link_libraries(${PROJECT_NAME} 
+#   ${PCL_LIBRARIES}
+#   ${catkin_LIBRARIES}
+# )
+
+add_executable(rbpf_par_slam_node src/rbpf_par_slam_node.cpp
+                src/rbpf_particle.cpp
+                src/rbpf_par_slam.cpp)
+target_link_libraries(rbpf_par_slam_node ${PCL_LIBRARIES} ${catkin_LIBRARIES})
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

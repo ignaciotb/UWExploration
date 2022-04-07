@@ -9,7 +9,7 @@ int main(int argc, char** argv){
     ros::CallbackQueue nav_queue;
     nh.setCallbackQueue(&nav_queue);
 
-    boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(ros::this_node::getName(), nh));
+    boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh));
 
     ros::AsyncSpinner spinner_nav(1, &nav_queue);
     spinner_nav.start();

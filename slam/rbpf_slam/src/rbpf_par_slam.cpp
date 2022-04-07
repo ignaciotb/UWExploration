@@ -1,22 +1,22 @@
 #include "rbpf_par_slam.h"
 
-RbpfSlam::RbpfSlam(string node_name, ros::NodeHandle &nh) : nh_(&nh), node_name_(node_name)
+RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
 {
     // Get parameters from launch file
-    nh_->param<int>(("~particle_count"), pc, 10);
-    nh_->param<int>(("~num_beams_sim"), beams_num, 20);
-    nh_->param<int>(("~n_beams_mbes"), beams_real, 512);
-    nh_->param<float>(("~mbes_open_angle"), mbes_angle, M_PI / 180. * 60.);
-    nh_->param<string>(("~map_frame"), map_frame, "map");
-    nh_->param<string>(("~mbes_link"), mbes_frame, "mbes_link");
-    nh_->param<string>(("~base_link"), base_frame, "base_link");
-    nh_->param<string>(("~odom_frame"), odom_frame, "odom");
+    nh_->param<int>(("particle_count"), pc, 10);
+    nh_->param<int>(("num_beams_sim"), beams_num, 20);
+    nh_->param<int>(("n_beams_mbes"), beams_real, 512);
+    nh_->param<float>(("mbes_open_angle"), mbes_angle, M_PI / 180. * 60.);
+    nh_->param<string>(("map_frame"), map_frame, "map");
+    nh_->param<string>(("mbes_link"), mbes_frame, "mbes_link");
+    nh_->param<string>(("base_link"), base_frame, "base_link");
+    nh_->param<string>(("odom_frame"), odom_frame, "odom");
 
     // Read covariance values
-    nh_->param<float>(("~measurement_std"), meas_std, 0.01);
-    nh_->param("~init_covariance", init_cov, vector<float>());
-    nh_->param("~resampling_noise_covariance", res_noise_cov, vector<float>());
-    nh_->param("~motion_covariance", motion_cov, vector<float>());
+    nh_->param<float>(("measurement_std"), meas_std, 0.01);
+    nh_->param("init_covariance", init_cov, vector<float>());
+    nh_->param("resampling_noise_covariance", res_noise_cov, vector<float>());
+    nh_->param("motion_covariance", motion_cov, vector<float>());
 
     fill_n(n_eff_mask, 3, pc);
     float pw[pc];
@@ -46,32 +46,32 @@ RbpfSlam::RbpfSlam(string node_name, ros::NodeHandle &nh) : nh_(&nh), node_name_
     map_updates = 0;
 
     // Initialize particle poses publisher
-    nh_->param<string>(("~particle_poses_topic"), pose_array_top, "/particle_poses");
+    nh_->param<string>(("particle_poses_topic"), pose_array_top, "/particle_poses");
     pf_pub = nh_->advertise<geometry_msgs::PoseArray>(pose_array_top, 10);
 
     // Initialize average of poses publisher
-    nh_->param<string>(("~average_pose_topic"), avg_pose_top, "/average_pose");
+    nh_->param<string>(("average_pose_topic"), avg_pose_top, "/average_pose");
     avg_pub = nh_->advertise<geometry_msgs::PoseWithCovarianceStamped>(avg_pose_top, 10);
 
     // Expected meas of PF outcome at every time step
-    nh_->param<string>(("~average_mbes_topic"), pf_mbes_top, "/avg_mbes");
+    nh_->param<string>(("average_mbes_topic"), pf_mbes_top, "/avg_mbes");
     pf_mbes_pub = nh_->advertise<sensor_msgs::PointCloud2>(pf_mbes_top, 1);
 
-    nh_->param<string>(("~pf_stats_top"), stats_top, "stats");
+    nh_->param<string>(("pf_stats_top"), stats_top, "stats");
     stats = nh_->advertise<std_msgs::Float32>(stats_top, 10);
 
-    nh_->param<string>(("~particle_sim_mbes_topic"), mbes_pc_top, "/sim_mbes");
+    nh_->param<string>(("particle_sim_mbes_topic"), mbes_pc_top, "/sim_mbes");
 
     // Action server for plotting the GP maps
-    nh_->param<string>(("~plot_gp_server"), plot_gp_server, "gp_plot_server");
-    nh_->param<string>(("~sample_gp_server"), sample_gp_server, "gp_sample_server");
+    nh_->param<string>(("plot_gp_server"), plot_gp_server, "gp_plot_server");
+    nh_->param<string>(("sample_gp_server"), sample_gp_server, "gp_sample_server");
 
     // Subscription to real mbes pings
-    nh_->param<string>(("~mbes_pings_topic"), mbes_pings_top, "mbes_pings");
+    nh_->param<string>(("mbes_pings_topic"), mbes_pings_top, "mbes_pings");
     mbes_sub = nh_->subscribe(mbes_pings_top, 100, &RbpfSlam::mbes_real_cb, this);
 
     // Establish subscription to odometry message (intentionally last)
-    nh_->param<string>(("~odometry_topic"), odom_top, "odom");
+    nh_->param<string>(("odometry_topic"), odom_top, "odom");
     odom_sub = nh_->subscribe(odom_top, 100, &RbpfSlam::odom_callback, this);
 
     // Timer for end of mission: finish when no more odom is being received
@@ -108,7 +108,7 @@ RbpfSlam::RbpfSlam(string node_name, ros::NodeHandle &nh) : nh_(&nh), node_name_
     */
 
     // Subscription to the end of mission topic
-    nh_->param<string>(("~survey_finished_top"), finished_top, "/survey_finished");
+    nh_->param<string>(("survey_finished_top"), finished_top, "/survey_finished");
     finished_sub = nh_->subscribe(finished_top, 100, &RbpfSlam::synch_cb, this);
     survey_finished = false;
 
@@ -117,35 +117,35 @@ RbpfSlam::RbpfSlam(string node_name, ros::NodeHandle &nh) : nh_(&nh), node_name_
     old_time = ros::Time::now().toSec();
 
     // Main timer for the RBPF
-    nh_->param<float>(("~rbpf_period"), rbpf_period, 0.3);
+    nh_->param<float>(("rbpf_period"), rbpf_period, 0.3);
     timer = nh_->createTimer(ros::Duration(rbpf_period), &RbpfSlam::rbpf_update, this, false);
 
     // Subscription to real mbes pings
-    nh_->param<string>(("~lc_manual_topic"), lc_manual_topic, "manual_lc");
+    nh_->param<string>(("lc_manual_topic"), lc_manual_topic, "manual_lc");
     lc_manual_sub = nh_->subscribe(lc_manual_topic, 1, &RbpfSlam::manual_lc, this);
 
     // Empty service to synch the applications waiting for this node to start
     ROS_DEBUG("RBPF successfully instantiated");
 
-    nh_->param<string>(("~synch_topic"), synch_top, "/pf_synch");
+    nh_->param<string>(("synch_topic"), synch_top, "/pf_synch");
     srv_server = nh_->advertiseService(synch_top, &RbpfSlam::empty_srv, this);
 
     // Service for sending minibatches of beams to the SVGP particles
     // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
-    nh_->param<string>(("~minibatch_gp_server"), mb_gp_name);
+    nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
     actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
     server.start();
 
     // The mission waypoints as a path
-    nh_->param<string>(("~path_topic"), path_topic);
+    nh_->param<string>(("path_topic"), path_topic);
     path_sub = nh_->subscribe(path_topic, 1, &RbpfSlam::path_cb, this);
 
     // Publisher for inducing points to SVGP maps
-    nh_->param<string>(("~inducing_points_top"), ip_top);
+    nh_->param<string>(("inducing_points_top"), ip_top);
     ip_pub = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
 
     // Publisher for particles indexes to be resamples
-    nh_->param<string>(("~p_resampling_top"), p_resampling_top);
+    nh_->param<string>(("p_resampling_top"), p_resampling_top);
     p_resampling_pub = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
 }
 

@@ -41,7 +41,7 @@ class RbpfSlam
 {
 
 public:
-    RbpfSlam(string node_name, ros::NodeHandle &nh);
+    RbpfSlam(ros::NodeHandle &nh);
     ~RbpfSlam();
 
 private:    

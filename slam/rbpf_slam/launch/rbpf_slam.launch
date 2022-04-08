@@ -23,14 +23,6 @@
 
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="4"/> <!--50 -->
-  <!-- [x, y, z, roll, pitch, yaw] -->
-  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/> -->
-  <arg name="init_covariance" default="[10., 5., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00005]"/>
-  <arg name="resampling_noise_covariance" default="[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]"/>
-  <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/> -->
-  <!-- <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>  -->
-  <arg name="measurement_std"  default="3"/>
   <arg name="survey_finished_top" default="/gt/survey_finished"/>
   
   <!-- API for SVGP particles -->
@@ -62,10 +54,11 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <param name="init_covariance"                         value="$(arg init_covariance)" />
-        <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
-        <param name="measurement_std"                         value="$(arg measurement_std)" />
-        <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+        <!-- [x, y, z, roll, pitch, yaw] -->
+        <rosparam param="init_covariance">[10., 5., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00005]</rosparam>
+        <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <param name="measurement_std"                         value="3" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
@@ -73,14 +66,14 @@
         <param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
         <param name="base_link"                               value="$(arg namespace)/base_link" />
         <param name="synch_topic"                             value="/$(arg app)/synch" />
-        <param name="results_path"                             value="$(arg results_path)" />
+        <param name="results_path"                            value="$(arg results_path)" />
         <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
         <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
         <param name="num_beams_sim" type= "int"               value="$(arg n_beams_mbes)" />
-        <param name="n_beams_mbes"   type= "int"                value="$(arg n_beams_mbes)" />       
+        <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
         <param name="survey_finished_top" value="/gt/survey_finished" />       
         <!-- <param name="mesh_path" value="$(arg path)/mesh.npz" />        -->
         <!-- <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />        -->

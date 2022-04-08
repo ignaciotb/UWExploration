@@ -69,23 +69,24 @@ class rbpf_slam(object):
         
         # Read covariance values
         meas_std = float(rospy.get_param('~measurement_std', 0.01))
-        cov_string = rospy.get_param('~motion_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        motion_cov = list(map(float, cov_list))
+        motion_cov = rospy.get_param('~motion_covariance')
+        # cov_string = cov_string.replace('[','')
+        # cov_string = cov_string.replace(']','')
+        # cov_list = list(cov_string.split(", "))
+        # motion_cov = list(map(float, cov_list))
 
-        cov_string = rospy.get_param('~init_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        init_cov = list(map(float, cov_list))
+        init_cov = rospy.get_param('~init_covariance')
+        # cov_string = cov_string.replace('[','')
+        # cov_string = cov_string.replace(']','')
+        # cov_list = list(cov_string.split(", "))
+        # print(cov_string)
+        # init_cov = list(map(float, cov_list))
 
-        cov_string = rospy.get_param('~resampling_noise_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        self.res_noise_cov = list(map(float, cov_list))
+        self.res_noise_cov = rospy.get_param('~resampling_noise_covariance')
+        # cov_string = cov_string.replace('[','')
+        # cov_string = cov_string.replace(']','')
+        # cov_list = list(cov_string.split(", "))
+        # self.res_noise_cov = list(map(float, cov_list))
 
         # Global variables
         self.pred_odom = None

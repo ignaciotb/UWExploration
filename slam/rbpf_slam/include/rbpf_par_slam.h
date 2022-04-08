@@ -49,113 +49,111 @@ private:
     std::string node_name_;
     ros::Timer timer_;
 
-    int pc;
-    int beams_num;
-    int beams_real;
-    float mbes_angle;
-    string map_frame;
-    string base_frame;
-    string mbes_frame;
-    string odom_frame;
+    int pc_;
+    int beams_num_;
+    int beams_real_;
+    float mbes_angle_;
+    string map_frame_;
+    string base_frame_;
+    string mbes_frame_;
+    string odom_frame_;
 
-    tf::TransformListener tfListener;
+    tf::TransformListener tfListener_;
 
     // Loop closure
-    bool lc_detected;
+    bool lc_detected_;
 
     // Covariances
-    float meas_std;
-    vector<float> init_cov;
-    vector<float> res_noise_cov;
-    vector<float> motion_cov;
+    float meas_std_;
+    vector<float> init_cov_;
+    vector<float> res_noise_cov_;
+    vector<float> motion_cov_;
 
     // Global variables
-    int n_eff_mask[3];
-    std::vector<float> mbes_history;
+    int n_eff_mask_[3];
+    std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
 
-    float n_eff_filt ;
-    int count_pings;
-    int count_training;
-    bool firstFit;
-    bool one_time;
-    bool time2resample;
-    bool survey_finished;
-    float time;
-    float old_time;
-    float rbpf_period;
+    float n_eff_filt_;
+    int count_pings_;
+    int count_training_;
+    bool firstFit_;
+    bool one_time_;
+    bool time2resample_;
+    bool survey_finished_;
+    float time_;
+    float old_time_;
+    float rbpf_period_;
 
-    sensor_msgs::PointCloud2 prev_mbes;
-    sensor_msgs::PointCloud2 latest_mbes;
-    geometry_msgs::PoseArray poses;
-    geometry_msgs::PoseWithCovarianceStamped avg_pose;
+    sensor_msgs::PointCloud2 prev_mbes_;
+    sensor_msgs::PointCloud2 latest_mbes_;
+    geometry_msgs::PoseArray poses_;
+    geometry_msgs::PoseWithCovarianceStamped avg_pose_;
 
-    Eigen::ArrayXf targets;
+    Eigen::ArrayXf targets_;
 
     // Ancestry tree
-    Eigen::ArrayXXf mapping;
-    Eigen::ArrayXXf observations;
-    std::vector<int> tree_list;
-    int p_ID;
-    bool time4regression;
-    int n_from;
-    int ctr;
+    Eigen::ArrayXXf mapping_;
+    Eigen::ArrayXXf observations_;
+    std::vector<int> tree_list_;
+    int p_ID_;
+    bool time4regression_;
+    int n_from_;
+    int ctr_;
 
     // Nacho
-    int pings_since_training;
-    int map_updates;
+    int pings_since_training_;
+    int map_updates_;
 
     // Publishers
-    ros::Publisher ip_pub;
-    ros::Publisher p_resampling_pub;
-    ros::Publisher pf_pub;
-    ros::Publisher avg_pub;
-    ros::Publisher pf_mbes_pub;
-    ros::Publisher stats;
-    string pose_array_top;
-    string avg_pose_top;
-    string pf_mbes_top;
-    string stats_top;
-    string mbes_pc_top;
-    string ip_top;
-    string p_resampling_top;
+    ros::Publisher ip_pub_;
+    ros::Publisher p_resampling_pub_;
+    ros::Publisher pf_pub_;
+    ros::Publisher avg_pub_;
+    ros::Publisher pf_mbes_pub_;
+    ros::Publisher stats_;
+    string pose_array_top_;
+    string avg_pose_top_;
+    string pf_mbes_top_;
+    string stats_top_;
+    string mbes_pc_top_;
+    string ip_top_;
+    string p_resampling_top_;
 
     // Action servers
     // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server;
 
-    string plot_gp_server;
-    string sample_gp_server;
+    string plot_gp_server_;
+    string sample_gp_server_;
 
     // Server
-    ros::ServiceServer srv_server;
-    string synch_top;
-    string mb_gp_name;
+    ros::ServiceServer srv_server_;
+    string synch_top_;
+    string mb_gp_name_;
 
     // Subscribers
-    ros::Subscriber mbes_sub;
-    ros::Subscriber odom_sub;
-    ros::Subscriber finished_sub;
-    ros::Subscriber lc_manual_sub;
-    ros::Subscriber path_sub;
+    ros::Subscriber mbes_sub_;
+    ros::Subscriber odom_sub_;
+    ros::Subscriber finished_sub_;
+    ros::Subscriber lc_manual_sub_;
+    ros::Subscriber path_sub_;
 
-    string mbes_pings_top;
-    string odom_top;
-    string finished_top;
-    string lc_manual_topic;
-    string path_topic;
+    string mbes_pings_top_;
+    string odom_top_;
+    string finished_top_;
+    string lc_manual_topic_;
+    string path_topic_;
 
-    // Timer
-    ros::Timer timer;
     // End of mission timer
-    bool mission_finished;
-    float time_wo_motion;
-    nav_msgs::Odometry odom_latest;
-    nav_msgs::Odometry odom_end;
+    bool mission_finished_;
+    float time_wo_motion_;
+    nav_msgs::Odometry odom_latest_;
+    nav_msgs::Odometry odom_end_;
 
     // Transforms
-    tf::StampedTransform mbes_tf;
-    tf::StampedTransform m2o_tf;
-    Eigen::Matrix4f base2mbes_mat;
-    Eigen::Matrix4f m2o_mat;
+    tf::StampedTransform mbes_tf_;
+    tf::StampedTransform m2o_tf_;
+    Eigen::Matrix4f base2mbes_mat_;
+    Eigen::Matrix4f m2o_mat_;
 
     // Callbacks
     bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);

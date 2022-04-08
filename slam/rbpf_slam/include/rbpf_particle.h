@@ -28,4 +28,4 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
 std::vector<geometry_msgs::Point32> pcloud2ranges_full(sensor_msgs::PointCloud2 point_cloud);
 
-// std::vector linspace(float start, float end, float num);
+std::vector<int> linspace(float start, float end, float num);

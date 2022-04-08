@@ -20,14 +20,15 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
 std::vector<geometry_msgs::Point32> pcloud2ranges_full(sensor_msgs::PointCloud2 point_cloud)
 {
-    std::vector<geometry_msgs::Point32> beams;
+    int pc_size = point_cloud.size()
+    Eigen::MatrixXXf beams;
 
     sensor_msgs::PointCloud out_cloud;
     sensor_msgs::convertPointCloud2ToPointCloud(point_cloud, out_cloud);
 
     for (int i = 0; i < out_cloud.points.size(); ++i)
     {
-        geometry_msgs::Point32 point;
+        Eigen::RowVector3f point;
 
         point.x = out_cloud.points[i].x;
         point.y = out_cloud.points[i].y;
@@ -39,29 +40,28 @@ std::vector<geometry_msgs::Point32> pcloud2ranges_full(sensor_msgs::PointCloud2 
     return beams;
 }
 
-// /* a function to generate numpy linspace */
-// template <typename T>
-// std::vector<T> linspace(float start, float end, float num)
-// {
-//     std::vector<T> linspaced;
+// A function to generate numpy linspace 
+std::vector<int> linspace(float start, float end, float num)
+{
+    std::vector<int> linspaced;
 
-//     if (0 != num)
-//     {
-//         if (1 == num) 
-//         {
-//             linspaced.push_back(static_cast<T>(start));
-//         }
-//         else
-//         {
-//             float delta = (end - start) / (num - 1);
+    if (0 != num)
+    {
+        if (1 == num) 
+        {
+            linspaced.push_back(static_cast<int>(start));
+        }
+        else
+        {
+            float delta = (end - start) / (num - 1);
 
-//             for (auto i = 0; i < (num - 1); ++i)
-//             {
-//                 linspaced.push_back(static_cast<T>(start + delta * i));
-//             }
-//             // ensure that start and end are exactly the same as the input
-//             linspaced.push_back(static_cast<T>(end));
-//         }
-//     }
-//     return linspaced;
-// }
+            for (auto i = 0; i < (num - 1); ++i)
+            {
+                linspaced.push_back(static_cast<int>(start + delta * i));
+            }
+            // ensure that start and end are exactly the same as the input
+            linspaced.push_back(static_cast<int>(end));
+        }
+    }
+    return linspaced;
+}

@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
   pcl_ros
   message_generation
+  slam_msgs
 )
 
 find_package(Eigen3 REQUIRED)

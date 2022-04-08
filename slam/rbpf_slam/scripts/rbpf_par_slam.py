@@ -232,6 +232,7 @@ class rbpf_slam(object):
             ac_plot.wait_for_server()
             self.p_plot_acs.append(ac_plot)
 
+        # Action clients for sampling the GP posteriors
         self.p_sample_acs = []
         for i in range(0, self.pc):
             ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server,

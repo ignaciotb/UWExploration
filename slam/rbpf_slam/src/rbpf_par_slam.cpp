@@ -127,11 +127,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param<string>(("synch_topic"), synch_top, "/pf_synch");
     srv_server = nh_->advertiseService(synch_top, &RbpfSlam::empty_srv, this);
 
-    // Service for sending minibatches of beams to the SVGP particles
-    // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
-    // nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
-    // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
-    // server.start();
 
     // The mission waypoints as a path
     nh_->param<string>(("path_topic"), path_topic, "/waypoints");
@@ -144,6 +139,29 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // // Publisher for particles indexes to be resamples
     // nh_->param<string>(("p_resampling_top"), p_resampling_top);
     // p_resampling_pub = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
+    
+    // Service for sending minibatches of beams to the SVGP particles
+    // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
+    // nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
+    // as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
+    // as_mb_->start();
+
+    // Action clients for plotting the GP posteriors
+    for (int i = 0; i < pc; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server, true);
+        ac.waitForServer();
+        p_plot_acs_.push_back(ac);
+    }
+
+    // Action clients for sampling the GP posteriors
+    for (int i = 0; i < pc; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server, true);
+        ac.waitForServer();
+        p_sample_acs_.push_back(ac);
+    }
+
     ROS_INFO("RBPF instantiated");
 }
 
@@ -154,6 +172,7 @@ bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 }
 
 void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected = true; }
+
 
 void RbpfSlam::path_cb(const nav_msgs::Path::ConstPtr& wp_path)
 {
@@ -176,6 +195,7 @@ void RbpfSlam::path_cb(const nav_msgs::Path::ConstPtr& wp_path)
     ip_pub.publish(ip_pcloud);
 }
 
+
 void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_DEBUG("PF node: Survey finished received");
@@ -183,6 +203,7 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
     plot_gp_maps();
     ROS_DEBUG("We done bitches, this time in c++");
 }   
+
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2::ConstPtr& msg)
 {

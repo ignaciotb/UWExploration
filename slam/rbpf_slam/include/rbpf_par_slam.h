@@ -31,9 +31,12 @@
 #include <std_srvs/Empty.h>
 
 #include <actionlib/server/simple_action_server.h>
+#include <actionlib/client/simple_action_client.h>
 #include <slam_msgs/MinibatchTrainingAction.h>
 #include <slam_msgs/MinibatchTrainingGoal.h>
 #include <slam_msgs/MinibatchTrainingResult.h>
+#include <slam_msgs/SamplePosteriorAction.h>
+#include <slam_msgs/PlotPosteriorAction.h>
 
 using namespace std;
 
@@ -119,8 +122,14 @@ private:
     string ip_top;
     string p_resampling_top;
 
-    // Action servers
-    // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server;
+    // Minibatch AS
+    // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
+
+    // Action clients for sampling the GPs
+    std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>> p_sample_acs_;
+
+    // Action clients for plotting the GP posteriors
+    std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>> p_plot_acs_;
 
     string plot_gp_server;
     string sample_gp_server;

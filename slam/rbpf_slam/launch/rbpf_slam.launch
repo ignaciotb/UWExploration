@@ -38,6 +38,8 @@
   <arg name="gp_mb_server" default="/gp/minibatch_server"/>
   <arg name="gp_plot_server" default="/gp/plot_server"/>
   <arg name="sample_plot_server" default="/gp/sample_server"/>
+  <arg name="gp_resample_top" default="/gp/resample_top"/>
+  
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
   <arg name="rbpf_period"   default="0.3" />
 
@@ -51,8 +53,8 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="num_particle_handlers" value="2"/>     
-    <param name="num_particles_per_handler" value="2"/>     
+    <param name="num_particle_handlers" value="4"/>     
+    <param name="num_particles_per_handler" value="5"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>
 
@@ -90,6 +92,7 @@
         <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
 				<param name="path_topic"  value="/$(arg namespace)/waypoints" />
 				<param name="result_path"  value="/home/torroba/" />
+				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
       </node>
     </group>
   </group>

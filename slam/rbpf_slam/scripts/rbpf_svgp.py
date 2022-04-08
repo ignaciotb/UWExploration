@@ -18,7 +18,7 @@ import rospy
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from rospy.numpy_msg import numpy_msg
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Int32
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
@@ -30,6 +30,8 @@ import numpy as np
 
 import warnings
 import time
+from pathlib import Path
+
 
 class SVGP(VariationalGP):
 
@@ -82,6 +84,7 @@ class SVGP_map():
         self.training = False
         self.plotting = False
         self.sampling = False
+        self.resampling = False
 
         # AS for minibath training data from RBPF
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
@@ -94,8 +97,9 @@ class SVGP_map():
         self.inducing_points_received = False
 
         # Subscription to particle resampling indexes from RBPF
-        # p_resampling_top = rospy.get_param("~p_resampling_top")
-        # rospy.Subscriber(p_resampling_top, numpy_msg(Float32), self.resampling_cb, queue_size=1)
+        p_resampling_top = rospy.get_param("~gp_resampling_top")
+        rospy.Subscriber(str(p_resampling_top) + "/particle_" + str(self.particle_id), Int32,
+                         self.resampling_cb, queue_size=1)
 
         ## SVGP SETUP
         self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
@@ -134,23 +138,37 @@ class SVGP_map():
         # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
         # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
         # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
-        # rospy.spin()
 
         # Remove Qt out of main thread warning (use with caution)
         warnings.filterwarnings("ignore")
 
-        # return(mll, opt)
+    def resampling_cb(self, ind_msg):
 
-    # def resampling_cb(self, ind_msg):
-    #     indexes = ind_msg.astype(int)
-
-    #     # If this particle has been resampled, save the SVGP map to disk 
-    #     # to share it with the rest
-    #     if np.where(indexes==self.particle_id)[0].size > 0:
-    #         self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
+        self.resampling = True
+        # If this particle has been resampled, save the SVGP map to disk
+        # to share it with the rest
+        if ind_msg.data == self.particle_id:
+            time_start = time.time()
+            self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
+            print("Time saving ", time.time() - time_start)
+            print("Particle ", self.particle_id,
+                  "with iterations: ", self.iterations, " saved")
         
-    #     # Else, 
-    #     else:
+        # Else, load the SVGP from with the particle ID received in the msg
+        else:
+            print("Particle ", self.particle_id,  "loading particle ", ind_msg.data)
+            my_file = Path(self.storage_path + "svpg_" +
+                           str(ind_msg.data) + ".pth")
+            try:
+                if my_file.is_file():
+                    time_start = time.time()
+                    self.load(str(my_file.as_posix()))
+                    print("Time loading ", time.time() - time_start)
+
+            except FileNotFoundError:
+                print("Error: file doesn't exist ")
+        
+        self.resampling = False
             
             
     def train_iteration(self):
@@ -160,7 +178,7 @@ class SVGP_map():
             rospy.loginfo_once("Waiting for inducing points")
             return
 
-        if not self.plotting and not self.sampling:
+        if not self.plotting and not self.sampling and not self.resampling:
 
             # Get beams for minibatch training as pcl
             goal = MinibatchTrainingGoal()
@@ -197,6 +215,8 @@ class SVGP_map():
                 #     break
 
                 self.iterations += 1
+                # print("Particle ", self.particle_id,
+                #       "with iterations: ", self.iterations)
             
             else:
                 rospy.sleep(1)
@@ -229,7 +249,6 @@ class SVGP_map():
             print("Particle ", self.particle_id, " starting training")
 
 
-
     def sample_posterior_cb(self, goal):
 
         beams = np.asarray(list(pc2.read_points(goal.ping, 
@@ -249,9 +268,7 @@ class SVGP_map():
         result.sigma = sigma
         self._as_sample.set_succeeded(result)
         self.sampling = False
-        print("GP ", self.particle_id, " sampled")
-
-        # self.save("/home/torroba/Downloads/svgp_" + str(self.particle_id) + ".pth")
+        # print("GP ", self.particle_id, " sampled")
 
 
     def plot_posterior_cb(self, goal):

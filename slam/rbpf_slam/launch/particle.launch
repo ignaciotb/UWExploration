@@ -8,6 +8,7 @@
     <arg name="gp_mb_server" default="/gp/minibatch_server"/>
     <arg name="gp_plot_server" default="/gp/plot_server"/>
     <arg name="sample_sample_server" default="/gp/sample_server"/>
+    <arg name="gp_resample_top" default="/gp/resample_top"/>
     <arg name="num_particles_per_handler"/>     
 
     
@@ -23,7 +24,8 @@
       <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>     
       <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
       <param name="sample_gp_server" value="$(arg sample_sample_server)"/>     
-      <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
+      <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>   
+			<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
       <param name="svgp_num_ind_points" value="100"/>     
       <param name="svgp_minibatch_size" value="1000"/>     
       <param name="svpg_learning_rate" value="1e-1"/>     

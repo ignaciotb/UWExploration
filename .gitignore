@@ -31,3 +31,6 @@ install/*
 
 *.code*
 .vscode/*
+
+# ROS
+CATKIN_IGNORE

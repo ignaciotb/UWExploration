@@ -58,7 +58,7 @@ private:
     string mbes_frame;
     string odom_frame;
 
-    tf::TransformListener tfBuffer;
+    tf::TransformListener tfListener;
 
     // Loop closure
     bool lc_detected;

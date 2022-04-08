@@ -5,7 +5,7 @@
 int main(int argc, char** argv){
     ros::init(argc, argv, "rbpf_node");
 
-    ros::NodeHandle nh;
+    ros::NodeHandle nh("~");
     ros::CallbackQueue nav_queue;
     nh.setCallbackQueue(&nav_queue);
 

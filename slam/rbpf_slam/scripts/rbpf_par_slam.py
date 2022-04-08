@@ -117,7 +117,7 @@ class rbpf_slam(object):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats = rospy.Publisher(stats_top, numpy_msg(Float32), queue_size=10)
 
-        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
+        # self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')

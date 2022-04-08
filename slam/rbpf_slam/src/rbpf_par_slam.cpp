@@ -60,7 +60,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param<string>(("pf_stats_top"), stats_top, "stats");
     stats = nh_->advertise<std_msgs::Float32>(stats_top, 10);
 
-    nh_->param<string>(("particle_sim_mbes_topic"), mbes_pc_top, "/sim_mbes");
+    // nh_->param<string>(("particle_sim_mbes_topic"), mbes_pc_top, "/sim_mbes");
 
     // Action server for plotting the GP maps
     nh_->param<string>(("plot_gp_server"), plot_gp_server, "gp_plot_server");
@@ -83,10 +83,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     {
         ROS_DEBUG("Waiting for transforms");
 
-        tfBuffer.waitForTransform(base_frame, mbes_frame, ros::Time(0), ros::Duration(10.0));
-        tfBuffer.lookupTransform(base_frame, mbes_frame, ros::Time(0), mbes_tf);
-        tfBuffer.waitForTransform(map_frame, odom_frame, ros::Time(0), ros::Duration(10.0));
-        tfBuffer.lookupTransform(map_frame, odom_frame, ros::Time(0), m2o_tf);
+        tfListener.waitForTransform(base_frame, mbes_frame, ros::Time(0), ros::Duration(10.0));
+        tfListener.lookupTransform(base_frame, mbes_frame, ros::Time(0), mbes_tf);
+        tfListener.waitForTransform(map_frame, odom_frame, ros::Time(0), ros::Duration(10.0));
+        tfListener.lookupTransform(map_frame, odom_frame, ros::Time(0), m2o_tf);
 
         pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat);
         pcl_ros::transformAsMatrix(m2o_tf, m2o_mat);
@@ -96,7 +96,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
 
     catch (const std::exception &e)
     {
-        ROS_DEBUG("ERROR: Could not lookup transform from base_link to mbes_link");
+        ROS_ERROR("ERROR: Could not lookup transform from base_link to mbes_link");
     }
 
     // Initialize list of particles
@@ -120,33 +120,31 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param<float>(("rbpf_period"), rbpf_period, 0.3);
     timer = nh_->createTimer(ros::Duration(rbpf_period), &RbpfSlam::rbpf_update, this, false);
 
-    // Subscription to real mbes pings
-    nh_->param<string>(("lc_manual_topic"), lc_manual_topic, "manual_lc");
+    // Subscription to manually triggering LC detection. Just for testing
+    nh_->param<string>(("lc_manual_topic"), lc_manual_topic, "/manual_lc");
     lc_manual_sub = nh_->subscribe(lc_manual_topic, 1, &RbpfSlam::manual_lc, this);
-
-    // Empty service to synch the applications waiting for this node to start
-    ROS_DEBUG("RBPF successfully instantiated");
 
     nh_->param<string>(("synch_topic"), synch_top, "/pf_synch");
     srv_server = nh_->advertiseService(synch_top, &RbpfSlam::empty_srv, this);
 
     // Service for sending minibatches of beams to the SVGP particles
     // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
-    nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
-    actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
-    server.start();
+    // nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
+    // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction> server(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
+    // server.start();
 
     // The mission waypoints as a path
-    nh_->param<string>(("path_topic"), path_topic);
+    nh_->param<string>(("path_topic"), path_topic, "/waypoints");
     path_sub = nh_->subscribe(path_topic, 1, &RbpfSlam::path_cb, this);
 
-    // Publisher for inducing points to SVGP maps
-    nh_->param<string>(("inducing_points_top"), ip_top);
-    ip_pub = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
+    // // Publisher for inducing points to SVGP maps
+    // nh_->param<string>(("inducing_points_top"), ip_top);
+    // ip_pub = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
 
-    // Publisher for particles indexes to be resamples
-    nh_->param<string>(("p_resampling_top"), p_resampling_top);
-    p_resampling_pub = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
+    // // Publisher for particles indexes to be resamples
+    // nh_->param<string>(("p_resampling_top"), p_resampling_top);
+    // p_resampling_pub = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
+    ROS_INFO("RBPF instantiated");
 }
 
 bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
@@ -159,6 +157,7 @@ void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected =
 
 void RbpfSlam::path_cb(const nav_msgs::Path::ConstPtr& wp_path)
 {
+    ROS_INFO("Received path");
     std::vector<Eigen::RowVector3f> i_points;
     int wp_size = wp_path->poses.size();
     sensor_msgs::PointCloud2 ip_pcloud;

@@ -147,20 +147,20 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    for (int i = 0; i < pc; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server, true);
-        ac.waitForServer();
-        p_plot_acs_.push_back(ac);
-    }
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server_, true);
+    //     ac.waitForServer();
+    //     p_plot_acs_.push_back(ac);
+    // }
 
-    // Action clients for sampling the GP posteriors
-    for (int i = 0; i < pc; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server, true);
-        ac.waitForServer();
-        p_sample_acs_.push_back(ac);
-    }
+    // // Action clients for sampling the GP posteriors
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server_, true);
+    //     ac.waitForServer();
+    //     p_sample_acs_.push_back(ac);
+    // }
 
     ROS_INFO("RBPF instantiated");
 }
@@ -207,16 +207,34 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2::ConstPtr& msg)
 {
-    std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> real_mbes_full;
+    Eigen::ArrayXXf real_mbes_full(msg->row_step, 3);
     std::vector<int> idx;
+
     if (mission_finished_ != true)
     {
         // Beams in vehicle mbes frame
         real_mbes_full = pcloud2ranges_full(*msg);
         // Selecting only self.beams_num of beams in the ping
-        idx = linspace(0, real_mbes_full.size()-1, beams_num_);
+        idx = linspace(0, msg->row_step-1, beams_num_);
         // Store in pings history
+        // TODO - DOUBLE FOR LOOP IS TEMPORARY, CAN'T FIND EIGEN'S VERSION OF :
+        for(int i = 0; i < beams_num_; i++) 
+        { 
+            for(int j = 0; j < 3; j++) 
+            {
+                mbes_history_[count_pings_] = real_mbes_full(idx[i], j); 
+            }
+        }
 
+        // Store latest mbes msg for timing
+        latest_mbes_ = *msg;
+
+        count_pings_++;
+
+        // TODO - ONCE THE PARTICLE CLASS HAS BEEN CREATED
+        // for (int i = 0; i < pc_; i++) { self.particles[i].ctr += 1 }
+
+        pings_since_training_++;
     }
 }
 

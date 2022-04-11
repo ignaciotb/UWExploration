@@ -24,20 +24,20 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     n_eff_filt_ = 0.;
     count_pings_ = 0;
     count_training_ = 0;
-    firstFit_ = true;
-    one_time_ = true;
-    time2resample_ = false;
+    // firstFit_ = true;
+    // one_time_ = true;
+    // time2resample_ = false;
 
     poses_.header.frame_id = odom_frame_;
     avg_pose_.header.frame_id = odom_frame_;
 
-    targets_ = Eigen::ArrayXf::Zero(1);
 
-    // For the ancestry tree
-    observations_ = Eigen::ArrayXf::Zero(1, 3);
-    mapping_ = Eigen::ArrayXf::Zero(1, 3);
-    p_ID_ = 0;
-    n_from_ = 1;
+    // // For the ancestry tree
+    // targets_ = Eigen::ArrayXf::Zero(1);
+    // observations_ = Eigen::ArrayXf::Zero(1, 3);
+    // mapping_ = Eigen::ArrayXf::Zero(1, 3);
+    // p_ID_ = 0;
+    // n_from_ = 1;
 
 
     // Initialize particle poses publisher
@@ -91,15 +91,12 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
         ROS_ERROR("ERROR: Could not lookup transform from base_link to mbes_link");
     }
 
-    // Initialize list of particles
+    // Create particles
     for (int i=0; i<pc_-1; i++){
-        // RbpfParticle part_i = RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
-        //                                     init_cov_, meas_std_, motion_cov_);
         particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
                                             init_cov_, meas_std_, motion_cov_));
     }
-
-    // Create one particle on top or the GT vehicle pose. Only for testing
+    // // Create one particle on top or the GT vehicle pose. Only for testing
     particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
 
@@ -107,10 +104,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
     finished_sub_ = nh_->subscribe(finished_top_, 100, &RbpfSlam::synch_cb, this);
     survey_finished_ = false;
-
-    // Start timing now
-    time_ = ros::Time::now().toSec();
-    old_time_ = ros::Time::now().toSec();
 
     // Main timer for the RBPF
     nh_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
@@ -169,6 +162,11 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
         }
         p_sample_acs_.push_back(ac);
     }
+
+    // Start timing now
+    time_ = ros::Time::now().toSec();
+    old_time_ = ros::Time::now().toSec();
+    init_time_ = ros::Time::now().toSec();
 
     ROS_INFO("RBPF instantiated");
 
@@ -246,13 +244,14 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     if(mission_finished_ != true)
     {
         // Motion prediction
-        if (time_ > old_time_) { predict(*odom_msg); }
-
+        if (time_ > old_time_) 
+        { 
+            this->predict(*odom_msg); 
+        }
         // Update stats and visual
         update_rviz();
-        publish_stats(*odom_msg);
+        // publish_stats(*odom_msg);
     }
-
     old_time_ = time_;
 
 }
@@ -278,7 +277,7 @@ void RbpfSlam::plot_gp_maps()
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
-    float dt = time_ - old_time_;
+    float dt = float(time_ - old_time_);
     for(int i = 0; i < pc_-1; i++) 
     {
         particles_.at(i).motion_prediction(odom_t, dt);
@@ -291,7 +290,30 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 
 void RbpfSlam::update_rviz()
 {
-    ROS_DEBUG("TODO");
+    geometry_msgs::PoseArray array_msg;
+    array_msg.header.frame_id = odom_frame_;
+    array_msg.header.stamp = ros::Time::now();
+
+    for (int i=0; i<pc_; i++){
+        geometry_msgs::Pose pose_i;
+        pose_i.position.x = particles_.at(i).p_pose_(0);
+        pose_i.position.y = particles_.at(i).p_pose_(1);
+        pose_i.position.z = particles_.at(i).p_pose_(2);
+
+        Eigen::AngleAxisf rollAngle(particles_.at(i).p_pose_(3), Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(particles_.at(i).p_pose_(4), Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(particles_.at(i).p_pose_(5), Eigen::Vector3f::UnitZ());
+        Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
+        // Nacho: check the order is correct
+        pose_i.orientation.x = q.x();
+        pose_i.orientation.y = q.y();
+        pose_i.orientation.z = q.z();
+        pose_i.orientation.w = q.w();
+
+        array_msg.poses.push_back(pose_i);
+    }
+    pf_pub_.publish(array_msg);
+    // TODO: add publisher avg pose from filter 
 }
 
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)

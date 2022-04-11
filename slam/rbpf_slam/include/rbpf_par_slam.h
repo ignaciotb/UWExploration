@@ -82,10 +82,12 @@ private:
     int count_training_;
     bool firstFit_;
     bool one_time_;
-    bool time2resample_;
+    // bool time2resample_;
     bool survey_finished_;
-    float time_;
-    float old_time_;
+    double time_;
+    double old_time_;
+    double init_time_;
+
     float rbpf_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;

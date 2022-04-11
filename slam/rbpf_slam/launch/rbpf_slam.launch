@@ -45,8 +45,8 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="num_particle_handlers" value="2"/>     
-    <param name="num_particles_per_handler" value="2"/>     
+    <param name="num_particle_handlers" value="1"/>     
+    <param name="num_particles_per_handler" value="1"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>
 
@@ -102,7 +102,7 @@
    </node> -->
 
     <!-- UW environment -->
-    <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
+    <include file="$(find auv_model)/launch/auv_environment.launch" >
       <arg name="mode" value="$(arg mode)"/>
       <arg name="namespace" value="$(arg namespace)"/>
       <arg name="debug" default="0"/>
@@ -116,7 +116,7 @@
       <arg name="roll" value="$(arg roll)"/>
       <arg name="pitch" value="$(arg pitch)"/>
       <arg name="yaw" value="$(arg yaw)"/>
-    </include> -->
+    </include>
 
 </launch>
 

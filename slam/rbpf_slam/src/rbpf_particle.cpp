@@ -17,6 +17,7 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     meas_cov_ = std::vector<float>(beams_num_, std::pow(meas_std, 2));
 
     this->add_noise(init_cov_);
+
 }
 
 RbpfParticle::~RbpfParticle()
@@ -27,22 +28,26 @@ RbpfParticle::~RbpfParticle()
 void RbpfParticle::add_noise(std::vector<float> &noise){
 
     // Generate noise
-    Eigen::VectorXd noisy_pose(6, 1);
+    // Eigen::VectorXf noisy_pose(6, 1);
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
     for (int i = 0; i < 6; i++)
     {
-        std::normal_distribution<float> x_sampler{0, std::sqrt(noise.at(i))};
-        p_pose_(i) += x_sampler(*seed_);
+        std::normal_distribution<float> sampler{0, std::sqrt(noise.at(i))};
+        p_pose_(i) += sampler(seed);
     }
 }
 
 void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
 
     // Generate noise
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
     Eigen::VectorXf noise_vec(6, 1);
     for (int i = 0; i < 6; i++)
     {
-        std::normal_distribution<float> x_sampler{0, std::sqrt(process_cov_.at(i))};
-        noise_vec(i) = x_sampler(*seed_);
+        std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
+        noise_vec(i) = sampler(seed);
     }
 
     // Angular 
@@ -57,11 +62,10 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
     }
     p_pose_.tail(3) = rot_t;
 
-
-    Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitZ());
-    Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitX());
-    Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitY());
-    Eigen::Quaternion<float> q = rollAngle * yawAngle * pitchAngle;
+    Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitZ());
+    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
     Eigen::Matrix3f rotMat = q.matrix();
 
     // Linear
@@ -69,7 +73,7 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
                                             odom_t.twist.twist.linear.y,
                                             odom_t.twist.twist.linear.z);
     
-    Eigen::Vector3f step_t = rotMat * vel_p * dt + noise_vec.head(3);
+    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec.head(3);
     p_pose_.head(3) += step_t;
 }
 

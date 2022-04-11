@@ -44,10 +44,11 @@ public:
 
     void get_p_mbes_pose();
 
+    Eigen::VectorXf p_pose_;
+
 private:
 
     // Particle
-    Eigen::VectorXf p_pose_;
     int beams_num_; 
     int p_num_;
     int index_; 
@@ -56,8 +57,6 @@ private:
     Eigen::Matrix4f m2o_matrix_;
 
     // Noise models
-    std::random_device *rd_{};
-    std::mt19937* seed_;
     std::vector<float> init_cov_;
     std::vector<float> meas_cov_;
     std::vector<float> process_cov_;

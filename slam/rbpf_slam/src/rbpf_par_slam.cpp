@@ -241,7 +241,7 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
     ROS_DEBUG("TODO");
 }
 
-void RbpfSlam::odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg)
+void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
 {
     time_ = odom_msg->header.stamp.toSec();
     odom_latest_ = *odom_msg;

@@ -23,6 +23,8 @@
 
 #include <geometry_msgs/Point32.h>
 
+#include <random>
+
 using namespace std;
 
 class RbpfParticle
@@ -35,11 +37,23 @@ public:
 
 private:
 
+    // Particle
+    Eigen::VectorXd p_pose_;
+
+    // Noise models
+    std::random_device* rd_{};
+    std::mt19937* seed_;
+    std::vector<float> init_cov_;
+    std::vector<float> meas_cov_;
+    std::vector<float> process_cov_;
+
     void add_noise(std::vector<double>& noise);
 
-    void motion_prediction(nav_msgs::Odometry& odom_t, int t);
+    void motion_prediction(nav_msgs::Odometry& odom_t, int dt);
 
 };
+
+double angle_limit(double angle);
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes);
 

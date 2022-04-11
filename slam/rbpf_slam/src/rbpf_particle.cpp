@@ -2,18 +2,70 @@
 
 RbpfParticle::RbpfParticle(){
 
+    p_pose_ = Eigen::VectorXd::Zero(6,1);
+
 }
 
-RbpfParticle::~RbpfParticle(){
-
+RbpfParticle::~RbpfParticle()
+{
 }
 
 void RbpfParticle::add_noise(std::vector<double> &noise){
 
+    // Generate noise
+    Eigen::VectorXd noisy_pose(6, 1);
+    for (int i = 0; i < 6; i++)
+    {
+        std::normal_distribution<double> x_sampler{0, std::sqrt(noise.at(i))};
+        p_pose_(i) += x_sampler(*seed_);
+    }
 }
 
-void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, int t){
+void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, int dt){
 
+    // Generate noise
+    Eigen::VectorXd noise_vec(6, 1);
+    for (int i = 0; i < 6; i++)
+    {
+        std::normal_distribution<double> x_sampler{0, std::sqrt(process_cov_.at(i))};
+        noise_vec(i) = x_sampler(*seed_);
+    }
+
+    // Angular 
+    Eigen::Vector3d vel_rot = Eigen::Vector3d(odom_t.twist.twist.angular.x,
+                                              odom_t.twist.twist.angular.y,
+                                              odom_t.twist.twist.angular.z);
+
+    Eigen::Vector3d rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec.tail(3);
+    // Wrap up angles
+    for (int i =0; i < 3; i++){
+        rot_t(i) = angle_limit(rot_t(i));
+    }
+    p_pose_.tail(3) = rot_t;
+
+
+    Eigen::AngleAxisd rollAngle(rot_t(0), Eigen::Vector3d::UnitZ());
+    Eigen::AngleAxisd pitchAngle(rot_t(1), Eigen::Vector3d::UnitX());
+    Eigen::AngleAxisd yawAngle(rot_t(2), Eigen::Vector3d::UnitY());
+    Eigen::Quaternion<double> q = rollAngle * yawAngle * pitchAngle;
+    Eigen::Matrix3d rotMat = q.matrix();
+
+    // Linear
+    Eigen::Vector3d vel_p = Eigen::Vector3d(odom_t.twist.twist.linear.x,
+                                            odom_t.twist.twist.linear.y,
+                                            odom_t.twist.twist.linear.z);
+    
+    Eigen::Vector3d step_t = rotMat * vel_p * dt + noise_vec.head(3);
+    p_pose_.head(3) += step_t;
+}
+
+double angle_limit(double angle) // keep angle within [0;2*pi]
+{
+    while (angle >= M_PI*2)
+        angle -= M_PI*2;
+    while (angle < 0)
+        angle += M_PI*2;
+    return angle;
 }
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes)

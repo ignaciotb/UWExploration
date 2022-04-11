@@ -96,10 +96,10 @@ class rbpf_slam(object):
         self.tree_list = []
         self.time4regression = False
         self.n_from = 1
-        self.ctr = 0
+        # self.ctr = 0
 
         # Nacho
-        self.pings_since_training = 0
+        # self.pings_since_training = 0
         self.map_updates = 0
 
         # Initialize particle poses publisher
@@ -297,10 +297,10 @@ class rbpf_slam(object):
             self.latest_mbes = msg
 
             self.count_pings += 1
-            for i in range(self.pc):
-                self.particles[i].ctr += 1
+            # for i in range(self.pc):
+            #     self.particles[i].ctr += 1
 
-            self.pings_since_training += 1
+            # self.pings_since_training += 1
 
     def rbpf_update(self, event):
         if not self.mission_finished:
@@ -507,7 +507,7 @@ class rbpf_slam(object):
         self.lc_detected = False
 
         if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/4.:
-            self.ctr = 0
+            # self.ctr = 0
             
             # Resample particles
             indices = systematic_resample(weights)

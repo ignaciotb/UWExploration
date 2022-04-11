@@ -26,6 +26,6 @@ using namespace std;
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes);
 
-Eigen::ArrayXXf pcloud2ranges_full(sensor_msgs::PointCloud2 point_cloud);
+Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num);
 
 std::vector<int> linspace(float start, float end, float num);

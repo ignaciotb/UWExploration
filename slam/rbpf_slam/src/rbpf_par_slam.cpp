@@ -83,9 +83,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     {
         ROS_DEBUG("Waiting for transforms");
 
-        tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(10.0));
+        tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(30.0));
         tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf_);
-        tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(10.0));
+        tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(30.0));
         tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf_);
 
         pcl_ros::transformAsMatrix(mbes_tf_, base2mbes_mat_);
@@ -148,24 +148,34 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    for (int i = 0; i < pc_; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
-                    new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
-        ac->waitForServer();
-        p_plot_acs_.push_back(ac);
-    }
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
+    //                 new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
+    //     while(ac->waitForServer() && ros::ok())
+    //     {
+    //         std::cout << "Waiting for SVGP sample server " << i << std::endl;
+    //         ros::Duration(1).sleep();
+    //     }
+    //     p_plot_acs_.push_back(ac);
+    // }
 
-    // // Action clients for sampling the GP posteriors
-    for (int i = 0; i < pc_; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
-                    new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
-        ac->waitForServer();
-        p_sample_acs_.push_back(ac);
-    }
+    // // // Action clients for sampling the GP posteriors
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
+    //                 new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
+    //     ac->waitForServer();
+    //     while (ac->waitForServer() && ros::ok())
+    //     {
+    //         std::cout << "Waiting for SVGP plot server " << i << std::endl;
+    //         ros::Duration(1).sleep();
+    //     }
+    //     p_sample_acs_.push_back(ac);
+    // }
 
     ROS_INFO("RBPF instantiated");
+
 }
 
 bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
@@ -177,7 +187,7 @@ bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
 
 
-void RbpfSlam::path_cb(const nav_msgs::Path::ConstPtr& wp_path)
+void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
     ROS_INFO("Received path");
     std::vector<Eigen::RowVector3f> i_points;
@@ -208,36 +218,21 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 }   
 
 
-void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2::ConstPtr& msg)
+void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
-    Eigen::ArrayXXf real_mbes_full(msg->row_step, 3);
-    std::vector<int> idx;
-
     if (mission_finished_ != true)
     {
         // Beams in vehicle mbes frame
-        real_mbes_full = pcloud2ranges_full(*msg);
-        // Selecting only self.beams_num of beams in the ping
-        idx = linspace(0, msg->row_step-1, beams_num_);
-        // Store in pings history
-        // TODO - DOUBLE FOR LOOP IS TEMPORARY, CAN'T FIND EIGEN'S VERSION OF :
-        for(int i = 0; i < beams_num_; i++) 
-        { 
-            for(int j = 0; j < 3; j++) 
-            {
-                mbes_history_[count_pings_] = real_mbes_full(idx[i], j); 
-            }
-        }
+        // Eigen::MatrixXf real_mbes_full = pcloud2ranges_full(msg, beams_num_);
 
+        // Store in pings history
+        mbes_history_.emplace_back(pcloud2ranges_full(*msg, beams_num_));
+        
         // Store latest mbes msg for timing
         latest_mbes_ = *msg;
 
         count_pings_++;
 
-        // TODO - ONCE THE PARTICLE CLASS HAS BEEN CREATED
-        // for (int i = 0; i < pc_; i++) { self.particles[i].ctr += 1 }
-
-        pings_since_training_++;
     }
 }
 

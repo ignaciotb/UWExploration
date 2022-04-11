@@ -142,25 +142,28 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     
     // Service for sending minibatches of beams to the SVGP particles
     // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
-    // nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
-    // as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
-    // as_mb_->start();
+    std::string mb_gp_name;
+    nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
+    as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
+    as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server_, true);
-    //     ac.waitForServer();
-    //     p_plot_acs_.push_back(ac);
-    // }
+    for (int i = 0; i < pc_; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
+                    new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
+        ac->waitForServer();
+        p_plot_acs_.push_back(ac);
+    }
 
     // // Action clients for sampling the GP posteriors
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server_, true);
-    //     ac.waitForServer();
-    //     p_sample_acs_.push_back(ac);
-    // }
+    for (int i = 0; i < pc_; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
+                    new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
+        ac->waitForServer();
+        p_sample_acs_.push_back(ac);
+    }
 
     ROS_INFO("RBPF instantiated");
 }
@@ -265,10 +268,10 @@ void RbpfSlam::odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
-    int pc_id = goal.particle_id;
+    int pc_id = goal->particle_id;
 
-    // Randomly pick mb_size/beams_per_ping pings 
-    int mb_size = goal.mb_size;
+    // Randomly pick mb_size/beams_per_ping pings
+    int mb_size = goal->mb_size;
 
     // If enough beams collected to start minibatch training
     if(mbes_history_.size() > mb_size/20)

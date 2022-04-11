@@ -123,13 +123,13 @@ private:
     string p_resampling_top_;
 
     // Minibatch AS
-    // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
+    actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
 
     // Action clients for sampling the GPs
-    std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>> p_sample_acs_;
+    std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>*> p_sample_acs_;
 
     // Action clients for plotting the GP posteriors
-    std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>> p_plot_acs_;
+    std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>*> p_plot_acs_;
 
     string plot_gp_server_;
     string sample_gp_server_;

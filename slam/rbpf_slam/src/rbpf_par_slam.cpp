@@ -245,12 +245,36 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
 
 void RbpfSlam::odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 {
-    ROS_DEBUG("TODO");
+    time_ = odom_msg->header.stamp.toSec();
+    odom_latest_ = *odom_msg;
+
+    // Flag to finish the mission
+    if(mission_finished_ != true)
+    {
+        // Motion prediction
+        if (time_ > old_time_) { predict(*odom_msg); }
+
+        // Update stats and visual
+        update_rviz();
+        publish_stats(*odom_msg);
+    }
+
+    old_time_ = time_;
+
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
-    ROS_DEBUG("TODO");
+    int pc_id = goal.particle_id;
+
+    // Randomly pick mb_size/beams_per_ping pings 
+    int mb_size = goal.mb_size;
+
+    // If enough beams collected to start minibatch training
+    if(mbes_history_.size() > mb_size/20)
+    {
+        int idx = 0;
+    }
 }
 
 void RbpfSlam::plot_gp_maps()
@@ -258,7 +282,24 @@ void RbpfSlam::plot_gp_maps()
     ROS_DEBUG("TODO");
 }
 
+void RbpfSlam::predict(nav_msgs::Odometry odom_t)
+{
+    float dt = time_ - old_time_;
+    for(int i = 0; i < pc_; i++) 
+    {
+        ROS_DEBUG("TODO, AFTER THE PARTICLE CLASS");
+    }
+}
 
+void RbpfSlam::update_rviz()
+{
+    ROS_DEBUG("TODO");
+}
+
+void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
+{
+    ROS_DEBUG("TODO");
+}
 
 
 RbpfSlam::~RbpfSlam(){

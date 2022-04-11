@@ -176,4 +176,7 @@ private:
 
     // Other functions
     void plot_gp_maps();
+    void predict(nav_msgs::Odometry odom_t);
+    void update_rviz();
+    void publish_stats(nav_msgs::Odometry gt_odom);
 };

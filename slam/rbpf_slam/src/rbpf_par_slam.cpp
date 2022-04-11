@@ -147,20 +147,20 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    for (int i = 0; i < pc; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server, true);
-        ac.waitForServer();
-        p_plot_acs_.push_back(ac);
-    }
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction> ac("/particle_" + std::to_string(i) + plot_gp_server_, true);
+    //     ac.waitForServer();
+    //     p_plot_acs_.push_back(ac);
+    // }
 
-    // Action clients for sampling the GP posteriors
-    for (int i = 0; i < pc; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server, true);
-        ac.waitForServer();
-        p_sample_acs_.push_back(ac);
-    }
+    // // Action clients for sampling the GP posteriors
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> ac("/particle_" + std::to_string(i) + sample_gp_server_, true);
+    //     ac.waitForServer();
+    //     p_sample_acs_.push_back(ac);
+    // }
 
     ROS_INFO("RBPF instantiated");
 }
@@ -207,16 +207,34 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2::ConstPtr& msg)
 {
-    std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> real_mbes_full;
+    Eigen::ArrayXXf real_mbes_full(msg->row_step, 3);
     std::vector<int> idx;
+
     if (mission_finished_ != true)
     {
         // Beams in vehicle mbes frame
         real_mbes_full = pcloud2ranges_full(*msg);
         // Selecting only self.beams_num of beams in the ping
-        idx = linspace(0, real_mbes_full.size()-1, beams_num_);
+        idx = linspace(0, msg->row_step-1, beams_num_);
         // Store in pings history
+        // TODO - DOUBLE FOR LOOP IS TEMPORARY, CAN'T FIND EIGEN'S VERSION OF :
+        for(int i = 0; i < beams_num_; i++) 
+        { 
+            for(int j = 0; j < 3; j++) 
+            {
+                mbes_history_[count_pings_] = real_mbes_full(idx[i], j); 
+            }
+        }
 
+        // Store latest mbes msg for timing
+        latest_mbes_ = *msg;
+
+        count_pings_++;
+
+        // TODO - ONCE THE PARTICLE CLASS HAS BEEN CREATED
+        // for (int i = 0; i < pc_; i++) { self.particles[i].ctr += 1 }
+
+        pings_since_training_++;
     }
 }
 
@@ -227,12 +245,36 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
 
 void RbpfSlam::odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg)
 {
-    ROS_DEBUG("TODO");
+    time_ = odom_msg->header.stamp.toSec();
+    odom_latest_ = *odom_msg;
+
+    // Flag to finish the mission
+    if(mission_finished_ != true)
+    {
+        // Motion prediction
+        if (time_ > old_time_) { predict(*odom_msg); }
+
+        // Update stats and visual
+        update_rviz();
+        publish_stats(*odom_msg);
+    }
+
+    old_time_ = time_;
+
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
-    ROS_DEBUG("TODO");
+    int pc_id = goal.particle_id;
+
+    // Randomly pick mb_size/beams_per_ping pings 
+    int mb_size = goal.mb_size;
+
+    // If enough beams collected to start minibatch training
+    if(mbes_history_.size() > mb_size/20)
+    {
+        int idx = 0;
+    }
 }
 
 void RbpfSlam::plot_gp_maps()
@@ -240,7 +282,24 @@ void RbpfSlam::plot_gp_maps()
     ROS_DEBUG("TODO");
 }
 
+void RbpfSlam::predict(nav_msgs::Odometry odom_t)
+{
+    float dt = time_ - old_time_;
+    for(int i = 0; i < pc_; i++) 
+    {
+        ROS_DEBUG("TODO, AFTER THE PARTICLE CLASS");
+    }
+}
 
+void RbpfSlam::update_rviz()
+{
+    ROS_DEBUG("TODO");
+}
+
+void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
+{
+    ROS_DEBUG("TODO");
+}
 
 
 RbpfSlam::~RbpfSlam(){

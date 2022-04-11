@@ -74,7 +74,7 @@ private:
 
     // Global variables
     int n_eff_mask_[3];
-    std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
+    std::vector<Eigen::ArrayXXf, Eigen::aligned_allocator<Eigen::ArrayXXf>> mbes_history_;
 
     float n_eff_filt_;
     int count_pings_;
@@ -176,4 +176,7 @@ private:
 
     // Other functions
     void plot_gp_maps();
+    void predict(nav_msgs::Odometry odom_t);
+    void update_rviz();
+    void publish_stats(nav_msgs::Odometry gt_odom);
 };

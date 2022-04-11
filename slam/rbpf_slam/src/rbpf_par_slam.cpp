@@ -260,15 +260,53 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
     int pc_id = goal->particle_id;
 
-    // Randomly pick mb_size/beams_per_ping pings
+    // Randomly pick mb_size/beams_per_ping pings 
     int mb_size = goal->mb_size;
 
     // If enough beams collected to start minibatch training
+    std::vector<int> idx(int(mb_size/20));
+    std::vector<int> choice_vector(mbes_history_.size());
+    for(int i = 0; i < mbes_history_.size(); i++){ choice_vector[i] = i; }
+
+    std::vector<Eigen::ArrayXXf> part_ping_map;
+    Eigen::ArrayXf p_part(3);
+    Eigen::ArrayXXf r_mbes(3, 3);
+
+    sensor_msgs::PointCloud2 mbes_pcloud;
+
     if(mbes_history_.size() > mb_size/20)
     {
-        int idx = 0;
+        for(int i = 0; i < idx.size(); i++) 
+        {
+            int random_i = rand() % choice_vector.size();
+            idx[i] = choice_vector[random_i];
+        }
+
+        // If time to retrain GP map
+        time_t start_time = time(nullptr);
+        for(int i = 0; i < idx.size(); i++) 
+        {
+            // For particle i, get all its trajectory in the map frame
+            ROS_DEBUG("TODO, AFTER THE PARTICLE CLASS");
+        }
+
+        // Set action as success
+        ROS_DEBUG("TODO, AFTER THE PARTICLE CLASS");
+        slam_msgs::MinibatchTrainingResult result;
+        result.success = true;
+        as_mb_->setSucceeded(result);
+
+    }
+
+    // If not enough beams collected to start the minibatch training
+    else
+    {
+        slam_msgs::MinibatchTrainingResult result;
+        result.success = false;
+        as_mb_->setSucceeded(result);
     }
 }
+
 
 void RbpfSlam::plot_gp_maps()
 {

@@ -1,5 +1,21 @@
 #include "rbpf_particle.h"
 
+RbpfParticle::RbpfParticle(){
+
+}
+
+RbpfParticle::~RbpfParticle(){
+
+}
+
+void RbpfParticle::add_noise(std::vector<double> &noise){
+
+}
+
+void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, int t){
+
+}
+
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes)
 {
     typedef pcl::PointCloud<pcl::PointXYZ> PCloud;

@@ -14,6 +14,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <sensor_msgs/PointField.h>
+#include <nav_msgs/Odometry.h>
 
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
@@ -23,6 +24,22 @@
 #include <geometry_msgs/Point32.h>
 
 using namespace std;
+
+class RbpfParticle
+{
+
+public:
+
+    RbpfParticle();
+    ~RbpfParticle();
+
+private:
+
+    void add_noise(std::vector<double>& noise);
+
+    void motion_prediction(nav_msgs::Odometry& odom_t, int t);
+
+};
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes);
 

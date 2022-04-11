@@ -37,13 +37,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     observations_ = Eigen::ArrayXf::Zero(1, 3);
     mapping_ = Eigen::ArrayXf::Zero(1, 3);
     p_ID_ = 0;
-    time4regression_ = false;
     n_from_ = 1;
-    ctr_ = 0;
 
-    // Nacho
-    pings_since_training_ = 0;
-    map_updates_ = 0;
 
     // Initialize particle poses publisher
     nh_->param<string>(("particle_poses_topic"), pose_array_top_, "/particle_poses");
@@ -59,8 +54,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
 
     nh_->param<string>(("pf_stats_top"), stats_top_, "stats");
     stats_ = nh_->advertise<std_msgs::Float32>(stats_top_, 10);
-
-    // nh_->param<string>(("particle_sim_mbes_topic"), mbes_pc_top, "/sim_mbes");
 
     // Action server for plotting the GP maps
     nh_->param<string>(("plot_gp_server"), plot_gp_server_, "gp_plot_server");
@@ -93,19 +86,22 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
 
         ROS_DEBUG("Transforms locked - RBPF node");
     }
-
     catch (const std::exception &e)
     {
         ROS_ERROR("ERROR: Could not lookup transform from base_link to mbes_link");
     }
 
     // Initialize list of particles
-    // TODO, need to create the Particle class first
-    /* 
-    .
-    .
-    .
-    */
+    for (int i=0; i<pc_-1; i++){
+        // RbpfParticle part_i = RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
+        //                                     init_cov_, meas_std_, motion_cov_);
+        particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
+                                            init_cov_, meas_std_, motion_cov_));
+    }
+
+    // Create one particle on top or the GT vehicle pose. Only for testing
+    particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
+                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
 
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
@@ -141,7 +137,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // p_resampling_pub = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
     
     // Service for sending minibatches of beams to the SVGP particles
-    // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
     std::string mb_gp_name;
     nh_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
     as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
@@ -284,10 +279,14 @@ void RbpfSlam::plot_gp_maps()
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
     float dt = time_ - old_time_;
-    for(int i = 0; i < pc_; i++) 
+    for(int i = 0; i < pc_-1; i++) 
     {
-        ROS_DEBUG("TODO, AFTER THE PARTICLE CLASS");
+        particles_.at(i).motion_prediction(odom_t, dt);
+        particles_.at(i).update_pose_history();
     }
+
+    // DR particle
+    particles_.at(pc_-1).motion_prediction(odom_t, dt);
 }
 
 void RbpfSlam::update_rviz()

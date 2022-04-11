@@ -64,7 +64,6 @@ class SVGP_map():
 
     def __init__(self, particle_id):
 
-
         ## ROS INTERFACE
         self.particle_id = particle_id
         self.storage_path = rospy.get_param("~results_path")

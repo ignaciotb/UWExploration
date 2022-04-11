@@ -60,6 +60,7 @@ private:
     string base_frame_;
     string mbes_frame_;
     string odom_frame_;
+    std::vector<RbpfParticle> particles_;
 
     tf::TransformListener tfListener_;
 
@@ -68,9 +69,9 @@ private:
 
     // Covariances
     float meas_std_;
-    vector<float> init_cov_;
-    vector<float> res_noise_cov_;
-    vector<float> motion_cov_;
+    std::vector<float> init_cov_;
+    std::vector<float> res_noise_cov_;
+    std::vector<float> motion_cov_;
 
     // Global variables
     int n_eff_mask_[3];

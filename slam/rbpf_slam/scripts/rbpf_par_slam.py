@@ -92,7 +92,7 @@ class rbpf_slam(object):
         # for ancestry tree
         self.observations = np.zeros((1,3)) 
         self.mapping= np.zeros((1,3)) 
-        self.p_ID = 0
+        # self.p_ID = 0
         self.tree_list = []
         self.time4regression = False
         self.n_from = 1
@@ -163,15 +163,15 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-            self.particles[i].ID = self.p_ID
-            self.p_ID += 1
+            # self.particles[i].ID = self.p_ID
+            # self.p_ID += 1
         
         # Create one particle on top of vehicle for tests with very few
         self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                          process_cov=[0.]*6)
-        self.particles[i+1].ID = self.p_ID
-        self.p_ID += 1
+        # self.particles[i+1].ID = self.p_ID
+        # self.p_ID += 1
         
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)

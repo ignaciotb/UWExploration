@@ -18,19 +18,26 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
     return mbes_pcloud;
 }
 
-Eigen::ArrayXXf pcloud2ranges_full(sensor_msgs::PointCloud2 point_cloud)
+Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num)
 {
     int pc_size = point_cloud.row_step;
-    Eigen::ArrayXXf beams(pc_size, 3);
 
+    // Nacho: is this needed?
     sensor_msgs::PointCloud out_cloud;
     sensor_msgs::convertPointCloud2ToPointCloud(point_cloud, out_cloud);
 
+    // Selecting only self.beams_num of beams in the ping
+    std::vector<int> idx;
+    idx = linspace(0, point_cloud.row_step - 1, beams_num);
+    Eigen::MatrixXf beams(beams_num, 3);
+
     for (int i = 0; i < out_cloud.points.size(); ++i)
     {
-        beams(i, 0) = out_cloud.points[i].x;
-        beams(i, 1) = out_cloud.points[i].y;
-        beams(i, 3) = out_cloud.points[i].z;
+        if (std::find(idx.begin(), idx.end(), i) != idx.end() ){
+            beams.row(i) = Eigen::Vector3f(out_cloud.points[i].x, 
+                                            out_cloud.points[i].y,
+                                            out_cloud.points[i].z);
+        }
     }
 
     return beams;

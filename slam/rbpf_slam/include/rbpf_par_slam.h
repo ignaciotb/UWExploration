@@ -74,7 +74,7 @@ private:
 
     // Global variables
     int n_eff_mask_[3];
-    std::vector<Eigen::ArrayXXf, Eigen::aligned_allocator<Eigen::ArrayXXf>> mbes_history_;
+    std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
 
     float n_eff_filt_;
     int count_pings_;
@@ -168,9 +168,9 @@ private:
     bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     void mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr &goal);
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
-    void path_cb(const nav_msgs::Path::ConstPtr& wp_path);
+    void path_cb(const nav_msgs::PathConstPtr& wp_path);
     void synch_cb(const std_msgs::Bool::ConstPtr& finished_msg);
-    void mbes_real_cb(const sensor_msgs::PointCloud2::ConstPtr& msg);
+    void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
     void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
 

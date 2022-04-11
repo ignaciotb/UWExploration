@@ -8,6 +8,7 @@ RbpfParticle::RbpfParticle(){
 
 RbpfParticle::~RbpfParticle()
 {
+    
 }
 
 void RbpfParticle::add_noise(std::vector<double> &noise){

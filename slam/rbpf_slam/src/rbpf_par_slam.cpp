@@ -143,36 +143,37 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // Service for sending minibatches of beams to the SVGP particles
     // TODO: MOVE THE DEFINITION OF THIS ACTION SERVER IN THE HEADER
     std::string mb_gp_name;
-    nh_->param<string>(("minibatch_gp_server"), mb_gp_name);
+    nh_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
     as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
     as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
-    //                 new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
-    //     while(ac->waitForServer() && ros::ok())
-    //     {
-    //         std::cout << "Waiting for SVGP sample server " << i << std::endl;
-    //         ros::Duration(1).sleep();
-    //     }
-    //     p_plot_acs_.push_back(ac);
-    // }
+    for (int i = 0; i < pc_; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
+                    new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
+        while(!ac->waitForServer() && ros::ok())
+        {
+            std::cout << "Waiting for SVGP sample server "
+                      << "/particle_" + std::to_string(i) + plot_gp_server_ << std::endl;
+            ros::Duration(2).sleep();
+        }
+        p_plot_acs_.push_back(ac);
+    }
 
-    // // // Action clients for sampling the GP posteriors
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
-    //                 new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
-    //     ac->waitForServer();
-    //     while (ac->waitForServer() && ros::ok())
-    //     {
-    //         std::cout << "Waiting for SVGP plot server " << i << std::endl;
-    //         ros::Duration(1).sleep();
-    //     }
-    //     p_sample_acs_.push_back(ac);
-    // }
+    // Action clients for sampling the GP posteriors
+    for (int i = 0; i < pc_; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
+                    new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
+        while (!ac->waitForServer() && ros::ok())
+        {
+            std::cout << "Waiting for SVGP plot server "
+                      << "/particle_" + std::to_string(i) + sample_gp_server_ << std::endl;
+            ros::Duration(2).sleep();
+        }
+        p_sample_acs_.push_back(ac);
+    }
 
     ROS_INFO("RBPF instantiated");
 

@@ -64,6 +64,7 @@ class SVGP_map():
 
     def __init__(self, particle_id):
 
+
         ## ROS INTERFACE
         self.particle_id = particle_id
         self.storage_path = rospy.get_param("~results_path")
@@ -89,7 +90,8 @@ class SVGP_map():
         # AS for minibath training data from RBPF
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
-        self.ac_mb.wait_for_server()
+        while not self.ac_mb.wait_for_server(timeout=rospy.Duration(5)) and not rospy.is_shutdown():
+            print("Waiting for MB AS ", particle_id)
 
         # Subscription to GP inducing points from RBPF
         ip_top = rospy.get_param("~inducing_points_top")

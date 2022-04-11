@@ -1,9 +1,11 @@
 #include "rbpf_particle.h"
 
-RbpfParticle::RbpfParticle(){
-
-    p_pose_ = Eigen::VectorXd::Zero(6,1);
-
+RbpfParticle::RbpfParticle(int beams_num, int p_num,
+                           Eigen::ArrayXXf mbes_tf_matrix, Eigen::ArrayXXf m2o_matrix,
+                           vector<float> init_cov, float meas_std, vector<float> process_cov) : beams_num_(beams_num), p_num_(p_num), mbes_tf_mat_(mbes_tf_matrix), m2o_tf_mat_(m2o_matrix),
+                                                                                                init_cov_(init_cov), process_cov_(process_cov)
+{
+    p_pose_ = Eigen::VectorXd::Zero(6, 1);
 }
 
 RbpfParticle::~RbpfParticle()

@@ -31,11 +31,38 @@ class RbpfParticle
 {
 
 public:
-
-    RbpfParticle();
+    RbpfParticle(int beams_num, int p_num,
+                 Eigen::ArrayXXf mbes_tf_matrix, Eigen::ArrayXXf m2o_matrix,
+                 vector<float> init_cov, float meas_std, vector<float> process_cov);
     ~RbpfParticle();
 
 private:
+
+    int p_num_;
+    int index_;
+
+    int beams_num_;
+    Eigen::ArrayXXf mbes_tf_mat_;
+    Eigen::ArrayXXf m2o_tf_mat_;
+    float w_;
+    float log_w;
+
+    // For gp and likelihood
+    Eigen::ArrayXf inputs_;
+    Eigen::ArrayXf est_map_;
+    Eigen::ArrayXf sigma_obs_;
+    vector<float> sigma_list_;
+    vector<float> mu_list_;
+
+    // For the ancestry tree
+    Eigen::ArrayXf trajectory_path_;
+    bool time4regression_;
+    string parent_;
+    int n_from_;
+    int ctr_;
+
+    // Nacho
+    vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
     Eigen::VectorXd p_pose_;

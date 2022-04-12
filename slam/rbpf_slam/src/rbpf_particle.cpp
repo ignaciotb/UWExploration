@@ -14,7 +14,7 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     // Noise models init
     init_cov_ = init_cov;
     process_cov_ = process_cov;
-    meas_cov_ = std::vector<float>(beams_num_, std::pow(meas_std, 2));
+    meas_cov_ = std::vector<double>(beams_num_, std::pow(meas_std, 2));
 
     this->add_noise(init_cov_);
 
@@ -103,6 +103,60 @@ void RbpfParticle::get_p_mbes_pose()
     // Nacho: this functionality has been moved to update_pose_history()
     // This method is left to keep parallelism with the original python class
 }
+
+void RbpfParticle::compute_weight(vector<Eigen::Array3f> exp_mbes, vector<double> real_mbes)
+{
+    // Compare only absolute z values of real and expected measurements 
+    vector<float> exp_mbes_z = list2ranges(exp_mbes);
+
+    if(exp_mbes_z.size() > 0) { w_ = weight_mv(real_mbes, exp_mbes_z); }
+    else
+    {
+        w_ = 1e-50;
+        ROS_WARN("Range of exp meas equals zero");
+    }
+}
+
+float RbpfParticle::weight_mv(vector<double> mbes_meas_ranges, vector<float> mbes_sim_ranges)
+{
+    float w_i;
+    if(mbes_meas_ranges.size() == mbes_sim_ranges.size())
+    {
+        // Convert to Eigen Array and Matrix for the multivariate normal sampling step
+        Eigen::VectorXd mbes_meas_ranges_eig = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mbes_meas_ranges.data(), mbes_meas_ranges.size());
+        Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
+        Eigen::MatrixXd meas_cov_eig(meas_cov_.size(), meas_cov_.size());
+        meas_cov_eig.diagonal() = meas_cov_eig_diag;
+
+        // Sampling from the distribution 
+        normal_random_variable_ sample{mbes_meas_ranges_eig, meas_cov_eig};
+        w_i = mvn_pdf(sample(), mbes_meas_ranges_eig, meas_cov_eig);
+    }
+    
+    else
+    {
+        ROS_WARN("Missing pings!");
+        w_i = 1e-50;
+    }
+
+    return w_i;
+}
+
+float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma) 
+{
+  float quadform  = (x - mean).transpose() * sigma.inverse() * (x - mean);
+  float norm = std::pow((2*M_PI*sigma).determinant(), - 0.5);
+
+  return norm * exp(-0.5 * quadform);
+}
+
+vector<float> list2ranges(vector<Eigen::Array3f> points)
+{
+    vector<float> ranges;
+    for(int i = 0; i < points.size(); i++) { ranges[i] = points[i](2); }
+    return ranges;
+}
+
 
 float angle_limit(float angle) // keep angle within [0;2*pi]
 {

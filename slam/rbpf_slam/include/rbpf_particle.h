@@ -40,6 +40,10 @@ public:
 
     void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
 
+    void compute_weight(vector<Eigen::Array3f> exp_mbes, vector<double> real_mbes);
+
+    float weight_mv(vector<double> mbes_meas_ranges, vector<float> mbes_sim_ranges);
+
     void update_pose_history();
 
     void get_p_mbes_pose();
@@ -49,13 +53,6 @@ public:
     std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
 
 private:
-
-    int p_num_;
-    int index_;
-
-    int beams_num_;
-    Eigen::ArrayXXf mbes_tf_mat_;
-    Eigen::ArrayXXf m2o_tf_mat_;
     float w_;
     float log_w;
 
@@ -86,10 +83,8 @@ private:
 
     // Noise models
     std::vector<float> init_cov_;
-    std::vector<float> meas_cov_;
+    std::vector<double> meas_cov_;
     std::vector<float> process_cov_;
-
-    double w_;
 
 };
 
@@ -99,4 +94,30 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
 Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num);
 
+vector<float> list2ranges(vector<Eigen::Array3f> points);
+
 std::vector<int> linspace(float start, float end, float num);
+
+float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma);
+
+struct normal_random_variable_
+{
+
+    normal_random_variable_(Eigen::VectorXd const &mean, Eigen::MatrixXd const &covar)
+        : mean(mean)
+    {
+        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(covar);
+        transform = eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal();
+    }
+
+    Eigen::VectorXd mean;
+    Eigen::MatrixXd transform;
+
+    Eigen::VectorXd operator()() const
+    {
+        static std::mt19937 gen{std::random_device{}()};
+        static std::normal_distribution<> dist;
+
+        return mean + transform * Eigen::VectorXd{mean.size()}.unaryExpr([&](auto x) { return dist(gen); });
+    }
+};

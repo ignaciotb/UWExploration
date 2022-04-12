@@ -265,6 +265,7 @@ class SVGP_map():
 
         # Set action as success
         result = SamplePosteriorResult()
+        result.p_id = self.particle_id
         result.mu = mu
         result.sigma = sigma
         self._as_sample.set_succeeded(result)

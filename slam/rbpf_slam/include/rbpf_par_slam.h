@@ -51,6 +51,8 @@
 
 using namespace std;
 
+// typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
+
 class RbpfSlam
 {
 
@@ -89,6 +91,7 @@ private:
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
     std::vector<int> beams_idx_;
+    Eigen::MatrixXf latest_mbes_z_;
 
     float n_eff_filt_;
     int count_pings_;
@@ -184,6 +187,8 @@ private:
     void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
     void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
+    void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
+    void sampleCB(const slam_msgs::SamplePosteriorResultConstPtr& result);
 
     // Other functions
     void plot_gp_maps();

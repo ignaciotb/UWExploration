@@ -264,15 +264,15 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     std::random_device rd;
     std::mt19937 g(rd());
 
-    int beams_per_pings = 20;
+    int beams_per_ping = 20;
     Eigen::MatrixXf mb_mat(mb_size, 3);
 
     // If enough beams collected to start minibatch training
-    if (count_pings_ > (mb_size / beams_per_pings))
+    if (count_pings_ > (mb_size / beams_per_ping))
     {
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
         std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
-        for (int i = 0; i < int(mb_size / beams_per_pings); i++)
+        for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
             int ping_i = pings_idx_.at(i);
@@ -283,9 +283,9 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             // Sample beams_per_pings beams from ping ping_i
             std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
 
-            for (int b = 0; b < beams_per_pings; b++)
+            for (int b = 0; b < beams_per_ping; b++)
             {
-                mb_mat.row(i * beams_per_pings + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
                                                          + pos_i).transpose();
             }
         }
@@ -326,7 +326,49 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
 void RbpfSlam::plot_gp_maps()
 {
-    ROS_DEBUG("TODO");
+    int pings_t = mbes_history_.size();
+    Eigen::MatrixXf mb_mat(pings_t * beams_num_, 3);
+    for(int p=0; p<pc_; p++)
+    {
+        for (int ping_i = 0; ping_i < pings_t; ping_i++)
+        {
+            // Transform x random beams to particle pose in map frame
+            Eigen::Vector3f pos_i = particles_.at(p).pos_history_.at(ping_i);
+            Eigen::Matrix3f rot_i = particles_.at(p).rot_history_.at(ping_i);
+
+            for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
+            {
+                mb_mat.row(ping_i * beams_num_ + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                                                         + pos_i).transpose();
+            }
+        }
+
+        // Parse into pointcloud2
+        sensor_msgs::PointCloud2 mbes_pcloud;
+        sensor_msgs::PointCloud2Modifier cloud_out_modifier(mbes_pcloud);
+        cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
+        cloud_out_modifier.resize(mb_mat.rows());
+
+        sensor_msgs::PointCloud2Iterator<float> iter_x(mbes_pcloud, "x");
+        sensor_msgs::PointCloud2Iterator<float> iter_y(mbes_pcloud, "y");
+        sensor_msgs::PointCloud2Iterator<float> iter_z(mbes_pcloud, "z");
+
+        for (size_t i = 0; i < mb_mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z)
+        {
+            *iter_x = mb_mat.row(i)[0];
+            *iter_y = mb_mat.row(i)[1];
+            *iter_z = mb_mat.row(i)[2];
+        }
+
+        // Set action as success
+        slam_msgs::PlotPosteriorGoal goal;
+        goal.pings = mbes_pcloud;
+        p_plot_acs_.at(p)->sendGoal(goal);
+        // We want this calls to be secuential since plotting is GPU-heavy 
+        // and not time critical, so we want the particles to do it one by one 
+        bool received = p_plot_acs_.at(p)->waitForResult();        
+    }
+
 }
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)

@@ -150,6 +150,14 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
         p_sample_acs_.push_back(ac);
     }
 
+    // Create vector of beams indexes per ping.
+    // It can be done only once since we're making sure all pings have the 
+    // same num of beams
+    for (int n = 0; n < beams_num_; n++)
+    {
+        beams_idx_.push_back(n);
+    }
+
     // Start timing now
     time_ = ros::Time::now().toSec();
     old_time_ = ros::Time::now().toSec();
@@ -262,7 +270,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     // If enough beams collected to start minibatch training
     if (count_pings_ > (mb_size / beams_per_pings))
     {
-
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
         std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
         for (int i = 0; i < int(mb_size / beams_per_pings); i++)
@@ -274,16 +281,12 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             Eigen::Matrix3f rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
 
             // Sample beams_per_pings beams from ping ping_i
-            std::vector<int> idx_beams;
-            for (int n = 0; n < mbes_history_.at(ping_i).rows(); n++)
-            {
-                idx_beams.push_back(n);
-            }
-            std::shuffle(idx_beams.begin(), idx_beams.end(), g);
+            std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
 
             for (int b = 0; b < beams_per_pings; b++)
             {
-                mb_mat.row(i * beams_per_pings + b) = (rot_i * mbes_history_.at(ping_i).row(idx_beams.at(b)).transpose() + pos_i).transpose();
+                mb_mat.row(i * beams_per_pings + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                                                         + pos_i).transpose();
             }
         }
 

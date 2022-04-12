@@ -88,6 +88,7 @@ private:
     int n_eff_mask_[3];
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
+    std::vector<int> beams_idx_;
 
     float n_eff_filt_;
     int count_pings_;

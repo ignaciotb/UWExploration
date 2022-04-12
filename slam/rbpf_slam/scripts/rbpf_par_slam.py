@@ -295,12 +295,7 @@ class rbpf_slam(object):
             
             # Store latest mbes msg for timing
             self.latest_mbes = msg
-
             self.count_pings += 1
-            # for i in range(self.pc):
-            #     self.particles[i].ctr += 1
-
-            # self.pings_since_training += 1
 
     def rbpf_update(self, event):
         if not self.mission_finished:

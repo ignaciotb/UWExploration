@@ -146,11 +146,10 @@ class Particle(object):
         r_particle = rot.from_euler('xyz', self.p_pose[3:6], degrees=False)
         q_particle = quaternion_matrix(r_particle.as_quat())
         mat = np.dot(t_particle, q_particle)
-        
         trans_mat = self.m2o_tf_mat.dot(mat.dot(self.mbes_tf_mat))
         self.p = trans_mat[0:3, 3]
         self.R = trans_mat[0:3, 0:3]
-        
+       
         return (self.p, self.R)
 
     # Extract the z coordinate from exp pings (in map frame)

@@ -27,6 +27,8 @@
 
 using namespace std;
 
+typedef pcl::PointCloud<pcl::PointXYZ> PCloud;
+
 class RbpfParticle
 {
 

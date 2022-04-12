@@ -59,7 +59,7 @@ class rbpf_slam(object):
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
-        self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
+        # self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
         # self.storage_path = rospy.get_param("~result_path")
 
         # Initialize tf listener
@@ -449,6 +449,7 @@ class rbpf_slam(object):
             for j in idx: 
                 # For particle i, get all its trajectory in the map frame
                 p_part, r_mbes = self.particles[pc_id].pose_history[j]
+
                 # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
 
                 part_i_ping_map = np.dot(r_mbes, self.mbes_history[j].T)

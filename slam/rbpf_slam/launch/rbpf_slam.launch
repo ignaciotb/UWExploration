@@ -67,7 +67,7 @@
         <param name="base_link"                               value="$(arg namespace)/base_link" />
         <param name="synch_topic"                             value="/$(arg app)/synch" />
         <param name="results_path"                            value="$(arg results_path)" />
-        <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
+        <!-- <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" /> -->
         <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />

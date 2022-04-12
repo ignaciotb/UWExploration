@@ -81,10 +81,10 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
 void RbpfParticle::update_pose_history()
 {
     // Rotation matrix
-    Eigen::AngleAxisf rollAngle(p_pose_(3), Eigen::Vector3f::UnitZ());
-    Eigen::AngleAxisf pitchAngle(p_pose_(4), Eigen::Vector3f::UnitX());
-    Eigen::AngleAxisf yawAngle(p_pose_(5), Eigen::Vector3f::UnitY());
-    Eigen::Quaternion<float> q = rollAngle * yawAngle * pitchAngle;
+    Eigen::AngleAxisf rollAngle(p_pose_(3), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(p_pose_(4), Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle(p_pose_(5), Eigen::Vector3f::UnitZ());
+    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
     Eigen::Matrix3f rotMat = q.matrix();
 
     // Particle pose in homogenous coordinates
@@ -92,7 +92,17 @@ void RbpfParticle::update_pose_history()
     t_p.topLeftCorner(3, 3) = rotMat;
     t_p.block(0,3,3,1) = p_pose_.head(3);
 
+    // std::cout << "------" << std::endl;
+    // std::cout << t_p << std::endl;
+    // std::cout << m2o_matrix_ << std::endl;
+    // std::cout << mbes_tf_matrix_ << std::endl;
+
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
+
+    // std::cout << p_pose_map.block(0, 3, 3, 1).matrix() << std::endl;
+    // std::cout << p_pose_map.topLeftCorner(3, 3).matrix() << std::endl;
+    // std::cout << "------" << std::endl;
+
     pos_history_.push_back(p_pose_map.block(0, 3, 3, 1));
     rot_history_.push_back(p_pose_map.topLeftCorner(3,3));
 
@@ -115,9 +125,7 @@ float angle_limit(float angle) // keep angle within [0;2*pi]
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes)
 {
-    typedef pcl::PointCloud<pcl::PointXYZ> PCloud;
     sensor_msgs::PointCloud2 mbes_pcloud; 
-
     PCloud::Ptr pcl_pcloud(new PCloud);
     pcl_pcloud->header.frame_id = frame;
     // pcl_pcloud->height = pcl_pcloud->width = 1;
@@ -133,17 +141,13 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
 Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num)
 {
-    int pc_size = point_cloud.row_step;
-
     // Nacho: is this needed?
     sensor_msgs::PointCloud out_cloud;
     sensor_msgs::convertPointCloud2ToPointCloud(point_cloud, out_cloud);
 
     // Selecting only self.beams_num of beams in the ping
-    std::vector<int> idx;
-    idx = linspace(0, point_cloud.row_step - 1, beams_num);
+    std::vector<int> idx = linspace(0, point_cloud.width - 1, beams_num);
     Eigen::MatrixXf beams(beams_num, 3);
-
     for (int i = 0; i < out_cloud.points.size(); ++i)
     {
         if (std::find(idx.begin(), idx.end(), i) != idx.end() ){
@@ -152,7 +156,6 @@ Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, 
                                             out_cloud.points[i].z);
         }
     }
-
     return beams;
 }
 

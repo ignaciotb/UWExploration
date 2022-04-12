@@ -78,10 +78,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     }
 
     // Create particles
-    for (int i=0; i<pc_-1; i++){
-        particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
-                                            init_cov_, meas_std_, motion_cov_));
-    }
+    // for (int i=0; i<pc_-1; i++){
+    //     particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
+    //                                         init_cov_, meas_std_, motion_cov_));
+    // }
     // // Create one particle on top or the GT vehicle pose. Only for testing
     particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
@@ -208,16 +208,14 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
     if (mission_finished_ != true)
     {
         // Beams in vehicle mbes frame
-        // Eigen::MatrixXf real_mbes_full = pcloud2ranges_full(msg, beams_num_);
-
         // Store in pings history
         mbes_history_.emplace_back(pcloud2ranges_full(*msg, beams_num_));
-        
+
         // Store latest mbes msg for timing
         latest_mbes_ = *msg;
 
-        count_pings_++;
-
+        pings_idx_.push_back(count_pings_);
+        count_pings_ += 1;
     }
 }
 
@@ -262,36 +260,35 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     Eigen::MatrixXf mb_mat(mb_size, 3);
 
     // If enough beams collected to start minibatch training
-    if (mbes_history_.size() > mb_size / beams_per_pings)
+    if (count_pings_ > (mb_size / beams_per_pings))
     {
-        // Nacho: can this be done faster?
-        std::vector<int> choice_vector(mbes_history_.size());
-        for(int i = 0; i < mbes_history_.size(); i++){ choice_vector[i] = i; }
-        std::shuffle(choice_vector.begin(), choice_vector.end(), g);
 
+        // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
+        std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
         for (int i = 0; i < int(mb_size / beams_per_pings); i++)
+        // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
-            int idx_i = choice_vector.at(i);
-            // Sample x beams from ping i: in reality, shuffle the beams indexes
-            // and pick the first x
-            std::vector<int> idx_ping;
-            for (int n = 0; n < mbes_history_.at(idx_i).size(); n++)
-            {
-                idx_ping.push_back(n);
-            }
-            std::shuffle(idx_ping.begin(), idx_ping.end(), g);
-
+            int ping_i = pings_idx_.at(i);
             // Transform x random beams to particle pose in map frame
-            Eigen::Vector3f pos_i = particles_.at(pc_id).pos_history_.at(idx_i);
-            Eigen::Matrix3f rot_i = particles_.at(pc_id).rot_history_.at(idx_i);
+            Eigen::Vector3f pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
+            Eigen::Matrix3f rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
+
+            // Sample beams_per_pings beams from ping ping_i
+            std::vector<int> idx_beams;
+            for (int n = 0; n < mbes_history_.at(ping_i).rows(); n++)
+            {
+                idx_beams.push_back(n);
+            }
+            std::shuffle(idx_beams.begin(), idx_beams.end(), g);
 
             for (int b = 0; b < beams_per_pings; b++)
             {
-                mb_mat.row(b) = rot_i * mbes_history_.at(idx_i).row(idx_ping.at(b)).transpose() + pos_i;
+                mb_mat.row(i * beams_per_pings + b) = (rot_i * mbes_history_.at(ping_i).row(idx_beams.at(b)).transpose() + pos_i).transpose();
             }
         }
 
         // Parse into pointcloud2
+        sensor_msgs::PointCloud2 mbes_pcloud;
         sensor_msgs::PointCloud2Modifier cloud_out_modifier(mbes_pcloud);
         cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
         cloud_out_modifier.resize(mb_mat.rows());
@@ -307,14 +304,11 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             *iter_z = mb_mat.row(i)[2];
         }
 
-        std::cout << "Sending point cloud with size " << mbes_pcloud.data.size() << std::endl;
-
         // Set action as success
         slam_msgs::MinibatchTrainingResult result;
         result.success = true;
         result.minibatch = mbes_pcloud;
         as_mb_->setSucceeded(result);
-
     }
 
     // If not enough beams collected to start the minibatch training
@@ -335,14 +329,11 @@ void RbpfSlam::plot_gp_maps()
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
     float dt = float(time_ - old_time_);
-    for(int i = 0; i < pc_-1; i++) 
+    for(int i = 0; i < pc_; i++) 
     {
         particles_.at(i).motion_prediction(odom_t, dt);
         particles_.at(i).update_pose_history();
     }
-
-    // DR particle
-    particles_.at(pc_-1).motion_prediction(odom_t, dt);
 }
 
 void RbpfSlam::update_rviz()

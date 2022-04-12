@@ -444,7 +444,7 @@ class rbpf_slam(object):
             # If time to retrain GP map
             # Transform each MBES ping in vehicle frame to the particle trajectory 
             # (result in map frame)
-            start_time = time.time()
+            # start_time = time.time()
             part_ping_map = []
             for j in idx: 
                 # For particle i, get all its trajectory in the map frame

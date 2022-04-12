@@ -120,7 +120,7 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
     PCloud::Ptr pcl_pcloud(new PCloud);
     pcl_pcloud->header.frame_id = frame;
-    pcl_pcloud->height = pcl_pcloud->width = 1;
+    // pcl_pcloud->height = pcl_pcloud->width = 1;
     for(int i = 0; i < mbes.size(); i++)
     {
         pcl_pcloud->points.push_back(pcl::PointXYZ(mbes[i][0], mbes[i][1], mbes[i][2]));

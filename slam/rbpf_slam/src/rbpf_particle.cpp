@@ -114,12 +114,15 @@ void RbpfParticle::get_p_mbes_pose()
     // This method is left to keep parallelism with the original python class
 }
 
-void RbpfParticle::compute_weight(vector<Eigen::Array3f> exp_mbes, vector<double> real_mbes)
+void RbpfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes)
 {
     // Compare only absolute z values of real and expected measurements 
-    vector<float> exp_mbes_z = list2ranges(exp_mbes);
+    // vector<float> exp_mbes_z = list2ranges(exp_mbes);
 
-    if(exp_mbes_z.size() > 0) { w_ = weight_mv(real_mbes, exp_mbes_z); }
+    if (exp_mbes.size() > 0)
+    {
+        w_ = weight_mv(exp_mbes, real_mbes);
+    }
     else
     {
         w_ = 1e-50;
@@ -127,20 +130,20 @@ void RbpfParticle::compute_weight(vector<Eigen::Array3f> exp_mbes, vector<double
     }
 }
 
-float RbpfParticle::weight_mv(vector<double> mbes_meas_ranges, vector<float> mbes_sim_ranges)
+float RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorXd& mbes_sim_ranges)
 {
     float w_i;
     if(mbes_meas_ranges.size() == mbes_sim_ranges.size())
     {
         // Convert to Eigen Array and Matrix for the multivariate normal sampling step
-        Eigen::VectorXd mbes_meas_ranges_eig = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mbes_meas_ranges.data(), mbes_meas_ranges.size());
+        // Eigen::VectorXd mbes_meas_ranges_eig = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mbes_meas_ranges.data(), mbes_meas_ranges.size());
         Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
         Eigen::MatrixXd meas_cov_eig(meas_cov_.size(), meas_cov_.size());
         meas_cov_eig.diagonal() = meas_cov_eig_diag;
 
-        // Sampling from the distribution 
-        normal_random_variable_ sample{mbes_meas_ranges_eig, meas_cov_eig};
-        w_i = mvn_pdf(sample(), mbes_meas_ranges_eig, meas_cov_eig);
+        // Sampling from the distribution
+        // normal_random_variable_ sample{mbes_meas_ranges, meas_cov_eig};
+        w_i = mvn_pdf(mbes_meas_ranges, mbes_sim_ranges, meas_cov_eig);
     }
     
     else

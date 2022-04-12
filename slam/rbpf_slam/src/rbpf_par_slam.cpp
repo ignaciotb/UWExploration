@@ -374,8 +374,9 @@ void RbpfSlam::plot_gp_maps()
 void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
 {
     // Latest ping depths in map frame
-    latest_mbes_z_ = pcloud2ranges_full(mbes_ping, beams_num_);
-    latest_mbes_z_.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
+    Eigen::MatrixXf latest_mbes = pcloud2ranges_full(mbes_ping, beams_num_);
+    latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
+    latest_mbes_z_ = latest_mbes.col(2);
 
     Eigen::MatrixXf ping_mat(beams_num_, 3);
     for(int p=0; p<pc_; p++){
@@ -422,11 +423,7 @@ void RbpfSlam::sampleCB(const slam_msgs::SamplePosteriorResultConstPtr &result)
     Eigen::VectorXd mu_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mu.data(), mu.size());
     Eigen::VectorXd sigma_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(sigma.data(), sigma.size());
 
-    // Concatenate mu and latest_mbes_z_
-    Eigen::MatrixXf exp_mbes(latest_mbes_z_.rows(), 3);
-    exp_mbes << latest_mbes_z_.rightCols(2), mu_e.cast<float>();
-
-    // particles_.at(result->p_id).compute_weight();
+    particles_.at(result->p_id).compute_weight(mu_e, latest_mbes_z_.cast<double>());
 }
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)

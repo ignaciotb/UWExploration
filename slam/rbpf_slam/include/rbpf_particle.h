@@ -42,9 +42,9 @@ public:
 
     void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
 
-    void compute_weight(vector<Eigen::Array3f> exp_mbes, vector<double> real_mbes);
+    void compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes);
 
-    float weight_mv(vector<double> mbes_meas_ranges, vector<float> mbes_sim_ranges);
+    float weight_mv(Eigen::VectorXd &mbes_meas_ranges, Eigen::VectorXd &mbes_sim_ranges);
 
     void update_pose_history();
 
@@ -85,7 +85,7 @@ private:
 
     // Noise models
     std::vector<float> init_cov_;
-    std::vector<double> meas_cov_;
+    std::vector<double> meas_cov_;  //TODO: implement this one on the weights?
     std::vector<float> process_cov_;
 
 };

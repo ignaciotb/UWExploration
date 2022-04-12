@@ -91,7 +91,7 @@ private:
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
     std::vector<int> beams_idx_;
-    Eigen::MatrixXf latest_mbes_z_;
+    Eigen::VectorXf latest_mbes_z_;
 
     float n_eff_filt_;
     int count_pings_;

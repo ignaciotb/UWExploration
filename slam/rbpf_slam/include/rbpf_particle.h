@@ -31,10 +31,22 @@ class RbpfParticle
 {
 
 public:
-    RbpfParticle(int beams_num, int p_num,
-                 Eigen::ArrayXXf mbes_tf_matrix, Eigen::ArrayXXf m2o_matrix,
-                 vector<float> init_cov, float meas_std, vector<float> process_cov);
+    RbpfParticle(int beams_num, int pc, int i, Eigen::Matrix4f base2mbes_mat,
+                 Eigen::Matrix4f m2o_matrix, std::vector<float> init_cov, float meas_std,
+                 std::vector<float> process_cov);
     ~RbpfParticle();
+    
+    void add_noise(std::vector<float> &noise);
+
+    void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
+
+    void update_pose_history();
+
+    void get_p_mbes_pose();
+
+    Eigen::VectorXf p_pose_;
+    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_history_;
+    std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
 
 private:
 
@@ -65,22 +77,23 @@ private:
     vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
-    Eigen::VectorXd p_pose_;
+    int beams_num_; 
+    int p_num_;
+    int index_; 
+
+    Eigen::Matrix4f mbes_tf_matrix_;
+    Eigen::Matrix4f m2o_matrix_;
 
     // Noise models
-    std::random_device* rd_{};
-    std::mt19937* seed_;
     std::vector<float> init_cov_;
     std::vector<float> meas_cov_;
     std::vector<float> process_cov_;
 
-    void add_noise(std::vector<double>& noise);
-
-    void motion_prediction(nav_msgs::Odometry& odom_t, int dt);
+    double w_;
 
 };
 
-double angle_limit(double angle);
+float angle_limit(float angle);
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes);
 

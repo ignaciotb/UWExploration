@@ -1,67 +1,110 @@
 #include "rbpf_particle.h"
 
-RbpfParticle::RbpfParticle(int beams_num, int p_num,
-                           Eigen::ArrayXXf mbes_tf_matrix, Eigen::ArrayXXf m2o_matrix,
-                           vector<float> init_cov, float meas_std, vector<float> process_cov) : beams_num_(beams_num), p_num_(p_num), mbes_tf_mat_(mbes_tf_matrix), m2o_tf_mat_(m2o_matrix),
-                                                                                                init_cov_(init_cov), process_cov_(process_cov)
+RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes_tf_matrix,
+                           Eigen::Matrix4f m2o_matrix, std::vector<float> init_cov, float meas_std,
+                           std::vector<float> process_cov)
 {
-    p_pose_ = Eigen::VectorXd::Zero(6, 1);
+    p_num_ = p_num;
+    index_ = index;
+    beams_num_ = beams_num;
+    p_pose_ = Eigen::VectorXf::Zero(6,1);
+    mbes_tf_matrix_ = mbes_tf_matrix;
+    m2o_matrix_ = m2o_matrix;
+
+    // Noise models init
+    init_cov_ = init_cov;
+    process_cov_ = process_cov;
+    meas_cov_ = std::vector<float>(beams_num_, std::pow(meas_std, 2));
+
+    this->add_noise(init_cov_);
+
 }
 
 RbpfParticle::~RbpfParticle()
 {
+    
 }
 
-void RbpfParticle::add_noise(std::vector<double> &noise){
+void RbpfParticle::add_noise(std::vector<float> &noise){
 
     // Generate noise
-    Eigen::VectorXd noisy_pose(6, 1);
+    // Eigen::VectorXf noisy_pose(6, 1);
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
     for (int i = 0; i < 6; i++)
     {
-        std::normal_distribution<double> x_sampler{0, std::sqrt(noise.at(i))};
-        p_pose_(i) += x_sampler(*seed_);
+        std::normal_distribution<float> sampler{0, std::sqrt(noise.at(i))};
+        p_pose_(i) += sampler(seed);
     }
 }
 
-void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, int dt){
+void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
 
     // Generate noise
-    Eigen::VectorXd noise_vec(6, 1);
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
+    Eigen::VectorXf noise_vec(6, 1);
     for (int i = 0; i < 6; i++)
     {
-        std::normal_distribution<double> x_sampler{0, std::sqrt(process_cov_.at(i))};
-        noise_vec(i) = x_sampler(*seed_);
+        std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
+        noise_vec(i) = sampler(seed);
     }
 
     // Angular 
-    Eigen::Vector3d vel_rot = Eigen::Vector3d(odom_t.twist.twist.angular.x,
+    Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
                                               odom_t.twist.twist.angular.y,
                                               odom_t.twist.twist.angular.z);
 
-    Eigen::Vector3d rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec.tail(3);
+    Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec.tail(3);
     // Wrap up angles
     for (int i =0; i < 3; i++){
         rot_t(i) = angle_limit(rot_t(i));
     }
     p_pose_.tail(3) = rot_t;
 
-
-    Eigen::AngleAxisd rollAngle(rot_t(0), Eigen::Vector3d::UnitZ());
-    Eigen::AngleAxisd pitchAngle(rot_t(1), Eigen::Vector3d::UnitX());
-    Eigen::AngleAxisd yawAngle(rot_t(2), Eigen::Vector3d::UnitY());
-    Eigen::Quaternion<double> q = rollAngle * yawAngle * pitchAngle;
-    Eigen::Matrix3d rotMat = q.matrix();
+    Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitZ());
+    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
+    Eigen::Matrix3f rotMat = q.matrix();
 
     // Linear
-    Eigen::Vector3d vel_p = Eigen::Vector3d(odom_t.twist.twist.linear.x,
+    Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
                                             odom_t.twist.twist.linear.y,
                                             odom_t.twist.twist.linear.z);
     
-    Eigen::Vector3d step_t = rotMat * vel_p * dt + noise_vec.head(3);
+    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec.head(3);
     p_pose_.head(3) += step_t;
 }
 
-double angle_limit(double angle) // keep angle within [0;2*pi]
+
+void RbpfParticle::update_pose_history()
+{
+    // Rotation matrix
+    Eigen::AngleAxisf rollAngle(p_pose_(3), Eigen::Vector3f::UnitZ());
+    Eigen::AngleAxisf pitchAngle(p_pose_(4), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf yawAngle(p_pose_(5), Eigen::Vector3f::UnitY());
+    Eigen::Quaternion<float> q = rollAngle * yawAngle * pitchAngle;
+    Eigen::Matrix3f rotMat = q.matrix();
+
+    // Particle pose in homogenous coordinates
+    Eigen::Matrix4f t_p = Eigen::Matrix4f::Identity();
+    t_p.topLeftCorner(3, 3) = rotMat;
+    t_p.block(0,3,3,1) = p_pose_.head(3);
+
+    Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
+    pos_history_.push_back(p_pose_map.block(0, 3, 3, 1));
+    rot_history_.push_back(p_pose_map.topLeftCorner(3,3));
+
+}
+
+void RbpfParticle::get_p_mbes_pose()
+{
+    // Nacho: this functionality has been moved to update_pose_history()
+    // This method is left to keep parallelism with the original python class
+}
+
+float angle_limit(float angle) // keep angle within [0;2*pi]
 {
     while (angle >= M_PI*2)
         angle -= M_PI*2;
@@ -77,7 +120,7 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
 
     PCloud::Ptr pcl_pcloud(new PCloud);
     pcl_pcloud->header.frame_id = frame;
-    pcl_pcloud->height = pcl_pcloud->width = 1;
+    // pcl_pcloud->height = pcl_pcloud->width = 1;
     for(int i = 0; i < mbes.size(); i++)
     {
         pcl_pcloud->points.push_back(pcl::PointXYZ(mbes[i][0], mbes[i][1], mbes[i][2]));

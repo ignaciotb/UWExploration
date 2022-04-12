@@ -25,8 +25,12 @@
 
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32.h>
+#include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/Int32.h>
 #include <std_msgs/String.h>
+
+#include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
 
 #include <std_srvs/Empty.h>
 
@@ -37,6 +41,13 @@
 #include <slam_msgs/MinibatchTrainingResult.h>
 #include <slam_msgs/SamplePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
+
+#include <algorithm>
+#include <iomanip>
+#include <iostream>
+#include <iterator>
+#include <random>
+#include <vector>
 
 using namespace std;
 
@@ -60,6 +71,7 @@ private:
     string base_frame_;
     string mbes_frame_;
     string odom_frame_;
+    std::vector<RbpfParticle> particles_;
 
     tf::TransformListener tfListener_;
 
@@ -68,9 +80,9 @@ private:
 
     // Covariances
     float meas_std_;
-    vector<float> init_cov_;
-    vector<float> res_noise_cov_;
-    vector<float> motion_cov_;
+    std::vector<float> init_cov_;
+    std::vector<float> res_noise_cov_;
+    std::vector<float> motion_cov_;
 
     // Global variables
     int n_eff_mask_[3];
@@ -81,15 +93,14 @@ private:
     int count_training_;
     bool firstFit_;
     bool one_time_;
-    bool time2resample_;
+    // bool time2resample_;
     bool survey_finished_;
-    float time_;
-    float old_time_;
+    double time_;
+    double old_time_;
     float rbpf_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
-    geometry_msgs::PoseArray poses_;
     geometry_msgs::PoseWithCovarianceStamped avg_pose_;
 
     Eigen::ArrayXf targets_;
@@ -119,8 +130,6 @@ private:
     string pf_mbes_top_;
     string stats_top_;
     string mbes_pc_top_;
-    string ip_top_;
-    string p_resampling_top_;
 
     // Minibatch AS
     actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;

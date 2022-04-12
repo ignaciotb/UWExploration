@@ -43,21 +43,8 @@ class Particle(object):
         self.meas_cov = np.diag([meas_std**2]*beams_num)
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
-        self.log_w = 0.
+        # self.log_w = 0.
         self.add_noise(init_cov)
-        # for the gp and likelihood
-        self.inputs =  np.zeros((1,2)) #[[0]*2]*1
-        self.est_map = np.zeros((1,3))
-        self.sigma_obs = np.zeros((1,))
-        self.mu_obs = np.zeros((1,))
-        self.sigma_list = []
-        self.mu_list = []
-        # for the ancestry tree
-        self.trajectory_path = np.zeros((1,6))
-        self.time4regression = False
-        self.parent = None
-        self.n_from = 1
-        self.ctr = 0
 
         # Nacho
         # self.gp = gp.SVGP(100)
@@ -148,7 +135,7 @@ class Particle(object):
 
     def update_pose_history(self):
         # For particle i, get its all its trajectory in the map frame
-        R = self.mbes_tf_mat.transpose()[0:3,0:3]
+        # R = self.mbes_tf_mat.transpose()[0:3,0:3]
         p_part, r_mbes = self.get_p_mbes_pose()
         # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
         self.pose_history.append((p_part, r_mbes))

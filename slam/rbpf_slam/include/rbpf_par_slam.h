@@ -88,7 +88,8 @@ private:
     std::vector<float> motion_cov_;
 
     // Global variables
-    int n_eff_mask_[3];
+    vector<int> n_eff_mask_;
+    vector<float> pw_;
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
     std::vector<int> beams_idx_;
@@ -196,6 +197,7 @@ private:
     void predict(nav_msgs::Odometry odom_t);
     void update_rviz();
     void publish_stats(nav_msgs::Odometry gt_odom);
-
     void eigenToPointcloud2msg(sensor_msgs::PointCloud2& cloud, Eigen::MatrixXf& mat);
+    float moving_average(vector<int> a, int n);
+    void resample(vector<float> weights);
 };

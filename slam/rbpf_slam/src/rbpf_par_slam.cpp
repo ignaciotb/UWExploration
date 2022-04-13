@@ -21,6 +21,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // fill_n(n_eff_mask_, 3, pc_);
     // float pw_[pc_];
     // fill_n(pw_, pc_, 1.e-50);
+    n_eff_mask_.insert(n_eff_mask_.end(), 3, pc_);
+    pw_.insert(pw_.end(), pc_, 1e-50);
     n_eff_filt_ = 0.;
     count_pings_ = 0;
     // count_training_ = 0;
@@ -459,6 +461,32 @@ void RbpfSlam::update_rviz()
     // TODO: add publisher avg pose from filter 
 }
 
+void RbpfSlam::resample(vector<float> weights)
+{
+    ROS_DEBUG("Resampling");
+    int N_eff = pc_;
+
+    // Normalize weights
+    float w_sum = accumulate(weights.begin(), weights.end(), 0);
+    if(w_sum == 0)
+        ROS_WARN("All weights are zero!");
+    else
+    {
+        transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
+        float w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
+        N_eff = 1 / w_sq_sum;
+    }
+
+    n_eff_mask_.erase(n_eff_mask_.begin());
+    n_eff_mask_.push_back(N_eff);
+    n_eff_filt_ = moving_average(n_eff_mask_, 3);
+    
+    
+
+
+}
+
+
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     ROS_DEBUG("TODO");
@@ -480,6 +508,14 @@ void RbpfSlam::eigenToPointcloud2msg(
         *iter_y = mat.row(i)[1];
         *iter_z = mat.row(i)[2];
     }
+}
+
+float RbpfSlam::moving_average(vector<int> a, int n)
+{
+    vector<float> a_last(a.end() - n, a.end());
+    float a_sum = accumulate(a_last.begin(), a_last.end(), 0);
+
+    return (float)a_sum/n;
 }
 
 RbpfSlam::~RbpfSlam()

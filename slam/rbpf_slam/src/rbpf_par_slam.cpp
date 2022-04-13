@@ -99,8 +99,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
     lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
 
-    nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
-    srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
+    // nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+    // srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
 
     // The mission waypoints as a path
     nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
@@ -275,9 +275,9 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
     int beams_per_ping = 20;
     Eigen::MatrixXf mb_mat(mb_size, 3);
+    slam_msgs::MinibatchTrainingResult result;
     Eigen::Vector3f pos_i;
-    Eigen::Vector3f rot_i;
-    int ping_i;
+    Eigen::Matrix3f rot_i;
     // If enough beams collected to start minibatch training
     if (count_pings_ > (mb_size / beams_per_ping))
     {
@@ -286,7 +286,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
-            ping_i = pings_idx_.at(i);
+            int ping_i = pings_idx_.at(i);
             // Transform x random beams to particle pose in map frame
             pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
             rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
@@ -306,7 +306,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         this->eigenToPointcloud2msg(mbes_pcloud, mb_mat);
 
         // Set action as success
-        slam_msgs::MinibatchTrainingResult result;
         result.success = true;
         result.minibatch = mbes_pcloud;
         as_mb_->setSucceeded(result);
@@ -315,7 +314,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     // If not enough beams collected to start the minibatch training
     else
     {
-        slam_msgs::MinibatchTrainingResult result;
         result.success = false;
         as_mb_->setSucceeded(result);
     }
@@ -327,7 +325,8 @@ void RbpfSlam::plot_gp_maps()
     int pings_t = mbes_history_.size()-1;
     Eigen::MatrixXf mbes_mat(pings_t * beams_num_, 3);
     Eigen::Vector3f pos_i;
-    Eigen::Vector3f rot_i;
+    Eigen::Matrix3f rot_i;
+    slam_msgs::PlotPosteriorGoal goal;
     for(int p=0; p<pc_; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
@@ -348,10 +347,9 @@ void RbpfSlam::plot_gp_maps()
         this->eigenToPointcloud2msg(mbes_pcloud, mbes_mat);
 
         // Set action as success
-        slam_msgs::PlotPosteriorGoal goal;
         goal.pings = mbes_pcloud;
         p_plot_acs_.at(p)->sendGoal(goal);
-        // We want these calls to be secuential since plotting is GPU-heavy 
+        // We want this calls to be secuential since plotting is GPU-heavy 
         // and not time critical, so we want the particles to do it one by one 
         bool received = p_plot_acs_.at(p)->waitForResult();        
     }
@@ -387,7 +385,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         sensor_msgs::PointCloud2 mbes_pcloud;
         this->eigenToPointcloud2msg(mbes_pcloud, ping_mat);
 
-        // Send goal with asynch CB
+        // Asynch goal
         goal.ping = mbes_pcloud;
         p_sample_acs_.at(p)->sendGoal(goal,
                                       boost::bind(&RbpfSlam::sampleCB, this, _1, _2));
@@ -486,5 +484,6 @@ void RbpfSlam::eigenToPointcloud2msg(
 
 RbpfSlam::~RbpfSlam()
 {
-    delete(nh_, nh_mb_);
+    delete (nh_);
+    delete (nh_mb_);
 }

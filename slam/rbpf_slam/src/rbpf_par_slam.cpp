@@ -1,6 +1,6 @@
 #include "rbpf_par_slam.h"
 
-RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
+RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_mb_(&nh_mb)
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
@@ -18,12 +18,12 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param("resampling_noise_covariance", res_noise_cov_, vector<float>());
     nh_->param("motion_covariance", motion_cov_, vector<float>());
 
-    fill_n(n_eff_mask_, 3, pc_);
-    float pw_[pc_];
-    fill_n(pw_, pc_, 1.e-50);
+    // fill_n(n_eff_mask_, 3, pc_);
+    // float pw_[pc_];
+    // fill_n(pw_, pc_, 1.e-50);
     n_eff_filt_ = 0.;
     count_pings_ = 0;
-    count_training_ = 0;
+    // count_training_ = 0;
 
     // TODO: these strings don't need to be global variables
     // Initialize particle poses publisher
@@ -78,13 +78,13 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     }
 
     // Create particles
-    // for (int i=0; i<pc_-1; i++){
-    //     particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
-    //                                         init_cov_, meas_std_, motion_cov_));
-    // }
+    for (int i=0; i<pc_; i++){
+        particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
+                                            init_cov_, meas_std_, motion_cov_));
+    }
     // // Create one particle on top or the GT vehicle pose. Only for testing
-    particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
-                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
+    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
 
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
@@ -111,15 +111,15 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     nh_->param<string>(("inducing_points_top"), ip_top, "/inducing_points");
     ip_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
 
-    // Publisher for particles indexes to be resamples
+    // Publisher for particles indexes to be resampled
     std::string p_resampling_top;
     nh_->param<string>(("p_resampling_top"), p_resampling_top, "/resample_top");
     p_resampling_pub_ = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
     
     // Service for sending minibatches of beams to the SVGP particles
     std::string mb_gp_name;
-    nh_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
-    as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
+    nh_mb_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
+    as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_mb_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
     as_mb_->start();
 
     // Action clients for plotting the GP posteriors
@@ -161,23 +161,23 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh) : nh_(&nh)
     // Start timing now
     time_ = ros::Time::now().toSec();
     old_time_ = ros::Time::now().toSec();
-
+    start_training_ = false;
     ROS_INFO("RBPF instantiated");
-
 }
 
-bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
-{
-    ROS_DEBUG("RBPF ready");
-    return true;
-}
+// bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+// {
+//     ROS_DEBUG("RBPF ready");
+//     return true;
+// }
 
 void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
 
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
-    if (wp_path->poses.size() > 0){
+    if (wp_path->poses.size() > 0 && !start_training_)
+    {
         ROS_INFO("Received path");
         std::vector<Eigen::RowVector3f> i_points;
         int wp_size = wp_path->poses.size();
@@ -194,6 +194,7 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 
         ip_pcloud = pack_cloud(map_frame_, i_points);
         ROS_INFO("Sending inducing points");
+        start_training_ = true; // We can start to check for loop closures 
         ip_pub_.publish(ip_pcloud);
     }
     else{
@@ -213,7 +214,7 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
-    if (mission_finished_ != true)
+    if (mission_finished_ != true && start_training_)
     {
         // Beams in vehicle mbes frame
         // Store in pings history
@@ -229,7 +230,16 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 
 void RbpfSlam::rbpf_update(const ros::TimerEvent&)
 {
-    ROS_DEBUG("TODO");
+    if(!mission_finished_)
+    {
+        if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
+        {
+            prev_mbes_ = latest_mbes_;
+            if(start_training_){
+                this->update_particles_weights(latest_mbes_, odom_latest_);
+            }
+        }
+    }
 }
 
 void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
@@ -238,7 +248,7 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     odom_latest_ = *odom_msg;
 
     // Flag to finish the mission
-    if(mission_finished_ != true)
+    if(mission_finished_ != true && start_training_)
     {
         // Motion prediction
         if (time_ > old_time_) 
@@ -260,13 +270,14 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     // Randomly pick mb_size/beams_per_ping pings 
     int mb_size = goal->mb_size;
 
-    sensor_msgs::PointCloud2 mbes_pcloud;
     std::random_device rd;
     std::mt19937 g(rd());
 
     int beams_per_ping = 20;
     Eigen::MatrixXf mb_mat(mb_size, 3);
-
+    Eigen::Vector3f pos_i;
+    Eigen::Vector3f rot_i;
+    int ping_i;
     // If enough beams collected to start minibatch training
     if (count_pings_ > (mb_size / beams_per_ping))
     {
@@ -275,10 +286,10 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
-            int ping_i = pings_idx_.at(i);
+            ping_i = pings_idx_.at(i);
             // Transform x random beams to particle pose in map frame
-            Eigen::Vector3f pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
-            Eigen::Matrix3f rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
+            pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
+            rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
 
             // Sample beams_per_pings beams from ping ping_i
             std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
@@ -292,20 +303,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
         // Parse into pointcloud2
         sensor_msgs::PointCloud2 mbes_pcloud;
-        sensor_msgs::PointCloud2Modifier cloud_out_modifier(mbes_pcloud);
-        cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
-        cloud_out_modifier.resize(mb_mat.rows());
-
-        sensor_msgs::PointCloud2Iterator<float> iter_x(mbes_pcloud, "x");
-        sensor_msgs::PointCloud2Iterator<float> iter_y(mbes_pcloud, "y");
-        sensor_msgs::PointCloud2Iterator<float> iter_z(mbes_pcloud, "z");
-
-        for (size_t i = 0; i < mb_mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z)
-        {
-            *iter_x = mb_mat.row(i)[0];
-            *iter_y = mb_mat.row(i)[1];
-            *iter_z = mb_mat.row(i)[2];
-        }
+        this->eigenToPointcloud2msg(mbes_pcloud, mb_mat);
 
         // Set action as success
         slam_msgs::MinibatchTrainingResult result;
@@ -326,15 +324,17 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
 void RbpfSlam::plot_gp_maps()
 {
-    int pings_t = mbes_history_.size();
+    int pings_t = mbes_history_.size()-1;
     Eigen::MatrixXf mbes_mat(pings_t * beams_num_, 3);
+    Eigen::Vector3f pos_i;
+    Eigen::Vector3f rot_i;
     for(int p=0; p<pc_; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
             // Transform x random beams to particle pose in map frame
-            Eigen::Vector3f pos_i = particles_.at(p).pos_history_.at(ping_i);
-            Eigen::Matrix3f rot_i = particles_.at(p).rot_history_.at(ping_i);
+            pos_i = particles_.at(p).pos_history_.at(ping_i);
+            rot_i = particles_.at(p).rot_history_.at(ping_i);
 
             // TODO: get rid of loop with colwise operations on mbes_history
             for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
@@ -345,26 +345,13 @@ void RbpfSlam::plot_gp_maps()
 
         // Parse into pointcloud2
         sensor_msgs::PointCloud2 mbes_pcloud;
-        sensor_msgs::PointCloud2Modifier cloud_out_modifier(mbes_pcloud);
-        cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
-        cloud_out_modifier.resize(mbes_mat.rows());
-
-        sensor_msgs::PointCloud2Iterator<float> iter_x(mbes_pcloud, "x");
-        sensor_msgs::PointCloud2Iterator<float> iter_y(mbes_pcloud, "y");
-        sensor_msgs::PointCloud2Iterator<float> iter_z(mbes_pcloud, "z");
-
-        for (size_t i = 0; i < mbes_mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z)
-        {
-            *iter_x = mbes_mat.row(i)[0];
-            *iter_y = mbes_mat.row(i)[1];
-            *iter_z = mbes_mat.row(i)[2];
-        }
+        this->eigenToPointcloud2msg(mbes_pcloud, mbes_mat);
 
         // Set action as success
         slam_msgs::PlotPosteriorGoal goal;
         goal.pings = mbes_pcloud;
         p_plot_acs_.at(p)->sendGoal(goal);
-        // We want this calls to be secuential since plotting is GPU-heavy 
+        // We want these calls to be secuential since plotting is GPU-heavy 
         // and not time critical, so we want the particles to do it one by one 
         bool received = p_plot_acs_.at(p)->waitForResult();        
     }
@@ -373,16 +360,22 @@ void RbpfSlam::plot_gp_maps()
 
 void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
 {
+
     // Latest ping depths in map frame
     Eigen::MatrixXf latest_mbes = pcloud2ranges_full(mbes_ping, beams_num_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
     latest_mbes_z_ = latest_mbes.col(2);
 
+    ROS_INFO("Updating weights");
     Eigen::MatrixXf ping_mat(beams_num_, 3);
+    Eigen::Vector3f pos_i;
+    Eigen::Matrix3f rot_i;
+    slam_msgs::SamplePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
+        // TODO: mbes and pose histories might be updated while within this loop
         // Transform x random beams to particle pose in map frame
-        Eigen::Vector3f pos_i = particles_.at(p).pos_history_.back();
-        Eigen::Matrix3f rot_i = particles_.at(p).rot_history_.back();
+        pos_i = particles_.at(p).pos_history_.back();
+        rot_i = particles_.at(p).rot_history_.back();
 
         // TODO: get rid of loop with colwise operations on mbes_history
         for (int b = 0; b < mbes_history_.back().rows(); b++)
@@ -392,30 +385,32 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
         // Parse into pointcloud2
         sensor_msgs::PointCloud2 mbes_pcloud;
-        sensor_msgs::PointCloud2Modifier cloud_out_modifier(mbes_pcloud);
-        cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
-        cloud_out_modifier.resize(ping_mat.rows());
+        this->eigenToPointcloud2msg(mbes_pcloud, ping_mat);
 
-        sensor_msgs::PointCloud2Iterator<float> iter_x(mbes_pcloud, "x");
-        sensor_msgs::PointCloud2Iterator<float> iter_y(mbes_pcloud, "y");
-        sensor_msgs::PointCloud2Iterator<float> iter_z(mbes_pcloud, "z");
-
-        for (size_t i = 0; i < ping_mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z)
-        {
-            *iter_x = ping_mat.row(i)[0];
-            *iter_y = ping_mat.row(i)[1];
-            *iter_z = ping_mat.row(i)[2];
-        }
-
-        // Set action as success
-        slam_msgs::SamplePosteriorGoal goal;
+        // Send goal with asynch CB
         goal.ping = mbes_pcloud;
-        // p_sample_acs_.at(p)->sendGoal(goal,
-        //                               boost::bind(&RbpfSlam::sampleCB, this, _1));
+        p_sample_acs_.at(p)->sendGoal(goal,
+                                      boost::bind(&RbpfSlam::sampleCB, this, _1, _2));
     }
+
+    // Collect all updated weights and call resample()
+    while(updated_w_ids_.size() < pc_ && ros::ok()){
+        ROS_INFO("Updating weights");
+        ros::Duration(1).sleep();
+    }
+
+    ROS_INFO("Particles weights");
+    for(int i=0; i<pc_; i++){
+        std::cout << particles_.at(i).index_ << " " << particles_.at(i).w_ << std::endl;
+    }
+
+    // Call resampling here and empty ids vector
+    // this->resample();
+    updated_w_ids_.clear();
 }
 
-void RbpfSlam::sampleCB(const slam_msgs::SamplePosteriorResultConstPtr &result)
+void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
+                        const slam_msgs::SamplePosteriorResultConstPtr &result)
 {
     std::vector<double> mu = result->mu;
     std::vector<double> sigma = result->sigma;
@@ -423,7 +418,10 @@ void RbpfSlam::sampleCB(const slam_msgs::SamplePosteriorResultConstPtr &result)
     Eigen::VectorXd mu_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mu.data(), mu.size());
     Eigen::VectorXd sigma_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(sigma.data(), sigma.size());
 
+    // TODO: pass sigma_e to particles here
     particles_.at(result->p_id).compute_weight(mu_e, latest_mbes_z_.cast<double>());
+    // Particle p_id has computed its weight
+    updated_w_ids_.push_back(result->p_id);
 }
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
@@ -452,7 +450,6 @@ void RbpfSlam::update_rviz()
         Eigen::AngleAxisf pitchAngle(particles_.at(i).p_pose_(4), Eigen::Vector3f::UnitY());
         Eigen::AngleAxisf yawAngle(particles_.at(i).p_pose_(5), Eigen::Vector3f::UnitZ());
         Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-        // Nacho: check the order is correct
         pose_i.orientation.x = q.x();
         pose_i.orientation.y = q.y();
         pose_i.orientation.z = q.z();
@@ -469,7 +466,25 @@ void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
     ROS_DEBUG("TODO");
 }
 
+void RbpfSlam::eigenToPointcloud2msg(
+    sensor_msgs::PointCloud2 &cloud, Eigen::MatrixXf &mat){
 
-RbpfSlam::~RbpfSlam(){
-    delete(nh_);
+    sensor_msgs::PointCloud2Modifier cloud_out_modifier(cloud);
+    cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
+    cloud_out_modifier.resize(mat.rows());
+
+    sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
+    sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
+    sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
+
+    for (size_t i = 0; i < mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z) {
+        *iter_x = mat.row(i)[0];
+        *iter_y = mat.row(i)[1];
+        *iter_z = mat.row(i)[2];
+    }
+}
+
+RbpfSlam::~RbpfSlam()
+{
+    delete(nh_, nh_mb_);
 }

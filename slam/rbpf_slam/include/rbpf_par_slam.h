@@ -51,17 +51,18 @@
 
 using namespace std;
 
-// typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
+typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
 
 class RbpfSlam
 {
 
 public:
-    RbpfSlam(ros::NodeHandle &nh);
+    RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
     ~RbpfSlam();
 
 private:    
     ros::NodeHandle *nh_;
+    ros::NodeHandle *nh_mb_;
     std::string node_name_;
     ros::Timer timer_;
 
@@ -77,8 +78,8 @@ private:
 
     tf::TransformListener tfListener_;
 
-    // Loop closure
     bool lc_detected_;
+    bool start_training_;
 
     // Covariances
     float meas_std_;
@@ -95,9 +96,9 @@ private:
 
     float n_eff_filt_;
     int count_pings_;
-    int count_training_;
-    bool firstFit_;
-    bool one_time_;
+    // int count_training_;
+    // bool firstFit_;
+    // bool one_time_;
     // bool time2resample_;
     bool survey_finished_;
     double time_;
@@ -107,17 +108,16 @@ private:
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
     geometry_msgs::PoseWithCovarianceStamped avg_pose_;
+    // Eigen::ArrayXf targets_;
 
-    Eigen::ArrayXf targets_;
-
-    // Ancestry tree
-    Eigen::ArrayXXf mapping_;
-    Eigen::ArrayXXf observations_;
-    std::vector<int> tree_list_;
-    int p_ID_;
-    bool time4regression_;
-    int n_from_;
-    int ctr_;
+    // // Ancestry tree
+    // Eigen::ArrayXXf mapping_;
+    // Eigen::ArrayXXf observations_;
+    // std::vector<int> tree_list_;
+    // int p_ID_;
+    // bool time4regression_;
+    // int n_from_;
+    // int ctr_;
 
     // Nacho
     int pings_since_training_;
@@ -141,6 +141,7 @@ private:
 
     // Action clients for sampling the GPs
     std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>*> p_sample_acs_;
+    std::vector<int> updated_w_ids_;
 
     // Action clients for plotting the GP posteriors
     std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>*> p_plot_acs_;
@@ -179,7 +180,7 @@ private:
     Eigen::Matrix4f m2o_mat_;
 
     // Callbacks
-    bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+    // bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     void mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr &goal);
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
     void path_cb(const nav_msgs::PathConstPtr& wp_path);
@@ -188,11 +189,13 @@ private:
     void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
     void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
-    void sampleCB(const slam_msgs::SamplePosteriorResultConstPtr& result);
+    void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::SamplePosteriorResultConstPtr &result);
 
     // Other functions
     void plot_gp_maps();
     void predict(nav_msgs::Odometry odom_t);
     void update_rviz();
     void publish_stats(nav_msgs::Odometry gt_odom);
+
+    void eigenToPointcloud2msg(sensor_msgs::PointCloud2& cloud, Eigen::MatrixXf& mat);
 };

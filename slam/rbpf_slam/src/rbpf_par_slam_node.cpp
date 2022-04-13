@@ -6,16 +6,26 @@ int main(int argc, char** argv){
     ros::init(argc, argv, "rbpf_node");
 
     ros::NodeHandle nh("~");
-    ros::CallbackQueue nav_queue;
-    nh.setCallbackQueue(&nav_queue);
+    ros::NodeHandle nh_mb("~");
+    ros::CallbackQueue rbpf_queue;
+    ros::CallbackQueue mb_queue;
+    nh.setCallbackQueue(&rbpf_queue);
+    nh_mb.setCallbackQueue(&mb_queue);
 
-    boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh));
+    boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh, nh_mb));
 
-    ros::AsyncSpinner spinner_nav(1, &nav_queue);
-    spinner_nav.start();
+    // Spinner for AUV interface callbacks
+    ros::AsyncSpinner spinner_rbpf(4, &rbpf_queue);
+    // One thread per particle?
+    int pc;
+    nh.param<int>(("particle_count"), pc, 10);
+    // Spinner for SVGPs minibatch callbacks 
+    ros::AsyncSpinner spinner_mb(pc, &mb_queue);
+
+    spinner_rbpf.start();
+    spinner_mb.start();
 
     ros::waitForShutdown();
-
     if(!ros::ok()){
         rbpf.reset();
     }

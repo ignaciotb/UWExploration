@@ -53,32 +53,31 @@ public:
     Eigen::VectorXf p_pose_;
     std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_history_;
     std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
+    float w_;
+    int index_; 
 
 private:
-    float w_;
     float log_w;
 
-    // For gp and likelihood
-    Eigen::ArrayXf inputs_;
-    Eigen::ArrayXf est_map_;
-    Eigen::ArrayXf sigma_obs_;
-    vector<float> sigma_list_;
-    vector<float> mu_list_;
+    // // For gp and likelihood
+    // Eigen::ArrayXf inputs_;
+    // Eigen::ArrayXf est_map_;
+    // Eigen::ArrayXf sigma_obs_;
+    // vector<float> sigma_list_;
+    // vector<float> mu_list_;
 
-    // For the ancestry tree
-    Eigen::ArrayXf trajectory_path_;
-    bool time4regression_;
-    string parent_;
-    int n_from_;
-    int ctr_;
+    // // For the ancestry tree
+    // Eigen::ArrayXf trajectory_path_;
+    // bool time4regression_;
+    // string parent_;
+    // int n_from_;
+    // int ctr_;
 
-    // Nacho
     vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
     int beams_num_; 
     int p_num_;
-    int index_; 
 
     Eigen::Matrix4f mbes_tf_matrix_;
     Eigen::Matrix4f m2o_matrix_;
@@ -102,24 +101,24 @@ std::vector<int> linspace(float start, float end, float num);
 
 float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma);
 
-struct normal_random_variable_
-{
+// struct normal_random_variable_
+// {
 
-    normal_random_variable_(Eigen::VectorXd const &mean, Eigen::MatrixXd const &covar)
-        : mean(mean)
-    {
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(covar);
-        transform = eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal();
-    }
+//     normal_random_variable_(Eigen::VectorXd const &mean, Eigen::MatrixXd const &covar)
+//         : mean(mean)
+//     {
+//         Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> eigenSolver(covar);
+//         transform = eigenSolver.eigenvectors() * eigenSolver.eigenvalues().cwiseSqrt().asDiagonal();
+//     }
 
-    Eigen::VectorXd mean;
-    Eigen::MatrixXd transform;
+//     Eigen::VectorXd mean;
+//     Eigen::MatrixXd transform;
 
-    Eigen::VectorXd operator()() const
-    {
-        static std::mt19937 gen{std::random_device{}()};
-        static std::normal_distribution<> dist;
+//     Eigen::VectorXd operator()() const
+//     {
+//         static std::mt19937 gen{std::random_device{}()};
+//         static std::normal_distribution<> dist;
 
-        return mean + transform * Eigen::VectorXd{mean.size()}.unaryExpr([&](auto x) { return dist(gen); });
-    }
-};
+//         return mean + transform * Eigen::VectorXd{mean.size()}.unaryExpr([&](auto x) { return dist(gen); });
+//     }
+// };

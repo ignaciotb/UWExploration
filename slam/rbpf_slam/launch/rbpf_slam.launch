@@ -23,6 +23,7 @@
 
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="4"/> <!--50 -->
+  <arg name="num_particle_handlers"                    default="5"/> 
   <arg name="survey_finished_top" default="/gt/survey_finished"/>
   
   <!-- API for SVGP particles -->
@@ -33,7 +34,7 @@
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="0.3" />
+  <arg name="rbpf_period"   default="3" />
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
@@ -45,8 +46,8 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="num_particle_handlers" value="1"/>     
-    <param name="num_particles_per_handler" value="1"/>     
+    <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
+    <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>
 
@@ -55,8 +56,8 @@
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <!-- [x, y, z, roll, pitch, yaw] -->
-        <rosparam param="init_covariance">[0., 0., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0000]</rosparam>
+        <rosparam param="init_covariance">[5., 5., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]</rosparam>
         <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="3" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />

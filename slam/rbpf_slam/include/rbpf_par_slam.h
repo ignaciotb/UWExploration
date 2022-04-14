@@ -202,4 +202,8 @@ private:
     float moving_average(vector<int> a, int n);
     void resample(vector<float> weights);
     void reassign_poses(vector<int> lost, vector<int> dupes);
+    vector<int> systematic_resampling(vector<float> weights);
+    vector<int> arange(int start, int stop, int step);
+    void average_pose(geometry_msgs::PoseArray pose_list);
+
 };

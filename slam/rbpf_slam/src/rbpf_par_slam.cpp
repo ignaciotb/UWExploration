@@ -64,13 +64,15 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     {
         ROS_DEBUG("Waiting for transforms");
 
+        tf::StampedTransform mbes_tf;
+        tf::StampedTransform m2o_tf;
         tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(30.0));
-        tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf_);
+        tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf);
         tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(30.0));
-        tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf_);
+        tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf);
 
-        pcl_ros::transformAsMatrix(mbes_tf_, base2mbes_mat_);
-        pcl_ros::transformAsMatrix(m2o_tf_, m2o_mat_);
+        pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat_);
+        pcl_ros::transformAsMatrix(m2o_tf, m2o_mat_);
 
         ROS_DEBUG("Transforms locked - RBPF node");
     }
@@ -101,8 +103,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
     lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
 
-    // nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
-    // srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
+    // This service will start the auv simulation or auv_2_ros nodes to start the mission
+    nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+    srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
 
     // The mission waypoints as a path
     nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
@@ -167,11 +170,11 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     ROS_INFO("RBPF instantiated");
 }
 
-// bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
-// {
-//     ROS_DEBUG("RBPF ready");
-//     return true;
-// }
+bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+    ROS_DEBUG("RBPF ready");
+    return true;
+}
 
 void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
 
@@ -258,11 +261,10 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
             this->predict(*odom_msg); 
         }
         // Update stats and visual
-        update_rviz();
         // publish_stats(*odom_msg);
     }
     old_time_ = time_;
-
+    update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
@@ -272,14 +274,14 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     // Randomly pick mb_size/beams_per_ping pings 
     int mb_size = goal->mb_size;
 
-    std::random_device rd;
-    std::mt19937 g(rd());
+    std::mt19937 g(rd_());
 
     int beams_per_ping = 20;
     Eigen::MatrixXf mb_mat(mb_size, 3);
     slam_msgs::MinibatchTrainingResult result;
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
+    int ping_i;
     // If enough beams collected to start minibatch training
     if (count_pings_ > (mb_size / beams_per_ping))
     {
@@ -288,7 +290,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
-            int ping_i = pings_idx_.at(i);
+            ping_i = pings_idx_.at(i);
             // Transform x random beams to particle pose in map frame
             pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
             rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
@@ -395,8 +397,8 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
     // Collect all updated weights and call resample()
     while(updated_w_ids_.size() < pc_ && ros::ok()){
-        ROS_INFO("Updating weights");
-        ros::Duration(1).sleep();
+        // ROS_INFO("Updating weights");
+        ros::Duration(0.2).sleep();
     }
 
     ROS_INFO("Particles weights");

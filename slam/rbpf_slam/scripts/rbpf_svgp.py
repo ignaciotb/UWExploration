@@ -218,12 +218,12 @@ class SVGP_map():
                 self.iterations += 1
                 # print("Particle ", self.particle_id,
                 #       "with iterations: ", self.iterations)
-            
+                
             else:
-                rospy.sleep(1)
+                rospy.logwarn("GP missed MB %s", self.particle_id)
+                rospy.sleep(0.1)
             
         # print("Done with the training ", self.particle_id)
-        # print("GP ", self.particle_id, " training iteration ", self.iterations)
 
     def ip_cb(self, ip_cloud):
 

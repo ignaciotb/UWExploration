@@ -97,32 +97,15 @@ private:
 
     float n_eff_filt_;
     int count_pings_;
-    // int count_training_;
-    // bool firstFit_;
-    // bool one_time_;
-    // bool time2resample_;
     bool survey_finished_;
     double time_;
     double old_time_;
+    std::random_device rd_;
     float rbpf_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
     geometry_msgs::PoseWithCovarianceStamped avg_pose_;
-    // Eigen::ArrayXf targets_;
-
-    // // Ancestry tree
-    // Eigen::ArrayXXf mapping_;
-    // Eigen::ArrayXXf observations_;
-    // std::vector<int> tree_list_;
-    // int p_ID_;
-    // bool time4regression_;
-    // int n_from_;
-    // int ctr_;
-
-    // Nacho
-    int pings_since_training_;
-    int map_updates_;
 
     // Publishers
     ros::Publisher ip_pub_;
@@ -139,21 +122,20 @@ private:
 
     // Minibatch AS
     actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
+    string mb_gp_name_;
 
     // Action clients for sampling the GPs
     std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>*> p_sample_acs_;
+    string sample_gp_server_;
     std::vector<int> updated_w_ids_;
 
     // Action clients for plotting the GP posteriors
     std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>*> p_plot_acs_;
-
     string plot_gp_server_;
-    string sample_gp_server_;
 
     // Server
     ros::ServiceServer srv_server_;
     string synch_top_;
-    string mb_gp_name_;
 
     // Subscribers
     ros::Subscriber mbes_sub_;
@@ -175,13 +157,11 @@ private:
     nav_msgs::Odometry odom_end_;
 
     // Transforms
-    tf::StampedTransform mbes_tf_;
-    tf::StampedTransform m2o_tf_;
     Eigen::Matrix4f base2mbes_mat_;
     Eigen::Matrix4f m2o_mat_;
 
     // Callbacks
-    // bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+    bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
     void mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr &goal);
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
     void path_cb(const nav_msgs::PathConstPtr& wp_path);

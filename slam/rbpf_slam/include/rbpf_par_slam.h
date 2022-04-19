@@ -8,6 +8,7 @@
 #include <sstream>
 #include <iostream>
 #include <algorithm>
+#include <set>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 
@@ -111,7 +112,7 @@ private:
 
     // Publishers
     ros::Publisher ip_pub_;
-    ros::Publisher p_resampling_pub_;
+    vector<ros::Publisher> p_resampling_pubs_;
     ros::Publisher pf_pub_;
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;
@@ -183,4 +184,9 @@ private:
     void eigenToPointcloud2msg(sensor_msgs::PointCloud2& cloud, Eigen::MatrixXf& mat);
     float moving_average(vector<int> a, int n);
     void resample(vector<float> weights);
+    void reassign_poses(vector<int> lost, vector<int> dupes);
+    vector<int> systematic_resampling(vector<float> weights);
+    vector<int> arange(int start, int stop, int step);
+    void average_pose(geometry_msgs::PoseArray pose_list);
+
 };

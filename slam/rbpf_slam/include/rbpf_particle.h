@@ -2,6 +2,7 @@
 
 #include <math.h>
 #include <ros/ros.h>
+#include <cmath>
 
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -14,6 +15,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <sensor_msgs/PointField.h>
+#include <sensor_msgs/point_cloud2_iterator.h>
 #include <nav_msgs/Odometry.h>
 
 #include <pcl_ros/point_cloud.h>
@@ -44,7 +46,7 @@ public:
 
     void compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes);
 
-    float weight_mv(Eigen::VectorXd &mbes_meas_ranges, Eigen::VectorXd &mbes_sim_ranges);
+    double weight_mv(Eigen::VectorXd &mbes_meas_ranges, Eigen::VectorXd &mbes_sim_ranges);
 
     void update_pose_history();
 
@@ -53,11 +55,10 @@ public:
     Eigen::VectorXf p_pose_;
     std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_history_;
     std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
-    float w_;
+    double w_;
     int index_; 
 
 private:
-    float log_w;
 
     // // For gp and likelihood
     // Eigen::ArrayXf inputs_;
@@ -85,21 +86,28 @@ private:
     // Noise models
     std::vector<float> init_cov_;
     std::vector<double> meas_cov_;  //TODO: implement this one on the weights?
+    Eigen::MatrixXd meas_cov_mat_;
     std::vector<float> process_cov_;
-
+    double meas_sigma_;
 };
 
 float angle_limit(float angle);
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes);
 
-Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num);
+// Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num);
+
+Eigen::MatrixXf Pointcloud2msgToEigen(const sensor_msgs::PointCloud2 &cloud, int beams_num);
+
+void eigenToPointcloud2msg(sensor_msgs::PointCloud2 &cloud, Eigen::MatrixXf &mat);
 
 vector<float> list2ranges(vector<Eigen::Array3f> points);
 
 std::vector<int> linspace(float start, float end, float num);
 
 float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma);
+
+double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, double &meas_sigma);
 
 // struct normal_random_variable_
 // {

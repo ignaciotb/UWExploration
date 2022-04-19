@@ -53,6 +53,10 @@
 #include <vector>
 
 using namespace std;
+using std::chrono::duration;
+using std::chrono::duration_cast;
+using std::chrono::high_resolution_clock;
+using std::chrono::milliseconds;
 
 typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
 
@@ -83,6 +87,8 @@ private:
 
     bool lc_detected_;
     bool start_training_;
+    double time_avg_;
+    int count_mb_cbs_;
 
     // Covariances
     float meas_std_;
@@ -112,7 +118,7 @@ private:
 
     // Publishers
     ros::Publisher ip_pub_;
-    vector<ros::Publisher> p_resampling_pubs_;
+    std::vector<ros::Publisher> p_resampling_pubs_;
     ros::Publisher pf_pub_;
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;
@@ -181,11 +187,10 @@ private:
     void predict(nav_msgs::Odometry odom_t);
     void update_rviz();
     void publish_stats(nav_msgs::Odometry gt_odom);
-    void eigenToPointcloud2msg(sensor_msgs::PointCloud2& cloud, Eigen::MatrixXf& mat);
     float moving_average(vector<int> a, int n);
-    void resample(vector<float> weights);
+    void resample(vector<double> weights);
     void reassign_poses(vector<int> lost, vector<int> dupes);
-    vector<int> systematic_resampling(vector<float> weights);
+    vector<int> systematic_resampling(vector<double> weights);
     vector<int> arange(int start, int stop, int step);
     void average_pose(geometry_msgs::PoseArray pose_list);
 

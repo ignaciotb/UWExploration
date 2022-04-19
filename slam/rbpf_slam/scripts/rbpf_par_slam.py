@@ -240,6 +240,8 @@ class rbpf_slam(object):
             ac_sample.wait_for_server()
             self.p_sample_acs.append(ac_sample)
 
+        self.mb_cb_cnt = 0
+
         rospy.spin()
 
     def empty_srv(self, req):
@@ -423,6 +425,7 @@ class rbpf_slam(object):
 
     def mb_cb(self, goal):
 
+        time_start = time.time()
         pc_id = goal.particle_id
 
         # Randomly pick mb_size/beams_per_ping pings 
@@ -464,6 +467,10 @@ class rbpf_slam(object):
             result.minibatch = mbes_pcloud
             result.success = True
             self._as_mb.set_succeeded(result)
+            self.mb_cb_cnt += 1
+            print("CB time ", (time.time() - time_start)/self.mb_cb_cnt)
+            print("CB iterations ", self.mb_cb_cnt)
+
             # print("GP served ", pc_id)
 
             # print("GP trained ", i)

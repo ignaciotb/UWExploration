@@ -191,6 +191,7 @@ class SVGP_map():
 
             # If minibatch received from server
             if result.success:
+                time_start = time.time()
                 # Store beams as array of 3D points
                 beams = np.asarray(list(pc2.read_points(result.minibatch, 
                                         field_names = ("x", "y", "z"), skip_nans=True)))
@@ -216,9 +217,11 @@ class SVGP_map():
                 #     break
 
                 self.iterations += 1
-                print("Particle ", self.particle_id,
-                      "with iterations: ", self.iterations)
-                
+
+                # print("Particle ", self.particle_id,
+                #       "with iterations: ", self.iterations)
+                # print("Training time ", time.time() - time_start)
+
             else:
                 rospy.logwarn("GP missed MB %s", self.particle_id)
                 rospy.sleep(0.01)

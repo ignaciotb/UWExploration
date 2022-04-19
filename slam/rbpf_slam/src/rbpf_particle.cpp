@@ -15,6 +15,9 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     init_cov_ = init_cov;
     process_cov_ = process_cov;
     meas_cov_ = std::vector<double>(beams_num_, std::pow(meas_std, 2));
+    meas_sigma_ = double(meas_std);
+    Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
+    meas_cov_mat_ = meas_cov_eig_diag.asDiagonal();
 
     this->add_noise(init_cov_);
 
@@ -91,17 +94,7 @@ void RbpfParticle::update_pose_history()
     Eigen::Matrix4f t_p = Eigen::Matrix4f::Identity();
     t_p.topLeftCorner(3, 3) = rotMat;
     t_p.block(0,3,3,1) = p_pose_.head(3);
-
-    // std::cout << "------" << std::endl;
-    // std::cout << t_p << std::endl;
-    // std::cout << m2o_matrix_ << std::endl;
-    // std::cout << mbes_tf_matrix_ << std::endl;
-
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
-
-    // std::cout << p_pose_map.block(0, 3, 3, 1).matrix() << std::endl;
-    // std::cout << p_pose_map.topLeftCorner(3, 3).matrix() << std::endl;
-    // std::cout << "------" << std::endl;
 
     pos_history_.push_back(p_pose_map.block(0, 3, 3, 1));
     rot_history_.push_back(p_pose_map.topLeftCorner(3,3));
@@ -130,20 +123,16 @@ void RbpfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real
     }
 }
 
-float RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorXd& mbes_sim_ranges)
+double RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorXd& mbes_sim_ranges)
 {
     float w_i;
     if(mbes_meas_ranges.size() == mbes_sim_ranges.size())
     {
-        // Convert to Eigen Array and Matrix for the multivariate normal sampling step
-        // Eigen::VectorXd mbes_meas_ranges_eig = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mbes_meas_ranges.data(), mbes_meas_ranges.size());
-        Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
-        Eigen::MatrixXd meas_cov_eig(meas_cov_.size(), meas_cov_.size());
-        meas_cov_eig.diagonal() = meas_cov_eig_diag;
-
-        // Sampling from the distribution
-        // normal_random_variable_ sample{mbes_meas_ranges, meas_cov_eig};
-        w_i = mvn_pdf(mbes_meas_ranges, mbes_sim_ranges, meas_cov_eig);
+        w_i = log_pdf_uncorrelated(mbes_meas_ranges, mbes_sim_ranges, meas_sigma_);
+        if (!std::isfinite(w_i)){
+            w_i = 1e-50;
+            ROS_WARN("Nan weights!");
+        }
     }
     
     else
@@ -155,12 +144,22 @@ float RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorXd
     return w_i;
 }
 
+// TODO: if we don't use covs from the GP maps, define sigma.inverse() in the class constructor
 float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma) 
 {
-  float quadform  = (x - mean).transpose() * sigma.inverse() * (x - mean);
-  float norm = std::pow((2*M_PI*sigma).determinant(), - 0.5);
+    float quadform  = (x - mean).transpose() * sigma.inverse() * (x - mean);
+    float norm = 1.0 / std::sqrt((2*M_PI*sigma).determinant());
 
-  return norm * exp(-0.5 * quadform);
+    return norm * exp(-0.5 * quadform);
+}
+
+double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, double &meas_sigma)
+{
+    double n = double(x.cols());
+    Eigen::VectorXd diff = (x - mean).array().square() * (1 / (2 * std::pow(meas_sigma, 2)));
+    double logl = -n * std::log(meas_sigma) - (n / 2.0) * std::log(2 * M_PI) - diff.array().sum();
+    
+    return logl;
 }
 
 vector<float> list2ranges(vector<Eigen::Array3f> points)
@@ -196,24 +195,70 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
     return mbes_pcloud;
 }
 
-Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num)
+// Eigen::ArrayXXf pcloud2ranges_full(const sensor_msgs::PointCloud2& point_cloud, int beams_num)
+// {
+//     // Nacho: is this needed?
+//     sensor_msgs::PointCloud out_cloud;
+//     sensor_msgs::convertPointCloud2ToPointCloud(point_cloud, out_cloud);
+
+//     // Selecting only self.beams_num of beams in the ping
+//     std::vector<int> idx = linspace(0, point_cloud.width - 1, beams_num);
+//     Eigen::MatrixXf beams(beams_num, 3);
+//     int beam_cnt = 0;
+//     for (int i = 0; i < out_cloud.points.size(); ++i)
+//     {
+//         if (std::find(idx.begin(), idx.end(), i) != idx.end() ){
+//             beams.row(beam_cnt) = Eigen::Vector3f(out_cloud.points[i].x,
+//                                                   out_cloud.points[i].y,
+//                                                   out_cloud.points[i].z);
+//             beam_cnt++;
+//         }
+//     }
+//     return beams;
+// }
+
+Eigen::MatrixXf Pointcloud2msgToEigen(const sensor_msgs::PointCloud2 &cloud, int beams_num)
 {
-    // Nacho: is this needed?
-    sensor_msgs::PointCloud out_cloud;
-    sensor_msgs::convertPointCloud2ToPointCloud(point_cloud, out_cloud);
+    sensor_msgs::PointCloud2::Ptr cloud_ptr(new sensor_msgs::PointCloud2(cloud));
+    sensor_msgs::PointCloud2Iterator<float> iter_x(*cloud_ptr, "x");
+    sensor_msgs::PointCloud2Iterator<float> iter_y(*cloud_ptr, "y");
+    sensor_msgs::PointCloud2Iterator<float> iter_z(*cloud_ptr, "z");
 
     // Selecting only self.beams_num of beams in the ping
-    std::vector<int> idx = linspace(0, point_cloud.width - 1, beams_num);
-    Eigen::MatrixXf beams(beams_num, 3);
-    for (int i = 0; i < out_cloud.points.size(); ++i)
+    std::vector<int> idx = linspace(0, cloud.width - 1, beams_num);
+    Eigen::MatrixXf mat(beams_num, 3);
+
+    int beam_cnt = 0;
+    for (size_t i = 0; i < cloud.width; ++i, ++iter_x, ++iter_y, ++iter_z)
     {
-        if (std::find(idx.begin(), idx.end(), i) != idx.end() ){
-            beams.row(i) = Eigen::Vector3f(out_cloud.points[i].x, 
-                                            out_cloud.points[i].y,
-                                            out_cloud.points[i].z);
+        if (std::find(idx.begin(), idx.end(), i) != idx.end())
+        {
+            mat.row(beam_cnt)[0] = *iter_x;
+            mat.row(beam_cnt)[1] = *iter_y;
+            mat.row(beam_cnt)[2] = *iter_z;
+            beam_cnt++;
         }
     }
-    return beams;
+    return mat;
+}
+
+void eigenToPointcloud2msg(sensor_msgs::PointCloud2 &cloud, Eigen::MatrixXf &mat)
+{
+
+    sensor_msgs::PointCloud2Modifier cloud_out_modifier(cloud);
+    cloud_out_modifier.setPointCloud2FieldsByString(1, "xyz");
+    cloud_out_modifier.resize(mat.rows());
+
+    sensor_msgs::PointCloud2Iterator<float> iter_x(cloud, "x");
+    sensor_msgs::PointCloud2Iterator<float> iter_y(cloud, "y");
+    sensor_msgs::PointCloud2Iterator<float> iter_z(cloud, "z");
+
+    for (size_t i = 0; i < mat.rows(); ++i, ++iter_x, ++iter_y, ++iter_z)
+    {
+        *iter_x = mat.row(i)[0];
+        *iter_y = mat.row(i)[1];
+        *iter_z = mat.row(i)[2];
+    }
 }
 
 // A function to generate numpy linspace 

@@ -92,7 +92,7 @@ class SVGP_map():
         while not self.ac_mb.wait_for_server(timeout=rospy.Duration(5)) and not rospy.is_shutdown():
             print("Waiting for MB AS ", particle_id)
 
-        # Subscription to GP inducing points from RBPF
+         # Subscription to GP inducing points from RBPF
         ip_top = rospy.get_param("~inducing_points_top")
         rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
         self.inducing_points_received = False
@@ -171,7 +171,7 @@ class SVGP_map():
         
         self.resampling = False
             
-            
+ 
     def train_iteration(self):
 
         # Don't train until the inducing points from the RBPF node have been received
@@ -216,12 +216,12 @@ class SVGP_map():
                 #     break
 
                 self.iterations += 1
-                # print("Particle ", self.particle_id,
-                #       "with iterations: ", self.iterations)
+                print("Particle ", self.particle_id,
+                      "with iterations: ", self.iterations)
                 
             else:
                 rospy.logwarn("GP missed MB %s", self.particle_id)
-                rospy.sleep(0.1)
+                rospy.sleep(0.01)
             
         # print("Done with the training ", self.particle_id)
 
@@ -503,6 +503,6 @@ if __name__ == '__main__':
             for i in range(0, int(particles_per_hdl)):
                 particles_svgps[i].train_iteration()  
 
-        rospy.spin()
+        # rospy.spin()
     except rospy.ROSInterruptException:
         rospy.logerr("Couldn't launch rbpf_svgp")

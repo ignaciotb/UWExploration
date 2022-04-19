@@ -41,6 +41,8 @@
 #include <slam_msgs/MinibatchTrainingResult.h>
 #include <slam_msgs/SamplePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
+// #include <slam_msgs/MbRequest.h>
+// #include <slam_msgs/MbResult.h>
 
 #include <algorithm>
 #include <iomanip>
@@ -114,6 +116,7 @@ private:
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;
     ros::Publisher stats_;
+
     string pose_array_top_;
     string avg_pose_top_;
     string pf_mbes_top_;

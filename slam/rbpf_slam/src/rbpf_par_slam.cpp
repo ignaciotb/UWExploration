@@ -41,7 +41,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     pf_mbes_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(pf_mbes_top_, 1);
 
     nh_->param<string>(("pf_stats_top"), stats_top_, "stats");
-    stats_ = nh_->advertise<std_msgs::Float32>(stats_top_, 10);
+    stats_ = nh_->advertise<std_msgs::Float32MultiArray>(stats_top_, 10);
 
     // Action server for plotting the GP maps
     nh_->param<string>(("plot_gp_server"), plot_gp_server_, "gp_plot_server");
@@ -116,7 +116,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Publisher for particles indexes to be resampled
     std::string p_resampling_top;
     nh_->param<string>(("p_resampling_top"), p_resampling_top, "/resample_top");
-    p_resampling_pub_ = nh_->advertise<std_msgs::Float32>(p_resampling_top, 10);
+    for(int i = 0; i < pc_; i++)
+        p_resampling_pubs_[i] = nh_->advertise<std_msgs::Int32>(p_resampling_top + "/particle_" + std::to_string(i), 10);
     
     // Service for sending minibatches of beams to the SVGP particles
     std::string mb_gp_name;
@@ -259,7 +260,7 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
         }
         // Update stats and visual
         update_rviz();
-        // publish_stats(*odom_msg);
+        publish_stats(*odom_msg);
     }
     old_time_ = time_;
 
@@ -465,6 +466,11 @@ void RbpfSlam::resample(vector<float> weights)
 {
     ROS_DEBUG("Resampling");
     int N_eff = pc_;
+    vector<int> indices;
+    vector<int> lost;
+    vector<int> keep;
+    vector<int> dupes;
+    std::vector<int>::iterator idx;
 
     // Normalize weights
     float w_sum = accumulate(weights.begin(), weights.end(), 0);
@@ -480,16 +486,123 @@ void RbpfSlam::resample(vector<float> weights)
     n_eff_mask_.erase(n_eff_mask_.begin());
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
-    
-    
 
+    lc_detected_ = false;
+
+    if(n_eff_filt_ < pc_/2)
+    {
+        // Resample particles
+        indices = systematic_resampling(weights);
+        set<int> s(indices.begin(), indices.end());
+        keep.assign(s.begin(), s.end());
+
+        for(int i = 0; i < pc_; i++)
+        {
+            if (!count(keep.begin(), keep.end(), i))
+                lost.push_back(i);
+        }
+
+        dupes = indices;
+        for (int i : keep)
+        {
+            if (count(dupes.begin(), dupes.end(), i))
+            {
+                idx = find(dupes.begin(), dupes.end(), i);
+                dupes.erase(idx);
+            }
+        }
+        reassign_poses(lost, dupes); 
+
+        // Add noise to particles
+        for(int i = 0; i < pc_; i++)
+            particles_[i].add_noise(res_noise_cov_);
+
+        // Reassign SVGP maps: send winning indexes to SVGP nodes
+        std_msgs::Int32 k_ros;
+        std_msgs::Int32 l_ros;
+        if(!dupes.empty())
+        {
+            for(int k : keep)
+            {
+                k_ros.data = k;
+                p_resampling_pubs_[k].publish(k_ros);
+            }
+            ros::Duration(0.005).sleep();
+
+            int j = 0;
+            for (int l : lost)
+            {
+                l_ros.data = dupes[j];
+                p_resampling_pubs_[l].publish(l_ros);
+                ros::Duration(0.1).sleep();
+                j++;
+            }
+        }
+    }
+    
+}
+
+void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
+{
+    for(int i = 0; i < lost.size(); i++)
+    {
+        particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
+        particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
+        particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+    }
+}
+
+vector<int> RbpfSlam::systematic_resampling(vector<float> weights)
+{
+    int N = weights.size();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0, 1);
+    float rand_n = dis(gen);
+
+    vector<int> range = arange(0, N, 1);
+    vector<float> positions(N);
+    vector<int> indexes(N, 0);
+    vector<int> cum_sum(N);
+
+    // make N subdivisions, and choose positions with a consistent random offset
+    for(int i = 0; i < N; i++)
+        positions[i] = (range[i] + rand_n) / float(N);
+
+    partial_sum(weights.begin(), weights.end(), cum_sum.begin());
+
+    int i = 0;
+    int j = 0;
+
+    while(i < N)
+    {
+        if(positions[i] < cum_sum[j])
+        {
+            indexes[i] = j;
+            i++;
+        }
+        else
+            j++;
+    }
+
+    return indexes;
 
 }
 
-
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
-    ROS_DEBUG("TODO");
+    // Send statistics for visualization
+    std_msgs::Float32MultiArray stats;
+    stats.data[0] = n_eff_filt_;
+    stats.data[1] = pc_/2.f;
+    stats.data[2] = gt_odom.pose.pose.position.x;
+    stats.data[3] = gt_odom.pose.pose.position.y;
+    stats.data[4] = gt_odom.pose.pose.position.z;
+    stats.data[5] = avg_pose_.pose.pose.position.x;
+    stats.data[6] = avg_pose_.pose.pose.position.y;
+    stats.data[7] = avg_pose_.pose.pose.position.z;
+
+    stats_.publish(stats);
 }
 
 void RbpfSlam::eigenToPointcloud2msg(
@@ -516,6 +629,14 @@ float RbpfSlam::moving_average(vector<int> a, int n)
     float a_sum = accumulate(a_last.begin(), a_last.end(), 0);
 
     return (float)a_sum/n;
+}
+
+std::vector<int> RbpfSlam::arange(int start, int stop, int step)
+{
+    std::vector<int> values;
+    for (int value = start; value < stop; value += step)
+        values.push_back(value);
+    return values;
 }
 
 RbpfSlam::~RbpfSlam()

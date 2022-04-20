@@ -206,16 +206,9 @@ class SVGP_map():
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
-                # print("GP ", self.particle_id, " training iteration ", self.iterations)
                 self.training = False
 
-                # verbosity and convergence check
-                # if verbose:
-                    # epochs.set_description('Loss {:.4f}'.format(loss.item()))
                 self.loss.append(loss.detach().cpu().numpy())
-                # if self.auto and self.criterion.evaluate(loss.detach()):
-                #     break
-
                 self.iterations += 1
 
                 # print("Particle ", self.particle_id,
@@ -223,7 +216,7 @@ class SVGP_map():
                 # print("Training time ", time.time() - time_start)
 
             else:
-                rospy.logwarn("GP missed MB %s", self.particle_id)
+                rospy.logdebug("GP missed MB %s", self.particle_id)
                 rospy.sleep(0.01)
             
         # print("Done with the training ", self.particle_id)
@@ -261,7 +254,7 @@ class SVGP_map():
 
         while not rospy.is_shutdown() and self.training:
             rospy.Rate(1).sleep()
-            print("GP ", self.particle_id, " waiting for training before sampling")
+            rospy.logdebug("GP %s", self.particle_id, " waiting for training before sampling")
 
         self.sampling = True
         mu, sigma = self.sample(np.asarray(beams)[:, 0:2])

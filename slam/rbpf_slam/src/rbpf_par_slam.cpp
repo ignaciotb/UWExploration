@@ -324,8 +324,8 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         duration<double, std::milli> ms_double = t2 - t1;
         time_avg_ += ms_double.count();
         count_mb_cbs_++;
-        std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
-        std::cout << count_mb_cbs_ << std::endl;
+        // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
+        // std::cout << count_mb_cbs_ << std::endl;
     }
 
     // If not enough beams collected to start the minibatch training
@@ -387,7 +387,6 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     Eigen::Matrix3f rot_i;
     slam_msgs::SamplePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
-        // TODO: mbes and pose histories might be updated while within this loop
         // Transform x random beams to particle pose in map frame
         pos_i = particles_.at(p).pos_history_.back();
         rot_i = particles_.at(p).rot_history_.back();
@@ -409,21 +408,29 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     }
 
     // Collect all updated weights and call resample()
-    while(updated_w_ids_.size() < pc_ && ros::ok()){
+    int w_time_out = 0;
+    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < 200)
+    {
         // ROS_INFO("Updating weights");
         ros::Duration(0.01).sleep();
+        w_time_out++;
     }
 
-    // ROS_INFO("Particles weights");
-    std::vector<double> weights;
-    for(int i=0; i<pc_; i++){
-        // std::cout << particles_.at(i).index_ << " " << particles_.at(i).w_ << std::endl;
-        weights.push_back(particles_.at(i).w_);
+    // Safety timeout to handle lost goals on sampleCB()
+    if(w_time_out < 200){
+        // Call resampling here and empty ids vector
+        updated_w_ids_.clear();
+        std::vector<double> weights;
+        for(int i=0; i<pc_; i++){
+            // std::cout << particles_.at(i).index_ << " " << particles_.at(i).w_ << std::endl;
+            weights.push_back(particles_.at(i).w_);
+        }
+        this->resample(weights);
     }
-
-    // Call resampling here and empty ids vector
-    this->resample(weights);
-    updated_w_ids_.clear();
+    else{
+        updated_w_ids_.clear();
+        ROS_WARN("Lost weights on the way, skipping resampling");
+    }
 }
 
 void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
@@ -502,8 +509,6 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
-    // lc_detected_ = false;
-
     std::cout << "Mask " << n_eff_filt_ << std::endl;
     if(n_eff_filt_ < pc_/2)
     {
@@ -552,16 +557,13 @@ void RbpfSlam::resample(vector<double> weights)
             int j = 0;
             for (int l : lost)
             {
-                std::cout << l << " ";
                 l_ros.data = dupes[j];
                 p_resampling_pubs_[l].publish(l_ros);
                 ros::Duration(0.1).sleep();
                 j++;
             }
-            std::cout << std::endl;
         }
     }
-    
 }
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)

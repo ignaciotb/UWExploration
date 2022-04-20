@@ -408,7 +408,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
     // Collect all updated weights and call resample()
     int w_time_out = 0;
-    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < 200)
+    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < 250)
     {
         // ROS_INFO("Updating weights");
         ros::Duration(0.01).sleep();
@@ -416,7 +416,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     }
 
     // Safety timeout to handle lost goals on sampleCB()
-    if(w_time_out < 200){
+    if(w_time_out < 250){
         // Call resampling here and empty ids vector
         updated_w_ids_.clear();
         std::vector<double> weights;
@@ -442,6 +442,7 @@ void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
     Eigen::VectorXd sigma_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(sigma.data(), sigma.size());
 
     // TODO: pass sigma_e to particles here
+    particles_.at(result->p_id).gp_covs_ = sigma_e;
     particles_.at(result->p_id).compute_weight(mu_e, latest_mbes_z_.cast<double>());
     // Particle p_id has computed its weight
     updated_w_ids_.push_back(result->p_id);
@@ -509,7 +510,7 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
     std::cout << "Mask " << n_eff_filt_ << std::endl;
-    if(n_eff_filt_ < pc_/2)
+    if(n_eff_filt_ < std::round(pc_/2))
     {
         ROS_INFO("Resampling");
         // Resample particles

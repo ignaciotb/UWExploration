@@ -58,21 +58,13 @@ public:
     double w_;
     int index_; 
 
+    // Noise models
+    std::vector<float> init_cov_;
+    Eigen::VectorXd gp_covs_;
+    std::vector<float> process_cov_;
+    double mbes_sigma_;
+
 private:
-
-    // // For gp and likelihood
-    // Eigen::ArrayXf inputs_;
-    // Eigen::ArrayXf est_map_;
-    // Eigen::ArrayXf sigma_obs_;
-    // vector<float> sigma_list_;
-    // vector<float> mu_list_;
-
-    // // For the ancestry tree
-    // Eigen::ArrayXf trajectory_path_;
-    // bool time4regression_;
-    // string parent_;
-    // int n_from_;
-    // int ctr_;
 
     vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
@@ -83,12 +75,6 @@ private:
     Eigen::Matrix4f mbes_tf_matrix_;
     Eigen::Matrix4f m2o_matrix_;
 
-    // Noise models
-    std::vector<float> init_cov_;
-    std::vector<double> meas_cov_;  //TODO: implement this one on the weights?
-    Eigen::MatrixXd meas_cov_mat_;
-    std::vector<float> process_cov_;
-    double meas_sigma_;
 };
 
 float angle_limit(float angle);
@@ -107,7 +93,8 @@ std::vector<int> linspace(float start, float end, float num);
 
 float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma);
 
-double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, double &meas_sigma);
+double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean,
+                            Eigen::VectorXd &gp_sigmas, double &mbes_sigma);
 
 // struct normal_random_variable_
 // {

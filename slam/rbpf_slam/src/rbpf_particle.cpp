@@ -14,10 +14,10 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     // Noise models init
     init_cov_ = init_cov;
     process_cov_ = process_cov;
-    meas_cov_ = std::vector<double>(beams_num_, std::pow(meas_std, 2));
-    meas_sigma_ = double(meas_std);
-    Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
-    meas_cov_mat_ = meas_cov_eig_diag.asDiagonal();
+    // meas_cov_ = std::vector<double>(beams_num_, std::pow(meas_std, 2));
+    mbes_sigma_ = double(meas_std);
+    // Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
+    // meas_cov_mat_ = meas_cov_eig_diag.asDiagonal();
 
     this->add_noise(init_cov_);
 
@@ -128,7 +128,7 @@ double RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorX
     float w_i;
     if(mbes_meas_ranges.size() == mbes_sim_ranges.size())
     {
-        w_i = log_pdf_uncorrelated(mbes_meas_ranges, mbes_sim_ranges, meas_sigma_);
+        w_i = log_pdf_uncorrelated(mbes_meas_ranges, mbes_sim_ranges, gp_covs_, mbes_sigma_);
         if (!std::isfinite(w_i)){
             w_i = 1e-50;
             ROS_WARN("Nan weights!");
@@ -153,12 +153,20 @@ float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& 
     return norm * exp(-0.5 * quadform);
 }
 
-double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, double &meas_sigma)
+double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, 
+                            Eigen::VectorXd &gp_sigmas, double &mbes_sigma)
 {
+    // double n = double(x.cols());
+    // Eigen::VectorXd diff = (x - mean).array().square() * (1 / (2 * std::pow(mbes_sigma, 2)));
+    // double logl = -(n / 2.0) * std::log(std::pow(mbes_sigma, 2)) - (n / 2.0) * std::log(2 * M_PI) - diff.array().sum();
+
     double n = double(x.cols());
-    Eigen::VectorXd diff = (x - mean).array().square() * (1 / (2 * std::pow(meas_sigma, 2)));
-    double logl = -n * std::log(meas_sigma) - (n / 2.0) * std::log(2 * M_PI) - diff.array().sum();
-    
+    // gp_sigmas.setZero();
+    Eigen::VectorXd sigmas_2 = gp_sigmas.array().square() + std::pow(mbes_sigma, 2);
+    Eigen::VectorXd diff = (x - mean).array().square();
+    diff.array() *= ((2. * sigmas_2.array()).inverse()).transpose(); // Nasty inverse
+    double logl = -(1./2.)*(sigmas_2.array().log()).sum() - (n / 2.0) * std::log(2 * M_PI) - diff.array().sum();
+
     return logl;
 }
 

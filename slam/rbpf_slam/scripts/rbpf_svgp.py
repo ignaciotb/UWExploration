@@ -283,7 +283,7 @@ class SVGP_map():
         # Flag to stop training
         self.plotting = True
         # Plot posterior and save it to image
-        if False:
+        if True:
             print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
 
             self.plot(beams[:,0:2], beams[:,2], 

@@ -215,7 +215,7 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_DEBUG("PF node: Survey finished received");
     mission_finished_ = true;
-    plot_gp_maps();
+    save_gp_maps();
     ROS_DEBUG("We done bitches, this time in c++");
 }   
 
@@ -336,8 +336,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     }
 }
 
-
-void RbpfSlam::plot_gp_maps()
+void RbpfSlam::save_gp_maps()
 {
     int pings_t = mbes_history_.size()-1;
     Eigen::MatrixXf mbes_mat(pings_t * beams_num_, 3);

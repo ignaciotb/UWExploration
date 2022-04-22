@@ -118,7 +118,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Publisher for particles indexes to be resampled
     std::string p_resampling_top;
-    nh_->param<string>(("p_resampling_top"), p_resampling_top, "/resample_top");
+    nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
     for(int i = 0; i < pc_; i++)
         p_resampling_pubs_.push_back(nh_->advertise<std_msgs::Int32>(p_resampling_top + "/particle_" + std::to_string(i), 10));
     
@@ -170,6 +170,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     start_training_ = false;
     time_avg_ = 0;
     count_mb_cbs_ = 0;
+    lc_detected_ = false;
     ROS_INFO("RBPF instantiated");
 }
 
@@ -408,7 +409,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
     // Collect all updated weights and call resample()
     int w_time_out = 0;
-    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < 250)
+    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < rbpf_period_ * 100.)
     {
         // ROS_INFO("Updating weights");
         ros::Duration(0.01).sleep();
@@ -416,7 +417,8 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     }
 
     // Safety timeout to handle lost goals on sampleCB()
-    if(w_time_out < 250){
+    if (w_time_out < rbpf_period_ * 100.)
+    {
         // Call resampling here and empty ids vector
         updated_w_ids_.clear();
         std::vector<double> weights;
@@ -511,10 +513,15 @@ void RbpfSlam::resample(vector<double> weights)
 
     std::cout << "Mask " << n_eff_filt_ << std::endl;
     if(n_eff_filt_ < std::round(pc_/2))
+    // if(lc_detected_)
     {
-        ROS_INFO("Resampling");
         // Resample particles
+        ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
+        // For manual lc testing
+        // indices = vector<int>(pc_, 0);
+        // lc_detected_ = false;
+        
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
 
@@ -542,7 +549,15 @@ void RbpfSlam::resample(vector<double> weights)
         // Reassign SVGP maps: send winning indexes to SVGP nodes
         std_msgs::Int32 k_ros;
         std_msgs::Int32 l_ros;
+        std::cout << "Dupes " << std::endl;
+        for(int k : dupes){
+            std::cout << k;
+        }
+        std::cout << std::endl;
+
         std::cout << "Keep " << std::endl;
+        // TODO: make this action clients? 
+        // Removes the need for timers but they might be even slower themselves
         if(!dupes.empty())
         {
             for(int k : keep)
@@ -552,14 +567,14 @@ void RbpfSlam::resample(vector<double> weights)
                 p_resampling_pubs_[k].publish(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.005).sleep();
+            ros::Duration(0.01).sleep();
 
             int j = 0;
             for (int l : lost)
             {
                 l_ros.data = dupes[j];
                 p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.1).sleep();
+                ros::Duration(0.05).sleep();
                 j++;
             }
         }

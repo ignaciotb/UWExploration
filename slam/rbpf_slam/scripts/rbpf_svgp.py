@@ -146,14 +146,14 @@ class SVGP_map():
     def resampling_cb(self, ind_msg):
 
         self.resampling = True
+        while not rospy.is_shutdown() and self.training:
+            rospy.sleep(0.01)
+            rospy.logdebug("GP %s waiting for training before resampling", self.particle_id)
+
         # If this particle has been resampled, save the SVGP map to disk
         # to share it with the rest
         if ind_msg.data == self.particle_id:
-            time_start = time.time()
             self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
-            print("Time saving ", time.time() - time_start)
-            print("Particle ", self.particle_id,
-                  "with iterations: ", self.iterations, " saved")
         
         # Else, load the SVGP from with the particle ID received in the msg
         else:
@@ -162,9 +162,7 @@ class SVGP_map():
                            str(ind_msg.data) + ".pth")
             try:
                 if my_file.is_file():
-                    time_start = time.time()
                     self.load(str(my_file.as_posix()))
-                    print("Time loading ", time.time() - time_start)
 
             except FileNotFoundError:
                 print("Error: file doesn't exist ")
@@ -179,25 +177,25 @@ class SVGP_map():
             rospy.loginfo_once("Waiting for inducing points")
             return
 
-        if not self.plotting and not self.sampling and not self.resampling:
+        # Get beams for minibatch training as pcl
+        goal = MinibatchTrainingGoal()
+        goal.particle_id = self.particle_id
+        goal.mb_size = self.mb_size
+        self.ac_mb.send_goal(goal)
+        self.ac_mb.wait_for_result()
+        result = self.ac_mb.get_result()
 
-            # Get beams for minibatch training as pcl
-            goal = MinibatchTrainingGoal()
-            goal.particle_id = self.particle_id
-            goal.mb_size = self.mb_size
-            self.ac_mb.send_goal(goal)
-            self.ac_mb.wait_for_result()
-            result = self.ac_mb.get_result()
+        # If minibatch received from server
+        if result.success:
+            time_start = time.time()
+            # Store beams as array of 3D points
+            beams = np.asarray(list(pc2.read_points(result.minibatch, 
+                                    field_names = ("x", "y", "z"), skip_nans=True)))
+            beams = np.reshape(beams, (-1,3))
 
-            # If minibatch received from server
-            if result.success:
-                time_start = time.time()
-                # Store beams as array of 3D points
-                beams = np.asarray(list(pc2.read_points(result.minibatch, 
-                                        field_names = ("x", "y", "z"), skip_nans=True)))
-                beams = np.reshape(beams, (-1,3))
-
+            if not self.plotting and not self.sampling and not self.resampling:
                 self.training = True
+                
                 input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
                 target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
@@ -217,7 +215,7 @@ class SVGP_map():
 
             else:
                 rospy.logdebug("GP missed MB %s", self.particle_id)
-                rospy.sleep(0.01)
+                rospy.sleep(0.1)
             
         # print("Done with the training ", self.particle_id)
 
@@ -252,12 +250,14 @@ class SVGP_map():
                                 field_names = ("x", "y", "z"), skip_nans=True)))
         beams = np.reshape(beams, (-1,3)) 
 
-        while not rospy.is_shutdown() and self.training:
-            rospy.Rate(1).sleep()
-            rospy.logdebug("GP %s", self.particle_id, " waiting for training before sampling")
-
         self.sampling = True
+        while not rospy.is_shutdown() and self.training:
+            rospy.sleep(0.01)
+            rospy.logdebug(
+                "GP %s waiting for training before sampling", self.particle_id)
+
         mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
+        self.sampling = False
 
         # Set action as success
         result = SamplePosteriorResult()
@@ -265,7 +265,6 @@ class SVGP_map():
         result.mu = mu
         result.sigma = sigma
         self._as_sample.set_succeeded(result)
-        self.sampling = False
         # print("GP ", self.particle_id, " sampled")
 
 
@@ -273,8 +272,9 @@ class SVGP_map():
 
         # Wait for training to stop
         while not rospy.is_shutdown() and self.training:
-            rospy.Rate(1).sleep()
-            print("GP ", self.particle_id, " waiting for training before plotting")
+            rospy.sleep(0.01)
+            rospy.logdebug(
+                "GP %s waiting for training before plotting",  self.particle_id)
 
         beams = np.asarray(list(pc2.read_points(goal.pings, 
                         field_names = ("x", "y", "z"), skip_nans=True)))
@@ -298,8 +298,7 @@ class SVGP_map():
                       str(self.particle_id) + ".pth")
             # Save particle's MBES map and inducing points
             np.savez(self.storage_path + "map_" +
-                     str(self.particle_id) + ".npz", beams=beams,
-                     ips=self.model.variational_strategy.inducing_points.data.cpu().numpy())
+                     str(self.particle_id) + ".npz", beams=beams)
             self.plotting = False
 
         # Set action as success
@@ -481,11 +480,25 @@ class SVGP_map():
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
         
     def save(self, fname):
-        torch.save(self.model.state_dict(), fname)
+        # time_start = time.time()
+        torch.save({'model' : self.model.state_dict(),
+                    'likelihood' : self.likelihood.state_dict(),
+                    'mll' : self.mll.state_dict(),
+                    'opt': self.opt.state_dict()}, fname)
+        # print("Time saving ", time.time() - time_start)
 
     def load(self, fname):
-        self.model.load_state_dict(torch.load(fname))
+        # time_start = time.time()
+        cp = torch.load(fname)
+        self.model.load_state_dict(cp['model'])
+        self.likelihood.load_state_dict(cp['likelihood'])
+        self.mll.load_state_dict(cp['mll'])
+        self.opt.load_state_dict(cp['opt'])
+        # print("Time loading ", time.time() - time_start)
+        # self.model.variational_strategy.inducing_points.data = torch.from_numpy(
+        #     gp_cp['ips']).to(self.device).float()
         self.model.train()
+        self.likelihood.train()
 
 
 if __name__ == '__main__':

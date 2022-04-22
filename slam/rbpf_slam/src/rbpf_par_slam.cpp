@@ -185,26 +185,27 @@ void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ 
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
-    if (wp_path->poses.size() > 0 && !start_training_)
+    if (wp_path->poses.size() > 0)
     {
-        ROS_INFO("Received path");
-        std::vector<Eigen::RowVector3f> i_points;
-        int wp_size = wp_path->poses.size();
-        sensor_msgs::PointCloud2 ip_pcloud;
-        Eigen::RowVector3f ip;
-        
-        auto poses = wp_path->poses;
+        if (!start_training_){
+            ROS_INFO("Sending inducing points");
+            std::vector<Eigen::RowVector3f> i_points;
+            int wp_size = wp_path->poses.size();
+            sensor_msgs::PointCloud2 ip_pcloud;
+            Eigen::RowVector3f ip;
+            
+            auto poses = wp_path->poses;
 
-        for (int i = 0; i < wp_size; i++)
-        {
-            ip << poses[i].pose.position.x, poses[i].pose.position.y, 0;
-            i_points.push_back(ip);
+            for (int i = 0; i < wp_size; i++)
+            {
+                ip << poses[i].pose.position.x, poses[i].pose.position.y, 0;
+                i_points.push_back(ip);
+            }
+
+            ip_pcloud = pack_cloud(map_frame_, i_points);
+            start_training_ = true; // We can start to check for loop closures 
+            ip_pub_.publish(ip_pcloud);
         }
-
-        ip_pcloud = pack_cloud(map_frame_, i_points);
-        ROS_INFO("Sending inducing points");
-        start_training_ = true; // We can start to check for loop closures 
-        ip_pub_.publish(ip_pcloud);
     }
     else{
         ROS_WARN("Received empty mission");
@@ -511,8 +512,8 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
-    std::cout << "Mask " << n_eff_filt_ << std::endl;
-    if(n_eff_filt_ < std::round(pc_/2))
+    std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
+    if (N_eff < std::round(pc_ / 2))
     // if(lc_detected_)
     {
         // Resample particles
@@ -549,12 +550,6 @@ void RbpfSlam::resample(vector<double> weights)
         // Reassign SVGP maps: send winning indexes to SVGP nodes
         std_msgs::Int32 k_ros;
         std_msgs::Int32 l_ros;
-        std::cout << "Dupes " << std::endl;
-        for(int k : dupes){
-            std::cout << k;
-        }
-        std::cout << std::endl;
-
         std::cout << "Keep " << std::endl;
         // TODO: make this action clients? 
         // Removes the need for timers but they might be even slower themselves

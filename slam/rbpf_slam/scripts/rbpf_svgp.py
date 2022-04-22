@@ -157,7 +157,7 @@ class SVGP_map():
         
         # Else, load the SVGP from with the particle ID received in the msg
         else:
-            print("Particle ", self.particle_id,  "loading particle ", ind_msg.data)
+            # print("Particle ", self.particle_id,  "loading particle ", ind_msg.data)
             my_file = Path(self.storage_path + "svpg_" +
                            str(ind_msg.data) + ".pth")
             try:

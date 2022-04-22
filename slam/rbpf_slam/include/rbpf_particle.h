@@ -66,7 +66,7 @@ public:
 
 private:
 
-    vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
+    // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
     int beams_num_; 

@@ -32,7 +32,7 @@ from cv_bridge import CvBridge
 
 # For sim mbes action client
 import actionlib
-from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
+# from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
@@ -99,9 +99,9 @@ class rbpf_slam(object):
         self.count_pings = 0
         self.prev_mbes = PointCloud2()
         self.poses = PoseArray()
-        self.poses.header.frame_id = self.odom_frame
+        self.poses.header.frame_id = self.base_frame
         self.avg_pose = PoseWithCovarianceStamped()
-        self.avg_pose.header.frame_id = self.odom_frame
+        self.avg_pose.header.frame_id = self.base_frame
         self.targets = np.zeros((1,))
         self.firstFit = True
         self.one_time = True
@@ -144,14 +144,6 @@ class rbpf_slam(object):
         # # Publish to record data
         # train_gp_topic = rospy.get_param('~train_gp_topic', '/training_gps')
         # self.gp_pub = rospy.Publisher(train_gp_topic, numpy_msg(Floats), queue_size=100)
-
-        # Subscription to real mbes pings 
-        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
-        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb, queue_size=100)
-        
-        # Establish subscription to odometry message (intentionally last)
-        odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
 
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False
@@ -198,6 +190,14 @@ class rbpf_slam(object):
         # Start timing now
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
+
+        # Subscription to real mbes pings 
+        mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
+        rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_real_cb, queue_size=100)
+        
+        # Establish subscription to odometry message (intentionally last)
+        odom_top = rospy.get_param("~odometry_topic", 'odom')
+        rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
 
         # Create particle to compute DR
         self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
@@ -304,7 +304,6 @@ class rbpf_slam(object):
             rospy.Rate(1.).sleep()
 
         for i in range(0, self.pc):
-            # NACHO: create array of AS in instantiation of class
             # For parallel plotting on secondary node 
             # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
             #                                         PlotPosteriorAction)
@@ -364,7 +363,6 @@ class rbpf_slam(object):
         # Calculate expected meas from the particles GP
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
-            # NACHO: create array of AS in instantiation of class
             # AS for particle i
             # ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
             #                                         SamplePosteriorAction)
@@ -442,7 +440,6 @@ class rbpf_slam(object):
                 # Publish (for visualization)
                 mbes_pcloud = pack_cloud(self.map_frame, pings_i)
 
-                # NACHO: create array of publishers in instantiation of class
                 self.pcloud_pub = rospy.Publisher("/particle_" + str(i) + self.mbes_pc_top, PointCloud2, queue_size=10)
                 self.pcloud_pub.publish(mbes_pcloud)
 

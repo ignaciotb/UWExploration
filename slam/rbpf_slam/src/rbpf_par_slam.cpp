@@ -648,8 +648,8 @@ void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
         particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
     }
     for(int i = 0; i < pc_; i++){
-        particles_[i].pos_history_.emplace_back(new std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>());
-        particles_[i].rot_history_.emplace_back(new std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>());
+        particles_[i].pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
+        particles_[i].rot_history_.emplace_back(std::shared_ptr<rot_track>(new rot_track()));
     }
 }
 
@@ -685,9 +685,7 @@ vector<int> RbpfSlam::systematic_resampling(vector<double> weights)
         else
             j++;
     }
-
     return indexes;
-
 }
 
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)

@@ -22,8 +22,8 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     this->add_noise(init_cov_);
 
     // Init particle history
-    pos_history_.emplace_back(new std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>());
-    rot_history_.emplace_back(new std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>());
+    pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
+    rot_history_.emplace_back(std::shared_ptr<rot_track> (new rot_track()));
 }
 
 RbpfParticle::~RbpfParticle()

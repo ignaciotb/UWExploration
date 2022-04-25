@@ -28,6 +28,10 @@
 #include <random>
 
 using namespace std;
+typedef std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_track;
+typedef std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_track;
+typedef std::shared_ptr<pos_track> pos_track_ptr;
+typedef std::shared_ptr<rot_track> rot_track_ptr;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PCloud;
 
@@ -53,8 +57,8 @@ public:
     void get_p_mbes_pose();
 
     Eigen::VectorXf p_pose_;
-    std::vector<std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>*> pos_history_;
-    std::vector<std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>*> rot_history_;
+    std::vector<pos_track_ptr> pos_history_;
+    std::vector<rot_track_ptr> rot_history_;
     double w_;
     int index_; 
 

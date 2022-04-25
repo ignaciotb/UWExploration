@@ -101,6 +101,7 @@ private:
     vector<float> pw_;
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
+    std::vector<int> ancestry_sizes_;
     std::vector<int> beams_idx_;
     Eigen::VectorXf latest_mbes_z_;
 

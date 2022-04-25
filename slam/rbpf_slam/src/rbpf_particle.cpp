@@ -21,6 +21,9 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
 
     this->add_noise(init_cov_);
 
+    // Init particle history
+    pos_history_.emplace_back(new std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>());
+    rot_history_.emplace_back(new std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>());
 }
 
 RbpfParticle::~RbpfParticle()
@@ -96,9 +99,8 @@ void RbpfParticle::update_pose_history()
     t_p.block(0,3,3,1) = p_pose_.head(3);
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
 
-    pos_history_.push_back(p_pose_map.block(0, 3, 3, 1));
-    rot_history_.push_back(p_pose_map.topLeftCorner(3,3));
-
+    pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
+    rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
 }
 
 void RbpfParticle::get_p_mbes_pose()

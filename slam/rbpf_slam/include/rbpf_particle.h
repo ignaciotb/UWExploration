@@ -53,8 +53,8 @@ public:
     void get_p_mbes_pose();
 
     Eigen::VectorXf p_pose_;
-    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_history_;
-    std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
+    std::vector<std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>*> pos_history_;
+    std::vector<std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>*> rot_history_;
     double w_;
     int index_; 
 

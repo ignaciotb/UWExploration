@@ -81,14 +81,14 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
         ROS_ERROR("ERROR: Could not lookup transform from base_link to mbes_link");
     }
 
+    // // Create one particle on top or the GT vehicle pose. Only for testing
+    particles_.emplace_back(RbpfParticle(beams_num_, pc_, 0, base2mbes_mat_, m2o_mat_,
+                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
     // Create particles
-    for (int i=0; i<pc_; i++){
+    for (int i=1; i<pc_; i++){
         particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
                                             init_cov_, meas_std_, motion_cov_));
     }
-    // // Create one particle on top or the GT vehicle pose. Only for testing
-    // particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
-    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
 
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
@@ -171,6 +171,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     time_avg_ = 0;
     count_mb_cbs_ = 0;
     lc_detected_ = false;
+    ancestry_sizes_.push_back(0);
     ROS_INFO("RBPF instantiated");
 }
 
@@ -294,12 +295,45 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
         std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
-        // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
             ping_i = pings_idx_.at(i);
+            // std::cout << "Ping_i " << ping_i << std::endl;
+
+            auto ancestry_it = ancestry_sizes_.begin();
+            ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
+                                       { return ping_i < ancestry_size_i; });
+            int index;
+            if (ancestry_it == ancestry_sizes_.begin())
+            {
+                index = 0;
+            }
+            else if (ancestry_it == ancestry_sizes_.end())
+            {
+                if (ancestry_sizes_.size() == 1)
+                {
+                    index = 0;
+                }
+                else
+                {
+                    index = ancestry_sizes_.size() - 1;
+                }
+            }
+            else
+            {
+                index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
+            }
+
+            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+            // std::cout << "Ancestry index " << index << std::endl;
+            // std::cout << "Ancestry sizes ";
+            // for(int i = 0; i< ancestry_sizes_.size(); i++){
+            //     std::cout << ancestry_sizes_.at(i) << " ";
+            // }
+            // std::cout << std::endl;
+
             // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
-            rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
+            pos_i = particles_.at(pc_id).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+            rot_i = particles_.at(pc_id).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
 
             // Sample beams_per_pings beams from ping ping_i
             std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
@@ -345,13 +379,37 @@ void RbpfSlam::save_gp_maps()
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::PlotPosteriorGoal goal;
+    int ping_i;
     for(int p=0; p<pc_; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
+            auto ancestry_it = ancestry_sizes_.begin();
+            ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
+                                       { return ping_i < ancestry_size_i; });
+            int index;
+            if (ancestry_it == ancestry_sizes_.begin())
+            {
+                index = 0;
+            }
+            else if (ancestry_it == ancestry_sizes_.end())
+            {
+                if (ancestry_sizes_.size() == 1)
+                {
+                    index = 0;
+                }
+                else
+                {
+                    index = ancestry_sizes_.size() - 1;
+                }
+            }
+            else
+            {
+                index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
+            }
             // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(p).pos_history_.at(ping_i);
-            rot_i = particles_.at(p).rot_history_.at(ping_i);
+            pos_i = particles_.at(p).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+            rot_i = particles_.at(p).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
 
             // TODO: get rid of loop with colwise operations on mbes_history
             for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
@@ -389,8 +447,10 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     slam_msgs::SamplePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
         // Transform x random beams to particle pose in map frame
-        pos_i = particles_.at(p).pos_history_.back();
-        rot_i = particles_.at(p).rot_history_.back();
+        // pos_i = particles_.at(p).pos_history_.back();
+        // rot_i = particles_.at(p).rot_history_.back();
+        pos_i = particles_.at(p).pos_history_.back()->back();
+        rot_i = particles_.at(p).rot_history_.back()->back();
 
         // TODO: get rid of loop with colwise operations on mbes_history
         for (int b = 0; b < mbes_history_.back().rows(); b++)
@@ -513,15 +573,15 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
-    if (N_eff < std::round(pc_ / 2))
-    // if(lc_detected_)
+    // if (N_eff < std::round(pc_ / 2))
+    if(lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
         // For manual lc testing
-        // indices = vector<int>(pc_, 0);
-        // lc_detected_ = false;
+        indices = vector<int>(pc_, 0);
+        lc_detected_ = false;
         
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
@@ -562,7 +622,7 @@ void RbpfSlam::resample(vector<double> weights)
                 p_resampling_pubs_[k].publish(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.01).sleep();
+            ros::Duration(0.1).sleep();
 
             int j = 0;
             for (int l : lost)
@@ -578,11 +638,18 @@ void RbpfSlam::resample(vector<double> weights)
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
 {
+    // Keep track of size of histories between resamples. Used for MB random sampling across whole history
+    ancestry_sizes_.push_back(ancestry_sizes_.back() + particles_[0].pos_history_.back()->size());
+
     for(int i = 0; i < lost.size(); i++)
     {
         particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
         particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
         particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+    }
+    for(int i = 0; i < pc_; i++){
+        particles_[i].pos_history_.emplace_back(new std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>>());
+        particles_[i].rot_history_.emplace_back(new std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>>());
     }
 }
 

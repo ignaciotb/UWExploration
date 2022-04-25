@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import rospy
-from gp_mapping import gp # GP
+from gp_mapping.gp import SVGP # GP
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
@@ -15,7 +15,7 @@ import numpy as np
 class particle_map(object):
 
     def __init__(self):
-        self.gp = gp.SVGP(20) # num of inducing points
+        self.gp = SVGP(20) # num of inducing points
 
         self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0

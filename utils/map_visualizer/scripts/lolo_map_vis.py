@@ -36,7 +36,10 @@ class MapPCLPublisher(object):
         # Process the map and save it as an npy for visualization and npz mesh
         # for raytraycing.
         rospy.loginfo("Map Publisher: Processing map %s", self.cloud_path)
-        pcd = o3d.io.read_point_cloud(self.cloud_path)
+        # pcd = o3d.io.read_point_cloud(self.cloud_path)
+        pcd = o3d.geometry.PointCloud()
+        cp = np.load(self.cloud_path)
+        pcd.points=o3d.utility.Vector3dVector(cp)
         pcd = np.asarray(pcd.points)
         pcd[:,0] -= self.utm_offset['x']
         pcd[:,1] -= self.utm_offset['y']
@@ -45,7 +48,7 @@ class MapPCLPublisher(object):
                              # "KBerg_mission_map.npy"), pcd)
         V, F, bounds = mesh_map.mesh_from_dtm_cloud(pcd, 0.6)
         rospy.loginfo("Map Publisher: Saving map mesh as KBerg_mission_map.npz")
-        np.savez(os.path.join("/home/aldoteran/slam_ws/maps/",
+        np.savez(os.path.join("/home/nvidia/catkin_ws/src/maps",
                               "KBerg_mission_map.npz"), V=V, F=F, bounds=bounds)
 
         pointcloud = np.recarray((1,len(pcd)),dtype=[('x', np.float32),

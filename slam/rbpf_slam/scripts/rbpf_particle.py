@@ -17,6 +17,7 @@ from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 # from tf.transformations import rotation_matrix, rotation_from_matrix
 
+from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 
 from sensor_msgs.msg import PointCloud2, PointField
@@ -26,7 +27,7 @@ from gp_mapping import gp  # GP
 
 
 class Particle(object):
-    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix,
+    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix, o2b_pose,
                  init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
                  process_cov=[0.,0.,0.,0.,0.,0.]):
 
@@ -35,31 +36,19 @@ class Particle(object):
 
         self.beams_num = beams_num
         # self.weight = 1.
-        self.p_pose = [0.]*6
+        self.p_pose = o2b_pose
+
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov
         self.meas_cov = np.diag([meas_std**2]*beams_num)
         self.process_cov = np.asarray(process_cov)
         self.w = 0.
-        self.log_w = 0.
+        # self.log_w = 0.
         self.add_noise(init_cov)
-        # for the gp and likelihood
-        self.inputs =  np.zeros((1,2)) #[[0]*2]*1
-        self.est_map = np.zeros((1,3))
-        self.sigma_obs = np.zeros((1,))
-        self.mu_obs = np.zeros((1,))
-        self.sigma_list = []
-        self.mu_list = []
-        # for the ancestry tree
-        self.trajectory_path = np.zeros((1,6))
-        self.time4regression = False
-        self.parent = None
-        self.n_from = 1
-        self.ctr = 0
 
         # Nacho
-        self.gp = gp.SVGP(50)
+        # self.gp = gp.SVGP(100)
         self.pose_history = []
 
 
@@ -113,30 +102,6 @@ class Particle(object):
             self.w = 1.e-50 #0.0
             rospy.logwarn("Range of exp meas equals zero")
     
-
-    # def weight_gps(self, mbes_meas_ranges, mbes_sim_ranges, real_mbes_GP_pred):
-    #     if len(mbes_meas_ranges) == len(mbes_sim_ranges): # Double safety check
-
-    #         # time_start = time.time()
-
-    #         # Run gpytorch regression on sim data
-    #         print("\nTraining GP on particle: ", self.index)
-    #         observed_pred_sim = mbes_gpytorch_regression(mbes_sim_ranges)
-    #         # print("\nsim train time (s): ", time.time() - train_sim_start, "\n")
-
-    #         # Calculate KL divergence
-    #         kl_div = KLgp_div(real_mbes_GP_pred, observed_pred_sim)
-    #         w_i = 1. / kl_div
-
-    #         # print("\nTotal weight time (s): ", time.time() - time_start, "\n")
-    #         print('kl_div:    {}'.format(kl_div, precision=3))
-    #         print('gp weight: {}'.format(w_i, precision=3))
-    #     else:
-    #         rospy.logwarn("missing pings!")
-    #         w_i = 1.e-50
-
-    #     return w_i
-
     def weight_grad(self, mbes_meas_ranges, mbes_sim_ranges ):
         if len(mbes_meas_ranges) == len(mbes_sim_ranges):
             grad_meas = np.gradient(mbes_meas_ranges)
@@ -171,10 +136,10 @@ class Particle(object):
 
     def update_pose_history(self):
         # For particle i, get its all its trajectory in the map frame
-        R = self.mbes_tf_mat.transpose()[0:3,0:3]
+        # R = self.mbes_tf_mat.transpose()[0:3,0:3]
         p_part, r_mbes = self.get_p_mbes_pose()
-        r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-        self.pose_history.append((p_part, r_base))
+        # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+        self.pose_history.append((p_part, r_mbes))
     
     def get_p_mbes_pose(self):
         # Find particle's mbes_frame pose in the map frame 
@@ -182,11 +147,10 @@ class Particle(object):
         r_particle = rot.from_euler('xyz', self.p_pose[3:6], degrees=False)
         q_particle = quaternion_matrix(r_particle.as_quat())
         mat = np.dot(t_particle, q_particle)
-        
         trans_mat = self.m2o_tf_mat.dot(mat.dot(self.mbes_tf_mat))
         self.p = trans_mat[0:3, 3]
         self.R = trans_mat[0:3, 0:3]
-        
+       
         return (self.p, self.R)
 
     # Extract the z coordinate from exp pings (in map frame)
@@ -208,12 +172,16 @@ def pcloud2ranges(point_cloud, p_map_mbes_z):
     return np.asarray(ranges)
 
 def pcloud2ranges_full(point_cloud):
-    ranges = []
-    for p in pc2.read_points(point_cloud, 
-                             field_names = ("x", "y", "z"), skip_nans=True):
-        ranges.append(p)
+    # ranges = []
+    # for p in pc2.read_points(point_cloud, 
+    #                          field_names = ("x", "y", "z"), skip_nans=True):
+    #     ranges.append(p)
 
-    return np.asarray(ranges)
+    beams = np.asarray(list(pc2.read_points(point_cloud, 
+                        field_names = ("x", "y", "z"), skip_nans=True)))
+
+    # return np.asarray(ranges)
+    return beams
 
 # Create PointCloud2 msg out of ping    
 def pack_cloud(frame, mbes):

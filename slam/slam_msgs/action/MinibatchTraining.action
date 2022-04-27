@@ -1,10 +1,10 @@
 #goal definition
-sensor_msgs/PointCloud2 ping
+int32 particle_id 
+int32 mb_size
 ---
 #result definition
-int32 p_id
-float64[] mu
-float64[] sigma
+bool success
+sensor_msgs/PointCloud2 minibatch
 ---
 #feedback (not used)
 # std_msgs/bool feedback

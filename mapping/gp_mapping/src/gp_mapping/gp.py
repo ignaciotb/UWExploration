@@ -218,7 +218,7 @@ class SVGP(VariationalGP):
         # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # convergence criterion
-        print("N window ", n_window)
+        # print("N window ", n_window)
         if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, minimize=True, n_window=n_window)
 
         # episode iteratior

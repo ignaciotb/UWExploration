@@ -79,11 +79,21 @@ except Exception as e:
 
 x = 0
 time_total = 0.
-while x < 100:
+while x < 1:
     time_start = time.time()
     fifo = open(path, "w")
-    fifo.write(str(model.state_dict()))
-    #  fifo.write(str(model.state_dict()))
+
+    od_elements = []
+    for key, value in model.state_dict().items():
+        i = str(value).find("device")
+        tens_to_list = value.tolist() # convert tensor to list
+        od_elements.append(str(tens_to_list) + ", " + str(value)[i:i+14] + ";")
+
+    for el in od_elements:
+        fifo.write(el)
+
+    # fifo.write(str(od_elements))
+    # fifo.write(str(model.state_dict()))
     fifo.flush()
     time_total += time.time() - time_start
     #  print ("Sending:", str(model.state_dict()))
@@ -99,7 +109,7 @@ try:
 except:
     pass
 
-fname = "svpg.pth"
+fname = "svgp.pth"
 
 x = 0
 time_total = 0.

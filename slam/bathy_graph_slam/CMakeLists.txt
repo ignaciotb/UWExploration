@@ -26,7 +26,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
-find_package(OpenCV 4 REQUIRED)
+find_package(OpenCV 3.2 REQUIRED)
 find_package(g2o REQUIRED)
 
 # Auvlib stuff

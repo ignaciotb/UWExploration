@@ -28,6 +28,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/Int32.h>
+#include <std_msgs/Int32MultiArray.h>
 #include <std_msgs/String.h>
 
 #include <sensor_msgs/PointCloud2.h>

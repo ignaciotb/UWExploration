@@ -120,7 +120,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     std::string p_resampling_top;
     nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
     for(int i = 0; i < pc_; i++)
-        p_resampling_pubs_.push_back(nh_->advertise<std_msgs::Int32>(p_resampling_top + "/particle_" + std::to_string(i), 10));
+        p_resampling_pubs_.push_back(nh_->advertise<std_msgs::Int32MultiArray>(p_resampling_top + "/particle_" + std::to_string(i), 10));
     
     // Service for sending minibatches of beams to the SVGP particles
     std::string mb_gp_name;
@@ -337,7 +337,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
             // Sample beams_per_pings beams from ping ping_i
             std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
-
             for (int b = 0; b < beams_per_ping; b++)
             {
                 mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
@@ -580,7 +579,8 @@ void RbpfSlam::resample(vector<double> weights)
         ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
         // For manual lc testing
-        indices = vector<int>(pc_, 0);
+        // indices = vector<int>(pc_, 0);
+        indices = {0,0,0,1,1,1,1,2,2,2};
         lc_detected_ = false;
         
         set<int> s(indices.begin(), indices.end());
@@ -608,31 +608,35 @@ void RbpfSlam::resample(vector<double> weights)
             particles_[i].add_noise(res_noise_cov_);
 
         // Reassign SVGP maps: send winning indexes to SVGP nodes
-        std_msgs::Int32 k_ros;
-        std_msgs::Int32 l_ros;
+        std_msgs::Int32MultiArray k_ros;
+        std_msgs::Int32MultiArray l_ros;
         std::cout << "Keep " << std::endl;
-        // TODO: make this action clients? 
-        // Removes the need for timers but they might be even slower themselves
+        // auto t1 = high_resolution_clock::now();
         if(!dupes.empty())
         {
             for(int k : keep)
             {
                 std::cout << k << " ";
-                k_ros.data = k;
+                // Send the ID of the particle to keep and how many copies of it to store on the pipe
+                k_ros.data = {k, int(count(dupes.begin(), dupes.end(), k))};
                 p_resampling_pubs_[k].publish(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.1).sleep();
+            ros::Duration(0.001).sleep();
 
             int j = 0;
             for (int l : lost)
             {
-                l_ros.data = dupes[j];
+                // Send the ID of the particle to copy to the particle that has not been resampled
+                l_ros.data = {dupes[j]};
                 p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.05).sleep();
+                ros::Duration(0.0001).sleep();
                 j++;
             }
         }
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // std::cout << ms_double.count() / 1000.0 << std::endl;
     }
 }
 

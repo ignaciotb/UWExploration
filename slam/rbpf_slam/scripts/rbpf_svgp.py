@@ -18,7 +18,7 @@ import rospy
 from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from rospy.numpy_msg import numpy_msg
-from std_msgs.msg import Float32, Int32
+from std_msgs.msg import Float32, Int32MultiArray
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
@@ -29,6 +29,7 @@ import actionlib
 import numpy as np
 
 import warnings
+import os
 import time
 from pathlib import Path
 
@@ -99,7 +100,7 @@ class SVGP_map():
 
         # Subscription to particle resampling indexes from RBPF
         p_resampling_top = rospy.get_param("~gp_resampling_top")
-        rospy.Subscriber(str(p_resampling_top) + "/particle_" + str(self.particle_id), Int32,
+        rospy.Subscriber(str(p_resampling_top) + "/particle_" + str(self.particle_id), numpy_msg(Int32MultiArray),
                          self.resampling_cb, queue_size=1)
 
         ## SVGP SETUP
@@ -152,20 +153,52 @@ class SVGP_map():
 
         # If this particle has been resampled, save the SVGP map to disk
         # to share it with the rest
-        if ind_msg.data == self.particle_id:
-            self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
-        
+        if ind_msg.data[0] == self.particle_id:
+            ## Saving to disk
+            # self.save(self.storage_path + "svpg_" + str(self.particle_id) + ".pth")
+
+            ## FIFO test
+            try:
+                os.mkfifo(self.storage_path + "svpg_" +
+                          str(self.particle_id) + ".pth")
+            except:
+                pass
+            x = 0
+            print("Preparing fifo ", self.particle_id, " with ", ind_msg.data[1])
+            while x < ind_msg.data[1]:
+                fifo = open(self.storage_path + "svpg_" +
+                            str(self.particle_id) + ".pth", "w")
+                fifo.write(str(ind_msg.data[0]))
+                fifo.flush()
+                fifo.close()
+                time.sleep(0.0001)
+                x += 1
+            try:
+                os.unlink(fifo)
+            except:
+                pass
+            print("Fifo served ", self.particle_id)
+
         # Else, load the SVGP from with the particle ID received in the msg
         else:
-            # print("Particle ", self.particle_id,  "loading particle ", ind_msg.data)
-            my_file = Path(self.storage_path + "svpg_" +
-                           str(ind_msg.data) + ".pth")
-            try:
-                if my_file.is_file():
-                    self.load(str(my_file.as_posix()))
+            ## Loading from disk
+            # print("Particle ", self.particle_id,  "loading particle ", ind_msg.data[0])
+            # my_file = Path(self.storage_path + "svpg_" +
+            #                str(ind_msg.data[0]) + ".pth")
+            # try:
+            #     if my_file.is_file():
+            #         self.load(str(my_file.as_posix()))
 
-            except FileNotFoundError:
-                print("Error: file doesn't exist ")
+            ## FIFO test
+            print("Particle ", self.particle_id, " ready to read fifo ", str(ind_msg.data[0]))
+            with open(self.storage_path + "svpg_" + 
+                        str(ind_msg.data[0]) + ".pth", 'r') as fifo:
+                data = fifo.read()
+                print("Received ", data, " particle ", self.particle_id)
+
+            fifo.close()
+            # except FileNotFoundError:
+            #     print("Error: file doesn't exist ")
         
         self.resampling = False
             
@@ -480,7 +513,7 @@ class SVGP_map():
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
         
     def save(self, fname):
-        # time_start = time.time()
+        time_start = time.time()
         torch.save({'model' : self.model.state_dict(),
                     'likelihood' : self.likelihood.state_dict(),
                     'mll' : self.mll.state_dict(),
@@ -488,7 +521,7 @@ class SVGP_map():
         # print("Time saving ", time.time() - time_start)
 
     def load(self, fname):
-        # time_start = time.time()
+        time_start = time.time()
         cp = torch.load(fname)
         self.model.load_state_dict(cp['model'])
         self.likelihood.load_state_dict(cp['likelihood'])

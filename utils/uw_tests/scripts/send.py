@@ -94,7 +94,6 @@ while x < 1:
         keys_list.append(key + ";")
         model_od_elements.append(str(tens_to_list) + ";")
     overall_list.append(model_od_elements)
-    overall_list.append("!")
 
     likelihood_od_elements = []
     for key, value in likelihood.state_dict().items():
@@ -102,7 +101,6 @@ while x < 1:
         keys_list.append(key + ";")
         likelihood_od_elements.append(str(tens_to_list) + ";")
     overall_list.append(likelihood_od_elements)
-    overall_list.append("!")
 
     mll_od_elements = []
     for key, value in mll.state_dict().items():
@@ -110,14 +108,12 @@ while x < 1:
         keys_list.append(key + ";")
         mll_od_elements.append(str(tens_to_list) + ";")
     overall_list.append(mll_od_elements)
-    overall_list.append("!")
 
     opt_od_elements = []
     for key, value in opt.state_dict().items():
         keys_list.append(key + ";")
         opt_od_elements.append(str(value) + ";")
     overall_list.append(opt_od_elements)
-    overall_list.append("!")
 
     overall_list.append(keys_list)
 

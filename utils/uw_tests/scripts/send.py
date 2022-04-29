@@ -62,6 +62,8 @@ class SVGP(VariationalGP):
 
 model = SVGP(10)
 likelihood = GaussianLikelihood()
+mll = VariationalELBO(likelihood, model, 100, combine_terms=True)
+opt = torch.optim.Adam(model.parameters(),lr=float(0.001))
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 likelihood.to(device).float()
 model.to(device).float()
@@ -83,22 +85,60 @@ while x < 1:
     time_start = time.time()
     fifo = open(path, "w")
 
-    od_elements = []
+    overall_list = []
+    keys_list = []
+
+    model_od_elements = []
     for key, value in model.state_dict().items():
-        i = str(value).find("device")
         tens_to_list = value.tolist() # convert tensor to list
-        od_elements.append(str(tens_to_list) + ", " + str(value)[i:i+14] + ";")
+        keys_list.append(key + ";")
+        model_od_elements.append(str(tens_to_list) + ";")
+    overall_list.append(model_od_elements)
+    overall_list.append("!")
 
-    for el in od_elements:
-        fifo.write(el)
+    likelihood_od_elements = []
+    for key, value in likelihood.state_dict().items():
+        tens_to_list = value.tolist() # convert tensor to list
+        keys_list.append(key + ";")
+        likelihood_od_elements.append(str(tens_to_list) + ";")
+    overall_list.append(likelihood_od_elements)
+    overall_list.append("!")
 
-    # fifo.write(str(od_elements))
+    mll_od_elements = []
+    for key, value in mll.state_dict().items():
+        tens_to_list = value.tolist() # convert tensor to list
+        keys_list.append(key + ";")
+        mll_od_elements.append(str(tens_to_list) + ";")
+    overall_list.append(mll_od_elements)
+    overall_list.append("!")
+
+    opt_od_elements = []
+    for key, value in opt.state_dict().items():
+        keys_list.append(key + ";")
+        opt_od_elements.append(str(value) + ";")
+    overall_list.append(opt_od_elements)
+    overall_list.append("!")
+
+    overall_list.append(keys_list)
+
+    for el in overall_list:
+        for string in el:
+            fifo.write(string)
+        fifo.write("!")
+    
+    # fifo.write(str(model_od_elements))
     # fifo.write(str(model.state_dict()))
     fifo.flush()
     time_total += time.time() - time_start
     #  print ("Sending:", str(model.state_dict()))
     print ("Sending:", str(x))
     print(model.state_dict())
+    print("\n\n")
+    print(likelihood.state_dict())
+    print("\n\n")
+    print(mll.state_dict())
+    print("\n\n")
+    print(opt.state_dict())
     fifo.close()
     x+=1
     time.sleep(0.001)

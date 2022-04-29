@@ -80,7 +80,7 @@ time_start = time.time()
 with open(path, 'r') as fifo:
     data = fifo.read()
     txt_list = data.split("!")
-    values_list = txt_list[:9]
+    values_list = txt_list[:3]
     keys_list = txt_list[-2].split(";")
     tensor_list = []
     for txt in values_list:
@@ -110,7 +110,7 @@ with open(path, 'r') as fifo:
 
     dict_opt = {}
     i = 30
-    for el in txt_list[9].split(";")[:-1]:
+    for el in txt_list[3].split(";")[:-1]:
         dict_opt[keys_list[i]] = eval(el)
         i += 1
     print("\nOPTIMIZER \n", dict_opt)

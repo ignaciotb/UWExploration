@@ -124,7 +124,10 @@ class SVGP_map():
         self.model.to(self.device).float()
 
         self.mll = VariationalELBO(self.likelihood, self.model, self.mb_size, combine_terms=True)
-        self.opt = torch.optim.Adam(self.model.parameters(),lr=float(self.lr))
+        self.opt = torch.optim.Adam([
+            {'params': self.model.parameters()},
+            {'params': self.likelihood.parameters()},
+        ], lr=float(self.lr))
         # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # convergence criterion

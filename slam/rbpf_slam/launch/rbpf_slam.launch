@@ -10,7 +10,7 @@
   <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	
+	<arg name="n_beams_mbes" default="250"/>	
 	<arg name="mbes_open_angle" value="1.050" /> 
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
@@ -73,7 +73,6 @@
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-        <param name="num_beams_sim" type= "int"               value="$(arg n_beams_mbes)" />
         <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
         <param name="survey_finished_top" value="/gt/survey_finished" />       
         <!-- <param name="mesh_path" value="$(arg path)/mesh.npz" />        -->

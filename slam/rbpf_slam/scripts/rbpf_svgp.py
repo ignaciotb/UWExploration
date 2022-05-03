@@ -566,8 +566,12 @@ class SVGP_map():
 
         opt_od_elements = []
         for key, value in self.opt.state_dict().items():
-            # No tensor in this dict
             keys_list.append(key + ";")
+            if key == "state":
+                for k, v in value.items():
+                    for kk, vv in v.items():
+                        if isinstance(vv, torch.Tensor): 
+                            v[kk] = vv.tolist() 
             opt_od_elements.append(str(value) + ";")
         overall_list.append(opt_od_elements)
         overall_list.append("!")
@@ -612,19 +616,27 @@ class SVGP_map():
         for i in range(15, 30):
             odict_mll[keys_list[i]] = tensor_list[i]
 
-        # dict_opt = {}
-        # i = 30
-        # for el in txt_list[3].split(";")[:-1]:
-        #     if "inf" in el:
-        #         el = el.replace("inf", "float(\"inf\")")
-        #     dict_opt[keys_list[i]] = ast.literal_eval(el)
-        #     i += 1
+        dict_opt = {}
+        k = 30
+        for el in txt_list[3].split(";")[:-1]:
+            if "inf" in el:
+                el = el.replace("inf", "float(\"inf\")")
+            dict_opt[keys_list[k]] = eval(el)
+            k += 1
+        # Create tensors from specific elements in the state dictionary
+        for key, value in dict_opt.items():
+            if key == "state":
+                for _, v in value.items():
+                    v["exp_avg"] = torch.tensor(v["exp_avg"])
+                    v["exp_avg_sq"] = torch.tensor(v["exp_avg_sq"])
+
+        print(dict_opt)
 
         # Load the dicts 
         self.model.load_state_dict(odict_model)
         self.likelihood.load_state_dict(odict_likelihood)
         self.mll.load_state_dict(odict_mll)
-        # self.opt.load_state_dict(dict_opt)
+        self.opt.load_state_dict(dict_opt)
 
         self.model.train()
         self.likelihood.train()

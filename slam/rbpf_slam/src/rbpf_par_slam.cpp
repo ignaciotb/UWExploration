@@ -622,7 +622,7 @@ void RbpfSlam::resample(vector<double> weights)
                 p_resampling_pubs_[k].publish(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.001).sleep();
+            ros::Duration(0.2).sleep();
 
             int j = 0;
             for (int l : lost)
@@ -630,7 +630,7 @@ void RbpfSlam::resample(vector<double> weights)
                 // Send the ID of the particle to copy to the particle that has not been resampled
                 l_ros.data = {dupes[j]};
                 p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.0001).sleep();
+                ros::Duration(0.02).sleep();
                 j++;
             }
         }

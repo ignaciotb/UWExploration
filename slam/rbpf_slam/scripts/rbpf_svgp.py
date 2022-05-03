@@ -32,6 +32,7 @@ import warnings
 import os
 import time
 from pathlib import Path
+import ast
 
 from collections import OrderedDict
 
@@ -160,25 +161,32 @@ class SVGP_map():
         # to share it with the rest
         if ind_msg.data[0] == self.particle_id:
             # FIFO 
-            try:
-                os.mkfifo(self.storage_path + "svpg_" +
-                          str(self.particle_id) + ".pth")
-            except:
-                pass
+            # try:
+            #     # TODO: is this necessary
+            #     os.mkfifo(self.storage_path + "svpg_" +
+            #               str(self.particle_id) + ".fifo")
+            # except:
+            #     rospy.logwarn("Fifo %s failed to make", str(self.particle_id))
+            #     pass
             x = 0
-            print("Preparing fifo ", self.particle_id, " with ", ind_msg.data[1])
+
+            self.fifo_str = ""
+            self.fifo_pack()   
+            print("Prepared fifo ", self.particle_id, " with ", ind_msg.data[1])
             while x < ind_msg.data[1]:
                 fifo = open(self.storage_path + "svpg_" +
-                            str(self.particle_id) + ".pth", "w")
-                self.fifo_send(fifo)        
+                            str(self.particle_id) + ".fifo", "w")
+                fifo.write(self.fifo_str)
                 fifo.flush()
                 fifo.close()
-                time.sleep(0.0001)
+                time.sleep(0.00001)
                 x += 1
-            try:
-                os.unlink(fifo)
-            except:
-                pass
+
+            # try:
+            #     os.unlink(fifo)
+            # except:
+            #     rospy.logwarn("Fifo %s failed to unlink", str(self.particle_id))
+            #     pass
             print("Fifo served ", self.particle_id)
 
         # Else, load the SVGP from the fifo with the particle ID received in the msg
@@ -186,10 +194,13 @@ class SVGP_map():
             # FIFO 
             print("Particle ", self.particle_id, " ready to read fifo ", str(ind_msg.data[0]))
             with open(self.storage_path + "svpg_" + 
-                        str(ind_msg.data[0]) + ".pth", 'r') as fifo:
-                self.fifo_get(fifo)
+                      str(ind_msg.data[0]) + ".fifo", 'r') as fifo:
+                data = fifo.read()
             fifo.close()
+            self.fifo_unpack(data)
 
+            print("Particle ", self.particle_id,
+                " finished reading fifo ", str(ind_msg.data[0]))
         self.resampling = False
             
  
@@ -523,7 +534,7 @@ class SVGP_map():
         self.model.train()
         self.likelihood.train()
 
-    def fifo_send(self, fifo):
+    def fifo_pack(self):
         overall_list = []
         keys_list = []
 
@@ -535,6 +546,7 @@ class SVGP_map():
             keys_list.append(key + ";")
             model_od_elements.append(str(tens_to_list) + ";")
         overall_list.append(model_od_elements)
+        overall_list.append("!")
 
         likelihood_od_elements = []
         for key, value in self.likelihood.state_dict().items():
@@ -542,6 +554,7 @@ class SVGP_map():
             keys_list.append(key + ";")
             likelihood_od_elements.append(str(tens_to_list) + ";")
         overall_list.append(likelihood_od_elements)
+        overall_list.append("!")
 
         mll_od_elements = []
         for key, value in self.mll.state_dict().items():
@@ -549,6 +562,7 @@ class SVGP_map():
             keys_list.append(key + ";")
             mll_od_elements.append(str(tens_to_list) + ";")
         overall_list.append(mll_od_elements)
+        overall_list.append("!")
 
         opt_od_elements = []
         for key, value in self.opt.state_dict().items():
@@ -556,16 +570,17 @@ class SVGP_map():
             keys_list.append(key + ";")
             opt_od_elements.append(str(value) + ";")
         overall_list.append(opt_od_elements)
+        overall_list.append("!")
 
         overall_list.append(keys_list)
 
         for el in overall_list:
             for string in el:
-                fifo.write(string)
-            fifo.write("!")
+                self.fifo_str += string
 
-    def fifo_get(self, fifo):
-        data = fifo.read()
+        # print(fifo_str)
+
+    def fifo_unpack(self, data):
         txt_list = data.split("!")
         # Model ordered dict: txt_list[0]
         # Likelihood ordered dict: txt_list[1]
@@ -574,7 +589,7 @@ class SVGP_map():
         # Keys: txt_list[4]
 
         values_list = txt_list[:3]  # Opt dict doesn't include tensors
-        keys_list = txt_list[-2].split(";")
+        keys_list = txt_list[-1].split(";")
         tensor_list = []
         for txt in values_list:
             split_list = txt.split(";")
@@ -597,19 +612,19 @@ class SVGP_map():
         for i in range(15, 30):
             odict_mll[keys_list[i]] = tensor_list[i]
 
-        dict_opt = {}
-        i = 30
-        for el in txt_list[3].split(";")[:-1]:
-            if "inf" in el:
-                el = el.replace("inf", "float(\"inf\")")
-            dict_opt[keys_list[i]] = eval(el)
-            i += 1
+        # dict_opt = {}
+        # i = 30
+        # for el in txt_list[3].split(";")[:-1]:
+        #     if "inf" in el:
+        #         el = el.replace("inf", "float(\"inf\")")
+        #     dict_opt[keys_list[i]] = ast.literal_eval(el)
+        #     i += 1
 
         # Load the dicts 
         self.model.load_state_dict(odict_model)
         self.likelihood.load_state_dict(odict_likelihood)
         self.mll.load_state_dict(odict_mll)
-        self.opt.load_state_dict(dict_opt)
+        # self.opt.load_state_dict(dict_opt)
 
         self.model.train()
         self.likelihood.train()

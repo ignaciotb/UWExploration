@@ -33,6 +33,7 @@ import os
 import time
 from pathlib import Path
 import ast
+import copy
 
 from collections import OrderedDict
 
@@ -565,7 +566,8 @@ class SVGP_map():
         overall_list.append("!")
 
         opt_od_elements = []
-        for key, value in self.opt.state_dict().items():
+        opt_dict = copy.deepcopy(self.opt.state_dict())
+        for key, value in opt_dict.items():
             keys_list.append(key + ";")
             if key == "state":
                 for k, v in value.items():
@@ -622,15 +624,13 @@ class SVGP_map():
             if "inf" in el:
                 el = el.replace("inf", "float(\"inf\")")
             dict_opt[keys_list[k]] = eval(el)
-            k += 1
-        # Create tensors from specific elements in the state dictionary
-        for key, value in dict_opt.items():
-            if key == "state":
-                for _, v in value.items():
+            if keys_list[k] == "state":
+                for _, v in dict_opt[keys_list[k]].items():
                     v["exp_avg"] = torch.tensor(v["exp_avg"])
-                    v["exp_avg_sq"] = torch.tensor(v["exp_avg_sq"])
+                    v["exp_avg_sq"] = torch.tensor(v["exp_avg_sq"]) 
+            k += 1
 
-        print(dict_opt)
+        # print(dict_opt)
 
         # Load the dicts 
         self.model.load_state_dict(odict_model)

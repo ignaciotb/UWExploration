@@ -103,6 +103,19 @@ target_link_libraries(sift_extractor_node
    ${PCL_LIBRARIES}
 )
 
+add_executable(map_mbes_node
+    src/map_mbes_node.cpp)
+
+add_dependencies(map_mbes_node
+    ${${PROJECT_NAME}_EXPORTED_TARGETS}
+    ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(map_mbes_node
+   ${catkin_LIBRARIES}
+   ${PCL_LIBRARIES}
+)
+
+
 #############
 ## Install ##
 #############

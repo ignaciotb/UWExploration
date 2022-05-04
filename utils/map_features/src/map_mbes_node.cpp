@@ -41,6 +41,8 @@ public:
         nh_->param<std::string>("base_link", base_frame_, "base_frame");
         nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
         nh_->param<std::string>("map_topic", map_topic, "/map_mbes");
+        nh_->param<bool>("record_map", record_map_, false);
+        nh_->param<bool>("publish_mbes_cloud", publish_mbes_, true);
 
         // Synchronizer for MBES and odom msgs
         mbes_subs_.subscribe(*nh_, pings_top, 30);
@@ -58,13 +60,13 @@ public:
 
         try
         {
-            tflistener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(20.0));
+            tflistener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(30.0));
             tflistener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), tf_base_mbes_);
-            ROS_INFO_NAMED(node_name_, " locked transform map --> odom");
-
-            tflistener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(20.0));
-            tflistener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), tf_map_odom_);
             ROS_INFO_NAMED(node_name_, " locked transform base --> sensor");
+
+            tflistener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(30.0));
+            tflistener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), tf_map_odom_);
+            ROS_INFO_NAMED(node_name_, " locked transform map --> odom");
         }
         catch (tf::TransformException &exception)
         {
@@ -77,11 +79,11 @@ public:
     bool saveMap(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
     {
         // Save
-        std::cout << "Size of map " << mbes_map_.size() << std::endl; 
         mbes_map_.width = mbes_map_.size();
         mbes_map_.height = 1;
         mbes_map_.is_dense = true;
         pcl::io::savePCDFileASCII(save_map_path_, mbes_map_);
+        std::cout << "Size of map " << mbes_map_.size() << std::endl; 
 
         return true;
     }
@@ -89,22 +91,27 @@ public:
     void addPingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
                    const nav_msgs::OdometryPtr &odom_msg)
     {
-        tf::Transform odom_base_tf;
-        tf::poseMsgToTF(odom_msg->pose.pose, odom_base_tf);
+        if(record_map_){
+            tf::Transform odom_base_tf;
+            tf::poseMsgToTF(odom_msg->pose.pose, odom_base_tf);
+            
+            PointCloudT pcl_ping;
+            pcl::fromROSMsg(*mbes_ping, pcl_ping);
+            pcl_ros::transformPointCloud(pcl_ping, pcl_ping, tf_map_odom_ * odom_base_tf * tf_base_mbes_);
+            mbes_map_ += pcl_ping;
+        }
 
-        PointCloudT pcl_ping;
-        pcl::fromROSMsg(*mbes_ping, pcl_ping);
-        pcl_ros::transformPointCloud(pcl_ping, pcl_ping, tf_map_odom_ * odom_base_tf * tf_base_mbes_);
-        mbes_map_ += pcl_ping;
-
-        // For live visualization in rviz
-        // pcl::toROSMsg(mbes_map_, *mbes_ping);
-        // mbes_ping->header.frame_id = map_frame_;
-        // map_pub_.publish(*mbes_ping);
+        if(publish_mbes_){
+            // For live visualization in rviz
+            pcl::toROSMsg(mbes_map_, *mbes_ping);
+            mbes_ping->header.frame_id = map_frame_;
+            map_pub_.publish(*mbes_ping);
+        }
     }
 
     std::string node_name_;
     ros::NodeHandle *nh_;
+    bool record_map_, publish_mbes_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_subs_;

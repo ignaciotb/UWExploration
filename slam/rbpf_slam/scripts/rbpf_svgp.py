@@ -630,8 +630,6 @@ class SVGP_map():
                     v["exp_avg"] = torch.tensor(v["exp_avg"])
                     v["exp_avg_sq"] = torch.tensor(v["exp_avg_sq"])
 
-        print(dict_opt)
-
         # Load the dicts 
         self.model.load_state_dict(odict_model)
         self.likelihood.load_state_dict(odict_likelihood)

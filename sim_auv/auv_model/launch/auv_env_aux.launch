@@ -42,6 +42,8 @@
 		<param name="save_map_srv" value="/$(arg namespace)/save_map" />
 		<param name="save_map_path" value="$(find uw_tests)/datasets/$(arg dataset)/map_mbes.pcd" />
 		<param name="map_topic" value="/$(arg namespace)/mbes_pings" />
+		<param name="record_map" type= "bool" value="False" />
+		<param name="publish_mbes_cloud" type= "bool" value="False" />
 	</node>
 
 </launch>

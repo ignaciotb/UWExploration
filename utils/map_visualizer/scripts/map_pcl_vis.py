@@ -17,9 +17,11 @@ class MapPCLPublisher(object):
         self.sift_cloud_path = rospy.get_param('~map_sift_path')
         self.gp_cloud_path = rospy.get_param('~map_gp_path')
         self.map_frame = rospy.get_param('~map_frame')
-        self.map_pub = rospy.Publisher('/map_mbes', PointCloud2, queue_size=1)
-        self.map_sift_pub = rospy.Publisher('/map_sift', PointCloud2, queue_size=1)
-        self.map_gp_pub = rospy.Publisher('/map_gp', PointCloud2, queue_size=1)
+        self.map_pub = rospy.Publisher('/map_mbes', PointCloud2, queue_size=1, latch=True)
+        self.map_sift_pub = rospy.Publisher(
+            '/map_sift', PointCloud2, queue_size=1, latch=True)
+        self.map_gp_pub = rospy.Publisher(
+            '/map_gp', PointCloud2, queue_size=1, latch=True)
         raw_data = False
 
         print("Map from MBES pings")
@@ -69,17 +71,19 @@ class MapPCLPublisher(object):
 
 
         rate = rospy.Rate(0.5)
-        while not rospy.is_shutdown():
-            header.stamp = rospy.Time.now()
-            self.map_pub.publish(mbes_pcloud)
+        # while not rospy.is_shutdown():
+        header.stamp = rospy.Time.now()
+        self.map_pub.publish(mbes_pcloud)
 
-            if self.gp_cloud_path:
-                self.map_gp_pub.publish(gp_pcloud)
-            
-            if self.sift_cloud_path:
-                self.map_sift_pub.publish(sift_pcloud)
+        if self.gp_cloud_path:
+            self.map_gp_pub.publish(gp_pcloud)
+        
+        if self.sift_cloud_path:
+            self.map_sift_pub.publish(sift_pcloud)
 
-            rate.sleep()
+        rospy.spin()
+
+            # rate.sleep()
 
 if __name__ == '__main__':
 

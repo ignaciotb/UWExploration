@@ -572,15 +572,15 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
-    // if (N_eff < std::round(pc_ / 2))
-    if(lc_detected_)
+    if (N_eff < std::round(pc_ / 2))
+    // if(lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
         // For manual lc testing
         // indices = vector<int>(pc_, 0);
-        indices = {0,0,0,1,1,1,1,2,2,2};
+        // indices = {0,0,1,1};
         lc_detected_ = false;
         
         set<int> s(indices.begin(), indices.end());

@@ -7,6 +7,8 @@ from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
 
+import open3d as o3d
+
 class MapPCLPublisher(object):
 
     def __init__(self):
@@ -21,7 +23,9 @@ class MapPCLPublisher(object):
         raw_data = False
 
         print("Map from MBES pings")
-        cloud = np.load(self.cloud_path)
+        # cloud = np.load(self.cloud_path)
+        pcd = o3d.io.read_point_cloud(self.cloud_path)
+        cloud = np.asarray(pcd.points)
         
         mbes_pcloud = PointCloud2()
         header = Header()
@@ -34,7 +38,6 @@ class MapPCLPublisher(object):
         cloud = None
         
         if self.gp_cloud_path != "":    
-            import open3d as o3d
             print("Map from GP")
             gp_cloud = np.load(self.gp_cloud_path)
             gp_cloud = gp_cloud[:,0:3]

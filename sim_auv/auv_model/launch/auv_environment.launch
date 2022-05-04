@@ -4,7 +4,7 @@
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin_0"/>
-	<arg name="dataset" default="antarctica_19_7"/>
+	<arg name="dataset" default="overnight_2020"/>
     <arg name="app" default="basic"/>
     <arg name="debug" default="0"/>
     <arg name="multi_agent" default="false"/>
@@ -63,7 +63,7 @@
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
 				<param name="start_mission_ping_num" value="35000" />
-				<param name="end_mission_ping_num" value="0" /> <!-- 0 = last ping of survey-->
+				<param name="end_mission_ping_num" value="80000" /> <!-- 0 = last ping of survey-->
 			</node>
 		    
 			<group if="$(eval app == 'basic')">

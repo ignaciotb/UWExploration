@@ -159,7 +159,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     {
         beams_idx_.push_back(n);
     }
-
+    
+    avg_pose_.header.frame_id = odom_frame_;
     // Start timing now
     time_ = ros::Time::now().toSec();
     old_time_ = ros::Time::now().toSec();
@@ -549,7 +550,7 @@ void RbpfSlam::update_rviz()
         array_msg.poses.push_back(pose_i);
     }
     pf_pub_.publish(array_msg);
-    // TODO: add publisher avg pose from filter 
+    average_pose(array_msg);
 }
 
 void RbpfSlam::resample(vector<double> weights)
@@ -635,7 +636,7 @@ void RbpfSlam::resample(vector<double> weights)
                 // Send the ID of the particle to copy to the particle that has not been resampled
                 l_ros.data = {dupes[j]};
                 p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.02).sleep();
+                ros::Duration(0.2).sleep();
                 j++;
             }
         }
@@ -697,18 +698,126 @@ vector<int> RbpfSlam::systematic_resampling(vector<double> weights)
     return indexes;
 }
 
+void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
+{
+    vector<float> x;
+    vector<float> y;
+    vector<float> z;
+    vector<float> roll;
+    vector<float> pitch;
+    vector<float> yaw;
+
+    double roll_i, pitch_i, yaw_i;
+
+    for (int i = 0; i < pose_list.poses.size(); i++)
+    {
+        x.push_back(pose_list.poses[i].position.x);
+        y.push_back(pose_list.poses[i].position.y);
+        z.push_back(pose_list.poses[i].position.z);
+
+        // Quaternion to Euler
+        tf::Quaternion q(
+            pose_list.poses[i].orientation.x,
+            pose_list.poses[i].orientation.y,
+            pose_list.poses[i].orientation.z,
+            pose_list.poses[i].orientation.w);
+        tf::Matrix3x3 m(q);
+        m.getRPY(roll_i, pitch_i, yaw_i);
+
+        // Wrap yaw around -pi, pi
+        yaw_i = fmod(yaw_i + M_PI, 2*M_PI);
+        if (yaw_i < 0)
+            yaw_i += 2*M_PI;
+        yaw_i -= M_PI;
+
+        roll.push_back(roll_i);
+        pitch.push_back(pitch_i);
+        yaw.push_back(yaw_i);
+    }
+
+    // Compute averages
+    float x_ave = accumulate(x.begin(), x.end(), 0.0) / x.size();
+    float y_ave = accumulate(y.begin(), y.end(), 0.0) / y.size();
+    float z_ave = accumulate(z.begin(), z.end(), 0.0) / z.size();
+    float roll_ave = accumulate(roll.begin(), roll.end(), 0.0) / roll.size();
+    float pitch_ave = accumulate(pitch.begin(), pitch.end(), 0.0) / pitch.size();
+    float yaw_ave = accumulate(yaw.begin(), yaw.end(), 0.0) / yaw.size();
+
+    avg_pose_.pose.pose.position.x = x_ave;
+    avg_pose_.pose.pose.position.y = y_ave;
+    avg_pose_.pose.pose.position.z = z_ave;
+
+    tf2::Quaternion avg_q;
+    avg_q.setRPY(roll_ave, pitch_ave, yaw_ave);
+    avg_q = avg_q.normalize();
+    avg_pose_.pose.pose.orientation.x = avg_q.getX();
+    avg_pose_.pose.pose.orientation.y = avg_q.getY();
+    avg_pose_.pose.pose.orientation.z = avg_q.getZ();
+    avg_pose_.pose.pose.orientation.w = avg_q.getW();
+    
+    avg_pose_.header.stamp = ros::Time::now();
+    avg_pub_.publish(avg_pose_);
+
+    // Compute covariance
+    cov_ = Eigen::Matrix3f::Zero();
+    vector<float> particle_pose;
+    vector<float> average_pose;
+    vector<float> dx;
+    vector<float> dx_sq;
+    Eigen::Matrix3f dx_sq_mat;
+    
+    for (int i = 0; i < pc_; i++)
+    {
+        particle_pose.push_back(x[i]);
+        particle_pose.push_back(y[i]);
+        particle_pose.push_back(z[i]);
+        average_pose.push_back(avg_pose_.pose.pose.position.x);
+        average_pose.push_back(avg_pose_.pose.pose.position.y);
+        average_pose.push_back(avg_pose_.pose.pose.position.z);
+
+        // dx = particle_pose - average_pose
+        std::transform(particle_pose.begin(), particle_pose.end(), average_pose.begin(), std::back_inserter(dx),
+                       [](float particle_pose, float average_pose)
+                       { return particle_pose - average_pose; });
+        
+        // Create diagonal matrix from squared values of dx
+        dx_sq = dx;
+        transform(dx_sq.begin(), dx_sq.end(), dx_sq.begin(), [](float a){return a*a;});
+        Eigen::VectorXf dx_sq_eigen = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(dx_sq.data(), dx_sq.size());
+        dx_sq_mat = Eigen::Matrix3f::Zero();
+        dx_sq_mat.diagonal() = dx_sq_eigen.asDiagonal();
+
+        cov_ += dx_sq_mat; 
+        cov_(0, 1) += dx[0]*dx[1]; 
+        cov_(0, 2) += dx[0]*dx[2]; 
+        cov_(1, 2) += dx[1]*dx[2]; 
+        
+        average_pose.clear();
+        particle_pose.clear();
+        dx.clear();
+    }
+
+    cov_ /= pc_;
+}
+
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     // Send statistics for visualization
     std_msgs::Float32MultiArray stats;
-    stats.data[0] = n_eff_filt_;
-    stats.data[1] = pc_/2.f;
-    stats.data[2] = gt_odom.pose.pose.position.x;
-    stats.data[3] = gt_odom.pose.pose.position.y;
-    stats.data[4] = gt_odom.pose.pose.position.z;
-    stats.data[5] = avg_pose_.pose.pose.position.x;
-    stats.data[6] = avg_pose_.pose.pose.position.y;
-    stats.data[7] = avg_pose_.pose.pose.position.z;
+    stats.data[0]  = n_eff_filt_;
+    stats.data[1]  = pc_/2.f;
+    stats.data[2]  = gt_odom.pose.pose.position.x;
+    stats.data[3]  = gt_odom.pose.pose.position.y;
+    stats.data[4]  = gt_odom.pose.pose.position.z;
+    stats.data[5]  = avg_pose_.pose.pose.position.x;
+    stats.data[6]  = avg_pose_.pose.pose.position.y;
+    stats.data[7]  = avg_pose_.pose.pose.position.z;
+    stats.data[8]  = cov_(0, 0);
+    stats.data[9]  = cov_(0, 1);
+    stats.data[10] = cov_(0, 2);
+    stats.data[11] = cov_(1, 1);
+    stats.data[12] = cov_(1, 2);
+    stats.data[13] = cov_(2, 2);
 
     stats_.publish(stats);
 }

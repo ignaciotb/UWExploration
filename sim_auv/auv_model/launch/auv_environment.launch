@@ -13,7 +13,7 @@
     <arg name="odom_rate" default="0.1"/>
 	<arg name="meas_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
-    <arg name="replay_rate" default="0.05"/>
+    <arg name="replay_rate" default="0.5"/>
     <!-- <arg name="replay_rate" default="1"/> -->
 	
 	<!-- MBES sim sensor -->
@@ -35,12 +35,13 @@
 
 	<group ns="$(arg namespace)">
 
+		<!-- Hugin model -->
+		<param name="robot_description" command="$(find xacro)/xacro '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
+		<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
+		</node>
+		
 		<!-- Reproduce real Hugin survey -->
   		<group unless="$(eval mode == 'sim')">
-			<!-- Hugin model -->
-			<param name="robot_description" command="$(find xacro)/xacro '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
-			<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
-			</node>
             <!-- Hack to fix overnight2020 beginning of survey.
 			Otherwise this transform is broadcasted by auv_2_ros -->
 	        <!-- <node pkg="tf" type="static_transform_publisher" name="tf_map_odom_pub" 
@@ -62,8 +63,9 @@
 				<param name="synch_topic" value="/$(arg app)/synch" />
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
-				<param name="start_mission_ping_num" value="0" />
-				<param name="end_mission_ping_num" value="0" /> <!-- 0 = last ping of survey-->
+				<param name="start_mission_ping_num" value="35000" />
+				<param name="end_mission_ping_num" value="35800" /> <!-- 0 = last ping of survey-->
+				<!-- <param name="end_mission_ping_num" value="80000" />  -->
 			</node>
 		    
 			<group if="$(eval app == 'basic')">

@@ -4,7 +4,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
-    nh_->param<int>(("num_beams_sim"), beams_num_, 20);
+    // nh_->param<int>(("num_beams_sim"), beams_num_, 20);
     nh_->param<int>(("n_beams_mbes"), beams_real_, 512);
     nh_->param<float>(("mbes_open_angle"), mbes_angle_, M_PI / 180. * 60.);
     nh_->param<string>(("map_frame"), map_frame_, "map");
@@ -82,11 +82,11 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     }
 
     // // Create one particle on top or the GT vehicle pose. Only for testing
-    particles_.emplace_back(RbpfParticle(beams_num_, pc_, 0, base2mbes_mat_, m2o_mat_,
+    particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_,
                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
     // Create particles
     for (int i=1; i<pc_; i++){
-        particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
+        particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_,
                                             init_cov_, meas_std_, motion_cov_));
     }
 
@@ -102,10 +102,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Subscription to manually triggering LC detection. Just for testing
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
     lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
-
-    // This service will start the auv simulation or auv_2_ros nodes to start the mission
-    nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
-    srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
 
     // The mission waypoints as a path
     nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
@@ -159,7 +155,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Create vector of beams indexes per ping.
     // It can be done only once since we're making sure all pings have the 
     // same num of beams
-    for (int n = 0; n < beams_num_; n++)
+    for (int n = 0; n < beams_real_; n++)
     {
         beams_idx_.push_back(n);
     }
@@ -173,6 +169,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     count_mb_cbs_ = 0;
     lc_detected_ = false;
     ancestry_sizes_.push_back(0);
+
     ROS_INFO("RBPF instantiated");
 }
 
@@ -208,6 +205,9 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
             start_training_ = true; // We can start to check for loop closures 
             ip_pub_.publish(ip_pcloud);
         }
+        // This service will start the auv simulation or auv_2_ros nodes to start the mission
+        nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+        srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
     }
     else{
         ROS_WARN("Received empty mission");
@@ -231,7 +231,7 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
         // Beams in vehicle mbes frame
         // Store in pings history
         // auto t1 = high_resolution_clock::now();
-        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_num_));
+        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
 
         // Store latest mbes msg for timing
         latest_mbes_ = *msg;
@@ -375,7 +375,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 void RbpfSlam::save_gp_maps()
 {
     int pings_t = mbes_history_.size()-1;
-    Eigen::MatrixXf mbes_mat(pings_t * beams_num_, 3);
+    Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::PlotPosteriorGoal goal;
@@ -414,7 +414,7 @@ void RbpfSlam::save_gp_maps()
             // TODO: get rid of loop with colwise operations on mbes_history
             for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
             {
-                mbes_mat.row(ping_i * beams_num_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
+                mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
             }
         }
 
@@ -436,12 +436,12 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 {
 
     // Latest ping depths in map frame
-    Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_num_);
+    Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
     latest_mbes_z_ = latest_mbes.col(2);
 
     ROS_INFO("Updating weights");
-    Eigen::MatrixXf ping_mat(beams_num_, 3);
+    Eigen::MatrixXf ping_mat(beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::SamplePosteriorGoal goal;
@@ -573,15 +573,15 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
-    // if (N_eff < std::round(pc_ / 2))
-    if(lc_detected_)
+    if (N_eff < std::round(pc_ / 2))
+    // if(lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
         // For manual lc testing
         // indices = vector<int>(pc_, 0);
-        indices = {0,0,0,1,1,1,1,2,2,2};
+        // indices = {0,0,1,1};
         lc_detected_ = false;
         
         set<int> s(indices.begin(), indices.end());

@@ -26,7 +26,7 @@
       <param name="sample_gp_server" value="$(arg sample_sample_server)"/>     
       <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>   
 			<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
-      <param name="svgp_num_ind_points" value="196"/>  <!--This number must have an exact root-->
+      <param name="svgp_num_ind_points" value="100"/>  <!--This number must have an exact root-->
       <param name="svgp_minibatch_size" value="1000"/>     
       <param name="svpg_learning_rate" value="1e-1"/>     
       <param name="svpg_rtol" value="1e-4"/>     

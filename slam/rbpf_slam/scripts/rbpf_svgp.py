@@ -318,7 +318,7 @@ class SVGP_map():
         # Flag to stop training
         self.plotting = True
         # Plot posterior and save it to image
-        if True:
+        if goal.plot:
             print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
 
             self.plot(beams[:,0:2], beams[:,2], 
@@ -333,7 +333,7 @@ class SVGP_map():
                       str(self.particle_id) + ".pth")
             # Save particle's MBES map and inducing points
             np.savez(self.storage_path + "map_" +
-                     str(self.particle_id) + ".npz", beams=beams)
+                     str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
             self.plotting = False
 
         # Set action as success

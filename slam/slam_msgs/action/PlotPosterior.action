@@ -1,4 +1,5 @@
 #goal definition
+bool plot
 sensor_msgs/PointCloud2 pings
 ---
 #result definition

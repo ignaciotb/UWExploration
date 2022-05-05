@@ -303,7 +303,7 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         std::cout << "Survey finished" << std::endl;
         survey_finished_ = true;
         std_msgs::Bool msg;
-        msg.data = true;
+        msg.data = false; // with GPs: True=plot, False=save
         enable_pub_.publish(msg);
         ros::shutdown();
     }

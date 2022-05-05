@@ -60,7 +60,7 @@ class SVGP(VariationalGP):
         v = self.cov(input)
         return MultivariateNormal(m, v)
 
-model = SVGP(10)
+model = SVGP(100)
 likelihood = GaussianLikelihood()
 mll = VariationalELBO(likelihood, model, 100, combine_terms=True)
 opt = torch.optim.Adam(model.parameters(),lr=float(0.001))

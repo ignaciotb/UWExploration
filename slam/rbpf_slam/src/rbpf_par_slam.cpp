@@ -218,7 +218,7 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_DEBUG("PF node: Survey finished received");
     mission_finished_ = true;
-    save_gp_maps();
+    save_gp_maps(finished_msg->data);
     ROS_DEBUG("We done bitches, this time in c++");
 }   
 
@@ -293,10 +293,14 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     {
         auto t1 = high_resolution_clock::now();
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
-        std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
+        std::shuffle(pings_idx_.begin(), pings_idx_.end(), g);
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         {
             ping_i = pings_idx_.at(i);
+            // Avoid using the latest ping since some particle might not have updated their pose histories
+            if(ping_i == pings_idx_.size()-1){
+                ping_i = pings_idx_.size() - 2;
+            }
             // std::cout << "Ping_i " << ping_i << std::endl;
 
             auto ancestry_it = ancestry_sizes_.begin();
@@ -371,7 +375,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     }
 }
 
-void RbpfSlam::save_gp_maps()
+void RbpfSlam::save_gp_maps(const bool plot)
 {
     int pings_t = mbes_history_.size()-1;
     Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
@@ -423,6 +427,7 @@ void RbpfSlam::save_gp_maps()
 
         // Set action as success
         goal.pings = mbes_pcloud;
+        goal.plot = plot;
         p_plot_acs_.at(p)->sendGoal(goal);
         // We want this calls to be secuential since plotting is GPU-heavy 
         // and not time critical, so we want the particles to do it one by one 

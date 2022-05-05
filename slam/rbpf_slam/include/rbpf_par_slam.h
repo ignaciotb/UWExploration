@@ -185,7 +185,7 @@ private:
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::SamplePosteriorResultConstPtr &result);
 
     // Other functions
-    void save_gp_maps();
+    void save_gp_maps(const bool plot);
     void predict(nav_msgs::Odometry odom_t);
     void update_rviz();
     void publish_stats(nav_msgs::Odometry gt_odom);

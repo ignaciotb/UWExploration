@@ -23,6 +23,7 @@ from std_msgs.msg import Float32, Int32MultiArray
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
+from slam_msgs.srv import Resample, ResampleResponse
 
 import actionlib
 
@@ -104,8 +105,8 @@ class SVGP_map():
 
         # Subscription to particle resampling indexes from RBPF
         p_resampling_top = rospy.get_param("~gp_resampling_top")
-        rospy.Subscriber(str(p_resampling_top) + "/particle_" + str(self.particle_id), numpy_msg(Int32MultiArray),
-                         self.resampling_cb, queue_size=1)
+        self.resample_srv = rospy.Service(str(p_resampling_top) + "/particle_" + str(self.particle_id), Resample,
+                         self.resampling_cb)
 
         ## SVGP SETUP
         self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
@@ -151,58 +152,36 @@ class SVGP_map():
         # Remove Qt out of main thread warning (use with caution)
         warnings.filterwarnings("ignore")
 
-    def resampling_cb(self, ind_msg):
+    def resampling_cb(self, req):
 
         self.resampling = True
         while not rospy.is_shutdown() and self.training:
             rospy.sleep(0.01)
             rospy.logdebug("GP %s waiting for training before resampling", self.particle_id)
 
-        # If this particle has been resampled, send the SVGP map to the fifo
+        # If this particle has been resampled, save SVGP to disk
         # to share it with the rest
-        if ind_msg.data[0] == self.particle_id:
-            # FIFO 
-            # try:
-            #     # TODO: is this necessary
-            #     os.mkfifo(self.storage_path + "svpg_" +
-            #               str(self.particle_id) + ".fifo")
-            # except:
-            #     rospy.logwarn("Fifo %s failed to make", str(self.particle_id))
-            #     pass
-            x = 0
+        response = ResampleResponse(True)
+        if req.p_id == self.particle_id:
+            self.save(self.storage_path + "svpg_" + str(req.p_id) + ".pth")
+            # print("Particle ", req.p_id, " saved to disk")
 
-            self.fifo_str = ""
-            self.fifo_pack()   
-            print("Prepared fifo ", self.particle_id, " with ", ind_msg.data[1])
-            while x < ind_msg.data[1]:
-                fifo = open(self.storage_path + "svpg_" +
-                            str(self.particle_id) + ".fifo", "w")
-                fifo.write(self.fifo_str)
-                fifo.flush()
-                fifo.close()
-                time.sleep(0.00001)
-                x += 1
-
-            # try:
-            #     os.unlink(fifo)
-            # except:
-            #     rospy.logwarn("Fifo %s failed to unlink", str(self.particle_id))
-            #     pass
-            print("Fifo served ", self.particle_id)
-
-        # Else, load the SVGP from the fifo with the particle ID received in the msg
+        # Else, load the SVGP from the disk with the particle ID received in the msg
         else:
-            # FIFO 
-            print("Particle ", self.particle_id, " ready to read fifo ", str(ind_msg.data[0]))
-            with open(self.storage_path + "svpg_" + 
-                      str(ind_msg.data[0]) + ".fifo", 'r') as fifo:
-                data = fifo.read()
-            fifo.close()
-            self.fifo_unpack(data)
+            ## Loading from disk
+            # print("Particle ", self.particle_id,
+            #       "loading particle ", req.p_id)
+            my_file = Path(self.storage_path + "svpg_" + str(req.p_id) + ".pth")
+            try:
+                if my_file.is_file():
+                    self.load(str(my_file.as_posix()))
+            except FileNotFoundError:
+                rospy.logerr("Particle failed to load SVGP")
+                response = ResampleResponse(False)
 
-            print("Particle ", self.particle_id,
-                " finished reading fifo ", str(ind_msg.data[0]))
         self.resampling = False
+
+        return response
             
  
     def train_iteration(self):
@@ -464,9 +443,10 @@ class SVGP_map():
             variance = outputs.variance.cpu().numpy().reshape(s)
 
         # plot raw, mean, and variance
+        levels = np.linspace(-550, -450, n_contours)
         fig, ax = plt.subplots(3, sharex=True, sharey=True)
         cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='viridis', s=0.4, edgecolors='none')
-        cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
+        cm = ax[1].contourf(*inputsg, mean, levels=levels)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
         indpts = self.model.variational_strategy.inducing_points.data.cpu().numpy()
         ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)
@@ -520,7 +500,6 @@ class SVGP_map():
                     'likelihood' : self.likelihood.state_dict(),
                     'mll' : self.mll.state_dict(),
                     'opt': self.opt.state_dict()}, fname)
-        # print("Time saving ", time.time() - time_start)
 
     def load(self, fname):
         time_start = time.time()
@@ -529,117 +508,9 @@ class SVGP_map():
         self.likelihood.load_state_dict(cp['likelihood'])
         self.mll.load_state_dict(cp['mll'])
         self.opt.load_state_dict(cp['opt'])
-        # print("Time loading ", time.time() - time_start)
-        # self.model.variational_strategy.inducing_points.data = torch.from_numpy(
-        #     gp_cp['ips']).to(self.device).float()
-        self.model.train()
-        self.likelihood.train()
-
-    def fifo_pack(self):
-        overall_list = []
-        keys_list = []
-
-        # The symbols ; and ! are used to make the parsing of the fifo easier
-
-        model_od_elements = []
-        for key, value in self.model.state_dict().items():
-            tens_to_list = value.tolist()  # convert tensor to list
-            keys_list.append(key + ";")
-            model_od_elements.append(str(tens_to_list) + ";")
-        overall_list.append(model_od_elements)
-        overall_list.append("!")
-
-        likelihood_od_elements = []
-        for key, value in self.likelihood.state_dict().items():
-            tens_to_list = value.tolist()  # convert tensor to list
-            keys_list.append(key + ";")
-            likelihood_od_elements.append(str(tens_to_list) + ";")
-        overall_list.append(likelihood_od_elements)
-        overall_list.append("!")
-
-        mll_od_elements = []
-        for key, value in self.mll.state_dict().items():
-            tens_to_list = value.tolist()  # convert tensor to list
-            keys_list.append(key + ";")
-            mll_od_elements.append(str(tens_to_list) + ";")
-        overall_list.append(mll_od_elements)
-        overall_list.append("!")
-
-        opt_od_elements = []
-        opt_dict = copy.deepcopy(self.opt.state_dict())
-        for key, value in opt_dict.items():
-            keys_list.append(key + ";")
-            if key == "state":
-                for k, v in value.items():
-                    for kk, vv in v.items():
-                        if isinstance(vv, torch.Tensor): 
-                            v[kk] = vv.tolist() 
-            opt_od_elements.append(str(value) + ";")
-        overall_list.append(opt_od_elements)
-        overall_list.append("!")
-
-        overall_list.append(keys_list)
-
-        for el in overall_list:
-            for string in el:
-                self.fifo_str += string
-
-        # print(fifo_str)
-
-    def fifo_unpack(self, data):
-        txt_list = data.split("!")
-        # Model ordered dict: txt_list[0]
-        # Likelihood ordered dict: txt_list[1]
-        # Mll ordered dict: txt_list[2]
-        # Opt dict: txt_list[3]
-        # Keys: txt_list[4]
-
-        values_list = txt_list[:3]  # Opt dict doesn't include tensors
-        keys_list = txt_list[-1].split(";")
-        tensor_list = []
-        for txt in values_list:
-            split_list = txt.split(";")
-            for el in split_list[:-1]:
-                if "inf" in el:
-                    el = el.replace("inf", "float(\"inf\")")
-                tens = torch.tensor(eval(el))
-                tensor_list.append(tens)
-
-        # Create the ordered dictionaries
-        odict_model = OrderedDict()
-        for i in range(12):
-            odict_model[keys_list[i]] = tensor_list[i]
         
-        odict_likelihood = OrderedDict()
-        for i in range(12, 15):
-            odict_likelihood[keys_list[i]] = tensor_list[i]
-
-        odict_mll = OrderedDict()
-        for i in range(15, 30):
-            odict_mll[keys_list[i]] = tensor_list[i]
-
-        dict_opt = {}
-        k = 30
-        for el in txt_list[3].split(";")[:-1]:
-            if "inf" in el:
-                el = el.replace("inf", "float(\"inf\")")
-            dict_opt[keys_list[k]] = eval(el)
-            if keys_list[k] == "state":
-                for _, v in dict_opt[keys_list[k]].items():
-                    v["exp_avg"] = torch.tensor(v["exp_avg"])
-                    v["exp_avg_sq"] = torch.tensor(v["exp_avg_sq"]) 
-            k += 1
-
-        # Load the dicts 
-        self.model.load_state_dict(odict_model)
-        self.likelihood.load_state_dict(odict_likelihood)
-        self.mll.load_state_dict(odict_mll)
-        self.opt.load_state_dict(dict_opt)
-
         self.model.train()
-        self.likelihood.train()
-
-        
+        self.likelihood.train() 
 
 
 if __name__ == '__main__':

@@ -115,9 +115,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Publisher for particles indexes to be resampled
     std::string p_resampling_top;
     nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
-    for(int i = 0; i < pc_; i++)
-        p_resampling_pubs_.push_back(nh_->advertise<std_msgs::Int32MultiArray>(p_resampling_top + "/particle_" + std::to_string(i), 10));
-    
+    for (int i = 0; i < pc_; i++)
+        p_resampling_srvs_.push_back(nh_->serviceClient<slam_msgs::Resample>(p_resampling_top + "/particle_" + std::to_string(i)));
+
     // Service for sending minibatches of beams to the SVGP particles
     std::string mb_gp_name;
     nh_mb_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
@@ -575,7 +575,6 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.erase(n_eff_mask_.begin());
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
-
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     if (N_eff < std::round(pc_ / 2))
     // if(lc_detected_)
@@ -585,7 +584,7 @@ void RbpfSlam::resample(vector<double> weights)
         indices = systematic_resampling(weights);
         // For manual lc testing
         // indices = vector<int>(pc_, 0);
-        // indices = {0,0,1,1};
+        // indices = {0, 0, 0, 0, 0, 0, 0, 5, 1, 1, 1, 1, 1, 1, 1, 16, 2, 2, 12, 12};
         lc_detected_ = false;
         
         set<int> s(indices.begin(), indices.end());
@@ -613,29 +612,31 @@ void RbpfSlam::resample(vector<double> weights)
             particles_[i].add_noise(res_noise_cov_);
 
         // Reassign SVGP maps: send winning indexes to SVGP nodes
-        std_msgs::Int32MultiArray k_ros;
-        std_msgs::Int32MultiArray l_ros;
+        slam_msgs::Resample k_ros;
+        slam_msgs::Resample l_ros;
         std::cout << "Keep " << std::endl;
-        // auto t1 = high_resolution_clock::now();
+        auto t1 = high_resolution_clock::now();
         if(!dupes.empty())
         {
             for(int k : keep)
             {
                 std::cout << k << " ";
-                // Send the ID of the particle to keep and how many copies of it to store on the pipe
-                k_ros.data = {k, int(count(dupes.begin(), dupes.end(), k))};
-                p_resampling_pubs_[k].publish(k_ros);
+                k_ros.request.p_id = k;
+                p_resampling_srvs_[k].call(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.2).sleep();
 
             int j = 0;
             for (int l : lost)
             {
                 // Send the ID of the particle to copy to the particle that has not been resampled
-                l_ros.data = {dupes[j]};
-                p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.02).sleep();
+                l_ros.request.p_id = dupes[j];
+                if(p_resampling_srvs_[l].call(l_ros)){
+                    ROS_DEBUG("Dupe sent");
+                }
+                else{
+                    ROS_WARN("Failed to call resample srv");
+                }
                 j++;
             }
         }

@@ -97,6 +97,7 @@ private:
     std::vector<float> init_cov_;
     std::vector<float> res_noise_cov_;
     std::vector<float> motion_cov_;
+    Eigen::Matrix3f cov_;
 
     // Global variables
     vector<int> n_eff_mask_;

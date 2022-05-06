@@ -631,7 +631,6 @@ void RbpfSlam::resample(vector<double> weights)
             for (int l : lost)
             {
                 // Send the ID of the particle to copy to the particle that has not been resampled
-<<<<<<< HEAD
                 l_ros.request.p_id = dupes[j];
                 if(p_resampling_srvs_[l].call(l_ros)){
                     ROS_DEBUG("Dupe sent");
@@ -639,11 +638,6 @@ void RbpfSlam::resample(vector<double> weights)
                 else{
                     ROS_WARN("Failed to call resample srv");
                 }
-=======
-                l_ros.data = {dupes[j]};
-                p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.2).sleep();
->>>>>>> origin/rbpf_parallel
                 j++;
             }
         }

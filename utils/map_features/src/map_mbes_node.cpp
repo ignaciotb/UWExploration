@@ -79,6 +79,7 @@ public:
     bool saveMap(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
     {
         // Save
+        ROS_INFO("Saving map");
         mbes_map_.width = mbes_map_.size();
         mbes_map_.height = 1;
         mbes_map_.is_dense = true;

@@ -43,6 +43,7 @@
 #include <slam_msgs/MinibatchTrainingResult.h>
 #include <slam_msgs/SamplePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
+#include <slam_msgs/Resample.h>
 // #include <slam_msgs/MbRequest.h>
 // #include <slam_msgs/MbResult.h>
 
@@ -122,6 +123,7 @@ private:
     // Publishers
     ros::Publisher ip_pub_;
     std::vector<ros::Publisher> p_resampling_pubs_;
+    std::vector<ros::ServiceClient> p_resampling_srvs_;
     ros::Publisher pf_pub_;
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;

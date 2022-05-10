@@ -31,10 +31,10 @@
   <arg name="gp_mb_server" default="/gp/minibatch_server"/>
   <arg name="gp_plot_server" default="/gp/plot_server"/>
   <arg name="sample_plot_server" default="/gp/sample_server"/>
-  <arg name="gp_resample_top" default="/gp/resample_top"/>
+  <arg name="gp_resample_top" default="/gp/resample_srv"/>
   
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="50" />
+  <arg name="rbpf_period"   default="5" />
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                         default="$(arg namespace)/odom"/>

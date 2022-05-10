@@ -36,6 +36,8 @@ from pathlib import Path
 import ast
 import copy
 
+import open3d as o3d
+
 from collections import OrderedDict
 
 
@@ -243,16 +245,22 @@ class SVGP_map():
                 wp_locations.append(p)
             wp_locations = np.asarray(wp_locations)
             wp_locations = np.reshape(wp_locations, (-1,3))
+            wp_locations[0, 2] = 1.
+            wp_locations[-1, 2] = -1.
 
-            # Inducing points distributed on grid over survey area
-            ip_locations = [
-                np.linspace(min(wp_locations[:,0]), max(wp_locations[:,0]), int(round(np.sqrt(self.s)))),
-                np.linspace(min(wp_locations[:,1]), max(wp_locations[:,1]), int(round(np.sqrt(self.s))))
-            ]
-            inputst = np.meshgrid(*ip_locations)
-            inputst = [_.flatten() for _ in inputst]
-            inputst = np.vstack(inputst).transpose()
-            self.model.variational_strategy.inducing_points.data = torch.from_numpy(inputst[:, 0:2]).to(self.device).float()
+            # Distribute IPs evenly over irregular-shaped target area
+            pcd = o3d.geometry.PointCloud()
+            pcd.points = o3d.utility.Vector3dVector(wp_locations)
+            tetra_mesh, pt_map = o3d.geometry.TetraMesh.create_from_point_cloud(
+                pcd)
+            alpha = 1000000000.0
+            mesh = o3d.geometry.TriangleMesh.create_from_point_cloud_alpha_shape(
+                pcd, alpha, tetra_mesh, pt_map)
+            pcl = mesh.sample_points_poisson_disk(
+                number_of_points=int(self.s))
+            
+            self.model.variational_strategy.inducing_points.data = torch.from_numpy(
+                np.asarray(pcl.points)[:, 0:2]).to(self.device).float()
 
             self.inducing_points_received = True
             print("Particle ", self.particle_id, " starting training")

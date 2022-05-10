@@ -27,6 +27,7 @@ class MapPCLPublisher(object):
         print("Map from MBES pings")
         # cloud = np.load(self.cloud_path)
         pcd = o3d.io.read_point_cloud(self.cloud_path)
+        pcd = pcd.uniform_down_sample(every_k_points=5)
         cloud = np.asarray(pcd.points)
         
         mbes_pcloud = PointCloud2()

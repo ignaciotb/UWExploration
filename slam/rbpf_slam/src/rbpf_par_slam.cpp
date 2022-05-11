@@ -301,11 +301,11 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         {
             ping_i = pings_idx_.at(i);
             // Avoid using the latest ping since some particle might not have updated their pose histories
+            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+            // std::cout << "Current ping " << ping_i << std::endl;
             if(ping_i == pings_idx_.size()-1){
-                ping_i = pings_idx_.size() - 2;
+                ping_i = pings_idx_.size() - 3;
             }
-            // std::cout << "Ping_i " << ping_i << std::endl;
-
             auto ancestry_it = ancestry_sizes_.begin();
             ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
                                        { return ping_i < ancestry_size_i; });
@@ -338,16 +338,25 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             // }
             // std::cout << std::endl;
 
-            // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(pc_id).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-            rot_i = particles_.at(pc_id).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-
-            // Sample beams_per_pings beams from ping ping_i
-            std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
-            for (int b = 0; b < beams_per_ping; b++)
-            {
-                mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
-                                                         + pos_i).transpose();
+            // This check will make sure the ping_i corresponds to a DR step that hasn't been 
+            // updated yet by the motion_prediction()
+            int idx_ping = ping_i - ancestry_sizes_.at(index);
+            if (idx_ping < particles_.at(pc_id).pos_history_.at(index)->size()){
+                // Transform x random beams to particle pose in map frame
+                pos_i = particles_.at(pc_id).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+                rot_i = particles_.at(pc_id).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+                // Sample beams_per_pings beams from ping ping_i
+                std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
+                for (int b = 0; b < beams_per_ping; b++)
+                {
+                    mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                                                            + pos_i).transpose();
+                }
+            }
+            // If ping_i out of index, take another one
+            else{
+                ROS_DEBUG("MBES and DR histories out of synch ");
+                i--;
             }
         }
 
@@ -525,7 +534,7 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
     {
         particles_.at(i).motion_prediction(odom_t, dt);
         particles_.at(i).update_pose_history();
-        std::cout << "Particle " << i << " size" << particles_.at(i).pos_history_.size() << std::endl;
+        // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
     }
 }
 

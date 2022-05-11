@@ -82,6 +82,7 @@
         <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
         <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
         <param name="rbpf_period" value="$(arg rbpf_period)"/> 
+        <param name="rviz_period" value="0.1"/> 
         <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
 				<param name="path_topic"  value="/$(arg namespace)/waypoints" />
 				<param name="result_path"  value="/home/torroba/" />

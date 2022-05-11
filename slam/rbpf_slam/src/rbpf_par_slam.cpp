@@ -97,7 +97,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Main timer for the RBPF
     nh_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
-    timer_ = nh_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
+    timer_rbpf_ = nh_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
+
+    nh_->param<float>(("rviz_period"), rviz_period_, 0.3);
+    timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
 
     // Subscription to manually triggering LC detection. Just for testing
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
@@ -272,7 +275,6 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
         // publish_stats(*odom_msg);
     }
     old_time_ = time_;
-    update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
@@ -523,10 +525,11 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
     {
         particles_.at(i).motion_prediction(odom_t, dt);
         particles_.at(i).update_pose_history();
+        std::cout << "Particle " << i << " size" << particles_.at(i).pos_history_.size() << std::endl;
     }
 }
 
-void RbpfSlam::update_rviz()
+void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
     geometry_msgs::PoseArray array_msg;
     array_msg.header.frame_id = odom_frame_;

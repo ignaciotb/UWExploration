@@ -73,7 +73,7 @@ private:
     ros::NodeHandle *nh_;
     ros::NodeHandle *nh_mb_;
     std::string node_name_;
-    ros::Timer timer_;
+    ros::Timer timer_rbpf_, timer_rviz_;
 
     int pc_;
     int beams_num_;
@@ -114,7 +114,7 @@ private:
     double time_;
     double old_time_;
     std::random_device rd_;
-    float rbpf_period_;
+    float rbpf_period_, rviz_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
@@ -190,7 +190,7 @@ private:
     // Other functions
     void save_gp_maps(const bool plot);
     void predict(nav_msgs::Odometry odom_t);
-    void update_rviz();
+    void update_rviz(const ros::TimerEvent &);
     void publish_stats(nav_msgs::Odometry gt_odom);
     float moving_average(vector<int> a, int n);
     void resample(vector<double> weights);

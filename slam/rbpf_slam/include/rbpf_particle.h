@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <cmath>
 #include <chrono>
+#include <mutex>
 
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -68,18 +69,17 @@ public:
     Eigen::VectorXd gp_covs_;
     std::vector<float> process_cov_;
     double mbes_sigma_;
+    std::shared_ptr<std::mutex> pc_mutex_;
 
 private:
-
     // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
-    int beams_num_; 
+    int beams_num_;
     int p_num_;
 
     Eigen::Matrix4f mbes_tf_matrix_;
     Eigen::Matrix4f m2o_matrix_;
-
 };
 
 float angle_limit(float angle);

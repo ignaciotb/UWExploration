@@ -451,10 +451,11 @@ class SVGP_map():
             variance = outputs.variance.cpu().numpy().reshape(s)
 
         # plot raw, mean, and variance
-        levels = np.linspace(-550, -450, n_contours)
+        # levels = np.linspace(-550, -450, n_contours)
         fig, ax = plt.subplots(3, sharex=True, sharey=True)
         cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='viridis', s=0.4, edgecolors='none')
-        cm = ax[1].contourf(*inputsg, mean, levels=levels)
+        cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
+        # cm = ax[1].contourf(*inputsg, mean, levels=levels)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
         indpts = self.model.variational_strategy.inducing_points.data.cpu().numpy()
         ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)

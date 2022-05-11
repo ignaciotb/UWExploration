@@ -340,23 +340,26 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
             // This check will make sure the ping_i corresponds to a DR step that hasn't been 
             // updated yet by the motion_prediction()
-            int idx_ping = ping_i - ancestry_sizes_.at(index);
-            if (idx_ping < particles_.at(pc_id).pos_history_.at(index)->size()){
-                // Transform x random beams to particle pose in map frame
-                pos_i = particles_.at(pc_id).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-                rot_i = particles_.at(pc_id).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-                // Sample beams_per_pings beams from ping ping_i
-                std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
-                for (int b = 0; b < beams_per_ping; b++)
-                {
-                    mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
-                                                            + pos_i).transpose();
+            {
+                std::lock_guard<std::mutex> lock(*particles_.at(pc_id).pc_mutex_);
+                int idx_ping = ping_i - ancestry_sizes_.at(index);
+                if (idx_ping < particles_.at(pc_id).pos_history_.at(index)->size()){
+                    // Transform x random beams to particle pose in map frame
+                    pos_i = particles_.at(pc_id).pos_history_.at(index)->at(idx_ping);
+                    rot_i = particles_.at(pc_id).rot_history_.at(index)->at(idx_ping);
+                    // Sample beams_per_pings beams from ping ping_i
+                    std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
+                    for (int b = 0; b < beams_per_ping; b++)
+                    {
+                        mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                                                                + pos_i).transpose();
+                    }
                 }
-            }
-            // If ping_i out of index, take another one
-            else{
-                ROS_DEBUG("MBES and DR histories out of synch ");
-                i--;
+                // If ping_i out of index, take another one
+                else{
+                    ROS_DEBUG("MBES and DR histories out of synch ");
+                    i--;
+                }
             }
         }
 
@@ -423,8 +426,11 @@ void RbpfSlam::save_gp_maps(const bool plot)
                 index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
             }
             // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(p).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-            rot_i = particles_.at(p).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+            {
+                // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
+                pos_i = particles_.at(p).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+                rot_i = particles_.at(p).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+            }
 
             // TODO: get rid of loop with colwise operations on mbes_history
             for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
@@ -465,8 +471,11 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         // Transform x random beams to particle pose in map frame
         // pos_i = particles_.at(p).pos_history_.back();
         // rot_i = particles_.at(p).rot_history_.back();
-        pos_i = particles_.at(p).pos_history_.back()->back();
-        rot_i = particles_.at(p).rot_history_.back()->back();
+        {
+            // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
+            pos_i = particles_.at(p).pos_history_.back()->back();
+            rot_i = particles_.at(p).rot_history_.back()->back();
+        }
 
         // TODO: get rid of loop with colwise operations on mbes_history
         for (int b = 0; b < mbes_history_.back().rows(); b++)
@@ -661,16 +670,24 @@ void RbpfSlam::resample(vector<double> weights)
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
 {
+    // TODO: this can explode if not all the particles have the same size
     // Keep track of size of histories between resamples. Used for MB random sampling across whole history
     ancestry_sizes_.push_back(ancestry_sizes_.back() + particles_[0].pos_history_.back()->size());
 
     for(int i = 0; i < lost.size(); i++)
     {
-        particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
-        particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
-        particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+        {
+            // TODO: test this
+            // std::lock_guard<std::mutex> lock(particles_.at(dupes[i]).pc_mutex_);
+            // std::lock_guard<std::mutex> lock(particles_.at(lost[i]).pc_mutex_);
+            // std::scoped_lock lock(particles_.at(dupes[i]).pc_mutex_, particles_.at(lost[i]).pc_mutex_);
+            particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
+            particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
+            particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+        }
     }
     for(int i = 0; i < pc_; i++){
+        // std::lock_guard<std::mutex> lock(particles_.at(i).pc_mutex_);
         particles_[i].pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
         particles_[i].rot_history_.emplace_back(std::shared_ptr<rot_track>(new rot_track()));
     }

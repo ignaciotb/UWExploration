@@ -129,7 +129,6 @@ class PFStatsVisualization(object):
         plt.savefig(self.result_path + "errors.png")
 
 
-
     def ping_cb(self, real_ping, pf_ping):
         real_meas = self.ping_to_array(real_ping)
         pf_meas = self.ping_to_array(pf_ping)

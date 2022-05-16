@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <launch>
-	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
-	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
   <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
 	<arg name="debug" default="0"/>
@@ -10,8 +10,8 @@
   <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
 
   <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="300"/>	
-	<arg name="mbes_open_angle" value="1.050" /> 
+	<arg name="n_beams_mbes" default="300"/>
+	<arg name="mbes_open_angle" value="1.050" />
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<!-- <arg name="x" default="-300.0"/>
@@ -23,16 +23,16 @@
 
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="4"/> <!--50 -->
-  <arg name="num_particle_handlers"                    default="2"/> 
+  <arg name="num_particle_handlers"                    default="2"/>
   <arg name="survey_finished_top" default="/gt/survey_finished"/>
-  
+
   <!-- API for SVGP particles -->
   <arg name="gp_ip_topic" default="/gp/inducing_points"/>
   <arg name="gp_mb_server" default="/gp/minibatch_server"/>
   <arg name="gp_plot_server" default="/gp/plot_server"/>
   <arg name="sample_plot_server" default="/gp/sample_server"/>
   <arg name="gp_resample_top" default="/gp/resample_srv"/>
-  
+
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
   <arg name="rbpf_period"   default="5" />
 
@@ -46,9 +46,9 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
-    <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
-    <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+    <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>
+    <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>
+    <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>
   </node>
 
   <group ns="$(arg app)">
@@ -56,10 +56,10 @@
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <!-- [x, y, z, roll, pitch, yaw] -->
-        <rosparam param="init_covariance">[50., 50., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]</rosparam>
         <rosparam param="resampling_noise_covariance">[5.0, 5.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <param name="measurement_std"                         value="0.2" />
+        <param name="measurement_std"                         value="0.3" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
@@ -73,30 +73,30 @@
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-        <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
-        <param name="survey_finished_top" value="/gt/survey_finished" />       
+        <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />
+        <param name="survey_finished_top" value="/gt/survey_finished" />
         <!-- <param name="mesh_path" value="$(arg path)/mesh.npz" />        -->
         <!-- <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />        -->
-        <param name="pf_stats_top" value="/stats/pf_data" />  
-        <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
-        <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
-        <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
-        <param name="rbpf_period" value="$(arg rbpf_period)"/> 
-        <param name="rviz_period" value="0.1"/> 
-        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
-				<param name="path_topic"  value="/$(arg namespace)/waypoints" />
-				<param name="result_path"  value="/home/torroba/" />
-				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
+        <param name="pf_stats_top" value="/stats/pf_data" />
+        <param name="plot_gp_server" value="$(arg gp_plot_server)"/>
+        <param name="sample_gp_server" value="$(arg sample_plot_server)"/>
+        <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>
+        <param name="rbpf_period" value="$(arg rbpf_period)"/>
+        <param name="rviz_period" value="0.1"/>
+        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>
+		<param name="path_topic"  value="/$(arg namespace)/waypoints" />
+		<param name="result_path"  value="/home/torroba/" />
+		<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
       </node>
     </group>
   </group>
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
-      <param name="pf_stats_top" value="/stats/pf_data" />       
-      <param name="map_frame" value="$(arg map_frame)" />       
-      <param name="odom_frame" value="$(arg odom_frame)" />       
-      <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
-      <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
+      <param name="pf_stats_top" value="/stats/pf_data" />
+      <param name="map_frame" value="$(arg map_frame)" />
+      <param name="odom_frame" value="$(arg odom_frame)" />
+      <param name="survey_finished_top" value="$(arg survey_finished_top)" />
+      <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />
       <param name="result_path" value="$(arg results_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />

@@ -45,7 +45,7 @@ public:
                  Eigen::Matrix4f m2o_matrix, std::vector<float> init_cov, float meas_std,
                  std::vector<float> process_cov);
     ~RbpfParticle();
-    
+
     void add_noise(std::vector<float> &noise);
 
     void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
@@ -58,11 +58,13 @@ public:
 
     void get_p_mbes_pose();
 
+    void motion_prediction_update_pose_history(nav_msgs::Odometry &odom_t, float dt);
+
     Eigen::VectorXf p_pose_;
     std::vector<pos_track_ptr> pos_history_;
     std::vector<rot_track_ptr> rot_history_;
     double w_;
-    int index_; 
+    int index_;
 
     // Noise models
     std::vector<float> init_cov_;

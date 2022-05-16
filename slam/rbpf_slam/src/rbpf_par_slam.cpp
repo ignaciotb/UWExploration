@@ -1,3 +1,4 @@
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include "rbpf_par_slam.h"
 
 RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_mb_(&nh_mb)
@@ -90,10 +91,16 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
                                             init_cov_, meas_std_, motion_cov_));
     }
 
+    dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_,
+                                           std::vector<float>(6, 0.), meas_std_, motion_cov_));
+
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
     finished_sub_ = nh_->subscribe(finished_top_, 100, &RbpfSlam::synch_cb, this);
     survey_finished_ = false;
+
+    // Subscription to the save topic
+    save_sub_ = nh_->subscribe("/save", 100, &RbpfSlam::save_cb, this);
 
     // Main timer for the RBPF
     nh_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
@@ -130,7 +137,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Action clients for plotting the GP posteriors
     for (int i = 0; i < pc_; i++)
     {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
+        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac =
                     new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
         while(!ac->waitForServer() && ros::ok())
         {
@@ -144,7 +151,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Action clients for sampling the GP posteriors
     for (int i = 0; i < pc_; i++)
     {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
+        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac =
                     new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
         while (!ac->waitForServer() && ros::ok())
         {
@@ -156,13 +163,13 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     }
 
     // Create vector of beams indexes per ping.
-    // It can be done only once since we're making sure all pings have the 
+    // It can be done only once since we're making sure all pings have the
     // same num of beams
     for (int n = 0; n < beams_real_; n++)
     {
         beams_idx_.push_back(n);
     }
-    
+
     avg_pose_.header.frame_id = odom_frame_;
     // Start timing now
     time_ = ros::Time::now().toSec();
@@ -195,7 +202,7 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
             int wp_size = wp_path->poses.size();
             sensor_msgs::PointCloud2 ip_pcloud;
             Eigen::RowVector3f ip;
-            
+
             auto poses = wp_path->poses;
 
             for (int i = 0; i < wp_size; i++)
@@ -205,7 +212,7 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
             }
 
             ip_pcloud = pack_cloud(map_frame_, i_points);
-            start_training_ = true; // We can start to check for loop closures 
+            start_training_ = true; // We can start to check for loop closures
             ip_pub_.publish(ip_pcloud);
         }
         // This service will start the auv simulation or auv_2_ros nodes to start the mission
@@ -222,10 +229,17 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_DEBUG("PF node: Survey finished received");
     mission_finished_ = true;
-    save_gp_maps(finished_msg->data);
+    save_gp_maps(false);
     ROS_DEBUG("We done bitches, this time in c++");
-}   
+}
 
+
+void RbpfSlam::save_cb(const std_msgs::Bool::ConstPtr& save_msg)
+{
+    ROS_DEBUG("PF node: saving without finishing the mission");
+    save_gp_maps(save_msg->data);
+    ROS_DEBUG("Aaaand it's saved");
+}
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
@@ -267,21 +281,23 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     if(mission_finished_ != true && start_training_)
     {
         // Motion prediction
-        if (time_ > old_time_) 
-        { 
-            this->predict(*odom_msg); 
+        if (time_ > old_time_)
+        {
+            this->predict(*odom_msg);
         }
-        // Update stats and visual
-        // publish_stats(*odom_msg);
     }
+
     old_time_ = time_;
+    // Update stats and visual
+    publish_stats(*odom_msg);
+    //update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
     int pc_id = goal->particle_id;
 
-    // Randomly pick mb_size/beams_per_ping pings 
+    // Randomly pick mb_size/beams_per_ping pings
     int mb_size = goal->mb_size;
 
     std::mt19937 g(rd_());
@@ -338,7 +354,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             // }
             // std::cout << std::endl;
 
-            // This check will make sure the ping_i corresponds to a DR step that hasn't been 
+            // This check will make sure the ping_i corresponds to a DR step that hasn't been
             // updated yet by the motion_prediction()
             {
                 std::lock_guard<std::mutex> lock(*particles_.at(pc_id).pc_mutex_);
@@ -447,9 +463,9 @@ void RbpfSlam::save_gp_maps(const bool plot)
         goal.pings = mbes_pcloud;
         goal.plot = plot;
         p_plot_acs_.at(p)->sendGoal(goal);
-        // We want this calls to be secuential since plotting is GPU-heavy 
-        // and not time critical, so we want the particles to do it one by one 
-        bool received = p_plot_acs_.at(p)->waitForResult();        
+        // We want this calls to be secuential since plotting is GPU-heavy
+        // and not time critical, so we want the particles to do it one by one
+        bool received = p_plot_acs_.at(p)->waitForResult();
     }
 
 }
@@ -538,13 +554,21 @@ void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
+    // Multithreading
+    boost::asio::thread_pool g_pool(pc_);
+
     float dt = float(time_ - old_time_);
-    for(int i = 0; i < pc_; i++) 
+    for(int i = 0; i < pc_; i++)
     {
-        particles_.at(i).motion_prediction(odom_t, dt);
-        particles_.at(i).update_pose_history();
+        // particles_.at(i).motion_prediction(odom_t, dt);
+        // particles_.at(i).update_pose_history();
         // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
+        post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
     }
+    g_pool.join();
+
+    dr_particle_[0].motion_prediction(odom_t, dt);
+    dr_particle_[0].update_pose_history();
 }
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)
@@ -608,7 +632,7 @@ void RbpfSlam::resample(vector<double> weights)
         // indices = vector<int>(pc_, 0);
         // indices = {0, 0, 0, 0, 0, 0, 0, 5, 1, 1, 1, 1, 1, 1, 1, 16, 2, 2, 12, 12};
         lc_detected_ = false;
-        
+
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
 
@@ -627,7 +651,7 @@ void RbpfSlam::resample(vector<double> weights)
                 dupes.erase(idx);
             }
         }
-        reassign_poses(lost, dupes); 
+        reassign_poses(lost, dupes);
 
         // Add noise to particles
         for(int i = 0; i < pc_; i++)
@@ -784,7 +808,7 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     avg_pose_.pose.pose.orientation.y = avg_q.getY();
     avg_pose_.pose.pose.orientation.z = avg_q.getZ();
     avg_pose_.pose.pose.orientation.w = avg_q.getW();
-    
+
     avg_pose_.header.stamp = ros::Time::now();
     avg_pub_.publish(avg_pose_);
 
@@ -795,7 +819,7 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     vector<float> dx;
     vector<float> dx_sq;
     Eigen::Matrix3f dx_sq_mat;
-    
+
     for (int i = 0; i < pc_; i++)
     {
         particle_pose.push_back(x[i]);
@@ -809,7 +833,7 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         std::transform(particle_pose.begin(), particle_pose.end(), average_pose.begin(), std::back_inserter(dx),
                        [](float particle_pose, float average_pose)
                        { return particle_pose - average_pose; });
-        
+
         // Create diagonal matrix from squared values of dx
         dx_sq = dx;
         transform(dx_sq.begin(), dx_sq.end(), dx_sq.begin(), [](float a){return a*a;});
@@ -817,11 +841,11 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         dx_sq_mat = Eigen::Matrix3f::Zero();
         dx_sq_mat.diagonal() = dx_sq_eigen.asDiagonal();
 
-        cov_ += dx_sq_mat; 
-        cov_(0, 1) += dx[0]*dx[1]; 
-        cov_(0, 2) += dx[0]*dx[2]; 
-        cov_(1, 2) += dx[1]*dx[2]; 
-        
+        cov_ += dx_sq_mat;
+        cov_(0, 1) += dx[0]*dx[1];
+        cov_(0, 2) += dx[0]*dx[2];
+        cov_(1, 2) += dx[1]*dx[2];
+
         average_pose.clear();
         particle_pose.clear();
         dx.clear();
@@ -834,22 +858,26 @@ void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     // Send statistics for visualization
     std_msgs::Float32MultiArray stats;
-    stats.data[0]  = n_eff_filt_;
-    stats.data[1]  = pc_/2.f;
-    stats.data[2]  = gt_odom.pose.pose.position.x;
-    stats.data[3]  = gt_odom.pose.pose.position.y;
-    stats.data[4]  = gt_odom.pose.pose.position.z;
-    stats.data[5]  = avg_pose_.pose.pose.position.x;
-    stats.data[6]  = avg_pose_.pose.pose.position.y;
-    stats.data[7]  = avg_pose_.pose.pose.position.z;
-    stats.data[8]  = cov_(0, 0);
-    stats.data[9]  = cov_(0, 1);
-    stats.data[10] = cov_(0, 2);
-    stats.data[11] = cov_(1, 1);
-    stats.data[12] = cov_(1, 2);
-    stats.data[13] = cov_(2, 2);
+    stats.data.push_back(n_eff_filt_);
+    stats.data.push_back(pc_/2.f);
+    stats.data.push_back(gt_odom.pose.pose.position.x);
+    stats.data.push_back(gt_odom.pose.pose.position.y);
+    stats.data.push_back(gt_odom.pose.pose.position.z);
+    stats.data.push_back(avg_pose_.pose.pose.position.x);
+    stats.data.push_back(avg_pose_.pose.pose.position.y);
+    stats.data.push_back(avg_pose_.pose.pose.position.z);
+    stats.data.push_back(dr_particle_[0].p_pose_(0));
+    stats.data.push_back(dr_particle_[0].p_pose_(1));
+    stats.data.push_back(dr_particle_[0].p_pose_(2));
+    stats.data.push_back(cov_(0, 0));
+    stats.data.push_back(cov_(0, 1));
+    stats.data.push_back(cov_(0, 2));
+    stats.data.push_back(cov_(1, 1));
+    stats.data.push_back(cov_(1, 2));
+    stats.data.push_back(cov_(2, 2));
 
     stats_.publish(stats);
+    stats.data.clear();
 }
 
 float RbpfSlam::moving_average(vector<int> a, int n)

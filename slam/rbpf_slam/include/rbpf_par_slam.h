@@ -1,5 +1,6 @@
 // HEADER DEFINING THE RBPF_SLAM CLASS
 #pragma once
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 #include "rbpf_particle.h"
 
@@ -47,6 +48,10 @@
 // #include <slam_msgs/MbRequest.h>
 // #include <slam_msgs/MbResult.h>
 
+#include <boost/asio/post.hpp>
+#include <boost/asio/thread_pool.hpp>
+#include <boost/bind.hpp>
+
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -69,7 +74,7 @@ public:
     RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
     ~RbpfSlam();
 
-private:    
+private:
     ros::NodeHandle *nh_;
     ros::NodeHandle *nh_mb_;
     std::string node_name_;
@@ -84,6 +89,8 @@ private:
     string mbes_frame_;
     string odom_frame_;
     std::vector<RbpfParticle> particles_;
+    std::vector<RbpfParticle> dr_particle_;
+
 
     tf::TransformListener tfListener_;
 
@@ -156,12 +163,14 @@ private:
     ros::Subscriber mbes_sub_;
     ros::Subscriber odom_sub_;
     ros::Subscriber finished_sub_;
+    ros::Subscriber save_sub_;
     ros::Subscriber lc_manual_sub_;
     ros::Subscriber path_sub_;
 
     string mbes_pings_top_;
     string odom_top_;
     string finished_top_;
+    string save_top_;
     string lc_manual_topic_;
     string path_topic_;
 
@@ -181,6 +190,7 @@ private:
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
     void path_cb(const nav_msgs::PathConstPtr& wp_path);
     void synch_cb(const std_msgs::Bool::ConstPtr& finished_msg);
+    void save_cb(const std_msgs::Bool::ConstPtr& save_msg);
     void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
     void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);

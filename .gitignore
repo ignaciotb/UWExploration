@@ -32,5 +32,8 @@ install/*
 *.code*
 .vscode/*
 
+# Datasets
+datasets/
+
 # ROS
 CATKIN_IGNORE

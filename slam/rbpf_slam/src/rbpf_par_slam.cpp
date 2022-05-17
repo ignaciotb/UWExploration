@@ -290,7 +290,7 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     old_time_ = time_;
     // Update stats and visual
     publish_stats(*odom_msg);
-    //update_rviz();
+    // update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
@@ -555,7 +555,7 @@ void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
     // Multithreading
-    boost::asio::thread_pool g_pool(pc_);
+    // boost::asio::thread_pool g_pool(pc_);
 
     float dt = float(time_ - old_time_);
     for(int i = 0; i < pc_; i++)
@@ -563,12 +563,24 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
         // particles_.at(i).motion_prediction(odom_t, dt);
         // particles_.at(i).update_pose_history();
         // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
-        post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
+        //post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
+        threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), std::ref(odom_t), dt));
     }
-    g_pool.join();
+
+    for (int i = 0; i < pc_; i++)
+    {
+        if (threads_vector_[i].joinable())
+        {
+            threads_vector_[i].join();
+        }
+    }
+
+    //g_pool.join();
 
     dr_particle_[0].motion_prediction(odom_t, dt);
     dr_particle_[0].update_pose_history();
+
+    threads_vector_.clear();
 }
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)

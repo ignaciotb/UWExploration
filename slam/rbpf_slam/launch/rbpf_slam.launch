@@ -1,10 +1,13 @@
 <?xml version="1.0" ?>
 <launch>
-	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map
-	If mode = gt: reproduce Hugin survey and construct map of real bathymetry -->
+  <!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+  If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+  <arg name="debug" default="false"/>
+  <arg name="prefix" default="" unless="$(arg debug)"/>
+  <arg name="prefix" value="valgrind" if="$(arg debug)" />
   <arg name="mode" default="sim"/>
 	<arg name="namespace" default="hugin"/>
-	<arg name="debug" default="0"/>
+	<!-- <arg name="debug" default="0"/> -->
 	<arg name="dataset" default="ripples"/>
 	<arg name="app" default="rbpf"/>
   <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
@@ -53,7 +56,7 @@
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
-      <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
+      <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen" launch-prefix="$(arg prefix)">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <!-- [x, y, z, roll, pitch, yaw] -->
         <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>

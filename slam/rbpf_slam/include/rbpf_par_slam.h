@@ -10,6 +10,7 @@
 #include <iostream>
 #include <algorithm>
 #include <set>
+#include <thread>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 
@@ -48,9 +49,9 @@
 // #include <slam_msgs/MbRequest.h>
 // #include <slam_msgs/MbResult.h>
 
-#include <boost/asio/post.hpp>
-#include <boost/asio/thread_pool.hpp>
-#include <boost/bind.hpp>
+// #include <boost/asio/post.hpp>
+// #include <boost/asio/thread_pool.hpp>
+// #include <boost/bind/bind.hpp>
 
 #include <algorithm>
 #include <iomanip>
@@ -79,6 +80,9 @@ private:
     ros::NodeHandle *nh_mb_;
     std::string node_name_;
     ros::Timer timer_rbpf_, timer_rviz_;
+
+    // Multithreading
+    std::vector<std::thread> threads_vector_;
 
     int pc_;
     int beams_num_;

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import torch
 import numpy as np
 import tqdm
@@ -48,7 +49,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(196)
+    model = SVGP(100)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()
@@ -140,11 +141,11 @@ def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
 
 if __name__ == '__main__':
 
-    cp = torch.load(
-        '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/utils/uw_tests/rbpf/svpg_final_0.pth')
+    i = str(input("Number of the particle to plot: "))
 
-    data = np.load(
-        '/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/utils/uw_tests/rbpf/map_0.npz')
+    cp = torch.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/svpg_final_'+i+'.pth')))
+    data = np.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/map_'+i+'.npz')))
+
     beams = data['beams']
     # loss = data['loss']
 

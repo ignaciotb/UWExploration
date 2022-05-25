@@ -557,11 +557,23 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
     // Multithreading
     // boost::asio::thread_pool g_pool(pc_);
 
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
+    Eigen::VectorXf noise_vec(6, 1);
+
     float dt = float(time_ - old_time_);
     for(int i = 0; i < pc_; i++)
     {
+        for (int i = 0; i < 6; i++)
+        {
+            std::normal_distribution<float> sampler{0, std::sqrt(particles_.at(i).process_cov_.at(i))};
+            noise_vec(i) = sampler(seed);
+        }
+
+        particles_.at(i).noise_vec_ = noise_vec;
         // particles_.at(i).motion_prediction(odom_t, dt);
         // particles_.at(i).update_pose_history();
+        // particles_.at(i).motion_prediction_update_pose_history(odom_t, dt);
         // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
         //post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
         threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), std::ref(odom_t), dt));
@@ -577,8 +589,13 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 
     //g_pool.join();
 
-    dr_particle_[0].motion_prediction(odom_t, dt);
-    dr_particle_[0].update_pose_history();
+    for (int i = 0; i < 6; i++)
+    {
+        std::normal_distribution<float> sampler{0, std::sqrt(dr_particle_.at(0).process_cov_.at(i))};
+        noise_vec(i) = sampler(seed);
+    }
+    dr_particle_.at(0).noise_vec_ = noise_vec;
+    dr_particle_.at(0).motion_prediction_update_pose_history(odom_t, dt);
 
     threads_vector_.clear();
 }
@@ -878,9 +895,9 @@ void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
     stats.data.push_back(avg_pose_.pose.pose.position.x);
     stats.data.push_back(avg_pose_.pose.pose.position.y);
     stats.data.push_back(avg_pose_.pose.pose.position.z);
-    stats.data.push_back(dr_particle_[0].p_pose_(0));
-    stats.data.push_back(dr_particle_[0].p_pose_(1));
-    stats.data.push_back(dr_particle_[0].p_pose_(2));
+    stats.data.push_back(dr_particle_.at(0).p_pose_(0));
+    stats.data.push_back(dr_particle_.at(0).p_pose_(1));
+    stats.data.push_back(dr_particle_.at(0).p_pose_(2));
     stats.data.push_back(cov_(0, 0));
     stats.data.push_back(cov_(0, 1));
     stats.data.push_back(cov_(0, 2));

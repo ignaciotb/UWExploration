@@ -63,7 +63,7 @@
 				<param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
       			<param name="survey_finished_top" value="/gt/survey_finished" />       
 				<param name="start_mission_ping_num" value="0" />
-				<param name="end_mission_ping_num" value="13000" /> <!-- 0 = last ping of survey-->
+				<param name="end_mission_ping_num" value="10000" /> <!-- 0 = last ping of survey-->
 				<!-- <param name="end_mission_ping_num" value="80000" />  -->
 			</node>
 		    

@@ -73,6 +73,7 @@ public:
     std::vector<float> process_cov_;
     double mbes_sigma_;
     std::shared_ptr<std::mutex> pc_mutex_;
+    Eigen::VectorXf noise_vec_;
 
 private:
     // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;

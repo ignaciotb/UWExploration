@@ -111,21 +111,21 @@ void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odo
 {
 
     // Generate noise
-    std::random_device rd{};
-    std::mt19937 seed{rd()};
-    Eigen::VectorXf noise_vec(6, 1);
-    for (int i = 0; i < 6; i++)
-    {
-        std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
-        noise_vec(i) = sampler(seed);
-    }
+    // std::random_device rd{};
+    // std::mt19937 seed{rd()};
+    // Eigen::VectorXf noise_vec(6, 1);
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
+    //     noise_vec(i) = sampler(seed);
+    // }
 
     // Angular
     Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
                                               odom_t.twist.twist.angular.y,
                                               odom_t.twist.twist.angular.z);
 
-    Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec.tail(3);
+    Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec_.tail(3);
     // Wrap up angles
     for (int i = 0; i < 3; i++)
     {
@@ -144,7 +144,7 @@ void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odo
                                             odom_t.twist.twist.linear.y,
                                             odom_t.twist.twist.linear.z);
 
-    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec.head(3);
+    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec_.head(3);
     p_pose_.head(3) += step_t;
 
     // Rotation matrix

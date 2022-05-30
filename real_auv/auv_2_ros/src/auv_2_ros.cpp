@@ -307,7 +307,6 @@ void BathymapConstructor::broadcastTf(const ros::TimerEvent&){
         enable_pub_.publish(msg);
         ros::shutdown();
     }
-
 }
 
 void BathymapConstructor::publishOdom(Eigen::Vector3d odom_ping_i, Eigen::Vector3d euler){

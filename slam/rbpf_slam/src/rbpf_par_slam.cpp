@@ -341,7 +341,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
             // This check will make sure the ping_i corresponds to a DR step that hasn't been 
             // updated yet by the motion_prediction()
             {
-                std::lock_guard<std::mutex> lock(*particles_.at(pc_id).pc_mutex_);
+                // std::lock_guard<std::mutex> lock(*particles_.at(pc_id).pc_mutex_);
                 int idx_ping = ping_i - ancestry_sizes_.at(index);
                 if (idx_ping < particles_.at(pc_id).pos_history_.at(index)->size()){
                     // Transform x random beams to particle pose in map frame

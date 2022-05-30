@@ -26,7 +26,6 @@ from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from tf.transformations import translation_matrix, translation_from_matrix
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
 from tf.transformations import rotation_matrix, rotation_from_matrix
-from tf.transformations import quaternion_multiply, quaternion_inverse
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
@@ -34,8 +33,13 @@ from cv_bridge import CvBridge
 
 # For sim mbes action client
 import actionlib
+from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
+
+# Auvlib
+from auvlib.bathy_maps import base_draper
+from auvlib.data_tools import csv_data
 
 from scipy.ndimage.filters import gaussian_filter
 
@@ -123,8 +127,6 @@ class rbpf_slam(object):
         self.n_from = 1
         self.ctr = 0
 
-        self.lolo_bag = True  # set to false when either the bag has an odom topic with a twist message or if it's running on the real LoLo
-
         # Nacho
         self.pings_since_training = 0
         self.map_updates = 0
@@ -195,16 +197,10 @@ class rbpf_slam(object):
             self.base2mbes_mat = matrix_from_tf(mbes_tf)
 
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
-                                                rospy.Time(0), rospy.Duration(35))
+                                               rospy.Time(0), rospy.Duration(35))
             self.m2o_mat = matrix_from_tf(m2o_tf)
 
-            o2b_tf = tfBuffer.lookup_transform(self.odom_frame, self.base_frame,
-                                                rospy.Time(0), rospy.Duration(35))
-            o2b_euler = euler_from_quaternion([o2b_tf.transform.rotation.x, o2b_tf.transform.rotation.y, o2b_tf.transform.rotation.z, o2b_tf.transform.rotation.w])
-            self.o2b_pose = [o2b_tf.transform.translation.x, o2b_tf.transform.translation.y, o2b_tf.transform.translation.z, o2b_euler[0], o2b_euler[1], o2b_euler[2]]
-
-            rospy.loginfo("Transforms locked - RBPF node")
-
+            rospy.loginfo("Transforms locked - RBFP node")
         except:
             rospy.loginfo("ERROR: Could not lookup transform from base_link to mbes_link")
 
@@ -212,14 +208,14 @@ class rbpf_slam(object):
         self.particles = np.empty(self.pc, dtype=object)
         for i in range(self.pc-1):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
-                                         self.m2o_mat, self.o2b_pose, init_cov=init_cov, meas_std=meas_std,
+                                         self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
             self.particles[i].ID = self.p_ID
             self.p_ID += 1
         
         # Create one particle on top of vehicle for tests with very few
         self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
-                                         self.m2o_mat, self.o2b_pose, init_cov=[0.]*6, meas_std=meas_std,
+                                         self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                          process_cov=[0.]*6)
         self.particles[i+1].ID = self.p_ID
         self.p_ID += 1
@@ -234,7 +230,7 @@ class rbpf_slam(object):
 
         # Create particle to compute DR
         self.dr_particle = Particle(self.beams_num, self.pc, self.pc+1, self.base2mbes_mat,
-                                    self.m2o_mat, self.o2b_pose, init_cov=[0.]*6, meas_std=meas_std,
+                                    self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                     process_cov=motion_cov)
 
         # For LC detection
@@ -316,10 +312,6 @@ class rbpf_slam(object):
     def odom_callback(self, odom_msg):
         self.time = odom_msg.header.stamp.to_sec()
         self.odom_latest = odom_msg
-
-        if self.init_odom_count == 0:
-            self.prev_odom = odom_msg
-            self.init_odom_count += 1
         
         # Flag to finish mission
         if not self.mission_finished:
@@ -378,53 +370,13 @@ class rbpf_slam(object):
 
 
     def predict(self, odom_t):
-        
         dt = self.time - self.old_time
-
-        if self.lolo_bag:
-
-            q_array = np.array([odom_t.pose.pose.orientation.x, odom_t.pose.pose.orientation.y,
-                            odom_t.pose.pose.orientation.z, odom_t.pose.pose.orientation.w])
-            prev_q_array = np.array([self.prev_odom.pose.pose.orientation.x, self.prev_odom.pose.pose.orientation.y,
-                                    self.prev_odom.pose.pose.orientation.z, self.prev_odom.pose.pose.orientation.w])
-
-            vel_t_x = (odom_t.pose.pose.position.x - self.prev_odom.pose.pose.position.x) / dt
-            vel_t_y = (odom_t.pose.pose.position.y - self.prev_odom.pose.pose.position.y) / dt
-            vel_t_z = (odom_t.pose.pose.position.z - self.prev_odom.pose.pose.position.z) / dt
-            vel_t = np.array([vel_t_x, vel_t_y, vel_t_z])
-            prev_q_mat = quaternion_matrix(prev_q_array)
-            prev_q_mat = prev_q_mat[0:3, 0:3]
-            vel_rel = np.linalg.inv(prev_q_mat) @ np.reshape(vel_t, (3, 1))
-
-            odom_t.twist.twist.linear.x = vel_rel[0, 0]
-            odom_t.twist.twist.linear.y = vel_rel[1, 0]
-            odom_t.twist.twist.linear.z = vel_rel[2, 0]
-
-            # q_step = quaternion_multiply(odom_t.pose.pose.orientation, quaternion_inverse(self.prev_odom.pose.pose.orientation))
-            # roll_step, pitch_step, yaw_step = euler_from_quaternion(q_step) 
-            # odom_t.twist.twist.angular.x = roll_step / dt;
-            # odom_t.twist.twist.angular.y = pitch_step / dt;
-            # odom_t.twist.twist.angular.z = yaw_step / dt;
-
-            delta_q = quaternion_multiply(q_array, quaternion_inverse(prev_q_array))
-            q_norm = np.linalg.norm(delta_q)
-            delta_q /= q_norm
-            delta_q_len = np.linalg.norm(delta_q[0:3])
-            delta_q_angle = 2*np.arctan2(delta_q_len, delta_q[3])
-            w = delta_q[0:3] * delta_q_angle * dt
-
-            odom_t.twist.twist.angular.x = w[0]
-            odom_t.twist.twist.angular.y = w[1]
-            odom_t.twist.twist.angular.z = w[2]
-
         for i in range(0, self.pc):
             self.particles[i].motion_pred(odom_t, dt)
             self.particles[i].update_pose_history()
 
         # Predict DR
         self.dr_particle.motion_pred(odom_t, dt)
-
-        self.prev_odom = odom_t
 
 
     def update_particles_weights(self, mbes_ping, odom):

@@ -4,7 +4,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
-    nh_->param<int>(("num_beams_sim"), beams_num_, 20);
+    // nh_->param<int>(("num_beams_sim"), beams_num_, 20);
     nh_->param<int>(("n_beams_mbes"), beams_real_, 512);
     nh_->param<float>(("mbes_open_angle"), mbes_angle_, M_PI / 180. * 60.);
     nh_->param<string>(("map_frame"), map_frame_, "map");
@@ -47,14 +47,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("plot_gp_server"), plot_gp_server_, "gp_plot_server");
     nh_->param<string>(("sample_gp_server"), sample_gp_server_, "gp_sample_server");
 
-    // Subscription to real mbes pings
-    nh_->param<string>(("mbes_pings_topic"), mbes_pings_top_, "mbes_pings");
-    mbes_sub_ = nh_->subscribe(mbes_pings_top_, 100, &RbpfSlam::mbes_real_cb, this);
-
-    // Establish subscription to odometry message (intentionally last)
-    nh_->param<string>(("odometry_topic"), odom_top_, "odom");
-    odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
-
     // Timer for end of mission: finish when no more odom is being received
     mission_finished_ = false;
     time_wo_motion_ = 5.;
@@ -81,31 +73,28 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
         ROS_ERROR("ERROR: Could not lookup transform from base_link to mbes_link");
     }
 
-    // Create particles
-    for (int i=0; i<pc_; i++){
-        particles_.emplace_back(RbpfParticle(beams_num_, pc_, i, base2mbes_mat_, m2o_mat_,
-                                            init_cov_, meas_std_, motion_cov_));
-    }
-    // // Create one particle on top or the GT vehicle pose. Only for testing
-    // particles_.emplace_back(RbpfParticle(beams_num_, pc_, pc_, base2mbes_mat_, m2o_mat_,
-    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
-
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
     finished_sub_ = nh_->subscribe(finished_top_, 100, &RbpfSlam::synch_cb, this);
     survey_finished_ = false;
 
+    // Subscription to the save topic
+    save_sub_ = nh_->subscribe("/save", 100, &RbpfSlam::save_cb, this);
+
+    // Start timing now
+    time_ = ros::Time::now().toSec();
+    old_time_ = ros::Time::now().toSec();
+
     // Main timer for the RBPF
     nh_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
-    timer_ = nh_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
+    timer_rbpf_ = nh_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
+
+    nh_->param<float>(("rviz_period"), rviz_period_, 0.3);
+    timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
 
     // Subscription to manually triggering LC detection. Just for testing
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
     lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
-
-    // This service will start the auv simulation or auv_2_ros nodes to start the mission
-    nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
-    srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
 
     // The mission waypoints as a path
     nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
@@ -118,10 +107,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Publisher for particles indexes to be resampled
     std::string p_resampling_top;
-    nh_->param<string>(("p_resampling_top"), p_resampling_top, "/resample_top");
-    for(int i = 0; i < pc_; i++)
-        p_resampling_pubs_.push_back(nh_->advertise<std_msgs::Int32>(p_resampling_top + "/particle_" + std::to_string(i), 10));
-    
+    nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
+    for (int i = 0; i < pc_; i++)
+        p_resampling_srvs_.push_back(nh_->serviceClient<slam_msgs::Resample>(p_resampling_top + "/particle_" + std::to_string(i)));
+
     // Service for sending minibatches of beams to the SVGP particles
     std::string mb_gp_name;
     nh_mb_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
@@ -131,7 +120,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Action clients for plotting the GP posteriors
     for (int i = 0; i < pc_; i++)
     {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac = 
+        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac =
                     new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
         while(!ac->waitForServer() && ros::ok())
         {
@@ -145,7 +134,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Action clients for sampling the GP posteriors
     for (int i = 0; i < pc_; i++)
     {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac = 
+        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac =
                     new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
         while (!ac->waitForServer() && ros::ok())
         {
@@ -157,19 +146,59 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     }
 
     // Create vector of beams indexes per ping.
-    // It can be done only once since we're making sure all pings have the 
+    // It can be done only once since we're making sure all pings have the
     // same num of beams
-    for (int n = 0; n < beams_num_; n++)
+    for (int n = 0; n < beams_real_; n++)
     {
         beams_idx_.push_back(n);
     }
 
-    // Start timing now
-    time_ = ros::Time::now().toSec();
-    old_time_ = ros::Time::now().toSec();
+    avg_pose_.header.frame_id = odom_frame_;
+
     start_training_ = false;
     time_avg_ = 0;
     count_mb_cbs_ = 0;
+    lc_detected_ = false;
+    ancestry_sizes_.push_back(0);
+
+    // Subscription to real mbes pings
+    nh_->param<string>(("mbes_pings_topic"), mbes_pings_top_, "mbes_pings");
+    mbes_sub_ = nh_->subscribe(mbes_pings_top_, 100, &RbpfSlam::mbes_real_cb, this);
+
+    // Establish subscription to odometry message (intentionally last)
+    nh_->param<string>(("odometry_topic"), odom_top_, "odom");
+    odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
+
+    // Initialize the particles on top of LoLo 
+    tf::StampedTransform o2b_tf;
+    tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(30.0));
+    tfListener_.lookupTransform(odom_frame_, base_frame_, ros::Time(0), o2b_tf);
+    double x, y, z, roll_o2b, pitch_o2b, yaw_o2b;
+    x = o2b_tf.getOrigin().x();
+    y = o2b_tf.getOrigin().y();
+    z = o2b_tf.getOrigin().z();
+    o2b_tf.getBasis().getRPY(roll_o2b, pitch_o2b, yaw_o2b);
+    init_p_pose_(0)= x;
+    init_p_pose_(1)= y;
+    init_p_pose_(2)= z;
+    init_p_pose_(3)= roll_o2b;
+    init_p_pose_(4)= pitch_o2b;
+    init_p_pose_(5)= yaw_o2b;
+
+    // Create one particle on top of the GT vehicle pose. Only for testing
+    particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // Create particles
+    for (int i=1; i<pc_; i++){
+        particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                            init_cov_, meas_std_, motion_cov_));
+    }
+
+    // Dead reckoning particle
+    dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                           std::vector<float>(6, 0.), meas_std_, motion_cov_));
+
+
     ROS_INFO("RBPF instantiated");
 }
 
@@ -184,26 +213,30 @@ void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ 
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
-    if (wp_path->poses.size() > 0 && !start_training_)
+    if (wp_path->poses.size() > 0)
     {
-        ROS_INFO("Received path");
-        std::vector<Eigen::RowVector3f> i_points;
-        int wp_size = wp_path->poses.size();
-        sensor_msgs::PointCloud2 ip_pcloud;
-        Eigen::RowVector3f ip;
-        
-        auto poses = wp_path->poses;
+        if (!start_training_){
+            ROS_INFO("Sending inducing points");
+            std::vector<Eigen::RowVector3f> i_points;
+            int wp_size = wp_path->poses.size();
+            sensor_msgs::PointCloud2 ip_pcloud;
+            Eigen::RowVector3f ip;
 
-        for (int i = 0; i < wp_size; i++)
-        {
-            ip << poses[i].pose.position.x, poses[i].pose.position.y, 0;
-            i_points.push_back(ip);
+            auto poses = wp_path->poses;
+
+            for (int i = 0; i < wp_size; i++)
+            {
+                ip << poses[i].pose.position.x, poses[i].pose.position.y, 0;
+                i_points.push_back(ip);
+            }
+
+            ip_pcloud = pack_cloud(map_frame_, i_points);
+            start_training_ = true; // We can start to check for loop closures
+            ip_pub_.publish(ip_pcloud);
         }
-
-        ip_pcloud = pack_cloud(map_frame_, i_points);
-        ROS_INFO("Sending inducing points");
-        start_training_ = true; // We can start to check for loop closures 
-        ip_pub_.publish(ip_pcloud);
+        // This service will start the auv simulation or auv_2_ros nodes to start the mission
+        nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+        srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
     }
     else{
         ROS_WARN("Received empty mission");
@@ -215,10 +248,17 @@ void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_DEBUG("PF node: Survey finished received");
     mission_finished_ = true;
-    save_gp_maps();
+    save_gp_maps(false);
     ROS_DEBUG("We done bitches, this time in c++");
-}   
+}
 
+
+void RbpfSlam::save_cb(const std_msgs::Bool::ConstPtr& save_msg)
+{
+    ROS_DEBUG("PF node: saving without finishing the mission");
+    save_gp_maps(save_msg->data);
+    ROS_DEBUG("Aaaand it's saved");
+}
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
@@ -227,7 +267,7 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
         // Beams in vehicle mbes frame
         // Store in pings history
         // auto t1 = high_resolution_clock::now();
-        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_num_));
+        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
 
         // Store latest mbes msg for timing
         latest_mbes_ = *msg;
@@ -260,22 +300,23 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     if(mission_finished_ != true && start_training_)
     {
         // Motion prediction
-        if (time_ > old_time_) 
-        { 
-            this->predict(*odom_msg); 
+        if (time_ > old_time_)
+        {
+            this->predict(*odom_msg);
         }
-        // Update stats and visual
-        update_rviz();
-        // publish_stats(*odom_msg);
     }
+
     old_time_ = time_;
+    // Update stats and visual
+    publish_stats(*odom_msg);
+    // update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 {
     int pc_id = goal->particle_id;
 
-    // Randomly pick mb_size/beams_per_ping pings 
+    // Randomly pick mb_size/beams_per_ping pings
     int mb_size = goal->mb_size;
 
     std::mt19937 g(rd_());
@@ -290,22 +331,70 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     {
         auto t1 = high_resolution_clock::now();
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
-        std::shuffle(pings_idx_.begin(), pings_idx_.end()-1, g);
+        std::shuffle(pings_idx_.begin(), pings_idx_.end(), g);
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
-        // for (int i = count_pings_ - (mb_size / beams_per_pings); i < count_pings_-1; i++)
         {
             ping_i = pings_idx_.at(i);
-            // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(pc_id).pos_history_.at(ping_i);
-            rot_i = particles_.at(pc_id).rot_history_.at(ping_i);
-
-            // Sample beams_per_pings beams from ping ping_i
-            std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
-
-            for (int b = 0; b < beams_per_ping; b++)
+            // Avoid using the latest ping since some particle might not have updated their pose histories
+            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+            // std::cout << "Current ping " << ping_i << std::endl;
+            if(ping_i == pings_idx_.size()-1){
+                ping_i = pings_idx_.size() - 3;
+            }
+            auto ancestry_it = ancestry_sizes_.begin();
+            ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
+                                       { return ping_i < ancestry_size_i; });
+            int index;
+            if (ancestry_it == ancestry_sizes_.begin())
             {
-                mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
-                                                         + pos_i).transpose();
+                index = 0;
+            }
+            else if (ancestry_it == ancestry_sizes_.end())
+            {
+                if (ancestry_sizes_.size() == 1)
+                {
+                    index = 0;
+                }
+                else
+                {
+                    index = ancestry_sizes_.size() - 1;
+                }
+            }
+            else
+            {
+                index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
+            }
+
+            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+            // std::cout << "Ancestry index " << index << std::endl;
+            // std::cout << "Ancestry sizes ";
+            // for(int i = 0; i< ancestry_sizes_.size(); i++){
+            //     std::cout << ancestry_sizes_.at(i) << " ";
+            // }
+            // std::cout << std::endl;
+
+            // This check will make sure the ping_i corresponds to a DR step that hasn't been
+            // updated yet by the motion_prediction()
+            {
+                std::lock_guard<std::mutex> lock(*particles_.at(pc_id).pc_mutex_);
+                int idx_ping = ping_i - ancestry_sizes_.at(index);
+                if (idx_ping < particles_.at(pc_id).pos_history_.at(index)->size()){
+                    // Transform x random beams to particle pose in map frame
+                    pos_i = particles_.at(pc_id).pos_history_.at(index)->at(idx_ping);
+                    rot_i = particles_.at(pc_id).rot_history_.at(index)->at(idx_ping);
+                    // Sample beams_per_pings beams from ping ping_i
+                    std::shuffle(beams_idx_.begin(), beams_idx_.end(), g);
+                    for (int b = 0; b < beams_per_ping; b++)
+                    {
+                        mb_mat.row(i * beams_per_ping + b) = (rot_i * mbes_history_.at(ping_i).row(beams_idx_.at(b)).transpose()
+                                                                + pos_i).transpose();
+                    }
+                }
+                // If ping_i out of index, take another one
+                else{
+                    ROS_DEBUG("MBES and DR histories out of synch ");
+                    i--;
+                }
             }
         }
 
@@ -336,25 +425,52 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     }
 }
 
-void RbpfSlam::save_gp_maps()
+void RbpfSlam::save_gp_maps(const bool plot)
 {
     int pings_t = mbes_history_.size()-1;
-    Eigen::MatrixXf mbes_mat(pings_t * beams_num_, 3);
+    Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::PlotPosteriorGoal goal;
+    int ping_i;
     for(int p=0; p<pc_; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
+            auto ancestry_it = ancestry_sizes_.begin();
+            ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
+                                       { return ping_i < ancestry_size_i; });
+            int index;
+            if (ancestry_it == ancestry_sizes_.begin())
+            {
+                index = 0;
+            }
+            else if (ancestry_it == ancestry_sizes_.end())
+            {
+                if (ancestry_sizes_.size() == 1)
+                {
+                    index = 0;
+                }
+                else
+                {
+                    index = ancestry_sizes_.size() - 1;
+                }
+            }
+            else
+            {
+                index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
+            }
             // Transform x random beams to particle pose in map frame
-            pos_i = particles_.at(p).pos_history_.at(ping_i);
-            rot_i = particles_.at(p).rot_history_.at(ping_i);
+            {
+                // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
+                pos_i = particles_.at(p).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+                rot_i = particles_.at(p).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
+            }
 
             // TODO: get rid of loop with colwise operations on mbes_history
             for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
             {
-                mbes_mat.row(ping_i * beams_num_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
+                mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
             }
         }
 
@@ -364,10 +480,11 @@ void RbpfSlam::save_gp_maps()
 
         // Set action as success
         goal.pings = mbes_pcloud;
+        goal.plot = plot;
         p_plot_acs_.at(p)->sendGoal(goal);
-        // We want this calls to be secuential since plotting is GPU-heavy 
-        // and not time critical, so we want the particles to do it one by one 
-        bool received = p_plot_acs_.at(p)->waitForResult();        
+        // We want this calls to be secuential since plotting is GPU-heavy
+        // and not time critical, so we want the particles to do it one by one
+        bool received = p_plot_acs_.at(p)->waitForResult();
     }
 
 }
@@ -376,19 +493,24 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 {
 
     // Latest ping depths in map frame
-    Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_num_);
+    Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
     latest_mbes_z_ = latest_mbes.col(2);
 
     ROS_INFO("Updating weights");
-    Eigen::MatrixXf ping_mat(beams_num_, 3);
+    Eigen::MatrixXf ping_mat(beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::SamplePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
         // Transform x random beams to particle pose in map frame
-        pos_i = particles_.at(p).pos_history_.back();
-        rot_i = particles_.at(p).rot_history_.back();
+        // pos_i = particles_.at(p).pos_history_.back();
+        // rot_i = particles_.at(p).rot_history_.back();
+        {
+            // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
+            pos_i = particles_.at(p).pos_history_.back()->back();
+            rot_i = particles_.at(p).rot_history_.back()->back();
+        }
 
         // TODO: get rid of loop with colwise operations on mbes_history
         for (int b = 0; b < mbes_history_.back().rows(); b++)
@@ -408,7 +530,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
     // Collect all updated weights and call resample()
     int w_time_out = 0;
-    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < 250)
+    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < rbpf_period_ * 100.)
     {
         // ROS_INFO("Updating weights");
         ros::Duration(0.01).sleep();
@@ -416,7 +538,8 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     }
 
     // Safety timeout to handle lost goals on sampleCB()
-    if(w_time_out < 250){
+    if (w_time_out < rbpf_period_ * 100.)
+    {
         // Call resampling here and empty ids vector
         updated_w_ids_.clear();
         std::vector<double> weights;
@@ -450,15 +573,53 @@ void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
 
 void RbpfSlam::predict(nav_msgs::Odometry odom_t)
 {
+    // Multithreading
+    // boost::asio::thread_pool g_pool(pc_);
+
+    std::random_device rd{};
+    std::mt19937 seed{rd()};
+    Eigen::VectorXf noise_vec(6, 1);
+
     float dt = float(time_ - old_time_);
-    for(int i = 0; i < pc_; i++) 
+    for(int i = 0; i < pc_; i++)
     {
-        particles_.at(i).motion_prediction(odom_t, dt);
-        particles_.at(i).update_pose_history();
+        for (int i = 0; i < 6; i++)
+        {
+            std::normal_distribution<float> sampler{0, std::sqrt(particles_.at(i).process_cov_.at(i))};
+            noise_vec(i) = sampler(seed);
+        }
+
+        particles_.at(i).noise_vec_ = noise_vec;
+        // particles_.at(i).motion_prediction(odom_t, dt);
+        // particles_.at(i).update_pose_history();
+        // particles_.at(i).motion_prediction_update_pose_history(odom_t, dt);
+        // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
+        //post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
+        threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), std::ref(odom_t), dt));
     }
+
+    for (int i = 0; i < pc_; i++)
+    {
+        if (threads_vector_[i].joinable())
+        {
+            threads_vector_[i].join();
+        }
+    }
+
+    //g_pool.join();
+
+    for (int i = 0; i < 6; i++)
+    {
+        std::normal_distribution<float> sampler{0, std::sqrt(dr_particle_.at(0).process_cov_.at(i))};
+        noise_vec(i) = sampler(seed);
+    }
+    dr_particle_.at(0).noise_vec_ = noise_vec;
+    dr_particle_.at(0).motion_prediction_update_pose_history(odom_t, dt);
+
+    threads_vector_.clear();
 }
 
-void RbpfSlam::update_rviz()
+void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
     geometry_msgs::PoseArray array_msg;
     array_msg.header.frame_id = odom_frame_;
@@ -482,7 +643,7 @@ void RbpfSlam::update_rviz()
         array_msg.poses.push_back(pose_i);
     }
     pf_pub_.publish(array_msg);
-    // TODO: add publisher avg pose from filter 
+    average_pose(array_msg);
 }
 
 void RbpfSlam::resample(vector<double> weights)
@@ -508,13 +669,18 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.erase(n_eff_mask_.begin());
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
-
-    std::cout << "Mask " << n_eff_filt_ << std::endl;
-    if(n_eff_filt_ < std::round(pc_/2))
+    std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
+    if (N_eff < std::round(pc_ / 2))
+    // if(lc_detected_)
     {
-        ROS_INFO("Resampling");
         // Resample particles
+        ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
+        // For manual lc testing
+        // indices = vector<int>(pc_, 0);
+        // indices = {0, 0, 0, 0, 0, 0, 0, 5, 1, 1, 1, 1, 1, 1, 1, 16, 2, 2, 12, 12};
+        lc_detected_ = false;
+
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
 
@@ -533,46 +699,69 @@ void RbpfSlam::resample(vector<double> weights)
                 dupes.erase(idx);
             }
         }
-        reassign_poses(lost, dupes); 
+        reassign_poses(lost, dupes);
 
         // Add noise to particles
         for(int i = 0; i < pc_; i++)
             particles_[i].add_noise(res_noise_cov_);
 
         // Reassign SVGP maps: send winning indexes to SVGP nodes
-        std_msgs::Int32 k_ros;
-        std_msgs::Int32 l_ros;
+        slam_msgs::Resample k_ros;
+        slam_msgs::Resample l_ros;
         std::cout << "Keep " << std::endl;
+        auto t1 = high_resolution_clock::now();
         if(!dupes.empty())
         {
             for(int k : keep)
             {
                 std::cout << k << " ";
-                k_ros.data = k;
-                p_resampling_pubs_[k].publish(k_ros);
+                k_ros.request.p_id = k;
+                p_resampling_srvs_[k].call(k_ros);
             }
             std::cout << std::endl;
-            ros::Duration(0.005).sleep();
 
             int j = 0;
             for (int l : lost)
             {
-                l_ros.data = dupes[j];
-                p_resampling_pubs_[l].publish(l_ros);
-                ros::Duration(0.1).sleep();
+                // Send the ID of the particle to copy to the particle that has not been resampled
+                l_ros.request.p_id = dupes[j];
+                if(p_resampling_srvs_[l].call(l_ros)){
+                    ROS_DEBUG("Dupe sent");
+                }
+                else{
+                    ROS_WARN("Failed to call resample srv");
+                }
                 j++;
             }
         }
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // std::cout << ms_double.count() / 1000.0 << std::endl;
     }
 }
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
 {
+    // TODO: this can explode if not all the particles have the same size
+    // Keep track of size of histories between resamples. Used for MB random sampling across whole history
+    ancestry_sizes_.push_back(ancestry_sizes_.back() + particles_[0].pos_history_.back()->size());
+
     for(int i = 0; i < lost.size(); i++)
     {
-        particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
-        particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
-        particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+        {
+            // TODO: test this
+            // std::lock_guard<std::mutex> lock(particles_.at(dupes[i]).pc_mutex_);
+            // std::lock_guard<std::mutex> lock(particles_.at(lost[i]).pc_mutex_);
+            // std::scoped_lock lock(particles_.at(dupes[i]).pc_mutex_, particles_.at(lost[i]).pc_mutex_);
+            particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;
+            particles_[lost[i]].pos_history_ = particles_[dupes[i]].pos_history_;
+            particles_[lost[i]].rot_history_ = particles_[dupes[i]].rot_history_;
+        }
+    }
+    for(int i = 0; i < pc_; i++){
+        // std::lock_guard<std::mutex> lock(particles_.at(i).pc_mutex_);
+        particles_[i].pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
+        particles_[i].rot_history_.emplace_back(std::shared_ptr<rot_track>(new rot_track()));
     }
 }
 
@@ -608,25 +797,135 @@ vector<int> RbpfSlam::systematic_resampling(vector<double> weights)
         else
             j++;
     }
-
     return indexes;
+}
 
+void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
+{
+    vector<float> x;
+    vector<float> y;
+    vector<float> z;
+    vector<float> roll;
+    vector<float> pitch;
+    vector<float> yaw;
+
+    double roll_i, pitch_i, yaw_i;
+
+    for (int i = 0; i < pose_list.poses.size(); i++)
+    {
+        x.push_back(pose_list.poses[i].position.x);
+        y.push_back(pose_list.poses[i].position.y);
+        z.push_back(pose_list.poses[i].position.z);
+
+        // Quaternion to Euler
+        tf::Quaternion q(
+            pose_list.poses[i].orientation.x,
+            pose_list.poses[i].orientation.y,
+            pose_list.poses[i].orientation.z,
+            pose_list.poses[i].orientation.w);
+        tf::Matrix3x3 m(q);
+        m.getRPY(roll_i, pitch_i, yaw_i);
+
+        // Wrap yaw around -pi, pi
+        yaw_i = fmod(yaw_i + M_PI, 2*M_PI);
+        if (yaw_i < 0)
+            yaw_i += 2*M_PI;
+        yaw_i -= M_PI;
+
+        roll.push_back(roll_i);
+        pitch.push_back(pitch_i);
+        yaw.push_back(yaw_i);
+    }
+
+    // Compute averages
+    float x_ave = accumulate(x.begin(), x.end(), 0.0) / x.size();
+    float y_ave = accumulate(y.begin(), y.end(), 0.0) / y.size();
+    float z_ave = accumulate(z.begin(), z.end(), 0.0) / z.size();
+    float roll_ave = accumulate(roll.begin(), roll.end(), 0.0) / roll.size();
+    float pitch_ave = accumulate(pitch.begin(), pitch.end(), 0.0) / pitch.size();
+    float yaw_ave = accumulate(yaw.begin(), yaw.end(), 0.0) / yaw.size();
+
+    avg_pose_.pose.pose.position.x = x_ave;
+    avg_pose_.pose.pose.position.y = y_ave;
+    avg_pose_.pose.pose.position.z = z_ave;
+
+    tf2::Quaternion avg_q;
+    avg_q.setRPY(roll_ave, pitch_ave, yaw_ave);
+    avg_q = avg_q.normalize();
+    avg_pose_.pose.pose.orientation.x = avg_q.getX();
+    avg_pose_.pose.pose.orientation.y = avg_q.getY();
+    avg_pose_.pose.pose.orientation.z = avg_q.getZ();
+    avg_pose_.pose.pose.orientation.w = avg_q.getW();
+
+    avg_pose_.header.stamp = ros::Time::now();
+    avg_pub_.publish(avg_pose_);
+
+    // Compute covariance
+    cov_ = Eigen::Matrix3f::Zero();
+    vector<float> particle_pose;
+    vector<float> average_pose;
+    vector<float> dx;
+    vector<float> dx_sq;
+    Eigen::Matrix3f dx_sq_mat;
+
+    for (int i = 0; i < pc_; i++)
+    {
+        particle_pose.push_back(x[i]);
+        particle_pose.push_back(y[i]);
+        particle_pose.push_back(z[i]);
+        average_pose.push_back(avg_pose_.pose.pose.position.x);
+        average_pose.push_back(avg_pose_.pose.pose.position.y);
+        average_pose.push_back(avg_pose_.pose.pose.position.z);
+
+        // dx = particle_pose - average_pose
+        std::transform(particle_pose.begin(), particle_pose.end(), average_pose.begin(), std::back_inserter(dx),
+                       [](float particle_pose, float average_pose)
+                       { return particle_pose - average_pose; });
+
+        // Create diagonal matrix from squared values of dx
+        dx_sq = dx;
+        transform(dx_sq.begin(), dx_sq.end(), dx_sq.begin(), [](float a){return a*a;});
+        Eigen::VectorXf dx_sq_eigen = Eigen::Map<Eigen::VectorXf, Eigen::Unaligned>(dx_sq.data(), dx_sq.size());
+        dx_sq_mat = Eigen::Matrix3f::Zero();
+        dx_sq_mat.diagonal() = dx_sq_eigen.asDiagonal();
+
+        cov_ += dx_sq_mat;
+        cov_(0, 1) += dx[0]*dx[1];
+        cov_(0, 2) += dx[0]*dx[2];
+        cov_(1, 2) += dx[1]*dx[2];
+
+        average_pose.clear();
+        particle_pose.clear();
+        dx.clear();
+    }
+
+    cov_ /= pc_;
 }
 
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     // Send statistics for visualization
     std_msgs::Float32MultiArray stats;
-    stats.data[0] = n_eff_filt_;
-    stats.data[1] = pc_/2.f;
-    stats.data[2] = gt_odom.pose.pose.position.x;
-    stats.data[3] = gt_odom.pose.pose.position.y;
-    stats.data[4] = gt_odom.pose.pose.position.z;
-    stats.data[5] = avg_pose_.pose.pose.position.x;
-    stats.data[6] = avg_pose_.pose.pose.position.y;
-    stats.data[7] = avg_pose_.pose.pose.position.z;
+    stats.data.push_back(n_eff_filt_);
+    stats.data.push_back(pc_/2.f);
+    stats.data.push_back(gt_odom.pose.pose.position.x);
+    stats.data.push_back(gt_odom.pose.pose.position.y);
+    stats.data.push_back(gt_odom.pose.pose.position.z);
+    stats.data.push_back(avg_pose_.pose.pose.position.x);
+    stats.data.push_back(avg_pose_.pose.pose.position.y);
+    stats.data.push_back(avg_pose_.pose.pose.position.z);
+    stats.data.push_back(dr_particle_.at(0).p_pose_(0));
+    stats.data.push_back(dr_particle_.at(0).p_pose_(1));
+    stats.data.push_back(dr_particle_.at(0).p_pose_(2));
+    stats.data.push_back(cov_(0, 0));
+    stats.data.push_back(cov_(0, 1));
+    stats.data.push_back(cov_(0, 2));
+    stats.data.push_back(cov_(1, 1));
+    stats.data.push_back(cov_(1, 2));
+    stats.data.push_back(cov_(2, 2));
 
     stats_.publish(stats);
+    stats.data.clear();
 }
 
 float RbpfSlam::moving_average(vector<int> a, int n)

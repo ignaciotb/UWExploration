@@ -9,6 +9,7 @@
 #include <iostream>
 #include <algorithm>
 #include <set>
+#include <thread>
 #include <boost/algorithm/string.hpp>
 #include <boost/filesystem.hpp>
 
@@ -28,6 +29,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Float32MultiArray.h>
 #include <std_msgs/Int32.h>
+#include <std_msgs/Int32MultiArray.h>
 #include <std_msgs/String.h>
 
 #include <sensor_msgs/PointCloud2.h>
@@ -42,8 +44,13 @@
 #include <slam_msgs/MinibatchTrainingResult.h>
 #include <slam_msgs/SamplePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
+#include <slam_msgs/Resample.h>
 // #include <slam_msgs/MbRequest.h>
 // #include <slam_msgs/MbResult.h>
+
+// #include <boost/asio/post.hpp>
+// #include <boost/asio/thread_pool.hpp>
+// #include <boost/bind/bind.hpp>
 
 #include <algorithm>
 #include <iomanip>
@@ -67,11 +74,16 @@ public:
     RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
     ~RbpfSlam();
 
-private:    
+    Eigen::Matrix<float, 6, 1> init_p_pose_;
+
+private:
     ros::NodeHandle *nh_;
     ros::NodeHandle *nh_mb_;
     std::string node_name_;
-    ros::Timer timer_;
+    ros::Timer timer_rbpf_, timer_rviz_;
+
+    // Multithreading
+    std::vector<std::thread> threads_vector_;
 
     int pc_;
     int beams_num_;
@@ -82,6 +94,8 @@ private:
     string mbes_frame_;
     string odom_frame_;
     std::vector<RbpfParticle> particles_;
+    std::vector<RbpfParticle> dr_particle_;
+
 
     tf::TransformListener tfListener_;
 
@@ -95,12 +109,14 @@ private:
     std::vector<float> init_cov_;
     std::vector<float> res_noise_cov_;
     std::vector<float> motion_cov_;
+    Eigen::Matrix3f cov_;
 
     // Global variables
     vector<int> n_eff_mask_;
     vector<float> pw_;
     std::vector<Eigen::MatrixXf, Eigen::aligned_allocator<Eigen::MatrixXf>> mbes_history_;
     std::vector<int> pings_idx_;
+    std::vector<int> ancestry_sizes_;
     std::vector<int> beams_idx_;
     Eigen::VectorXf latest_mbes_z_;
 
@@ -110,7 +126,7 @@ private:
     double time_;
     double old_time_;
     std::random_device rd_;
-    float rbpf_period_;
+    float rbpf_period_, rviz_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
@@ -119,6 +135,7 @@ private:
     // Publishers
     ros::Publisher ip_pub_;
     std::vector<ros::Publisher> p_resampling_pubs_;
+    std::vector<ros::ServiceClient> p_resampling_srvs_;
     ros::Publisher pf_pub_;
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;
@@ -151,12 +168,14 @@ private:
     ros::Subscriber mbes_sub_;
     ros::Subscriber odom_sub_;
     ros::Subscriber finished_sub_;
+    ros::Subscriber save_sub_;
     ros::Subscriber lc_manual_sub_;
     ros::Subscriber path_sub_;
 
     string mbes_pings_top_;
     string odom_top_;
     string finished_top_;
+    string save_top_;
     string lc_manual_topic_;
     string path_topic_;
 
@@ -176,6 +195,7 @@ private:
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
     void path_cb(const nav_msgs::PathConstPtr& wp_path);
     void synch_cb(const std_msgs::Bool::ConstPtr& finished_msg);
+    void save_cb(const std_msgs::Bool::ConstPtr& save_msg);
     void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
     void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
@@ -183,9 +203,9 @@ private:
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::SamplePosteriorResultConstPtr &result);
 
     // Other functions
-    void save_gp_maps();
+    void save_gp_maps(const bool plot);
     void predict(nav_msgs::Odometry odom_t);
-    void update_rviz();
+    void update_rviz(const ros::TimerEvent &);
     void publish_stats(nav_msgs::Odometry gt_odom);
     float moving_average(vector<int> a, int n);
     void resample(vector<double> weights);

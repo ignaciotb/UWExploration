@@ -1,9 +1,11 @@
 #pragma once
 
 #include <math.h>
+#include <tf/tf.h>
 #include <ros/ros.h>
 #include <cmath>
 #include <chrono>
+#include <mutex>
 
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -29,6 +31,10 @@
 #include <random>
 
 using namespace std;
+typedef std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_track;
+typedef std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_track;
+typedef std::shared_ptr<pos_track> pos_track_ptr;
+typedef std::shared_ptr<rot_track> rot_track_ptr;
 
 typedef pcl::PointCloud<pcl::PointXYZ> PCloud;
 
@@ -37,10 +43,10 @@ class RbpfParticle
 
 public:
     RbpfParticle(int beams_num, int pc, int i, Eigen::Matrix4f base2mbes_mat,
-                 Eigen::Matrix4f m2o_matrix, std::vector<float> init_cov, float meas_std,
+                 Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
                  std::vector<float> process_cov);
     ~RbpfParticle();
-    
+
     void add_noise(std::vector<float> &noise);
 
     void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
@@ -53,29 +59,31 @@ public:
 
     void get_p_mbes_pose();
 
+    void motion_prediction_update_pose_history(nav_msgs::Odometry &odom_t, float dt);
+
     Eigen::VectorXf p_pose_;
-    std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_history_;
-    std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_history_;
+    std::vector<pos_track_ptr> pos_history_;
+    std::vector<rot_track_ptr> rot_history_;
     double w_;
-    int index_; 
+    int index_;
 
     // Noise models
     std::vector<float> init_cov_;
     Eigen::VectorXd gp_covs_;
     std::vector<float> process_cov_;
     double mbes_sigma_;
+    std::shared_ptr<std::mutex> pc_mutex_;
+    Eigen::VectorXf noise_vec_;
 
 private:
-
-    vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
+    // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;
 
     // Particle
-    int beams_num_; 
+    int beams_num_;
     int p_num_;
 
     Eigen::Matrix4f mbes_tf_matrix_;
     Eigen::Matrix4f m2o_matrix_;
-
 };
 
 float angle_limit(float angle);

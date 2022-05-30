@@ -27,7 +27,7 @@ from gp_mapping import gp  # GP
 
 
 class Particle(object):
-    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix, o2b_pose,
+    def __init__(self, beams_num, p_num, index, mbes_tf_matrix, m2o_matrix,
                  init_cov=[0.,0.,0.,0.,0.,0.], meas_std=0.01,
                  process_cov=[0.,0.,0.,0.,0.,0.]):
 
@@ -36,8 +36,7 @@ class Particle(object):
 
         self.beams_num = beams_num
         # self.weight = 1.
-        self.p_pose = o2b_pose
-
+        self.p_pose = [0.]*6
         self.mbes_tf_mat = mbes_tf_matrix
         self.m2o_tf_mat = m2o_matrix
         self.init_cov = init_cov

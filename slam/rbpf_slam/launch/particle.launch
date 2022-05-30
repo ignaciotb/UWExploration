@@ -2,7 +2,7 @@
 <launch>
     <arg name="app" default="rbpf"/>
 	  <arg name="dataset" default=""/>
-    <arg name="namespace" default="hugin_0"/>
+    <arg name="namespace" default="lolo"/>
     <arg name="node_name"/>
     <arg name="gp_ip_topic" default="/gp/inducing_points"/>
     <arg name="gp_mb_server" default="/gp/minibatch_server"/>

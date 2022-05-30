@@ -8,7 +8,7 @@ import os
 
 from scipy.spatial.transform import Rotation as Rot
 from rospy_tutorials.msg import Floats
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32MultiArray
 from rospy.numpy_msg import numpy_msg
 import tf2_ros
 from rbpf_particle import matrix_from_tf
@@ -20,8 +20,11 @@ class PFStatsVisualization(object):
     
     def __init__(self):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
-        self.stats_sub = rospy.Subscriber(stats_top, numpy_msg(Floats), self.stat_cb)
-        self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
+        self.stats_sub = rospy.Subscriber(stats_top, Float32MultiArray, self.stat_cb)
+        mean_depth_path = os.path.abspath(os.path.join(os.path.dirname(
+            __file__), '../../../', 'utils/uw_tests/datasets/overnight_2020/default_real_mean_depth.png'))
+        self.path_img = rospy.get_param(
+            '~background_img_path', mean_depth_path)
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.result_path = rospy.get_param('~result_path', 'survey')
@@ -127,7 +130,6 @@ class PFStatsVisualization(object):
         plt.xlabel('Time')
         plt.ylabel('Error')
         plt.savefig(self.result_path + "errors.png")
-
 
 
     def ping_cb(self, real_ping, pf_ping):

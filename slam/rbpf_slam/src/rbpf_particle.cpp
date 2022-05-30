@@ -1,13 +1,14 @@
 #include "rbpf_particle.h"
 
 RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes_tf_matrix,
-                           Eigen::Matrix4f m2o_matrix, std::vector<float> init_cov, float meas_std,
+                           Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
                            std::vector<float> process_cov)
 {
     p_num_ = p_num;
     index_ = index;
     beams_num_ = beams_num;
-    p_pose_ = Eigen::VectorXf::Zero(6,1);
+    // p_pose_ = Eigen::VectorXf::Zero(6,1);
+    p_pose_ = init_pose;
     mbes_tf_matrix_ = mbes_tf_matrix;
     m2o_matrix_ = m2o_matrix;
 
@@ -21,11 +22,17 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
 
     this->add_noise(init_cov_);
 
+    // Init particle history
+    pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
+    rot_history_.emplace_back(std::shared_ptr<rot_track> (new rot_track()));
+
+    // The lock
+    pc_mutex_ = std::shared_ptr<std::mutex>(new std::mutex());
 }
 
 RbpfParticle::~RbpfParticle()
 {
-    
+
 }
 
 void RbpfParticle::add_noise(std::vector<float> &noise){
@@ -53,7 +60,7 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
         noise_vec(i) = sampler(seed);
     }
 
-    // Angular 
+    // Angular
     Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
                                               odom_t.twist.twist.angular.y,
                                               odom_t.twist.twist.angular.z);
@@ -75,7 +82,7 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
     Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
                                             odom_t.twist.twist.linear.y,
                                             odom_t.twist.twist.linear.z);
-    
+
     Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec.head(3);
     p_pose_.head(3) += step_t;
 }
@@ -96,9 +103,67 @@ void RbpfParticle::update_pose_history()
     t_p.block(0,3,3,1) = p_pose_.head(3);
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
 
-    pos_history_.push_back(p_pose_map.block(0, 3, 3, 1));
-    rot_history_.push_back(p_pose_map.topLeftCorner(3,3));
+    std::lock_guard<std::mutex> lock(*pc_mutex_);
+    pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
+    rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
+}
 
+void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odom_t, float dt)
+{
+
+    // Generate noise
+    // std::random_device rd{};
+    // std::mt19937 seed{rd()};
+    // Eigen::VectorXf noise_vec(6, 1);
+    // for (int i = 0; i < 6; i++)
+    // {
+    //     std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
+    //     noise_vec(i) = sampler(seed);
+    // }
+
+    // Angular
+    Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
+                                              odom_t.twist.twist.angular.y,
+                                              odom_t.twist.twist.angular.z);
+
+    Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec_.tail(3);
+    // Wrap up angles
+    for (int i = 0; i < 3; i++)
+    {
+        rot_t(i) = angle_limit(rot_t(i));
+    }
+    p_pose_.tail(3) = rot_t;
+
+    Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitZ());
+    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
+    Eigen::Matrix3f rotMat = q.matrix();
+
+    // Linear
+    Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
+                                            odom_t.twist.twist.linear.y,
+                                            odom_t.twist.twist.linear.z);
+
+    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec_.head(3);
+    p_pose_.head(3) += step_t;
+
+    // Rotation matrix
+    Eigen::AngleAxisf rollAngle_p(p_pose_(3), Eigen::Vector3f::UnitX());
+    Eigen::AngleAxisf pitchAngle_p(p_pose_(4), Eigen::Vector3f::UnitY());
+    Eigen::AngleAxisf yawAngle_p(p_pose_(5), Eigen::Vector3f::UnitZ());
+    Eigen::Quaternion<float> q_p = rollAngle_p * pitchAngle_p * yawAngle_p;
+    Eigen::Matrix3f rotMat_p = q_p.matrix();
+
+    // Particle pose in homogenous coordinates
+    Eigen::Matrix4f t_p = Eigen::Matrix4f::Identity();
+    t_p.topLeftCorner(3, 3) = rotMat_p;
+    t_p.block(0, 3, 3, 1) = p_pose_.head(3);
+    Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
+
+    std::lock_guard<std::mutex> lock(*pc_mutex_);
+    pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
+    rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
 }
 
 void RbpfParticle::get_p_mbes_pose()
@@ -109,7 +174,7 @@ void RbpfParticle::get_p_mbes_pose()
 
 void RbpfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes)
 {
-    // Compare only absolute z values of real and expected measurements 
+    // Compare only absolute z values of real and expected measurements
     // vector<float> exp_mbes_z = list2ranges(exp_mbes);
 
     if (exp_mbes.size() > 0)
@@ -134,7 +199,7 @@ double RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorX
             ROS_WARN("Nan weights!");
         }
     }
-    
+
     else
     {
         ROS_WARN("Missing pings!");
@@ -145,7 +210,7 @@ double RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorX
 }
 
 // TODO: if we don't use covs from the GP maps, define sigma.inverse() in the class constructor
-float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma) 
+float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& sigma)
 {
     float quadform  = (x - mean).transpose() * sigma.inverse() * (x - mean);
     float norm = 1.0 / std::sqrt((2*M_PI*sigma).determinant());
@@ -153,7 +218,7 @@ float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& 
     return norm * exp(-0.5 * quadform);
 }
 
-double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean, 
+double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean,
                             Eigen::VectorXd &gp_sigmas, double &mbes_sigma)
 {
     // double n = double(x.cols());
@@ -189,7 +254,7 @@ float angle_limit(float angle) // keep angle within [0;2*pi]
 
 sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f> mbes)
 {
-    sensor_msgs::PointCloud2 mbes_pcloud; 
+    sensor_msgs::PointCloud2 mbes_pcloud;
     PCloud::Ptr pcl_pcloud(new PCloud);
     pcl_pcloud->header.frame_id = frame;
     // pcl_pcloud->height = pcl_pcloud->width = 1;
@@ -199,7 +264,7 @@ sensor_msgs::PointCloud2 pack_cloud(string frame, std::vector<Eigen::RowVector3f
     }
 
     pcl::toROSMsg(*pcl_pcloud.get(), mbes_pcloud);
-    
+
     return mbes_pcloud;
 }
 
@@ -269,14 +334,14 @@ void eigenToPointcloud2msg(sensor_msgs::PointCloud2 &cloud, Eigen::MatrixXf &mat
     }
 }
 
-// A function to generate numpy linspace 
+// A function to generate numpy linspace
 std::vector<int> linspace(float start, float end, float num)
 {
     std::vector<int> linspaced;
 
     if (0 != num)
     {
-        if (1 == num) 
+        if (1 == num)
         {
             linspaced.push_back(static_cast<int>(start));
         }

@@ -102,7 +102,7 @@ void RbpfParticle::update_pose_history()
     t_p.block(0,3,3,1) = p_pose_.head(3);
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
 
-    std::lock_guard<std::mutex> lock(*pc_mutex_);
+    // std::lock_guard<std::mutex> lock(*pc_mutex_);
     pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
     rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
 }

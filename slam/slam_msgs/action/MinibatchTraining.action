@@ -1,9 +1,10 @@
 #goal definition
-bool plot
-sensor_msgs/PointCloud2 pings
+int32 particle_id 
+int32 mb_size
 ---
 #result definition
 bool success
+sensor_msgs/PointCloud2 minibatch
 ---
 #feedback (not used)
 # std_msgs/bool feedback

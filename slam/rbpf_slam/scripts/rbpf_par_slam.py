@@ -11,15 +11,13 @@ import random
 import sys
 import numpy as np
 import tf2_ros
-from scipy.spatial.transform import Rotation as rot
-from scipy.ndimage import gaussian_filter1d
 
 from geometry_msgs.msg import Pose, PoseArray, PoseWithCovarianceStamped
 from geometry_msgs.msg import Transform, Quaternion
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Float32, Header, Bool, Float32MultiArray, ByteMultiArray
+from std_msgs.msg import Bool, Float32, Int32, Int32MultiArray
+from nav_msgs.msg import Path
 from std_srvs.srv import Empty
-from rospy_tutorials.msg import Floats
 from rospy.numpy_msg import numpy_msg
 
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
@@ -29,27 +27,16 @@ from tf.transformations import rotation_matrix, rotation_from_matrix
 
 from sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
-from cv_bridge import CvBridge
 
 # For sim mbes action client
 import actionlib
-from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
+# from auv_2_ros.msg import MbesSimGoal, MbesSimAction, MbesSimResult
 from rbpf_particle import Particle, matrix_from_tf, pcloud2ranges, pack_cloud, pcloud2ranges_full, matrix_from_pose
 from resampling import residual_resample, naive_resample, systematic_resample, stratified_resample
 
-# Auvlib
-from auvlib.bathy_maps import base_draper
-from auvlib.data_tools import csv_data
+from scipy.spatial.transform import Rotation as rot
 
-from scipy.ndimage.filters import gaussian_filter
-
-# gpytorch
-
-from rospy.numpy_msg import numpy_msg
-
-# For large numbers 
-from mpmath import mpf
-
+from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult
 from slam_msgs.msg import PlotPosteriorGoal, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorGoal, SamplePosteriorAction
 
@@ -72,9 +59,8 @@ class rbpf_slam(object):
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.beams_num = rospy.get_param("~num_beams_sim", 20)
         self.beams_real = rospy.get_param("~n_beams_mbes", 512)
-        self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
-        self.storage_path = rospy.get_param("~result_path")
-
+        # self.mbes_angle = rospy.get_param("~mbes_open_angle", np.pi/180. * 60.)
+        # self.storage_path = rospy.get_param("~result_path")
 
         # Initialize tf listener
         tfBuffer = tf2_ros.Buffer()
@@ -82,23 +68,9 @@ class rbpf_slam(object):
         
         # Read covariance values
         meas_std = float(rospy.get_param('~measurement_std', 0.01))
-        cov_string = rospy.get_param('~motion_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        motion_cov = list(map(float, cov_list))
-
-        cov_string = rospy.get_param('~init_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        init_cov = list(map(float, cov_list))
-
-        cov_string = rospy.get_param('~resampling_noise_covariance')
-        cov_string = cov_string.replace('[','')
-        cov_string = cov_string.replace(']','')
-        cov_list = list(cov_string.split(", "))
-        self.res_noise_cov = list(map(float, cov_list))
+        motion_cov = rospy.get_param('~motion_covariance')
+        init_cov = rospy.get_param('~init_covariance')
+        self.res_noise_cov = rospy.get_param('~resampling_noise_covariance')
 
         # Global variables
         self.pred_odom = None
@@ -115,20 +87,19 @@ class rbpf_slam(object):
         self.targets = np.zeros((1,))
         self.firstFit = True
         self.one_time = True
-        self.time2resample = False
         self.count_training = 0
         self.pw = [1.e-50] * self.pc # Start with almost zero weight
         # for ancestry tree
         self.observations = np.zeros((1,3)) 
         self.mapping= np.zeros((1,3)) 
-        self.p_ID = 0
+        # self.p_ID = 0
         self.tree_list = []
         self.time4regression = False
         self.n_from = 1
-        self.ctr = 0
+        # self.ctr = 0
 
         # Nacho
-        self.pings_since_training = 0
+        # self.pings_since_training = 0
         self.map_updates = 0
 
         # Initialize particle poses publisher
@@ -144,9 +115,9 @@ class rbpf_slam(object):
         self.pf_mbes_pub = rospy.Publisher(pf_mbes_top, PointCloud2, queue_size=1)
 
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
-        self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
+        self.stats = rospy.Publisher(stats_top, numpy_msg(Float32), queue_size=10)
 
-        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')     
+        # self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
@@ -163,24 +134,6 @@ class rbpf_slam(object):
         # Establish subscription to odometry message (intentionally last)
         odom_top = rospy.get_param("~odometry_topic", 'odom')
         rospy.Subscriber(odom_top, Odometry, self.odom_callback, queue_size=100)
-
-        # Create expected MBES beams directions
-        angle_step = self.mbes_angle/self.beams_num
-        self.beams_dir = []
-        for i in range(0, self.beams_num):
-            roll_step = rotation_matrix(-self.mbes_angle/2.
-                                        + angle_step * i, (1,0,0))[0:3, 0:3]
-            rot = roll_step[:,2]
-            self.beams_dir.append(rot/np.linalg.norm(rot))
-        
-        # Shift for fast ray tracing in 2D
-        beams = np.asarray(self.beams_dir)
-        n_beams = len(self.beams_dir)
-        self.beams_dir_2d = np.concatenate((beams[:,0].reshape(n_beams,1), 
-                                            np.roll(beams[:, 1:3], 1, 
-                                                    axis=1).reshape(n_beams,2)), axis=1)
-
-        self.beams_dir_2d = np.array([1,-1,1])*self.beams_dir_2d
 
         # Timer for end of mission: finish when no more odom is being received
         self.mission_finished = False
@@ -210,15 +163,15 @@ class rbpf_slam(object):
             self.particles[i] = Particle(self.beams_num, self.pc, i, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=init_cov, meas_std=meas_std,
                                          process_cov=motion_cov)
-            self.particles[i].ID = self.p_ID
-            self.p_ID += 1
+            # self.particles[i].ID = self.p_ID
+            # self.p_ID += 1
         
         # Create one particle on top of vehicle for tests with very few
         self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                          process_cov=[0.]*6)
-        self.particles[i+1].ID = self.p_ID
-        self.p_ID += 1
+        # self.particles[i+1].ID = self.p_ID
+        # self.p_ID += 1
         
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.finished_sub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
@@ -249,6 +202,46 @@ class rbpf_slam(object):
         synch_top = rospy.get_param("~synch_topic", '/pf_synch')
         self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
 
+        # Service for sending minibatches of beams to the SVGP particles
+        mb_gp_name = rospy.get_param("~minibatch_gp_server")
+        self._as_mb = actionlib.SimpleActionServer(mb_gp_name, MinibatchTrainingAction, 
+                                                     execute_cb=self.mb_cb, auto_start = False)
+        self._as_mb.start()
+
+        # The mission waypoints as a path
+        self.path_topic = rospy.get_param('~path_topic')
+        rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
+
+        # Publisher for inducing points to SVGP maps
+        ip_top = rospy.get_param("~inducing_points_top")
+        self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=1)
+        self.start_training = False
+
+        # Publisher for particles indexes to be resamples
+        p_resampling_top = rospy.get_param('~gp_resampling_top')
+        self.p_resampling_pubs = []
+        for i in range(0, self.pc):
+            self.p_resampling_pubs.append(rospy.Publisher(
+                p_resampling_top + "/particle_" + str(i), Int32, queue_size=10))
+
+        # Action clients to plot posteriors
+        self.p_plot_acs = []
+        for i in range(0, self.pc):
+            ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server,
+                                                   PlotPosteriorAction)
+            ac_plot.wait_for_server()
+            self.p_plot_acs.append(ac_plot)
+
+        # Action clients for sampling the GP posteriors
+        self.p_sample_acs = []
+        for i in range(0, self.pc):
+            ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server,
+                                                     SamplePosteriorAction)
+            ac_sample.wait_for_server()
+            self.p_sample_acs.append(ac_sample)
+
+        self.mb_cb_cnt = 0
+
         rospy.spin()
 
     def empty_srv(self, req):
@@ -257,6 +250,24 @@ class rbpf_slam(object):
 
     def manual_lc(self, lc_msg):
         self.lc_detected = True
+
+    def path_cb(self, wp_path):
+        if not wp_path.poses:
+            print("Empty mission received")
+        
+        elif not self.start_training:
+            i_points = []
+            for wp in wp_path.poses:
+                i_points.append(np.array([wp.pose.position.x, wp.pose.position.y, 0]))
+
+            i_points = np.asarray(i_points)
+            i_points = np.reshape(i_points, (-1,3))   
+                
+            # Send inducing points to GP particle servers
+            ip_pcloud = pack_cloud(self.map_frame, i_points)
+            print("Sending inducing points")
+            self.ip_pub.publish(ip_pcloud)
+            self.start_training = True
 
     # def mission_finished_cb(self, event):
     #     if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
@@ -286,27 +297,21 @@ class rbpf_slam(object):
             
             # Store latest mbes msg for timing
             self.latest_mbes = msg
-
             self.count_pings += 1
-            for i in range(self.pc):
-                self.particles[i].ctr += 1
-
-            self.pings_since_training += 1
 
     def rbpf_update(self, event):
         if not self.mission_finished:
             if self.latest_mbes.header.stamp > self.prev_mbes.header.stamp:    
             # Measurement update if new one received
-                self.update_maps(self.latest_mbes, self.odom_latest)
+                # self.update_maps(self.latest_mbes, self.odom_latest)
                 self.prev_mbes = self.latest_mbes
 
                 # If potential LC detected
-                if(self.lc_detected ):
+                if(self.start_training):
                     # Recompute weights
                     weights = self.update_particles_weights(self.latest_mbes, self.odom_latest)
                     # Particle resampling
                     self.resample(weights)
-                    self.lc_detected = False
 
 
     def odom_callback(self, odom_msg):
@@ -329,45 +334,26 @@ class rbpf_slam(object):
         print("------ Plot final maps --------")
         R = self.base2mbes_mat.transpose()[0:3,0:3]
 
-        # For sequential plotting on this node
-        # Wait until GP training is done to not overload GPU. 
-        # while not rospy.is_shutdown() and self.pings_since_training != 0:
-        #     rospy.loginfo("Waiting to finish GP training")
-        #     rospy.Rate(1.).sleep()
-
-        for i in range(0, self.pc):
-            # For parallel plotting on secondary node 
-            # ac_plot = actionlib.SimpleActionClient("/particle_" + str(i) + self.plot_gp_server, 
-            #                                         PlotPosteriorAction)
-            # ac_plot.wait_for_server()
-
+        # Action client per SVGP to request plotting of posterior 
+        for i in range(0, self.pc):    
             part_ping_map = []
             for j in range(0, len(self.mbes_history)): 
                 # For particle i, get all its trajectory in the map frame
                 p_part, r_mbes = self.particles[i].pose_history[j]
-                r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-
-                part_i_ping_map = np.dot(r_base, self.mbes_history[j].T)
+                # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+                part_i_ping_map = np.dot(r_mbes, self.mbes_history[j].T)
                 part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
+
             # As array
             pings_i = np.asarray(part_ping_map)
             pings_i = np.reshape(pings_i, (-1,3))   
-
-            # For sequential plotting on this node
-            self.particles[i].gp.plot(pings_i[:, 0:2], pings_i[:, 2],
-                self.storage_path + 'particle_' + str(i) 
-                + '_training_' + str(self.count_training) + '.png',
-                n=100, n_contours=100 )        
-                
+               
             # For parallel plotting on secondary node 
             # Send to GP particle server
-            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            # goal = PlotPosteriorGoal(mbes_pcloud)
-            # ac_plot.send_goal(goal)
-            # ac_plot.wait_for_result()
-
-            print("GP ", i, " posterior plotted ")
-
+            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            goal = PlotPosteriorGoal(mbes_pcloud)
+            self.p_plot_acs[i].send_goal(goal)
+            self.p_plot_acs[i].wait_for_result()
 
     def predict(self, odom_t):
         dt = self.time - self.old_time
@@ -393,44 +379,35 @@ class rbpf_slam(object):
         latest_mbes_z = latest_mbes[:,2] + self.m2o_mat[2,3] + odom.pose.pose.position.z
 
         # Calculate expected meas from the particles GP
-        R = self.base2mbes_mat.transpose()[0:3,0:3]
         for i in range(0, self.pc):
-            # AS for particle i
-            # ac_sample = actionlib.SimpleActionClient("/particle_" + str(i) + self.sample_gp_server, 
-            #                                         SamplePosteriorAction)
-            # ac_sample.wait_for_server()
-
             # Convert ping from particle MBES to map frame
             p_part, r_mbes = self.particles[i].pose_history[-1]
-            r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
-            latest_mbes_map = np.dot(r_base, latest_mbes.T)
+            # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+            latest_mbes_map = np.dot(r_mbes, latest_mbes.T)
             latest_mbes_map = np.add(latest_mbes_map.T, p_part)
 
             # As array
             beams_i = np.asarray(latest_mbes_map)
             beams_i = np.reshape(beams_i, (-1,3))         
-            mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
-            
             mbes_pcloud = pack_cloud(self.map_frame, beams_i)
-            goal = SamplePosteriorGoal(mbes_pcloud)
-
-            # Send to as and wait
-            # ac_sample.send_goal(goal)
-            # ac_sample.wait_for_result()
-            # result = ac_sample.get_result()  
-            ## Sample GP with the ping in map frame
-            # mu, sigma = result.mu, result.sigma
-
+            # mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
             
-            mu_array = np.array([mu])
+            # Send to as and wait
+            goal = SamplePosteriorGoal(mbes_pcloud)
+            self.p_sample_acs[i].send_goal(goal)
+            self.p_sample_acs[i].wait_for_result()
+            result = self.p_sample_acs[i].get_result()
 
-            # TODO: use the sigmas from the GP on the weight calculation
+            # Sample GP with the ping in map frame
+            mu, sigma = result.mu, result.sigma
+            mu_array = np.array([mu])
             sigma_array = np.array([sigma])
 
             # Concatenate sampling points x,y with sampled z
             exp_mbes = np.concatenate((np.asarray(latest_mbes_map)[:, 0:2], mu_array.T), axis=1)
 
             # Compute particles weight
+            self.particles[i].exp_meas_cov = np.diag(sigma_array)
             self.particles[i].compute_weight(exp_mbes, latest_mbes_z)
         
         weights = []
@@ -442,62 +419,167 @@ class rbpf_slam(object):
         weights_array = np.asarray(weights)
         # Add small non-zero value to avoid hitting zero
         weights_array += 1.e-200
+
         return weights_array
 
 
-    def update_maps(self, real_mbes, odom):
+    def mb_cb(self, goal):
 
-        # To transform from base to mbes
-        R = self.base2mbes_mat.transpose()[0:3,0:3]
-        
-        # If time to retrain GP map
-        if self.pings_since_training > 50:
-            self.map_updates += 1
-            for i in range(0, self.pc):  
-                print(i)         
-                # Transform each MBES ping in vehicle frame to the particle trajectory 
-                # (result in map frame)
-                start_time = time.time()
-                print("Pings total ", len(self.mbes_history))
-                part_ping_map = []
-                for j in range(0, len(self.mbes_history)): 
-                    # For particle i, get all its trajectory in the map frame
-                    p_part, r_mbes = self.particles[i].pose_history[j]
-                    r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+        time_start = time.time()
+        pc_id = goal.particle_id
 
-                    part_i_ping_map = np.dot(r_base, self.mbes_history[j].T)
-                    part_ping_map.append(np.add(part_i_ping_map.T, p_part)) 
-                # As array
-                pings_i = np.asarray(part_ping_map)
-                pings_i = np.reshape(pings_i, (-1,3))     
-                # print(pings_i)       
-                    
-                # Publish (for visualization)
-                mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+        # Randomly pick mb_size/beams_per_ping pings 
+        mb_size = goal.mb_size
 
-                self.pcloud_pub = rospy.Publisher("/particle_" + str(i) + self.mbes_pc_top, PointCloud2, queue_size=10)
-                self.pcloud_pub.publish(mbes_pcloud)
+        # If enough beams collected to start minibatch training
+        if len(self.mbes_history) > mb_size/20:
+            idx = np.random.choice(range(0, len(self.mbes_history)-1),
+                                   int(mb_size/20), replace=False)
 
-                # Retrain the particle's GP
-                # print("Training GP ", i)
-                # n_samples = a fourth of the total number of beams
-                self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 100, 
-                                         max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                                         n_window=100, auto=False, verbose=False)
-                # Plot posterior
-                # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
-                #                           self.storage_path + 'gp_result/' + 'particle_' + str(i) 
-                #                           + '_training_' + str(self.count_training) + '.png',
-                #                           n=100, n_contours=100 )
+            # To transform from base to mbes
+            # R = self.base2mbes_mat.transpose()[0:3,0:3]
+            
+            # If time to retrain GP map
+            # Transform each MBES ping in vehicle frame to the particle trajectory 
+            # (result in map frame)
+            # start_time = time.time()
+            part_ping_map = []
+            for j in idx: 
+                # For particle i, get all its trajectory in the map frame
+                p_part, r_mbes = self.particles[pc_id].pose_history[j]
+
+                # r_base = r_mbes.dot(R) # The GP sampling uses the base_link orientation 
+
+                part_i_ping_map = np.dot(r_mbes, self.mbes_history[j].T)
+                part_i_ping_map = np.add(part_i_ping_map.T, p_part)
                 
-                # print("GP trained ", i)
-                print("--- %s seconds ---" % (time.time() - start_time))  
+                idx = np.random.choice(range(0, len(part_i_ping_map)),
+                                   int(20), replace=False)
+                part_ping_map.append(part_i_ping_map[idx]) 
 
-            # Reset pings for training
-            self.count_training += 1
-            self.pings_since_training = 0
+            # As array
+            pings_i = np.asarray(part_ping_map)
+            pings_i = np.reshape(pings_i, (-1,3))  
+                
+            # Set action as success
+            mbes_pcloud = pack_cloud(self.map_frame, pings_i)
+            result = MinibatchTrainingResult()
+            result.minibatch = mbes_pcloud
+            result.success = True
+            self._as_mb.set_succeeded(result)
+            self.mb_cb_cnt += 1
+            print("CB time ", (time.time() - time_start)/self.mb_cb_cnt)
+            print("CB iterations ", self.mb_cb_cnt)
+
+            # print("GP served ", pc_id)
+
+            # print("GP trained ", i)
+            # print("--- %s seconds ---" % (time.time() - start_time))  
+
+        # If not enough beams collected to start the minibatch training
+        else:
+            result = MinibatchTrainingResult()
+            result.success = False
+            self._as_mb.set_succeeded(result)
 
    
+
+    def resample(self, weights):
+        print("Resampling")
+        # Normalize weights
+        weights /= weights.sum()
+        N_eff = self.pc
+
+        if weights.sum() == 0.:
+            rospy.loginfo("All weights zero!")
+        else:
+            N_eff = 1/np.sum(np.square(weights))
+
+        self.n_eff_mask.pop(0)
+        self.n_eff_mask.append(N_eff)
+        self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
+        # print ("N_eff ", N_eff)
+        # print('n_eff_filt ', self.n_eff_filt)
+        # print ("Missed meas ", self.miss_meas)
+                
+        # Resampling?
+        # if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/2.:
+        print('n_eff ', N_eff)
+        print("Weights ", weights)
+        print ("Missed meas ", self.miss_meas)
+        self.lc_detected = False
+
+        if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/4.:
+            # self.ctr = 0
+            
+            # Resample particles
+            indices = systematic_resample(weights)
+            keep = list(set(indices))
+            lost = [i for i in range(self.pc) if i not in keep]
+            dupes = indices[:].tolist()
+            for i in keep:
+                dupes.remove(i)
+            self.reassign_poses(lost, dupes)
+            print ("Resampling indices: ", indices)
+            
+            # Add noise to particles
+            for i in range(self.pc):
+                self.particles[i].add_noise(self.res_noise_cov)
+            
+            # Reassign SVGP maps: send winning indexes to SVGP nodes
+            print("Keep ", keep)
+            print("Dupes ", dupes)
+            print("Lost ", lost)
+
+            if dupes:
+                for k in keep:
+                    self.p_resampling_pubs[k].publish(Int32(k))
+                rospy.sleep(0.005)
+
+                i = 0
+                for l in lost:
+                    self.p_resampling_pubs[l].publish(Int32(dupes[i]))
+                    rospy.sleep(0.1)
+                    i += 1
+
+
+    def reassign_poses(self, lost, dupes):
+        for i in range(len(lost)):
+            self.particles[lost[i]].p_pose = self.particles[dupes[i]].p_pose.copy()
+            self.particles[lost[i]].pose_history = self.particles[dupes[i]].pose_history.copy()
+    
+    def average_pose(self, pose_list):
+        poses_array = np.array(pose_list)
+        ave_pose = poses_array.mean(axis = 0)
+        self.avg_pose.pose.pose.position.x = ave_pose[0]
+        self.avg_pose.pose.pose.position.y = ave_pose[1]
+        self.avg_pose.pose.pose.position.z = ave_pose[2]
+        roll  = ave_pose[3]
+        pitch = ave_pose[4]
+
+        # Wrap up yaw between -pi and pi        
+        poses_array[:,5] = [(yaw + np.pi) % (2 * np.pi) - np.pi 
+                             for yaw in  poses_array[:,5]]
+        yaw = np.mean(poses_array[:,5])
+        
+        self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll,
+                                                                                pitch,
+                                                                                yaw))
+        self.avg_pose.header.stamp = rospy.Time.now()
+        self.avg_pub.publish(self.avg_pose)
+        
+        # Calculate covariance
+        self.cov = np.zeros((3, 3))
+        for i in range(self.pc):
+            dx = (poses_array[i, 0:3] - ave_pose[0:3])
+            self.cov += np.diag(dx*dx.T) 
+            self.cov[0,1] += dx[0]*dx[1] 
+            self.cov[0,2] += dx[0]*dx[2] 
+            self.cov[1,2] += dx[1]*dx[2] 
+        self.cov /= self.pc
+
+        # TODO: exp meas from average pose of the PF, for change detection
+
     def publish_stats(self, gt_odom):
         # Send statistics for visualization
         p_odom = self.dr_particle.p_pose
@@ -535,84 +617,6 @@ class rbpf_slam(object):
         ret = np.cumsum(a, dtype=float)
         ret[n:] = ret[n:] - ret[:-n]
         return ret[n - 1:] / n
-
-    def resample(self, weights):
-        # Normalize weights
-        weights /= weights.sum()
-        N_eff = self.pc
-
-        if weights.sum() == 0.:
-            rospy.loginfo("All weights zero!")
-        else:
-            N_eff = 1/np.sum(np.square(weights))
-
-        self.n_eff_mask.pop(0)
-        self.n_eff_mask.append(N_eff)
-        self.n_eff_filt = self.moving_average(self.n_eff_mask, 3) 
-        # print ("N_eff ", N_eff)
-        # print('n_eff_filt ', self.n_eff_filt)
-        # print ("Missed meas ", self.miss_meas)
-                
-        # Resampling?
-        # if self.n_eff_filt < self.pc/2. and self.miss_meas <= self.pc/2.:
-        print('n_eff ', N_eff)
-        print("Weights ")
-        print(weights)
-        if N_eff < self.pc/2. and self.miss_meas <= self.pc/2.:
-            self.time2resample = False
-            self.ctr = 0
-            rospy.loginfo('resampling')
-            print ("Missed meas ", self.miss_meas)
-            indices = residual_resample(weights)
-            keep = list(set(indices))
-            lost = [i for i in range(self.pc) if i not in keep]
-            dupes = indices[:].tolist()
-            for i in keep:
-                dupes.remove(i)
-
-            self.reassign_poses(lost, dupes)
-            
-            # Add noise to particles
-            # for i in range(self.pc):
-            #     self.particles[i].add_noise(self.res_noise_cov)
-
-    def reassign_poses(self, lost, dupes):
-        for i in range(len(lost)):
-            # Faster to do separately than using deepcopy()
-            self.particles[lost[i]].p_pose = self.particles[dupes[i]].p_pose
-    
-    def average_pose(self, pose_list):
-        poses_array = np.array(pose_list)
-        ave_pose = poses_array.mean(axis = 0)
-        self.avg_pose.pose.pose.position.x = ave_pose[0]
-        self.avg_pose.pose.pose.position.y = ave_pose[1]
-        self.avg_pose.pose.pose.position.z = ave_pose[2]
-        roll  = ave_pose[3]
-        pitch = ave_pose[4]
-
-        # Wrap up yaw between -pi and pi        
-        poses_array[:,5] = [(yaw + np.pi) % (2 * np.pi) - np.pi 
-                             for yaw in  poses_array[:,5]]
-        yaw = np.mean(poses_array[:,5])
-        
-        self.avg_pose.pose.pose.orientation = Quaternion(*quaternion_from_euler(roll,
-                                                                                pitch,
-                                                                                yaw))
-        self.avg_pose.header.stamp = rospy.Time.now()
-        self.avg_pub.publish(self.avg_pose)
-        
-        # Calculate covariance
-        self.cov = np.zeros((3, 3))
-        for i in range(self.pc):
-            dx = (poses_array[i, 0:3] - ave_pose[0:3])
-            self.cov += np.diag(dx*dx.T) 
-            self.cov[0,1] += dx[0]*dx[1] 
-            self.cov[0,2] += dx[0]*dx[2] 
-            self.cov[1,2] += dx[1]*dx[2] 
-        self.cov /= self.pc
-
-        # TODO: exp meas from average pose of the PF, for change detection
-
 
     # TODO: publish markers instead of poses
     #       Optimize this function

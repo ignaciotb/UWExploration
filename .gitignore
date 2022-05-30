@@ -35,3 +35,6 @@ install/*
 
 *.code*
 .vscode/*
+
+# Datasets
+datasets/

@@ -2,6 +2,7 @@
 sensor_msgs/PointCloud2 ping
 ---
 #result definition
+int32 p_id
 float64[] mu
 float64[] sigma
 ---

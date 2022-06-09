@@ -63,6 +63,8 @@
 #include <iterator>
 #include <random>
 #include <vector>
+#include <future>
+
 
 using namespace std;
 using std::chrono::duration;
@@ -103,7 +105,8 @@ private:
 
 
     tf::TransformListener tfListener_;
-
+    tf2_ros::Buffer tf_buffer_;
+    
     bool lc_detected_;
     bool start_training_;
     double time_avg_;

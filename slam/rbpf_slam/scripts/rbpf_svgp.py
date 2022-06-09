@@ -19,6 +19,7 @@ from sensor_msgs.msg import PointCloud2
 import sensor_msgs.point_cloud2 as pc2
 from rospy.numpy_msg import numpy_msg
 from std_msgs.msg import Float32, Int32MultiArray
+from geometry_msgs.msg import PointStamped
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
@@ -32,6 +33,8 @@ import numpy as np
 import warnings
 import os
 import time
+import tf
+from tf.transformations import quaternion_matrix
 from pathlib import Path
 import ast
 import copy
@@ -146,6 +149,18 @@ class SVGP_map():
         self.loss = list()
         self.iterations = 0
 
+        self.listener = tf.TransformListener()
+        try:
+            self.listener.waitForTransform("utm", "map", rospy.Time(0), rospy.Duration(60.))
+            (trans, rot) = self.listener.lookupTransform(
+                "utm", "map", rospy.Time(0))
+            self.trans = np.array(trans)
+            self.rot = quaternion_matrix(
+                (rot[0], rot[1], rot[2], rot[3]))[0:3, 0:3]
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logwarn("Couldn't lock utm to map tf")
+            return
+
         print("Particle ", self.particle_id, " set up")
         # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
         # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
@@ -240,13 +255,16 @@ class SVGP_map():
         if not self.inducing_points_received:
             # Store beams as array of 3D points
             wp_locations = []
-            for p in pc2.read_points(ip_cloud, 
+            for p_utm in pc2.read_points(ip_cloud, 
                                     field_names = ("x", "y", "z"), skip_nans=True):
-                wp_locations.append(p)
+                p_map = np.dot(self.rot, p_utm)
+                p_map = np.add(p_map, -self.trans)
+                wp_locations.append((p_map[0], p_map[1], p_map[2]))
+                
             wp_locations = np.asarray(wp_locations)
             wp_locations = np.reshape(wp_locations, (-1,3))
-            wp_locations[0, 2] = 1.
-            wp_locations[-1, 2] = -1.
+            wp_locations[0, 2] += 1.
+            wp_locations[-1, 2] += -1.
 
             # Distribute IPs evenly over irregular-shaped target area
             pcd = o3d.geometry.PointCloud()

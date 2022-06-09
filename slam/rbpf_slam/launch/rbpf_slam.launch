@@ -9,9 +9,8 @@
 	<arg name="app" default="rbpf"/>
   <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
 
-  <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	
-	<arg name="mbes_open_angle" value="1.050" /> 
+  <!-- Num of beams per MBES pings to store in the log -->
+	<arg name="n_beams_mbes" default="100"/>	
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<arg name="x" default="-300.0"/>
@@ -34,12 +33,13 @@
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="5" />
+  <arg name="rbpf_period"   default="10" />
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
-  <arg name="odometry_topic"                    default="/lolo/dr/odom"/>
-  <arg name="mbes_pings_topic"                  default="/lolo/mbes/enu/bathy_points"/>
+  <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/>
+  <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/>
+  <!-- <arg name="mbes_pings_topic"                  default="/lolo/mbes/odom/bathy_points"/> -->
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg namespace)/$(arg app)/sim_mbes"/>
@@ -51,18 +51,23 @@
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>
 
-  <node type="static_transform_publisher" pkg="tf" name="tf_utm_to_map" args="0 0 0 0 0 0 utm map 10"/>
-  <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/>
+  <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen"/>
+  <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>
 
-  <include file="$(find lolo_description)/launch/lolo_description.launch" />
+  <!-- <node type="static_transform_publisher" pkg="tf" name="tf_utm_to_map" args="0 0 0 0 0 0 utm map 10"/>
+  <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/> -->
+  <!-- <include file="$(find lolo_description)/launch/lolo_description.launch" /> -->
+
+  <param name="robot_description"
+           command="$(find xacro)/xacro '$(find lolo_description)/urdf/lolo_auv.urdf.xacro' robot_namespace:=$(arg namespace)" />
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <!-- [x, y, z, roll, pitch, yaw] -->
-        <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000001]</rosparam>
+        <rosparam param="init_covariance">[2., 2., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000]</rosparam>
         <rosparam param="resampling_noise_covariance">[5.0, 5.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="0.2" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
@@ -104,6 +109,7 @@
    </node> -->
 
     <!-- UW environment -->
+  	<!-- <arg name="mbes_open_angle" value="1.050" />  -->
     <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
       <arg name="mode" value="$(arg mode)"/>
       <arg name="namespace" value="$(arg namespace)"/>

@@ -4,9 +4,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
-    // nh_->param<int>(("num_beams_sim"), beams_num_, 20);
     nh_->param<int>(("n_beams_mbes"), beams_real_, 512);
-    nh_->param<float>(("mbes_open_angle"), mbes_angle_, M_PI / 180. * 60.);
     nh_->param<string>(("map_frame"), map_frame_, "map");
     nh_->param<string>(("mbes_link"), mbes_frame_, "mbes_link");
     nh_->param<string>(("base_link"), base_frame_, "base_link");
@@ -58,9 +56,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
         tf::StampedTransform mbes_tf;
         tf::StampedTransform m2o_tf;
-        tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(30.0));
+        tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(60.0));
         tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf);
-        tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(30.0));
+        tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(60.0));
         tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf);
 
         pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat_);
@@ -186,10 +184,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     init_p_pose_(5)= yaw_o2b;
 
     // Create one particle on top of the GT vehicle pose. Only for testing
-    particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
+    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
     // Create particles
-    for (int i=1; i<pc_; i++){
+    for (int i=0; i<pc_; i++){
         particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                             init_cov_, meas_std_, motion_cov_));
     }
@@ -233,10 +231,10 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
             ip_pcloud = pack_cloud(map_frame_, i_points);
             start_training_ = true; // We can start to check for loop closures
             ip_pub_.publish(ip_pcloud);
+            // This service will start the auv simulation or auv_2_ros nodes to start the mission
+            nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+            srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
         }
-        // This service will start the auv simulation or auv_2_ros nodes to start the mission
-        nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
-        srv_server_ = nh_->advertiseService(synch_top_, &RbpfSlam::empty_srv, this);
     }
     else{
         ROS_WARN("Received empty mission");
@@ -264,16 +262,30 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
     if (mission_finished_ != true && start_training_)
     {
-        // Beams in vehicle mbes frame
-        // Store in pings history
-        // auto t1 = high_resolution_clock::now();
-        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
+        if (time_ > old_time_)
+        {
+            // Beams in vehicle mbes frame
+            // Store in pings history
+            // auto t1 = high_resolution_clock::now();
+            mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
 
-        // Store latest mbes msg for timing
-        latest_mbes_ = *msg;
+            // Store latest mbes msg for timing
+            latest_mbes_ = *msg;
 
-        pings_idx_.push_back(count_pings_);
-        count_pings_ += 1;
+            pings_idx_.push_back(count_pings_);
+            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+            count_pings_ += 1;
+
+            // Motion prediction
+            // Added in the MBES CB to synch the DR steps with the pings log
+            nav_msgs::Odometry odom_cp = odom_latest_; // local copy
+            float dt = float(time_ - old_time_);
+            this->predict(odom_cp, dt);
+        }
+
+        old_time_ = time_;
+        // Update stats and visual
+        publish_stats(odom_latest_);
     }
 }
 
@@ -296,19 +308,19 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     time_ = odom_msg->header.stamp.toSec();
     odom_latest_ = *odom_msg;
 
-    // Flag to finish the mission
-    if(mission_finished_ != true && start_training_)
-    {
-        // Motion prediction
-        if (time_ > old_time_)
-        {
-            this->predict(*odom_msg);
-        }
-    }
+    // // Flag to finish the mission
+    // if(mission_finished_ != true && start_training_)
+    // {
+    //     // Motion prediction
+    //     if (time_ > old_time_)
+    //     {
+    //         this->predict(*odom_msg);
+    //     }
+    // }
 
-    old_time_ = time_;
-    // Update stats and visual
-    publish_stats(*odom_msg);
+    // old_time_ = time_;
+    // // Update stats and visual
+    // publish_stats(*odom_msg);
     // update_rviz();
 }
 
@@ -320,7 +332,7 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     int mb_size = goal->mb_size;
 
     std::mt19937 g(rd_());
-    int beams_per_ping = 20;
+    int beams_per_ping = 10;
     Eigen::MatrixXf mb_mat(mb_size, 3);
     slam_msgs::MinibatchTrainingResult result;
     Eigen::Vector3f pos_i;
@@ -336,7 +348,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         {
             ping_i = pings_idx_.at(i);
             // Avoid using the latest ping since some particle might not have updated their pose histories
-            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
             // std::cout << "Current ping " << ping_i << std::endl;
             if(ping_i == pings_idx_.size()-1){
                 ping_i = pings_idx_.size() - 3;
@@ -462,15 +473,24 @@ void RbpfSlam::save_gp_maps(const bool plot)
             }
             // Transform x random beams to particle pose in map frame
             {
-                // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
-                pos_i = particles_.at(p).pos_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-                rot_i = particles_.at(p).rot_history_.at(index)->at(ping_i - ancestry_sizes_.at(index));
-            }
-
-            // TODO: get rid of loop with colwise operations on mbes_history
-            for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
-            {
-                mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
+                std::lock_guard<std::mutex> lock(*particles_.at(p).pc_mutex_);
+                int idx_ping = ping_i - ancestry_sizes_.at(index);
+                if (idx_ping < particles_.at(p).pos_history_.at(index)->size())
+                {
+                    pos_i = particles_.at(p).pos_history_.at(index)->at(idx_ping);
+                    rot_i = particles_.at(p).rot_history_.at(index)->at(idx_ping);
+                    
+                    // TODO: get rid of loop with colwise operations on mbes_history
+                    for (int b = 0; b < mbes_history_.at(ping_i).rows(); b++)
+                    {
+                        mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
+                    }
+                }
+                else
+                {
+                    // TODO: how to handle this loss of data?
+                    ROS_WARN("MBES and DR histories out of synch when saving GPs");
+                }
             }
         }
 
@@ -571,7 +591,7 @@ void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
     updated_w_ids_.push_back(result->p_id);
 }
 
-void RbpfSlam::predict(nav_msgs::Odometry odom_t)
+void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
 {
     // Multithreading
     // boost::asio::thread_pool g_pool(pc_);
@@ -580,13 +600,12 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
     std::mt19937 seed{rd()};
     Eigen::VectorXf noise_vec(6, 1);
 
-    float dt = float(time_ - old_time_);
     for(int i = 0; i < pc_; i++)
     {
-        for (int i = 0; i < 6; i++)
+        for (int j = 0; j < 6; j++)
         {
-            std::normal_distribution<float> sampler{0, std::sqrt(particles_.at(i).process_cov_.at(i))};
-            noise_vec(i) = sampler(seed);
+            std::normal_distribution<float> sampler{0, std::sqrt(particles_.at(i).process_cov_.at(j))};
+            noise_vec(j) = sampler(seed);
         }
 
         particles_.at(i).noise_vec_ = noise_vec;
@@ -595,7 +614,8 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t)
         // particles_.at(i).motion_prediction_update_pose_history(odom_t, dt);
         // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
         //post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
-        threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), std::ref(odom_t), dt));
+        threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_update_pose_history, 
+                                    &particles_.at(i), std::ref(odom_t), dt));
     }
 
     for (int i = 0; i < pc_; i++)
@@ -826,11 +846,8 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         tf::Matrix3x3 m(q);
         m.getRPY(roll_i, pitch_i, yaw_i);
 
-        // Wrap yaw around -pi, pi
-        yaw_i = fmod(yaw_i + M_PI, 2*M_PI);
-        if (yaw_i < 0)
-            yaw_i += 2*M_PI;
-        yaw_i -= M_PI;
+        // Wrap yaw around [0;2*pi]
+        yaw_i = angle_limit(yaw_i);
 
         roll.push_back(roll_i);
         pitch.push_back(pitch_i);

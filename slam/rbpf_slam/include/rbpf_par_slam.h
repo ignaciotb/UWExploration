@@ -52,6 +52,11 @@
 // #include <boost/asio/thread_pool.hpp>
 // #include <boost/bind/bind.hpp>
 
+// #include <message_filters/subscriber.h>
+// #include <message_filters/time_synchronizer.h>
+// #include <message_filters/synchronizer.h>
+// #include <message_filters/sync_policies/approximate_time.h>
+
 #include <algorithm>
 #include <iomanip>
 #include <iostream>
@@ -172,6 +177,9 @@ private:
     ros::Subscriber lc_manual_sub_;
     ros::Subscriber path_sub_;
 
+    // typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
+    // message_filters::Synchronizer<MySyncPolicy> *synch_;
+
     string mbes_pings_top_;
     string odom_top_;
     string finished_top_;
@@ -197,14 +205,16 @@ private:
     void synch_cb(const std_msgs::Bool::ConstPtr& finished_msg);
     void save_cb(const std_msgs::Bool::ConstPtr& save_msg);
     void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
-    void rbpf_update(const ros::TimerEvent&);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
+    void rbpf_update(const ros::TimerEvent&);
     void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::SamplePosteriorResultConstPtr &result);
+    // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
+    //             const nav_msgs::OdometryConstPtr &odom_msg);
 
     // Other functions
     void save_gp_maps(const bool plot);
-    void predict(nav_msgs::Odometry odom_t);
+    void predict(nav_msgs::Odometry odom_t, float dt);
     void update_rviz(const ros::TimerEvent &);
     void publish_stats(nav_msgs::Odometry gt_odom);
     float moving_average(vector<int> a, int n);

@@ -18,7 +18,7 @@ class particles_launcher():
             proc = Popen(["roslaunch", launch_file, "node_name:=particle_hdl_" + str(i),
                           "num_particles_per_handler:=" + str(self.num_particles_per_hdl)])
             rospy.sleep(int(self.num_particles_per_hdl))
-            rospy.sleep(3)
+            rospy.sleep(1)
 
         rospy.spin()
 

@@ -147,6 +147,8 @@ void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odo
 
     Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec_.head(3);
     p_pose_.head(3) += step_t;
+    // NACHO: read depth directly from DR
+    p_pose_(2) = odom_t.pose.pose.position.z;
 
     // Rotation matrix
     Eigen::AngleAxisf rollAngle_p(p_pose_(3), Eigen::Vector3f::UnitX());

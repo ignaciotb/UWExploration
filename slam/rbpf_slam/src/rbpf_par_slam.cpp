@@ -50,18 +50,34 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     time_wo_motion_ = 5.;
 
     // Transforms from auv_2_ros
+            
+    tf2_ros::TransformListener tf_listener(tf_buffer_);
     try
     {
         ROS_DEBUG("Waiting for transforms");
 
         tf::StampedTransform mbes_tf;
         tf::StampedTransform m2o_tf;
-        tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(60.0));
-        tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf);
-        tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(60.0));
-        tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf);
+        // tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(60.0));
+        // tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf);
 
+        auto asynch_1 = std::async(std::launch::async, [this]
+                                       { return tf_buffer_.lookupTransform(base_frame_, mbes_frame_,
+                                                                           ros::Time(0), ros::Duration(60.)); });
+
+
+        // tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(60.0));
+        // tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf);
+        auto asynch_2 = std::async(std::launch::async, [this]
+                                       { return tf_buffer_.lookupTransform(map_frame_, odom_frame_,
+                                                                           ros::Time(0), ros::Duration(60.)); });
+
+        geometry_msgs::TransformStamped tfmsg_mbes_base = asynch_1.get();
+        tf::transformMsgToTF(tfmsg_mbes_base.transform, mbes_tf);
         pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat_);
+
+        geometry_msgs::TransformStamped tfmsg_map_odom = asynch_2.get();
+        tf::transformMsgToTF(tfmsg_map_odom.transform, m2o_tf);
         pcl_ros::transformAsMatrix(m2o_tf, m2o_mat_);
 
         ROS_DEBUG("Transforms locked - RBPF node");

@@ -296,7 +296,7 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            if(start_training_){
+            if(start_training_ && count_pings_){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }

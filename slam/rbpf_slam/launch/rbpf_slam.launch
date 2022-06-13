@@ -61,11 +61,10 @@
   <param name="robot_description"
            command="$(find xacro)/xacro '$(find lolo_description)/urdf/lolo_auv.urdf.xacro' robot_namespace:=$(arg namespace)" />
 
-  <group ns="$(arg app)">
+  <!-- <group ns="$(arg app)">
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <!-- [x, y, z, roll, pitch, yaw] -->
         <rosparam param="init_covariance">[2., 2., 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000]</rosparam>
         <rosparam param="resampling_noise_covariance">[5.0, 5.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
@@ -95,7 +94,7 @@
 				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
       </node>
     </group>
-  </group>
+  </group> -->
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       

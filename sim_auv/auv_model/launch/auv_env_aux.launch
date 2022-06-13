@@ -15,6 +15,8 @@
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
 			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/map_mbes.pcd" />
 			<!-- <param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di_post.npy" /> -->
+			<param name="map_gp_path"  value="/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/mapping/gp_mapping/src/gp_mapping/svgp_di_post.npy" /> 
+			<!-- <param name="map_gp_path"  value="" /> -->
 			<param name="map_sift_path"  value=""/>
 			<param name="map_frame" value="map" />
 			<param name="map_mbes" value="/map_mbes" />
@@ -29,7 +31,7 @@
         <param name="map_mbes" value="/map_mbes" />
     </node> -->
 
-	<node type="map_mbes_node" pkg="map_features" name="map_mbes_node" output="screen">
+	<!-- <node type="map_mbes_node" pkg="map_features" name="map_mbes_node" output="screen">
 		<param name="mbes_pings"  value="/rbpf/mbes_pings" />
 		<param name="odom_topic"  value="/lolo/dr/odom_fixed" />
 		<param name="map_frame" value="$(arg map_frame)" />
@@ -41,6 +43,6 @@
 		<param name="map_topic" value="/$(arg namespace)/mbes_pings" />
 		<param name="record_map" type= "bool" value="True" />
 		<param name="publish_mbes_cloud" type= "bool" value="False" />
-	</node>
+	</node> -->
 
 </launch>

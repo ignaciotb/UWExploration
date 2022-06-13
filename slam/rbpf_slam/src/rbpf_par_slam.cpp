@@ -706,8 +706,72 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
+
+    // For testing of localization only
+    // if(lc_detected_){
+    //     // Resample particles
+    //     ROS_INFO("Resampling");
+    //     // indices = systematic_resampling(weights);
+    //     // For manual lc testing
+    //     indices = vector<int>(pc_, 0);
+    //     lc_detected_ = false;
+
+    //     set<int> s(indices.begin(), indices.end());
+    //     keep.assign(s.begin(), s.end());
+
+    //     for(int i = 0; i < pc_; i++)
+    //     {
+    //         if (!count(keep.begin(), keep.end(), i))
+    //             lost.push_back(i);
+    //     }
+
+    //     dupes = indices;
+    //     for (int i : keep)
+    //     {
+    //         if (count(dupes.begin(), dupes.end(), i))
+    //         {
+    //             idx = find(dupes.begin(), dupes.end(), i);
+    //             dupes.erase(idx);
+    //         }
+    //     }
+    //     reassign_poses(lost, dupes);
+
+    //     // Add noise to particles
+    //     for(int i = 0; i < pc_; i++)
+    //         particles_[i].add_noise(res_noise_cov_);
+
+    //     // Reassign SVGP maps: send winning indexes to SVGP nodes
+    //     slam_msgs::Resample k_ros;
+    //     slam_msgs::Resample l_ros;
+    //     std::cout << "Keep " << std::endl;
+    //     auto t1 = high_resolution_clock::now();
+    //     if(!dupes.empty())
+    //     {
+    //         for(int k : keep)
+    //         {
+    //             std::cout << k << " ";
+    //             k_ros.request.p_id = k;
+    //             p_resampling_srvs_[k].call(k_ros);
+    //         }
+    //         std::cout << std::endl;
+
+    //         int j = 0;
+    //         for (int l : lost)
+    //         {
+    //             // Send the ID of the particle to copy to the particle that has not been resampled
+    //             l_ros.request.p_id = dupes[j];
+    //             if(p_resampling_srvs_[l].call(l_ros)){
+    //                 ROS_DEBUG("Dupe sent");
+    //             }
+    //             else{
+    //                 ROS_WARN("Failed to call resample srv");
+    //             }
+    //             j++;
+    //         }
+    //     }
+    // }
+    
     if (N_eff < std::round(pc_ / 2))
-    // if(lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");

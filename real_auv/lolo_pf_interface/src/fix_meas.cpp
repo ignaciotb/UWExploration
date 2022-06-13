@@ -70,6 +70,51 @@ public:
         ros::spin();
     }
 
+    void pingCB(const sensor_msgs::PointCloud2ConstPtr &ping)
+    {
+
+        // Publish MBES pings
+        sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
+        PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
+
+        // Transformation map-->mbes
+        try{
+            // geometry_msgs::TransformStamped tfmsg_odom_base = tf_buffer_.lookupTransform(odom_frame_, base_frame_, ros::Time(0));
+            auto asynch_3 = std::async(std::launch::async, [this]
+                        { return tf_buffer_.lookupTransform(odom_frame_, base_frame_,
+                                                            ros::Time(0), ros::Duration(0.1)); });
+            // geometry_msgs::TransformStamped tfmsg_mbes_base = tf_buffer_.lookupTransform(mbes_frame_, base_frame_,
+            //                                                                              ros::Time(0));
+            geometry_msgs::TransformStamped tfmsg_odom_base = asynch_3.get();
+            
+            tf::Transform tf_odom_base;
+            tf::transformMsgToTF(tfmsg_odom_base.transform, tf_odom_base);
+            tf::Transform tf_odom_mbes = tf_odom_base * tf_mbes_base_.inverse();
+
+            // Publish pings in MBES frame
+            pcl::fromROSMsg(*ping, *mbes_i_pcl);
+
+            // For debugging
+            // std::cout << "--------------" << std::endl;
+            // for (auto points: mbes_i_pcl->points){
+            //     std::cout << points << std::endl;
+            // }
+            pcl_ros::transformPointCloud(*mbes_i_pcl, *mbes_i_pcl, tf_odom_mbes.inverse());
+
+            // Nacho: this might not be needed here?
+            std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
+            pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
+            mbes_i.header.frame_id = mbes_frame_;
+            mbes_i.header.stamp = ping->header.stamp;
+            ping_pub_.publish(mbes_i);
+        }
+        catch (tf::TransformException &exception)
+        {
+            ROS_ERROR("%s", exception.what());
+        }
+    }
+
+
     // void pingCB(const sensor_msgs::PointCloud2ConstPtr &ping)
     // {
 
@@ -77,74 +122,28 @@ public:
     //     sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
     //     PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
     //     std::cout << "Ping cb!" << std::endl;
-
-    //     // Transformation map-->mbes
-    //     try{
-    //         // geometry_msgs::TransformStamped tfmsg_odom_base = tf_buffer_.lookupTransform(odom_frame_, base_frame_, ros::Time(0));
-    //         auto asynch_3 = std::async(std::launch::async, [this]
-    //                     { return tf_buffer_.lookupTransform(odom_frame_, base_frame_,
-    //                                                         ros::Time(0), ros::Duration(0.1)); });
-    //         // geometry_msgs::TransformStamped tfmsg_mbes_base = tf_buffer_.lookupTransform(mbes_frame_, base_frame_,
-    //         //                                                                              ros::Time(0));
-    //         geometry_msgs::TransformStamped tfmsg_odom_base = asynch_3.get();
-            
-    //         tf::Transform tf_odom_base;
-    //         tf::transformMsgToTF(tfmsg_odom_base.transform, tf_odom_base);
-    //         tf::Transform tf_odom_mbes = tf_odom_base * tf_mbes_base_.inverse();
-
-    //         // Publish pings in MBES frame
-    //         pcl::fromROSMsg(*ping, *mbes_i_pcl);
-
-    //         // For debugging
-    //         // std::cout << "--------------" << std::endl;
-    //         // for (auto points: mbes_i_pcl->points){
-    //         //     std::cout << points << std::endl;
-    //         // }
-    //         pcl_ros::transformPointCloud(*mbes_i_pcl, *mbes_i_pcl, tf_odom_mbes.inverse());
-
-    //         // Nacho: this might not be needed here?
-    //         std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
-    //         pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-    //         mbes_i.header.frame_id = mbes_frame_;
-    //         mbes_i.header.stamp = ros::Time::now();
-    //         ping_pub_.publish(mbes_i);
-    //     }
-    //     catch (tf::TransformException &exception)
-    //     {
-    //         ROS_ERROR("%s", exception.what());
-    //     }
-    // }
-
-
-    void pingCB(const sensor_msgs::PointCloud2ConstPtr &ping)
-    {
-
-        // Publish MBES pings
-        sensor_msgs::PointCloud2 mbes_i, mbes_i_map;
-        PointCloudT::Ptr mbes_i_pcl(new PointCloudT);
-        std::cout << "Ping cb!" << std::endl;
         
-        tf::Transform tf_odom_base;
-        tf::poseMsgToTF (odom_latest_.pose.pose, tf_odom_base);
-        tf::Transform tf_odom_mbes = tf_odom_base * tf_mbes_base_.inverse();
+    //     tf::Transform tf_odom_base;
+    //     tf::poseMsgToTF (odom_latest_.pose.pose, tf_odom_base);
+    //     tf::Transform tf_odom_mbes = tf_odom_base * tf_mbes_base_.inverse();
 
-        // Publish pings in MBES frame
-        pcl::fromROSMsg(*ping, *mbes_i_pcl);
+    //     // Publish pings in MBES frame
+    //     pcl::fromROSMsg(*ping, *mbes_i_pcl);
 
-        // For debugging
-        // std::cout << "--------------" << std::endl;
-        // for (auto points: mbes_i_pcl->points){
-        //     std::cout << points << std::endl;
-        // }
-        pcl_ros::transformPointCloud(*mbes_i_pcl, *mbes_i_pcl, tf_odom_mbes.inverse());
+    //     // For debugging
+    //     // std::cout << "--------------" << std::endl;
+    //     // for (auto points: mbes_i_pcl->points){
+    //     //     std::cout << points << std::endl;
+    //     // }
+    //     pcl_ros::transformPointCloud(*mbes_i_pcl, *mbes_i_pcl, tf_odom_mbes.inverse());
 
-        // Nacho: this might not be needed here?
-        std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
-        pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
-        mbes_i.header.frame_id = mbes_frame_;
-        mbes_i.header.stamp = ros::Time::now();
-        ping_pub_.publish(mbes_i);
-    }
+    //     // Nacho: this might not be needed here?
+    //     std::reverse(mbes_i_pcl->points.begin(), mbes_i_pcl->points.end());
+    //     pcl::toROSMsg(*mbes_i_pcl.get(), mbes_i);
+    //     mbes_i.header.frame_id = mbes_frame_;
+    //     mbes_i.header.stamp = ping->header.stamp;
+    //     ping_pub_.publish(mbes_i);
+    // }
 
     void odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     {

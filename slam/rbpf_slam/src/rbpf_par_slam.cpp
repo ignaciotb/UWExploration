@@ -132,18 +132,18 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     as_mb_->start();
 
     // Action clients for plotting the GP posteriors
-    for (int i = 0; i < pc_; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac =
-                    new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
-        while(!ac->waitForServer() && ros::ok())
-        {
-            std::cout << "Waiting for SVGP sample server "
-                      << "/particle_" + std::to_string(i) + plot_gp_server_ << std::endl;
-            ros::Duration(2).sleep();
-        }
-        p_plot_acs_.push_back(ac);
-    }
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac =
+    //                 new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
+    //     while(!ac->waitForServer() && ros::ok())
+    //     {
+    //         std::cout << "Waiting for SVGP sample server "
+    //                   << "/particle_" + std::to_string(i) + plot_gp_server_ << std::endl;
+    //         ros::Duration(2).sleep();
+    //     }
+    //     p_plot_acs_.push_back(ac);
+    // }
 
     // Action clients for sampling the GP posteriors
     for (int i = 0; i < pc_; i++)
@@ -316,9 +316,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            // if(start_training_ && count_pings_ > 1000){
-            //     this->update_particles_weights(latest_mbes_, odom_latest_);
-            // }
+            if(start_training_ && count_pings_ > 100){
+                this->update_particles_weights(latest_mbes_, odom_latest_);
+            }
         }
     }
 }

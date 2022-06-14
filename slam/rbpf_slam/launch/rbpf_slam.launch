@@ -66,8 +66,8 @@
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <rosparam param="init_covariance">[2., 2., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000001]</rosparam>
-        <rosparam param="resampling_noise_covariance">[5.0, 5.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]</rosparam>
+        <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="0.2" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
@@ -95,6 +95,11 @@
       </node>
     </group>
   </group>
+
+  <arg name="node_start_delay" default="100.0" />  
+  <!-- <node name="listener" pkg="roscpp_tutorials" type="listener" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
+  <!-- <node pkg="rostopic" type="rostopic" name="lc" args="pub /manual_lc std_msgs/Bool false" output="screen" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
+
 
     <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
       <param name="pf_stats_top" value="/stats/pf_data" />       

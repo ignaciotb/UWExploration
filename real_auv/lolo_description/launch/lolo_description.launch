@@ -4,11 +4,10 @@
 
   <group ns="$(arg namespace)">
     <param name="robot_description"
-           command="$(find xacro)/xacro '$(find lolo_description)/urdf/lolo_auv.urdf.xacro' robot_namespace:=$(arg namespace)" />
+           command="$(find xacro)/xacro '$(find lolo_description)/urdf/rviz.xacro' robot_namespace:=$(arg namespace)" />
 
     <node pkg="lolo_description" type="joint_state_converter.py" name="joint_state_converter" output="screen"/>
 
-    <!-- A joint state publisher plugin already is started with the model, no need to use the default joint state publisher -->
     <node pkg="joint_state_publisher" type="joint_state_publisher" name="joint_state_publisher">
         <param name="rate" value="300"/>
         <rosparam param="source_list">["command_states"]</rosparam>

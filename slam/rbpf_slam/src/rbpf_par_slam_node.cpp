@@ -15,14 +15,14 @@ int main(int argc, char** argv){
     boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh, nh_mb));
 
     // Spinner for AUV interface callbacks
-    ros::AsyncSpinner spinner_rbpf(4, &rbpf_queue);
+    ros::AsyncSpinner spinner_rbpf(1000, &rbpf_queue);
     spinner_rbpf.start();
     
     // Spinner for SVGPs minibatch callbacks
     int pc;
     nh.param<int>(("particle_count"), pc, 10);
     // Option 1
-    ros::AsyncSpinner spinner_mb(pc, &mb_queue);
+    ros::AsyncSpinner spinner_mb(1000, &mb_queue);
     spinner_mb.start();
 
     // Option 2

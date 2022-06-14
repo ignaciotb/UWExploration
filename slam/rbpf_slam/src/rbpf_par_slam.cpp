@@ -80,7 +80,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
         tf::transformMsgToTF(tfmsg_map_odom.transform, m2o_tf);
         pcl_ros::transformAsMatrix(m2o_tf, m2o_mat_);
 
-        ROS_DEBUG("Transforms locked - RBPF node");
+        ROS_INFO("Transforms locked - RBPF node");
     }
     catch (const std::exception &e)
     {
@@ -183,6 +183,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");
     odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
 
+    ROS_INFO("ACs and ASs created");
+
     // Initialize the particles on top of LoLo 
     tf::StampedTransform o2b_tf;
     tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(30.0));
@@ -198,12 +200,13 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     init_p_pose_(3)= roll_o2b;
     init_p_pose_(4)= pitch_o2b;
     init_p_pose_(5)= yaw_o2b;
+    ROS_INFO("About to create particles");
 
     // Create one particle on top of the GT vehicle pose. Only for testing
-    // particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
-    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
     // Create particles
-    for (int i=0; i<pc_; i++){
+    for (int i=1; i<pc_; i++){
         particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                             init_cov_, meas_std_, motion_cov_));
     }
@@ -227,6 +230,7 @@ void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ 
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
+
     if (wp_path->poses.size() > 0)
     {
         if (!start_training_){
@@ -312,9 +316,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            if(start_training_ && count_pings_){
-                this->update_particles_weights(latest_mbes_, odom_latest_);
-            }
+            // if(start_training_ && count_pings_ > 1000){
+            //     this->update_particles_weights(latest_mbes_, odom_latest_);
+            // }
         }
     }
 }

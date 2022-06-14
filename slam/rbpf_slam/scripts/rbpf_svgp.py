@@ -91,7 +91,7 @@ class SVGP_map():
         self._as_sample = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + sample_gp_name, SamplePosteriorAction, 
                                                 execute_cb=self.sample_posterior_cb, auto_start = False)
         self._as_sample.start()
-
+        
         self.training = False
         self.plotting = False
         self.sampling = False
@@ -168,6 +168,9 @@ class SVGP_map():
 
         # Remove Qt out of main thread warning (use with caution)
         warnings.filterwarnings("ignore")
+
+        self.n_plot = 0
+        self.n_plot_loss = 0
 
     def resampling_cb(self, req):
 
@@ -328,8 +331,9 @@ class SVGP_map():
 
             self.plot(beams[:,0:2], beams[:,2], 
                         self.storage_path + 'particle_' + str(self.particle_id) 
-                        + '_training.png',
+                        + '_training_' + str(self.n_plot) + '.png',
                         n=50, n_contours=100 )
+            self.n_plot += 1
 
         # Save to disk 
         else:
@@ -500,7 +504,8 @@ class SVGP_map():
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
         self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
-                        + '_training_loss.png')
+                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
+        self.n_plot_loss += 1
 
         # Free up GPU mem
         del inputst

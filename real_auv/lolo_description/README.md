@@ -1,29 +1,36 @@
+LoLo Robot Description
+======================
+This robot description package for LoLo includes the latests (Nov 2021) measurements
+and CAD model of LoLo. The package includes two different URDF models, one for general use on LoLo's
+scientis and for visualization (RViz), and one for simulations with Gazebo 
+(e.g. UUV Simulator).
+
+LoLo's scientis should always run the 'lolo_description.launch' to set up the TF frames for
+all the sensors.
+
+
 Lolo control input
 ==================
 
 Publish on these topics to set the fin angle or thrust.
 
-* `/lolo_auv/fins/0/input` - vertical fin top right
-* `/lolo_auv/fins/1/input` - vertical fin top left
-* `/lolo_auv/fins/2/input` - vertical fin bottom right
-* `/lolo_auv/fins/3/input` - vertical fin bottom left
-* `/lolo_auv/fins/4/input` - horizontal fin side right
-* `/lolo_auv/fins/5/input` - horizontal fin side right
-* `/lolo_auv/back_fins/0/input` - horizontal fin back
-* `/lolo_auv/thrusters/0/input` - right thruster
-* `/lolo_auv/thrusters/1/input` - left thruster
+* `/lolo/fins/0/input` - starboard rudder (both rudders are coupled on LoLo so must be equal)
+* `/lolo/fins/1/input` - port rudder (both rudders are coupled on LoLo so must be equal)
+* `/lolo/fins/2/input` - starboard elevon
+* `/lolo/fins/3/input` - port elevon
+* `/lolo/fins/4/input` - elevator
+* `/lolo/thrusters/0/input` - startboard thruster
+* `/lolo/thrusters/1/input` - port thruster
 
 Lolo output values
 ==================
 
-These commands give you the actual values achieved.
+These topics give you the actual values achieved.
 
-* `/lolo_auv/fins/0/output` - vertical fin top right
-* `/lolo_auv/fins/1/output` - vertical fin top left
-* `/lolo_auv/fins/2/output` - vertical fin bottom right
-* `/lolo_auv/fins/3/output` - vertical fin bottom left
-* `/lolo_auv/fins/4/output` - horizontal fin side right
-* `/lolo_auv/fins/5/output` - horizontal fin side right
-* `/lolo_auv/back_fins/0/output` - horizontal fin back
-* `/lolo_auv/thrusters/0/thrust` - right thruster
-* `/lolo_auv/thrusters/1/thrust` - left thruster
+* `/lolo/fins/0/output` - starboard rudder (both rudders are coupled on LoLo so must be equal)
+* `/lolo/fins/1/output` - port rudder (both rudders are coupled on LoLo so must be equal)
+* `/lolo/fins/2/output` - starboard elevon
+* `/lolo/fins/3/output` - port elevon
+* `/lolo/fins/4/output` - elevator
+* `/lolo/thrusters/0/output` - startboard thruster
+* `/lolo/thrusters/1/output` - port thruster

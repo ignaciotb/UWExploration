@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<robot name="lolo" xmlns:xacro="http://www.ros.org/wiki/xacro" >
+  <xacro:arg name="debug" default="0"/>
+  <xacro:arg name="namespace" default="lolo"/>
+  <xacro:arg name="inertial_reference_frame" default="world"/>
+  <!-- Include the UUV macro file -->
+  <xacro:include filename="$(find lolo_description)/urdf/base.xacro"/>
+  <xacro:include filename="$(find lolo_description)/urdf/gazebo.xacro"/>
+
+  <!-- Create lolo -->
+  <xacro:lolo_base
+      namespace="$(arg namespace)"
+      inertial_reference_frame="$(arg inertial_reference_frame)">
+
+  <gazebo>
+    <plugin name="uuv_plugin" filename="libuuv_underwater_object_ros_plugin.so">
+      <fluid_density>1028.0</fluid_density>
+      <flow_velocity_topic>hydrodynamics/current_velocity</flow_velocity_topic>
+      <debug>$(arg debug)</debug>
+    <xacro:lolo_hydro_model namespace="$(arg namespace)" />
+    </plugin>
+  </gazebo>
+  </xacro:lolo_base>
+
+  <!-- Joint state publisher plugin -->
+  <xacro:default_joint_state_publisher namespace="$(arg namespace)" update_rate="50" />
+
+</robot>

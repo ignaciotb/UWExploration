@@ -1,0 +1,15 @@
+#goal definition
+bool plot
+bool sample
+sensor_msgs/PointCloud2 ping
+---
+#result definition for sampling the posterior
+int32 p_id
+float64[] mu
+float64[] sigma
+bool success
+# no result definition for saving/plotting the posterior
+---
+#feedback (not used)
+# std_msgs/bool feedback
+

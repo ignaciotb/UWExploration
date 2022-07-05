@@ -22,6 +22,7 @@ from std_msgs.msg import Float32, Int32MultiArray
 from geometry_msgs.msg import PointStamped
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
+from slam_msgs.msg import ManipulatePosteriorAction, ManipulatePosteriorResult
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
 from slam_msgs.srv import Resample, ResampleResponse
@@ -81,16 +82,16 @@ class SVGP_map():
         self.count_training = 0
         
         # AS for plotting results
-        plot_gp_name = rospy.get_param("~plot_gp_server")
-        self._as_plot = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + plot_gp_name, PlotPosteriorAction, 
-                                                     execute_cb=self.save_posterior_cb, auto_start=False)
-        self._as_plot.start()
+        # plot_gp_name = rospy.get_param("~plot_gp_server")
+        # self._as_plot = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + plot_gp_name, PlotPosteriorAction, 
+        #                                              execute_cb=self.save_posterior_cb, auto_start=False)
+        # self._as_plot.start()
 
         # AS for expected meas
-        sample_gp_name = rospy.get_param("~sample_gp_server")
-        self._as_sample = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + sample_gp_name, SamplePosteriorAction, 
-                                                execute_cb=self.sample_posterior_cb, auto_start = False)
-        self._as_sample.start()
+        manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
+        self._as_manipulate = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + manipulate_gp_name, ManipulatePosteriorAction, 
+                                                execute_cb=self.manipulate_posterior_cb, auto_start = False)
+        self._as_manipulate.start()
         
         self.training = False
         self.plotting = False
@@ -287,7 +288,8 @@ class SVGP_map():
             print("Particle ", self.particle_id, " starting training")
 
 
-    def sample_posterior_cb(self, goal):
+    ## AS for interfacing the sampling, plotting or saving to disk of the GP posterior
+    def manipulate_posterior_cb(self, goal):
 
         beams = np.asarray(list(pc2.read_points(goal.ping, 
                                 field_names = ("x", "y", "z"), skip_nans=True)))
@@ -297,60 +299,93 @@ class SVGP_map():
         while not rospy.is_shutdown() and self.training:
             rospy.sleep(0.01)
             rospy.logdebug(
-                "GP %s waiting for training before sampling", self.particle_id)
+                "GP %s waiting for training before sampling/saving", self.particle_id)
 
-        mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
-        self.sampling = False
+        if goal.sample:
+            mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
+            self.sampling = False
 
-        # Set action as success
-        result = SamplePosteriorResult()
-        result.p_id = self.particle_id
-        result.mu = mu
-        result.sigma = sigma
-        self._as_sample.set_succeeded(result)
-        # print("GP ", self.particle_id, " sampled")
+            # Set action as success
+            result = ManipulatePosteriorResult()
+            result.p_id = self.particle_id
+            result.mu = mu
+            result.sigma = sigma
+            self._as_manipulate.set_succeeded(result)
+            # print("GP ", self.particle_id, " sampled")
 
-
-    def save_posterior_cb(self, goal):
-
-        # Wait for training to stop
-        while not rospy.is_shutdown() and self.training:
-            rospy.sleep(0.01)
-            rospy.logdebug(
-                "GP %s waiting for training before plotting",  self.particle_id)
-
-        beams = np.asarray(list(pc2.read_points(goal.pings, 
-                        field_names = ("x", "y", "z"), skip_nans=True)))
-        beams = np.reshape(beams, (-1,3)) 
-
-        # Flag to stop training
-        self.plotting = True
-        # Plot posterior and save it to image
-        if goal.plot:
-            print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
-
-            self.plot(beams[:,0:2], beams[:,2], 
-                        self.storage_path + 'particle_' + str(self.particle_id) 
-                        + '_training_' + str(self.n_plot) + '.png',
-                        n=50, n_contours=100 )
-            self.n_plot += 1
-
-        # Save to disk 
+        #####
         else:
-            # Save GP hyperparams
-            self.save(self.storage_path + "svpg_final_" +
-                      str(self.particle_id) + ".pth")
-            # Save particle's MBES map and inducing points
-            np.savez(self.storage_path + "map_" +
-                     str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
-            self.plotting = False
+            # Flag to stop training
+            self.plotting = True
+            
+            # Plot posterior and save it to image
+            if goal.plot:
+                print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
 
-        # Set action as success
-        result = PlotPosteriorResult()
-        result.success = True
-        self._as_plot.set_succeeded(result)
-        self.plotting = False
-        print("GP posterior saved/plotted ", self.particle_id)
+                self.plot(beams[:,0:2], beams[:,2], 
+                            self.storage_path + 'particle_' + str(self.particle_id) 
+                            + '_training_' + str(self.n_plot) + '.png',
+                            n=50, n_contours=100 )
+                self.n_plot += 1
+
+            # Save to disk 
+            else:
+                # Save GP hyperparams
+                self.save(self.storage_path + "svpg_final_" +
+                        str(self.particle_id) + ".pth")
+                # Save particle's MBES map and inducing points
+                np.savez(self.storage_path + "map_" +
+                        str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
+                self.plotting = False
+
+            # Set action as success
+            result = ManipulatePosteriorResult()
+            result.success = True
+            self._as_manipulate.set_succeeded(result)
+            self.plotting = False
+            print("GP posterior saved/plotted ", self.particle_id)
+
+
+    # def save_posterior_cb(self, goal):
+
+    #     # Wait for training to stop
+    #     while not rospy.is_shutdown() and self.training:
+    #         rospy.sleep(0.01)
+    #         rospy.logdebug(
+    #             "GP %s waiting for training before plotting",  self.particle_id)
+
+    #     beams = np.asarray(list(pc2.read_points(goal.pings, 
+    #                     field_names = ("x", "y", "z"), skip_nans=True)))
+    #     beams = np.reshape(beams, (-1,3)) 
+
+    #     # Flag to stop training
+    #     self.plotting = True
+    #     # Plot posterior and save it to image
+    #     if goal.plot:
+    #         print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
+
+    #         self.plot(beams[:,0:2], beams[:,2], 
+    #                     self.storage_path + 'particle_' + str(self.particle_id) 
+    #                     + '_training_' + str(self.n_plot) + '.png',
+    #                     n=50, n_contours=100 )
+    #         self.n_plot += 1
+
+    #     # Save to disk 
+    #     else:
+    #         # Save GP hyperparams
+    #         self.save(self.storage_path + "svpg_final_" +
+    #                   str(self.particle_id) + ".pth")
+    #         # Save particle's MBES map and inducing points
+    #         np.savez(self.storage_path + "map_" +
+    #                  str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
+    #         self.plotting = False
+
+    #     # Set action as success
+    #     result = PlotPosteriorResult()
+    #     result.success = True
+    #     self._as_plot.set_succeeded(result)
+    #     self.plotting = False
+    #     print("GP posterior saved/plotted ", self.particle_id)
 
     def sample(self, x):
 

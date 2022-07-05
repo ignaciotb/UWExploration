@@ -43,6 +43,7 @@
 #include <slam_msgs/MinibatchTrainingGoal.h>
 #include <slam_msgs/MinibatchTrainingResult.h>
 #include <slam_msgs/SamplePosteriorAction.h>
+#include <slam_msgs/ManipulatePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
 #include <slam_msgs/Resample.h>
 // #include <slam_msgs/MbRequest.h>
@@ -72,7 +73,7 @@ using std::chrono::duration_cast;
 using std::chrono::high_resolution_clock;
 using std::chrono::milliseconds;
 
-typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
+// typedef actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> Client;
 
 class RbpfSlam
 {
@@ -159,14 +160,10 @@ private:
     actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
     string mb_gp_name_;
 
-    // Action clients for sampling the GPs
-    std::vector<actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>*> p_sample_acs_;
-    string sample_gp_server_;
+    // Action clients for manipulating the the GPs posteriors
+    std::vector<actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction>*> p_manipulate_acs_;
+    string manipulate_gp_server_;
     std::vector<int> updated_w_ids_;
-
-    // Action clients for plotting the GP posteriors
-    std::vector<actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>*> p_plot_acs_;
-    string plot_gp_server_;
 
     // Server
     ros::ServiceServer srv_server_;
@@ -211,7 +208,7 @@ private:
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
     void rbpf_update(const ros::TimerEvent&);
     void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
-    void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::SamplePosteriorResultConstPtr &result);
+    void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
     //             const nav_msgs::OdometryConstPtr &odom_msg);
 

@@ -41,9 +41,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("pf_stats_top"), stats_top_, "stats");
     stats_ = nh_->advertise<std_msgs::Float32MultiArray>(stats_top_, 10);
 
-    // Action server for plotting the GP maps
-    nh_->param<string>(("plot_gp_server"), plot_gp_server_, "gp_plot_server");
-    nh_->param<string>(("sample_gp_server"), sample_gp_server_, "gp_sample_server");
+    // Action server for interacting with the GP posterior
+    nh_->param<string>(("manipulate_gp_server"), manipulate_gp_server_, "gp_sample_server");
 
     // Timer for end of mission: finish when no more odom is being received
     mission_finished_ = false;
@@ -55,27 +54,20 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     try
     {
         ROS_DEBUG("Waiting for transforms");
-
-        tf::StampedTransform mbes_tf;
-        tf::StampedTransform m2o_tf;
-        // tfListener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(60.0));
-        // tfListener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), mbes_tf);
-
         auto asynch_1 = std::async(std::launch::async, [this]
                                        { return tf_buffer_.lookupTransform(base_frame_, mbes_frame_,
                                                                            ros::Time(0), ros::Duration(60.)); });
 
-
-        // tfListener_.waitForTransform(map_frame_, odom_frame_, ros::Time(0), ros::Duration(60.0));
-        // tfListener_.lookupTransform(map_frame_, odom_frame_, ros::Time(0), m2o_tf);
         auto asynch_2 = std::async(std::launch::async, [this]
                                        { return tf_buffer_.lookupTransform(map_frame_, odom_frame_,
                                                                            ros::Time(0), ros::Duration(60.)); });
 
+        tf::StampedTransform mbes_tf;
         geometry_msgs::TransformStamped tfmsg_mbes_base = asynch_1.get();
         tf::transformMsgToTF(tfmsg_mbes_base.transform, mbes_tf);
         pcl_ros::transformAsMatrix(mbes_tf, base2mbes_mat_);
 
+        tf::StampedTransform m2o_tf;
         geometry_msgs::TransformStamped tfmsg_map_odom = asynch_2.get();
         tf::transformMsgToTF(tfmsg_map_odom.transform, m2o_tf);
         pcl_ros::transformAsMatrix(m2o_tf, m2o_mat_);
@@ -131,32 +123,19 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_mb_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
     as_mb_->start();
 
-    // Action clients for plotting the GP posteriors
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>* ac =
-    //                 new actionlib::SimpleActionClient<slam_msgs::PlotPosteriorAction>("/particle_" + std::to_string(i) + plot_gp_server_, true);
-    //     while(!ac->waitForServer() && ros::ok())
-    //     {
-    //         std::cout << "Waiting for SVGP sample server "
-    //                   << "/particle_" + std::to_string(i) + plot_gp_server_ << std::endl;
-    //         ros::Duration(2).sleep();
-    //     }
-    //     p_plot_acs_.push_back(ac);
-    // }
-
-    // Action clients for sampling the GP posteriors
+    // Action clients for manipulating the GP posteriors
     for (int i = 0; i < pc_; i++)
     {
-        actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction> *ac =
-                    new actionlib::SimpleActionClient<slam_msgs::SamplePosteriorAction>("/particle_" + std::to_string(i) + sample_gp_server_, true);
+        actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction> *ac =
+                    new actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction>("/particle_" + std::to_string(i)
+                    + manipulate_gp_server_, true);
         while (!ac->waitForServer() && ros::ok())
         {
             std::cout << "Waiting for SVGP plot server "
-                      << "/particle_" + std::to_string(i) + sample_gp_server_ << std::endl;
+                      << "/particle_" + std::to_string(i) + manipulate_gp_server_ << std::endl;
             ros::Duration(2).sleep();
         }
-        p_sample_acs_.push_back(ac);
+        p_manipulate_acs_.push_back(ac);
     }
 
     // Create vector of beams indexes per ping.
@@ -462,7 +441,7 @@ void RbpfSlam::save_gp_maps(const bool plot)
     Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
-    slam_msgs::PlotPosteriorGoal goal;
+    slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
     for(int p=0; p<pc_; p++)
     {
@@ -519,12 +498,13 @@ void RbpfSlam::save_gp_maps(const bool plot)
         eigenToPointcloud2msg(mbes_pcloud, mbes_mat);
 
         // Set action as success
-        goal.pings = mbes_pcloud;
+        goal.ping = mbes_pcloud;
         goal.plot = plot;
-        p_plot_acs_.at(p)->sendGoal(goal);
-        // We want this calls to be secuential since plotting is GPU-heavy
+        goal.sample = false;
+        p_manipulate_acs_.at(p)->sendGoal(goal);
+        // We want these calls to be secuential since plotting is GPU-heavy
         // and not time critical, so we want the particles to do it one by one
-        bool received = p_plot_acs_.at(p)->waitForResult();
+        bool received = p_manipulate_acs_.at(p)->waitForResult();
     }
 
 }
@@ -541,7 +521,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     Eigen::MatrixXf ping_mat(beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
-    slam_msgs::SamplePosteriorGoal goal;
+    slam_msgs::ManipulatePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
         // Transform x random beams to particle pose in map frame
         // pos_i = particles_.at(p).pos_history_.back();
@@ -564,7 +544,8 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 
         // Asynch goal
         goal.ping = mbes_pcloud;
-        p_sample_acs_.at(p)->sendGoal(goal,
+        goal.sample = true;
+        p_manipulate_acs_.at(p)->sendGoal(goal,
                                       boost::bind(&RbpfSlam::sampleCB, this, _1, _2));
     }
 
@@ -596,7 +577,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
 }
 
 void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
-                        const slam_msgs::SamplePosteriorResultConstPtr &result)
+                        const slam_msgs::ManipulatePosteriorResultConstPtr &result)
 {
     std::vector<double> mu = result->mu;
     std::vector<double> sigma = result->sigma;
@@ -712,68 +693,68 @@ void RbpfSlam::resample(vector<double> weights)
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
 
     // For testing of localization only
-    // if(lc_detected_){
-    //     // Resample particles
-    //     ROS_INFO("Resampling");
-    //     // indices = systematic_resampling(weights);
-    //     // For manual lc testing
-    //     indices = vector<int>(pc_, 0);
-    //     lc_detected_ = false;
+    if(lc_detected_){
+        // Resample particles
+        ROS_INFO("Resampling");
+        // indices = systematic_resampling(weights);
+        // For manual lc testing
+        indices = vector<int>(pc_, 0);
+        lc_detected_ = false;
 
-    //     set<int> s(indices.begin(), indices.end());
-    //     keep.assign(s.begin(), s.end());
+        set<int> s(indices.begin(), indices.end());
+        keep.assign(s.begin(), s.end());
 
-    //     for(int i = 0; i < pc_; i++)
-    //     {
-    //         if (!count(keep.begin(), keep.end(), i))
-    //             lost.push_back(i);
-    //     }
+        for(int i = 0; i < pc_; i++)
+        {
+            if (!count(keep.begin(), keep.end(), i))
+                lost.push_back(i);
+        }
 
-    //     dupes = indices;
-    //     for (int i : keep)
-    //     {
-    //         if (count(dupes.begin(), dupes.end(), i))
-    //         {
-    //             idx = find(dupes.begin(), dupes.end(), i);
-    //             dupes.erase(idx);
-    //         }
-    //     }
-    //     reassign_poses(lost, dupes);
+        dupes = indices;
+        for (int i : keep)
+        {
+            if (count(dupes.begin(), dupes.end(), i))
+            {
+                idx = find(dupes.begin(), dupes.end(), i);
+                dupes.erase(idx);
+            }
+        }
+        reassign_poses(lost, dupes);
 
-    //     // Add noise to particles
-    //     for(int i = 0; i < pc_; i++)
-    //         particles_[i].add_noise(res_noise_cov_);
+        // Add noise to particles
+        for(int i = 0; i < pc_; i++)
+            particles_[i].add_noise(res_noise_cov_);
 
-    //     // Reassign SVGP maps: send winning indexes to SVGP nodes
-    //     slam_msgs::Resample k_ros;
-    //     slam_msgs::Resample l_ros;
-    //     std::cout << "Keep " << std::endl;
-    //     auto t1 = high_resolution_clock::now();
-    //     if(!dupes.empty())
-    //     {
-    //         for(int k : keep)
-    //         {
-    //             std::cout << k << " ";
-    //             k_ros.request.p_id = k;
-    //             p_resampling_srvs_[k].call(k_ros);
-    //         }
-    //         std::cout << std::endl;
+        // Reassign SVGP maps: send winning indexes to SVGP nodes
+        slam_msgs::Resample k_ros;
+        slam_msgs::Resample l_ros;
+        std::cout << "Keep " << std::endl;
+        auto t1 = high_resolution_clock::now();
+        if(!dupes.empty())
+        {
+            for(int k : keep)
+            {
+                std::cout << k << " ";
+                k_ros.request.p_id = k;
+                p_resampling_srvs_[k].call(k_ros);
+            }
+            std::cout << std::endl;
 
-    //         int j = 0;
-    //         for (int l : lost)
-    //         {
-    //             // Send the ID of the particle to copy to the particle that has not been resampled
-    //             l_ros.request.p_id = dupes[j];
-    //             if(p_resampling_srvs_[l].call(l_ros)){
-    //                 ROS_DEBUG("Dupe sent");
-    //             }
-    //             else{
-    //                 ROS_WARN("Failed to call resample srv");
-    //             }
-    //             j++;
-    //         }
-    //     }
-    // }
+            int j = 0;
+            for (int l : lost)
+            {
+                // Send the ID of the particle to copy to the particle that has not been resampled
+                l_ros.request.p_id = dupes[j];
+                if(p_resampling_srvs_[l].call(l_ros)){
+                    ROS_DEBUG("Dupe sent");
+                }
+                else{
+                    ROS_WARN("Failed to call resample srv");
+                }
+                j++;
+            }
+        }
+    }
     
     if (N_eff < std::round(pc_ / 2))
     {

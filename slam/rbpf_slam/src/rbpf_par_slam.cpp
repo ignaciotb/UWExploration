@@ -160,7 +160,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Establish subscription to odometry message (intentionally last)
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");
-    odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
+    odom_sub_ = nh_->subscribe(odom_top_, 1, &RbpfSlam::odom_callback, this);
 
     ROS_INFO("ACs and ASs created");
 
@@ -295,7 +295,7 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            if(start_training_ && count_pings_ > 100){
+            if(start_training_ && count_pings_ > 1000){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }
@@ -600,6 +600,7 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     std::random_device rd{};
     std::mt19937 seed{rd()};
     Eigen::VectorXf noise_vec(6, 1);
+    auto t1 = high_resolution_clock::now();
 
     for(int i = 0; i < pc_; i++)
     {
@@ -638,6 +639,10 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     dr_particle_.at(0).motion_prediction_update_pose_history(odom_t, dt);
 
     threads_vector_.clear();
+
+    // auto t2 = high_resolution_clock::now();
+    // duration<double, std::milli> ms_double = t2 - t1;
+    // std::cout << ms_double.count() / 1000.0 << std::endl;
 }
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)

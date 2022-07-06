@@ -49,13 +49,9 @@ public:
 
     void add_noise(std::vector<float> &noise);
 
-    void motion_prediction(nav_msgs::Odometry &odom_t, float dt);
-
     void compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes);
 
     double weight_mv(Eigen::VectorXd &mbes_meas_ranges, Eigen::VectorXd &mbes_sim_ranges);
-
-    void update_pose_history();
 
     void motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt, std::mt19937& rng);
 

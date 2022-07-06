@@ -49,66 +49,6 @@ void RbpfParticle::add_noise(std::vector<float> &noise){
     }
 }
 
-void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt){
-
-    // Generate noise
-    std::random_device rd{};
-    std::mt19937 seed{rd()};
-    Eigen::VectorXf noise_vec(6, 1);
-    for (int i = 0; i < 6; i++)
-    {
-        std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
-        noise_vec(i) = sampler(seed);
-    }
-
-    // Angular
-    Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
-                                              odom_t.twist.twist.angular.y,
-                                              odom_t.twist.twist.angular.z);
-
-    Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec.tail(3);
-    // Wrap up angles
-    for (int i =0; i < 3; i++){
-        rot_t(i) = angle_limit(rot_t(i));
-    }
-    p_pose_.tail(3) = rot_t;
-
-    Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitX());
-    Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
-    Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitZ());
-    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-    Eigen::Matrix3f rotMat = q.matrix();
-
-    // Linear
-    Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
-                                            odom_t.twist.twist.linear.y,
-                                            odom_t.twist.twist.linear.z);
-
-    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec.head(3);
-    p_pose_.head(3) += step_t;
-}
-
-
-void RbpfParticle::update_pose_history()
-{
-    // Rotation matrix
-    Eigen::AngleAxisf rollAngle(p_pose_(3), Eigen::Vector3f::UnitX());
-    Eigen::AngleAxisf pitchAngle(p_pose_(4), Eigen::Vector3f::UnitY());
-    Eigen::AngleAxisf yawAngle(p_pose_(5), Eigen::Vector3f::UnitZ());
-    Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-    Eigen::Matrix3f rotMat = q.matrix();
-
-    // Particle pose in homogenous coordinates
-    Eigen::Matrix4f t_p = Eigen::Matrix4f::Identity();
-    t_p.topLeftCorner(3, 3) = rotMat;
-    t_p.block(0,3,3,1) = p_pose_.head(3);
-    Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
-
-    std::lock_guard<std::mutex> lock(*pc_mutex_);
-    pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
-    rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
-}
-
 void RbpfParticle::motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt, 
                                         std::mt19937& rng)
 {

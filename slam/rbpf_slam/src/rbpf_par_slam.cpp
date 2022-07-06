@@ -258,34 +258,30 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
     if (mission_finished_ != true && start_training_)
     {
-        if (time_ > old_time_)
-        {
-            // Beams in vehicle mbes frame
-            // Store in pings history
-            auto t1 = high_resolution_clock::now();
-            mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
+        // Beams in vehicle mbes frame
+        // Store in pings history
+        auto t1 = high_resolution_clock::now();
+        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
 
-            // Store latest mbes msg for timing
-            latest_mbes_ = *msg;
+        // Store latest mbes msg for timing
+        latest_mbes_ = *msg;
 
-            pings_idx_.push_back(count_pings_);
-            // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
-            count_pings_ += 1;
+        pings_idx_.push_back(count_pings_);
+        // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
+        count_pings_ += 1;
 
-            // Store in history particles poses corresponding to the current ping
-            this->update_particles_history();
+        // Store in history particles poses corresponding to the current ping
+        this->update_particles_history();
 
-            // auto t2 = high_resolution_clock::now();
-            // duration<double, std::milli> ms_double = t2 - t1;
-            // std::cout << ms_double.count() / 1000.0 << std::endl;
-            // count_mbes_cbs_++;
-            // time_avg_ += ms_double.count();
-            // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
-            // std::cout << count_mb_cbs_ << std::endl;
-        }
-
-        old_time_ = time_;
-        // Update stats and visual
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // std::cout << ms_double.count() / 1000.0 << std::endl;
+        // count_mbes_cbs_++;
+        // time_avg_ += ms_double.count();
+        // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
+        // std::cout << count_mb_cbs_ << std::endl;
+        
+        // Update stats
         // publish_stats(odom_latest_);
     }
 }
@@ -424,10 +420,10 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         as_mb_->setSucceeded(result);
 
         /* For timing */
-        auto t2 = high_resolution_clock::now();
-        duration<double, std::milli> ms_double = t2 - t1;
-        time_avg_ += ms_double.count();
-        count_mb_cbs_++;
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // time_avg_ += ms_double.count();
+        // count_mb_cbs_++;
         // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
         // std::cout << count_mb_cbs_ << std::endl;
     }

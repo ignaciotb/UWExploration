@@ -66,8 +66,8 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[0., 0., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000]</rosparam>
+        <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]</rosparam>
         <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="0.2" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />

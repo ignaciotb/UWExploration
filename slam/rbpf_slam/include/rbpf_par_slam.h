@@ -91,7 +91,8 @@ private:
     ros::Timer timer_rbpf_, timer_rviz_;
 
     // Multithreading
-    std::vector<std::thread> threads_vector_;
+    std::vector<std::thread> pred_threads_vec_;
+    std::vector<std::thread> upd_threads_vec_;
 
     int pc_;
     int beams_num_;
@@ -217,6 +218,7 @@ private:
     // Other functions
     void save_gp_maps(const bool plot);
     void predict(nav_msgs::Odometry odom_t, float dt);
+    void update_particles_history();
     void update_rviz(const ros::TimerEvent &);
     void publish_stats(nav_msgs::Odometry gt_odom);
     float moving_average(vector<int> a, int n);

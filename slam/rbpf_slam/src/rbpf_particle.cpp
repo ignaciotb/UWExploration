@@ -158,29 +158,25 @@ void RbpfParticle::motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt,
     p_pose_.head(3) += step_t;
     // NACHO: read depth directly from DR
     p_pose_(2) = odom_t.pose.pose.position.z;
+}
 
+void RbpfParticle::update_pose_history_mt()
+{
     // Rotation matrix
+    std::lock_guard<std::mutex> lock(*pc_mutex_);
     Eigen::AngleAxisf rollAngle_p(p_pose_(3), Eigen::Vector3f::UnitX());
     Eigen::AngleAxisf pitchAngle_p(p_pose_(4), Eigen::Vector3f::UnitY());
     Eigen::AngleAxisf yawAngle_p(p_pose_(5), Eigen::Vector3f::UnitZ());
     Eigen::Quaternion<float> q_p = rollAngle_p * pitchAngle_p * yawAngle_p;
-    Eigen::Matrix3f rotMat_p = q_p.matrix();
 
     // Particle pose in homogenous coordinates
     Eigen::Matrix4f t_p = Eigen::Matrix4f::Identity();
-    t_p.topLeftCorner(3, 3) = rotMat_p;
+    t_p.topLeftCorner(3, 3) = q_p.matrix();
     t_p.block(0, 3, 3, 1) = p_pose_.head(3);
     Eigen::Matrix4f p_pose_map = m2o_matrix_ * t_p * mbes_tf_matrix_;
 
-    std::lock_guard<std::mutex> lock(*pc_mutex_);
     pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
     rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
-}
-
-void RbpfParticle::get_p_mbes_pose()
-{
-    // Nacho: this functionality has been moved to update_pose_history()
-    // This method is left to keep parallelism with the original python class
 }
 
 void RbpfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes)

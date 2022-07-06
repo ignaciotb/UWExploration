@@ -57,9 +57,9 @@ public:
 
     void update_pose_history();
 
-    void get_p_mbes_pose();
-
     void motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt, std::mt19937& rng);
+
+    void update_pose_history_mt();
 
     Eigen::VectorXf p_pose_;
     std::vector<pos_track_ptr> pos_history_;

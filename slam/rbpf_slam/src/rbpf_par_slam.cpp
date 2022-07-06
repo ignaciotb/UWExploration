@@ -161,7 +161,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Establish subscription to odometry message (intentionally last)
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");
-    odom_sub_ = nh_->subscribe(odom_top_, 10, &RbpfSlam::odom_callback, this);
+    odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
 
     // Initialize the particles on top of LoLo 
     tf::StampedTransform o2b_tf;
@@ -272,19 +272,15 @@ void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
             // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
             count_pings_ += 1;
 
-            // Motion prediction
-            // Added in the MBES CB to synch the DR steps with the pings log
-            nav_msgs::Odometry odom_cp = odom_latest_; // local copy
-            float dt = float(time_ - old_time_);
-            std::cout << dt << std::endl;
-            this->predict(odom_cp, dt);
+            // Store in history particles poses corresponding to the current ping
+            this->update_particles_history();
 
-            auto t2 = high_resolution_clock::now();
-            duration<double, std::milli> ms_double = t2 - t1;
+            // auto t2 = high_resolution_clock::now();
+            // duration<double, std::milli> ms_double = t2 - t1;
             // std::cout << ms_double.count() / 1000.0 << std::endl;
-            count_mbes_cbs_++;
-            time_avg_ += ms_double.count();
-            std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
+            // count_mbes_cbs_++;
+            // time_avg_ += ms_double.count();
+            // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
             // std::cout << count_mb_cbs_ << std::endl;
         }
 
@@ -314,16 +310,19 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     odom_latest_ = *odom_msg;
 
     // // Flag to finish the mission
-    // if(mission_finished_ != true && start_training_)
-    // {
-    //     // Motion prediction
-    //     if (time_ > old_time_)
-    //     {
-    //         this->predict(*odom_msg);
-    //     }
-    // }
-
-    // old_time_ = time_;
+    if(mission_finished_ != true && start_training_)
+    {
+        // Motion prediction
+        if (time_ > old_time_)
+        {
+            // Added in the MBES CB to synch the DR steps with the pings log
+            nav_msgs::Odometry odom_cp = odom_latest_; // local copy
+            float dt = float(time_ - old_time_);
+            this->predict(odom_cp, dt);
+        }
+    }
+    old_time_ = time_;
+    
     // // Update stats and visual
     // publish_stats(*odom_msg);
     // update_rviz();
@@ -603,48 +602,26 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     // Multithreading
     // boost::asio::thread_pool g_pool(pc_);
     auto t1 = high_resolution_clock::now();
-
-    // std::random_device rd();
-    // std::mt19937 seed(rd());
-
-    // std::set<unsigned long long> seeds;
-    // while (seeds.size() < pc_*6)
-    //    seeds.insert(std::random_device()());
-
-    // std::random_device rd{};
-    // std::mt19937 seed{rd()};
-
-    // std::set<unsigned long long>::iterator seedsIt = seeds.begin();
     Eigen::VectorXf noise_vec(6, 1);
     for(int i = 0; i < pc_; i++)
     {
-        // for (int j = 0; j < 6; j++)
-        // {
-        //     std::normal_distribution<float> sampler{0, std::sqrt(particles_.at(i).process_cov_.at(j))};
-        //     noise_vec(j) = sampler(seed);
-        // }
-        // particles_.at(i).noise_vec_ = noise_vec;
-
         // particles_.at(i).motion_prediction(odom_t, dt);
         // particles_.at(i).update_pose_history();
         // particles_.at(i).motion_prediction_update_pose_history(odom_t, dt);
         // std::cout << "Particle " << i << " size " << particles_.at(i).pos_history_.back()->size() << std::endl;
         //post(g_pool, boost::bind(&RbpfParticle::motion_prediction_update_pose_history, &particles_.at(i), odom_t, dt));
-        threads_vector_.emplace_back(std::thread(&RbpfParticle::motion_prediction_mt, 
+        pred_threads_vec_.emplace_back(std::thread(&RbpfParticle::motion_prediction_mt, 
                                     &particles_.at(i), std::ref(odom_t), dt, std::ref(rng_)));
-        // seedsIt++;
     }
 
     for (int i = 0; i < pc_; i++)
     {
-        if (threads_vector_[i].joinable())
+        if (pred_threads_vec_[i].joinable())
         {
-            threads_vector_[i].join();
+            pred_threads_vec_[i].join();
         }
     }
-    threads_vector_.clear();
-
-    //g_pool.join();
+    pred_threads_vec_.clear();
 
     // for (int i = 0; i < 6; i++)
     // {
@@ -658,6 +635,24 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     // auto t2 = high_resolution_clock::now();
     // duration<double, std::milli> ms_double = t2 - t1;
     // std::cout << ms_double.count() / 1000.0 << std::endl;
+}
+
+void RbpfSlam::update_particles_history()
+{
+    for(int i = 0; i < pc_; i++)
+    {
+        upd_threads_vec_.emplace_back(std::thread(&RbpfParticle::update_pose_history_mt, 
+                                    &particles_.at(i)));
+    }
+
+    for (int i = 0; i < pc_; i++)
+    {
+        if (upd_threads_vec_[i].joinable())
+        {
+            upd_threads_vec_[i].join();
+        }
+    }
+    upd_threads_vec_.clear();
 }
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)

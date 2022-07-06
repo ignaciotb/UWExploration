@@ -49,7 +49,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(100)
+    model = SVGP(400)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()
@@ -90,7 +90,7 @@ def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
     fig, ax = plt.subplots(3, sharex=True, sharey=True)
     cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
                         cmap='viridis', s=0.4, edgecolors='none')
-    cm = ax[1].contourf(*inputsg, mean, levels=levels)
+    cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
     cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
     indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
     ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
@@ -149,4 +149,4 @@ if __name__ == '__main__':
     beams = data['beams']
     # loss = data['loss']
 
-    plot_post(cp, beams[:, 0:2], beams[:, 2], './particle_map.png', n=50, n_contours=100)
+    plot_post(cp, beams[:, 0:2], beams[:, 2], './particle_map_' + i + '.png', n=50, n_contours=100)

@@ -697,7 +697,8 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
-    if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    // if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    if (N_eff < 80 || lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");

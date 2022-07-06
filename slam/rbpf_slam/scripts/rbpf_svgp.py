@@ -320,7 +320,6 @@ class SVGP_map():
             
             # Plot posterior and save it to image
             if goal.plot:
-                print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
 
                 self.plot(beams[:,0:2], beams[:,2], 
                             self.storage_path + 'particle_' + str(self.particle_id) 
@@ -343,49 +342,8 @@ class SVGP_map():
             result.success = True
             self._as_manipulate.set_succeeded(result)
             self.plotting = False
-            print("GP posterior saved/plotted ", self.particle_id)
+            print("Saving GP ", self.particle_id, " after ", self.iterations, " iterations")
 
-
-    # def save_posterior_cb(self, goal):
-
-    #     # Wait for training to stop
-    #     while not rospy.is_shutdown() and self.training:
-    #         rospy.sleep(0.01)
-    #         rospy.logdebug(
-    #             "GP %s waiting for training before plotting",  self.particle_id)
-
-    #     beams = np.asarray(list(pc2.read_points(goal.pings, 
-    #                     field_names = ("x", "y", "z"), skip_nans=True)))
-    #     beams = np.reshape(beams, (-1,3)) 
-
-    #     # Flag to stop training
-    #     self.plotting = True
-    #     # Plot posterior and save it to image
-    #     if goal.plot:
-    #         print("Plotting GP ", self.particle_id, " after ", self.iterations, " iterations")
-
-    #         self.plot(beams[:,0:2], beams[:,2], 
-    #                     self.storage_path + 'particle_' + str(self.particle_id) 
-    #                     + '_training_' + str(self.n_plot) + '.png',
-    #                     n=50, n_contours=100 )
-    #         self.n_plot += 1
-
-    #     # Save to disk 
-    #     else:
-    #         # Save GP hyperparams
-    #         self.save(self.storage_path + "svpg_final_" +
-    #                   str(self.particle_id) + ".pth")
-    #         # Save particle's MBES map and inducing points
-    #         np.savez(self.storage_path + "map_" +
-    #                  str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
-    #         self.plotting = False
-
-    #     # Set action as success
-    #     result = PlotPosteriorResult()
-    #     result.success = True
-    #     self._as_plot.set_succeeded(result)
-    #     self.plotting = False
-    #     print("GP posterior saved/plotted ", self.particle_id)
 
     def sample(self, x):
 

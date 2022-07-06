@@ -103,6 +103,7 @@ private:
     string odom_frame_;
     std::vector<RbpfParticle> particles_;
     std::vector<RbpfParticle> dr_particle_;
+    std::mt19937 rng_;
 
 
     tf::TransformListener tfListener_;
@@ -112,6 +113,7 @@ private:
     bool start_training_;
     double time_avg_;
     int count_mb_cbs_;
+    int count_mbes_cbs_;
 
     // Covariances
     float meas_std_;

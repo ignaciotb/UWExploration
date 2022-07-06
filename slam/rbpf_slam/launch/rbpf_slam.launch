@@ -33,7 +33,8 @@
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="5" />
+  <arg name="rbpf_period"   default="30" />
+  <arg name="rviz_period"   default="0.3" />
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
@@ -65,7 +66,7 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[2., 2., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0001]</rosparam>
         <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="0.2" />

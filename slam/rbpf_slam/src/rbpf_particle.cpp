@@ -15,6 +15,7 @@ RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f 
     // Noise models init
     init_cov_ = init_cov;
     process_cov_ = process_cov;
+    noise_vec_ = Eigen::VectorXf(6);
     // meas_cov_ = std::vector<double>(beams_num_, std::pow(meas_std, 2));
     mbes_sigma_ = double(meas_std);
     // Eigen::VectorXd meas_cov_eig_diag = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(meas_cov_.data(), meas_cov_.size());
@@ -108,7 +109,8 @@ void RbpfParticle::update_pose_history()
     rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
 }
 
-void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odom_t, float dt)
+void RbpfParticle::motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt, 
+                                        std::mt19937& rng)
 {
 
     // Generate noise
@@ -120,6 +122,13 @@ void RbpfParticle::motion_prediction_update_pose_history(nav_msgs::Odometry &odo
     //     std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
     //     noise_vec(i) = sampler(seed);
     // }
+
+    // std::mt19937 rng(seed);
+    for (int j = 0; j < 6; j++)
+    {
+        std::normal_distribution<float> sampler(0, std::sqrt(process_cov_.at(j)));
+        noise_vec_(j) = sampler(rng);
+    }
 
     // Angular
     Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,

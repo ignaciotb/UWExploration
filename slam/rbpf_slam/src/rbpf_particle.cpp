@@ -49,21 +49,9 @@ void RbpfParticle::add_noise(std::vector<float> &noise){
     }
 }
 
-void RbpfParticle::motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt, 
+void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt, 
                                         std::mt19937& rng)
 {
-
-    // Generate noise
-    // std::random_device rd{};
-    // std::mt19937 seed{rd()};
-    // Eigen::VectorXf noise_vec(6, 1);
-    // for (int i = 0; i < 6; i++)
-    // {
-    //     std::normal_distribution<float> sampler{0, std::sqrt(process_cov_.at(i))};
-    //     noise_vec(i) = sampler(seed);
-    // }
-
-    // std::mt19937 rng(seed);
     for (int j = 0; j < 6; j++)
     {
         std::normal_distribution<float> sampler(0, std::sqrt(process_cov_.at(j)));
@@ -100,7 +88,7 @@ void RbpfParticle::motion_prediction_mt(nav_msgs::Odometry &odom_t, float dt,
     p_pose_(2) = odom_t.pose.pose.position.z;
 }
 
-void RbpfParticle::update_pose_history_mt()
+void RbpfParticle::update_pose_history()
 {
     // Rotation matrix
     std::lock_guard<std::mutex> lock(*pc_mutex_);

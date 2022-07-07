@@ -70,6 +70,8 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt,
         rot_t(i) = angle_limit(rot_t(i));
     }
     p_pose_.tail(3) = rot_t;
+    p_pose_(3) = 0.;
+    p_pose_(4) = 0.;
 
     Eigen::AngleAxisf rollAngle(rot_t(0), Eigen::Vector3f::UnitX());
     Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
@@ -114,7 +116,7 @@ void RbpfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real
 
     if (exp_mbes.size() > 0)
     {
-        w_ = weight_mv(exp_mbes, real_mbes);
+        w_ = weight_mv(real_mbes, exp_mbes);
     }
     else
     {

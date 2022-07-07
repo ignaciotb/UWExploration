@@ -15,7 +15,9 @@ from gp_mapping.convergence import ExpMAStoppingCriterion
 import matplotlib.pyplot as plt
 
 import rospy
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import PointCloud2, PointField
+from sensor_msgs import point_cloud2
+from std_msgs.msg import Header
 import sensor_msgs.point_cloud2 as pc2
 from rospy.numpy_msg import numpy_msg
 from std_msgs.msg import Float32, Int32MultiArray
@@ -114,13 +116,16 @@ class SVGP_map():
         self.resample_srv = rospy.Service(str(p_resampling_top) + "/particle_" + str(self.particle_id), Resample,
                          self.resampling_cb)
 
+        mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/expected_mbes')
+        self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
+
         ## SVGP SETUP
         self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
-        self.lr = rospy.get_param("~svpg_learning_rate", 1e-1)
-        self.rtol = rospy.get_param("~svpg_rtol", 1e-4)
-        self.n_window = rospy.get_param("~svpg_n_window", 100)
-        self.auto = rospy.get_param("~svpg_auto_stop", False)
-        self.verbose = rospy.get_param("~svpg_verbose", True)
+        self.lr = rospy.get_param("~svgp_learning_rate", 1e-1)
+        self.rtol = rospy.get_param("~svgp_rtol", 1e-4)
+        self.n_window = rospy.get_param("~svgp_n_window", 100)
+        self.auto = rospy.get_param("~svgp_auto_stop", False)
+        self.verbose = rospy.get_param("~svgp_verbose", True)
 
         # Number of inducing points
         num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
@@ -184,7 +189,7 @@ class SVGP_map():
         # to share it with the rest
         response = ResampleResponse(True)
         if req.p_id == self.particle_id:
-            self.save(self.storage_path + "svpg_" + str(req.p_id) + ".pth")
+            self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
             # print("Particle ", req.p_id, " saved to disk")
 
         # Else, load the SVGP from the disk with the particle ID received in the msg
@@ -192,7 +197,7 @@ class SVGP_map():
             ## Loading from disk
             # print("Particle ", self.particle_id,
             #       "loading particle ", req.p_id)
-            my_file = Path(self.storage_path + "svpg_" + str(req.p_id) + ".pth")
+            my_file = Path(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
             try:
                 if my_file.is_file():
                     self.load(str(my_file.as_posix()))
@@ -313,6 +318,10 @@ class SVGP_map():
             self._as_manipulate.set_succeeded(result)
             # print("GP ", self.particle_id, " sampled")
 
+            # Publish for debugging
+            mbes_gp = np.concatenate((np.asarray(beams)[:, 0:2], np.reshape(mu, (-1,1))), axis=1)
+            mbes_pcloud = self.pack_cloud("map", mbes_gp)
+            self.pcloud_pub.publish(mbes_pcloud)
         #####
         else:
             # Flag to stop training
@@ -330,7 +339,7 @@ class SVGP_map():
             # Save to disk 
             else:
                 # Save GP hyperparams
-                self.save(self.storage_path + "svpg_final_" +
+                self.save(self.storage_path + "svgp_final_" +
                         str(self.particle_id) + ".pth")
                 # Save particle's MBES map and inducing points
                 np.savez(self.storage_path + "map_" +
@@ -528,14 +537,29 @@ class SVGP_map():
 
     def load(self, fname):
         time_start = time.time()
-        cp = torch.load(fname)
-        self.model.load_state_dict(cp['model'])
-        self.likelihood.load_state_dict(cp['likelihood'])
-        self.mll.load_state_dict(cp['mll'])
-        self.opt.load_state_dict(cp['opt'])
+        # cp = torch.load(fname)
+        # self.model.load_state_dict(cp['model'])
+        # self.likelihood.load_state_dict(cp['likelihood'])
+        # self.mll.load_state_dict(cp['mll'])
+        # self.opt.load_state_dict(cp['opt'])
+        
+        self.model.load_state_dict(torch.load(fname), strict=False)
         
         self.model.train()
         self.likelihood.train() 
+
+    def pack_cloud(self, frame, mbes):
+        mbes_pcloud = PointCloud2()
+        header = Header()
+        header.stamp = rospy.Time.now()
+        header.frame_id = frame
+        fields = [PointField('x', 0, PointField.FLOAT32, 1),
+                  PointField('y', 4, PointField.FLOAT32, 1),
+                  PointField('z', 8, PointField.FLOAT32, 1)]
+
+        mbes_pcloud = point_cloud2.create_cloud(header, fields, mbes)
+        return mbes_pcloud 
+
 
 
 if __name__ == '__main__':
@@ -547,16 +571,17 @@ if __name__ == '__main__':
 
     try:
         particles_svgps = []
-        particles_ids = []
+        # particles_ids = []
         # Create the SVGP maps for this handler
         for i in range(0, int(particles_per_hdl)):
             particles_svgps.append(SVGP_map(int(hdl_number)+i))
-            particles_ids.append(int(hdl_number)+i)
+            # particles_ids.append(int(hdl_number)+i)
 
         # In each round, call one minibatch training iteration per SVGP
         while not rospy.is_shutdown():
             for i in range(0, int(particles_per_hdl)):
-                particles_svgps[i].train_iteration()  
+                # particles_svgps[i].train_iteration()  
+                rospy.sleep(0.01)
 
         # rospy.spin()
     except rospy.ROSInterruptException:

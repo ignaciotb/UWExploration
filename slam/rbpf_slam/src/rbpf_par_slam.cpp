@@ -180,10 +180,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     init_p_pose_(5)= yaw_o2b;
 
     // Create one particle on top of the GT vehicle pose. Only for testing
-    particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
+    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
     // Create particles
-    for (int i=1; i<pc_; i++){
+    for (int i=0; i<pc_; i++){
         particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                             init_cov_, meas_std_, motion_cov_));
     }
@@ -293,7 +293,8 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            if(start_training_ && count_pings_ > 1000){
+            // if(start_training_ && count_pings_ > 1000){
+            if(start_training_){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }
@@ -516,7 +517,9 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     // Latest ping depths in map frame
     Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
-    latest_mbes_z_ = latest_mbes.col(2);
+    // Nacho: Fix for Lolo in the surface
+    // latest_mbes_z_ = latest_mbes.col(2);
+    latest_mbes_z_ = -latest_mbes.col(0);
 
     ROS_INFO("Updating weights");
     Eigen::MatrixXf ping_mat(beams_real_, 3);
@@ -698,19 +701,25 @@ void RbpfSlam::resample(vector<double> weights)
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
     // if (N_eff < std::round(pc_ / 2) || lc_detected_)
-    if (N_eff < 80 || lc_detected_)
+    if (N_eff < 70 || lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");
         indices = systematic_resampling(weights);
+        
         // For manual lc testing
-        // indices = vector<int>(pc_, 0);
+        if(lc_detected_){
+            indices = vector<int>(pc_, 0);
+        }
         // indices = {0, 0, 0, 0, 0, 0, 0, 5, 1, 1, 1, 1, 1, 1, 1, 16, 2, 2, 12, 12};
-        lc_detected_ = false;
 
+        std::cout << "Indices " << std::endl;
+        for(auto ind: indices){
+            std::cout << ind << " ";
+        }
+        std::cout << std::endl;
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
-
         for(int i = 0; i < pc_; i++)
         {
             if (!count(keep.begin(), keep.end(), i))
@@ -726,11 +735,12 @@ void RbpfSlam::resample(vector<double> weights)
                 dupes.erase(idx);
             }
         }
-        reassign_poses(lost, dupes);
-
-        // Add noise to particles
-        for(int i = 0; i < pc_; i++)
-            particles_[i].add_noise(res_noise_cov_);
+        if(!lc_detected_){
+            reassign_poses(lost, dupes);
+            // Add noise to particles
+            for(int i = 0; i < pc_; i++)
+                particles_[i].add_noise(res_noise_cov_);
+        }
 
         // Reassign SVGP maps: send winning indexes to SVGP nodes
         slam_msgs::Resample k_ros;
@@ -743,7 +753,7 @@ void RbpfSlam::resample(vector<double> weights)
             {
                 std::cout << k << " ";
                 k_ros.request.p_id = k;
-                p_resampling_srvs_[k].call(k_ros);
+                // p_resampling_srvs_[k].call(k_ros);
             }
             std::cout << std::endl;
 
@@ -761,6 +771,8 @@ void RbpfSlam::resample(vector<double> weights)
                 j++;
             }
         }
+        lc_detected_ = false;
+
         // auto t2 = high_resolution_clock::now();
         // duration<double, std::milli> ms_double = t2 - t1;
         // std::cout << ms_double.count() / 1000.0 << std::endl;

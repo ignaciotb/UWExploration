@@ -151,6 +151,7 @@ def systematic_resample(weights):
         array of indexes into the weights defining the resample. i.e. the
         index of the zeroth resample is indexes[0], etc.
     """
+
     N = len(weights)
 
     # make N subdivisions, and choose positions with a consistent random offset

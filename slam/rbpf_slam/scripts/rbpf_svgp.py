@@ -188,9 +188,18 @@ class SVGP_map():
         # If this particle has been resampled, save SVGP to disk
         # to share it with the rest
         response = ResampleResponse(True)
-        if req.p_id == self.particle_id:
-            self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+        # if req.p_id == self.particle_id:
+        if 0 == self.particle_id:
+            # self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
             # print("Particle ", req.p_id, " saved to disk")
+            
+            my_file = Path(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+            try:
+                if my_file.is_file():
+                    self.load(str(my_file.as_posix()))
+            except FileNotFoundError:
+                rospy.logerr("Particle failed to load SVGP")
+            response = ResampleResponse(False)
 
         # Else, load the SVGP from the disk with the particle ID received in the msg
         else:
@@ -203,7 +212,7 @@ class SVGP_map():
                     self.load(str(my_file.as_posix()))
             except FileNotFoundError:
                 rospy.logerr("Particle failed to load SVGP")
-                response = ResampleResponse(False)
+            response = ResampleResponse(False)
 
         self.resampling = False
 

@@ -180,8 +180,11 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     init_p_pose_(5)= yaw_o2b;
 
     // Create one particle on top of the GT vehicle pose. Only for testing
-    // particles_.emplace_back(RbpfParticle(beams_real_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
-    //                                     std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // for (int i=0; i<pc_/2; i++){
+    //     particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
+    //                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    // }
+    
     // Create particles
     for (int i=0; i<pc_; i++){
         particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
@@ -684,13 +687,26 @@ void RbpfSlam::resample(vector<double> weights)
     vector<int> dupes;
     std::vector<int>::iterator idx;
 
-    // Normalize weights
-    double w_sum = accumulate(weights.begin(), weights.end(), 0);
-    if(w_sum == 0)
+    // std::cout << "Original weights :" << std::endl;
+    // for(auto weight: weights){
+    //     std::cout << weight << " ";
+    // }
+    // std::cout << std::endl;
+
+    double w_sum = accumulate(weights.begin(), weights.end(), 0.0);
+    if(w_sum == 0.)
         ROS_WARN("All weights are zero!");
     else
     {
+        // Normalize weights
         transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
+        std::cout << "Normalized weights :" << std::endl;
+        for(auto weight: weights){
+            std::cout << weight << " ";
+        }
+        std::cout << std::endl;
+
+        // Compute effective number
         double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
         N_eff = 1 / w_sq_sum;
     }
@@ -698,10 +714,12 @@ void RbpfSlam::resample(vector<double> weights)
     n_eff_mask_.erase(n_eff_mask_.begin());
     n_eff_mask_.push_back(N_eff);
     n_eff_filt_ = moving_average(n_eff_mask_, 3);
+
+    std::cout << std::endl;
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
-    // if (N_eff < std::round(pc_ / 2) || lc_detected_)
-    if (N_eff < 70 || lc_detected_)
+    // if (N_eff < std::round(pc_ / 2)+1 || lc_detected_)
+    if (N_eff < 90 || lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");
@@ -711,13 +729,7 @@ void RbpfSlam::resample(vector<double> weights)
         if(lc_detected_){
             indices = vector<int>(pc_, 0);
         }
-        // indices = {0, 0, 0, 0, 0, 0, 0, 5, 1, 1, 1, 1, 1, 1, 1, 16, 2, 2, 12, 12};
 
-        std::cout << "Indices " << std::endl;
-        for(auto ind: indices){
-            std::cout << ind << " ";
-        }
-        std::cout << std::endl;
         set<int> s(indices.begin(), indices.end());
         keep.assign(s.begin(), s.end());
         for(int i = 0; i < pc_; i++)
@@ -735,12 +747,11 @@ void RbpfSlam::resample(vector<double> weights)
                 dupes.erase(idx);
             }
         }
-        if(!lc_detected_){
-            reassign_poses(lost, dupes);
-            // Add noise to particles
-            for(int i = 0; i < pc_; i++)
-                particles_[i].add_noise(res_noise_cov_);
-        }
+        ROS_INFO("Reasiging poses");
+        reassign_poses(lost, dupes);
+        // Add noise to particles
+        for(int i = 0; i < pc_; i++)
+            particles_[i].add_noise(res_noise_cov_);
 
         // Reassign SVGP maps: send winning indexes to SVGP nodes
         slam_msgs::Resample k_ros;
@@ -753,7 +764,7 @@ void RbpfSlam::resample(vector<double> weights)
             {
                 std::cout << k << " ";
                 k_ros.request.p_id = k;
-                // p_resampling_srvs_[k].call(k_ros);
+                p_resampling_srvs_[k].call(k_ros);
             }
             std::cout << std::endl;
 

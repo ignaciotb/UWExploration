@@ -815,7 +815,7 @@ vector<int> RbpfSlam::systematic_resampling(vector<double> weights)
     vector<int> range = arange(0, N, 1);
     vector<double> positions(N);
     vector<int> indexes(N, 0);
-    vector<int> cum_sum(N);
+    vector<double> cum_sum(N);
 
     // make N subdivisions, and choose positions with a consistent random offset
     for(int i = 0; i < N; i++)

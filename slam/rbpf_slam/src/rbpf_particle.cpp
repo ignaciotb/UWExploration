@@ -148,7 +148,7 @@ double RbpfParticle::weight_mv(Eigen::VectorXd& mbes_meas_ranges, Eigen::VectorX
         w_i = 1e-50;
     }
 
-    return w_i;
+    return w_i + 1.e-200;
 }
 
 // TODO: if we don't use covs from the GP maps, define sigma.inverse() in the class constructor
@@ -185,7 +185,8 @@ double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean,
     double logl = -(n / 2.) * std::log(sigma.determinant()) 
                   -(1 / 2.0) * diff.array().sum();
 
-    return 1/logl;
+    return exp(logl);
+    // return 1.0/logl;
 }
 
 vector<float> list2ranges(vector<Eigen::Array3f> points)

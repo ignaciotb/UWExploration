@@ -180,9 +180,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     init_p_pose_(5)= yaw_o2b;
 
     // Create one particle on top of the GT vehicle pose. Only for testing
-    // for (int i=0; i<pc_/2; i++){
+    // for (int i=0; i<1; i++){
     //     particles_.emplace_back(RbpfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
-    //                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    //                                        std::vector<float>(6, 0.), meas_std_, motion_cov_));
     // }
     
     // Create particles
@@ -718,8 +718,8 @@ void RbpfSlam::resample(vector<double> weights)
     std::cout << std::endl;
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
-    // if (N_eff < std::round(pc_ / 2)+1 || lc_detected_)
-    if (N_eff < 90 || lc_detected_)
+    if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    // if (N_eff < 90 || lc_detected_)
     {
         // Resample particles
         ROS_INFO("Resampling");

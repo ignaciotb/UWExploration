@@ -33,7 +33,7 @@
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="10" />
+  <arg name="rbpf_period"   default="15" />
   <arg name="rviz_period"   default="0.3" />
 
   <arg name="map_frame"                         default="map"/>
@@ -47,6 +47,7 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+    <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>     
     <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
     <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
@@ -66,8 +67,8 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[10., 10., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00001]</rosparam>
+        <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000001]</rosparam>
         <rosparam param="resampling_noise_covariance">[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="1" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />

@@ -91,10 +91,11 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     time_ = ros::Time::now().toSec();
     old_time_ = ros::Time::now().toSec();
 
-    // Main timer for the RBPF
-    nh_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
-    timer_rbpf_ = nh_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
+    // Timer for the RBPF LC prompting
+    nh_mb_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
+    timer_rbpf_ = nh_mb_->createTimer(ros::Duration(rbpf_period_), &RbpfSlam::rbpf_update, this, false);
 
+    // Timer for updating RVIZ
     nh_->param<float>(("rviz_period"), rviz_period_, 0.3);
     timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
 
@@ -195,6 +196,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                            std::vector<float>(6, 0.), meas_std_, motion_cov_));
 
+    ping_mat_ = Eigen::MatrixXf(beams_real_, 3);
     ROS_INFO("RBPF instantiated");
 }
 
@@ -296,8 +298,8 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            // if(start_training_ && count_pings_ > 1000){
-            if(start_training_){
+            if(start_training_ && count_pings_ > 1000){
+            // // if(start_training_){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }
@@ -448,7 +450,8 @@ void RbpfSlam::save_gp_maps(const bool plot)
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
-    for(int p=0; p<pc_; p++)
+    // for(int p=0; p<pc_; p++)
+    for(int p=0; p<1; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
@@ -517,6 +520,10 @@ void RbpfSlam::save_gp_maps(const bool plot)
 void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
 {
 
+    ROS_INFO("Updating weights");
+    updated_w_ids_.clear();
+
+    auto t1 = high_resolution_clock::now();
     // Latest ping depths in map frame
     Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
@@ -524,8 +531,6 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     // latest_mbes_z_ = latest_mbes.col(2);
     latest_mbes_z_ = -latest_mbes.col(0);
 
-    ROS_INFO("Updating weights");
-    Eigen::MatrixXf ping_mat(beams_real_, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
@@ -542,12 +547,12 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         // TODO: get rid of loop with colwise operations on mbes_history
         for (int b = 0; b < mbes_history_.back().rows(); b++)
         {
-            ping_mat.row(b) = (rot_i * mbes_history_.back().row(b).transpose() + pos_i).transpose();
+            ping_mat_.row(b) = (rot_i * mbes_history_.back().row(b).transpose() + pos_i).transpose();
         }
 
         // Parse into pointcloud2
         sensor_msgs::PointCloud2 mbes_pcloud;
-        eigenToPointcloud2msg(mbes_pcloud, ping_mat);
+        eigenToPointcloud2msg(mbes_pcloud, ping_mat_);
 
         // Asynch goal
         goal.ping = mbes_pcloud;
@@ -560,7 +565,7 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     int w_time_out = 0;
     while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < rbpf_period_ * 100.)
     {
-        // ROS_INFO("Updating weights");
+        // ROS_DEBUG("Waiting for weights");
         ros::Duration(0.01).sleep();
         w_time_out++;
     }
@@ -581,6 +586,10 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         updated_w_ids_.clear();
         ROS_WARN("Lost weights on the way, skipping resampling");
     }
+
+    auto t2 = high_resolution_clock::now();
+    duration<double, std::milli> ms_double = t2 - t1;
+    std::cout << ms_double.count() / 1000.0 << std::endl;
 }
 
 void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,
@@ -604,10 +613,25 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     // Multithreading
     auto t1 = high_resolution_clock::now();
     Eigen::VectorXf noise_vec(6, 1);
+
+    // Angular vel
+    Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
+                                              odom_t.twist.twist.angular.y,
+                                              odom_t.twist.twist.angular.z);
+
+    // Linear vel
+    Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
+                                            odom_t.twist.twist.linear.y,
+                                            odom_t.twist.twist.linear.z);
+
+    // Depth (read directly)
+    float depth = odom_t.pose.pose.position.z;
+
     for(int i = 0; i < pc_; i++)
     {
         pred_threads_vec_.emplace_back(std::thread(&RbpfParticle::motion_prediction, 
-                                    &particles_.at(i), std::ref(odom_t), dt, std::ref(rng_)));
+                                    &particles_.at(i), std::ref(vel_rot), std::ref(vel_p),
+                                    depth, dt, std::ref(rng_)));
     }
 
     for (int i = 0; i < pc_; i++)
@@ -625,7 +649,8 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     //     noise_vec(i) = sampler(seed);
     // }
     // dr_particle_.at(0).noise_vec_ = noise_vec;
-    // dr_particle_.at(0).motion_prediction_mt(odom_t, dt, seed);
+    // Particle to compute DR without filtering
+    dr_particle_.at(0).motion_prediction(vel_rot, vel_p, depth, dt, rng_);
 
 
     // auto t2 = high_resolution_clock::now();
@@ -700,11 +725,11 @@ void RbpfSlam::resample(vector<double> weights)
     {
         // Normalize weights
         transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
-        std::cout << "Normalized weights :" << std::endl;
-        for(auto weight: weights){
-            std::cout << weight << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Normalized weights :" << std::endl;
+        // for(auto weight: weights){
+        //     std::cout << weight << " ";
+        // }
+        // std::cout << std::endl;
 
         // Compute effective number
         double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
@@ -718,76 +743,77 @@ void RbpfSlam::resample(vector<double> weights)
     std::cout << std::endl;
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
-    if (N_eff < std::round(pc_ / 2) || lc_detected_)
-    // if (N_eff < 90 || lc_detected_)
-    {
-        // Resample particles
-        ROS_INFO("Resampling");
-        indices = systematic_resampling(weights);
+    // if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    // // if (N_eff < 90 || lc_detected_)
+    // {
+    //     // Resample particles
+    //     ROS_INFO("Resampling");
+    //     indices = systematic_resampling(weights);
         
-        // For manual lc testing
-        if(lc_detected_){
-            indices = vector<int>(pc_, 0);
-        }
+    //     // For manual lc testing
+    //     if(lc_detected_){
+    //         indices = vector<int>(pc_, 0);
+    //     }
 
-        set<int> s(indices.begin(), indices.end());
-        keep.assign(s.begin(), s.end());
-        for(int i = 0; i < pc_; i++)
-        {
-            if (!count(keep.begin(), keep.end(), i))
-                lost.push_back(i);
-        }
+    //     set<int> s(indices.begin(), indices.end());
+    //     keep.assign(s.begin(), s.end());
+    //     for(int i = 0; i < pc_; i++)
+    //     {
+    //         if (!count(keep.begin(), keep.end(), i))
+    //             lost.push_back(i);
+    //     }
 
-        dupes = indices;
-        for (int i : keep)
-        {
-            if (count(dupes.begin(), dupes.end(), i))
-            {
-                idx = find(dupes.begin(), dupes.end(), i);
-                dupes.erase(idx);
-            }
-        }
-        ROS_INFO("Reasiging poses");
-        reassign_poses(lost, dupes);
-        // Add noise to particles
-        for(int i = 0; i < pc_; i++)
-            particles_[i].add_noise(res_noise_cov_);
+    //     dupes = indices;
+    //     for (int i : keep)
+    //     {
+    //         if (count(dupes.begin(), dupes.end(), i))
+    //         {
+    //             idx = find(dupes.begin(), dupes.end(), i);
+    //             dupes.erase(idx);
+    //         }
+    //     }
 
-        // Reassign SVGP maps: send winning indexes to SVGP nodes
-        slam_msgs::Resample k_ros;
-        slam_msgs::Resample l_ros;
-        std::cout << "Keep " << std::endl;
-        auto t1 = high_resolution_clock::now();
-        if(!dupes.empty())
-        {
-            for(int k : keep)
-            {
-                std::cout << k << " ";
-                k_ros.request.p_id = k;
-                p_resampling_srvs_[k].call(k_ros);
-            }
-            std::cout << std::endl;
+    //     // Reasign and ddd noise to particles poses
+    //     ROS_INFO("Reasigning poses");
+    //     reassign_poses(lost, dupes);
+    //     for(int i = 0; i < pc_; i++)
+    //         particles_[i].add_noise(res_noise_cov_);
 
-            int j = 0;
-            for (int l : lost)
-            {
-                // Send the ID of the particle to copy to the particle that has not been resampled
-                l_ros.request.p_id = dupes[j];
-                if(p_resampling_srvs_[l].call(l_ros)){
-                    ROS_DEBUG("Dupe sent");
-                }
-                else{
-                    ROS_WARN("Failed to call resample srv");
-                }
-                j++;
-            }
-        }
-        lc_detected_ = false;
+    //     // Reassign SVGP maps: send winning indexes to SVGP nodes
+    //     slam_msgs::Resample k_ros;
+    //     slam_msgs::Resample l_ros;
+    //     std::cout << "Keep " << std::endl;
+    //     auto t1 = high_resolution_clock::now();
+    //     if(!dupes.empty())
+    //     {
+    //         for(int k : keep)
+    //         {
+    //             std::cout << k << " ";
+    //             k_ros.request.p_id = k;
+    //             p_resampling_srvs_[k].call(k_ros);
+    //         }
+    //         std::cout << std::endl;
 
-        // auto t2 = high_resolution_clock::now();
-        // duration<double, std::milli> ms_double = t2 - t1;
-        // std::cout << ms_double.count() / 1000.0 << std::endl;
-    }
+    //         int j = 0;
+    //         for (int l : lost)
+    //         {
+    //             // Send the ID of the particle to copy to the particle that has not been resampled
+    //             l_ros.request.p_id = dupes[j];
+    //             if(p_resampling_srvs_[l].call(l_ros)){
+    //                 ROS_DEBUG("Dupe sent");
+    //             }
+    //             else{
+    //                 ROS_WARN("Failed to call resample srv");
+    //             }
+    //             j++;
+    //         }
+        // }
+        // lc_detected_ = false;
+
+        // // auto t2 = high_resolution_clock::now();
+        // // duration<double, std::milli> ms_double = t2 - t1;
+        // // std::cout << ms_double.count() / 1000.0 << std::endl;
+    // }
 }
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
@@ -800,7 +826,7 @@ void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
     {
         {
             // TODO: test this
-            // std::lock_guard<std::mutex> lock(particles_.at(dupes[i]).pc_mutex_);
+            std::lock_guard<std::mutex> lock(*particles_.at(dupes[i]).pc_mutex_);
             // std::lock_guard<std::mutex> lock(particles_.at(lost[i]).pc_mutex_);
             // std::scoped_lock lock(particles_.at(dupes[i]).pc_mutex_, particles_.at(lost[i]).pc_mutex_);
             particles_[lost[i]].p_pose_ = particles_[dupes[i]].p_pose_;

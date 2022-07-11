@@ -53,8 +53,8 @@ public:
 
     double weight_mv(Eigen::VectorXd &mbes_meas_ranges, Eigen::VectorXd &mbes_sim_ranges);
 
-    void motion_prediction(nav_msgs::Odometry &odom_t, float dt, std::mt19937& rng);
-
+    void motion_prediction(Eigen::Vector3f &vel_rot, Eigen::Vector3f &vel_p, 
+                                     float depth, float dt, std::mt19937& rng);
     void update_pose_history();
 
     Eigen::VectorXf p_pose_;

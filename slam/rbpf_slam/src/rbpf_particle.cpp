@@ -49,19 +49,14 @@ void RbpfParticle::add_noise(std::vector<float> &noise){
     }
 }
 
-void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt, 
-                                        std::mt19937& rng)
+void RbpfParticle::motion_prediction(Eigen::Vector3f &vel_rot, Eigen::Vector3f &vel_p, 
+                                     float depth, float dt, std::mt19937& rng)
 {
     for (int j = 0; j < 6; j++)
     {
         std::normal_distribution<float> sampler(0, std::sqrt(process_cov_.at(j)));
         noise_vec_(j) = sampler(rng);
     }
-
-    // Angular
-    Eigen::Vector3f vel_rot = Eigen::Vector3f(odom_t.twist.twist.angular.x,
-                                              odom_t.twist.twist.angular.y,
-                                              odom_t.twist.twist.angular.z);
 
     Eigen::Vector3f rot_t = p_pose_.tail(3) + vel_rot * dt + noise_vec_.tail(3);
     // Wrap up angles
@@ -77,17 +72,11 @@ void RbpfParticle::motion_prediction(nav_msgs::Odometry &odom_t, float dt,
     Eigen::AngleAxisf pitchAngle(rot_t(1), Eigen::Vector3f::UnitY());
     Eigen::AngleAxisf yawAngle(rot_t(2), Eigen::Vector3f::UnitZ());
     Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-    Eigen::Matrix3f rotMat = q.matrix();
 
-    // Linear
-    Eigen::Vector3f vel_p = Eigen::Vector3f(odom_t.twist.twist.linear.x,
-                                            odom_t.twist.twist.linear.y,
-                                            odom_t.twist.twist.linear.z);
-
-    Eigen::Vector3f step_t = rotMat * (vel_p * dt) + noise_vec_.head(3);
+    Eigen::Vector3f step_t = q.matrix() * (vel_p * dt) + noise_vec_.head(3);
     p_pose_.head(3) += step_t;
     // NACHO: read depth directly from DR
-    p_pose_(2) = odom_t.pose.pose.position.z;
+    p_pose_(2) = depth;
 }
 
 void RbpfParticle::update_pose_history()

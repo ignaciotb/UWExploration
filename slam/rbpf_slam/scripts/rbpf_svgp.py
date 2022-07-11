@@ -126,6 +126,7 @@ class SVGP_map():
         self.n_window = rospy.get_param("~svgp_n_window", 100)
         self.auto = rospy.get_param("~svgp_auto_stop", False)
         self.verbose = rospy.get_param("~svgp_verbose", True)
+        n_beams_mbes = rospy.get_param("~n_beams_mbes", 1000)
 
         # Number of inducing points
         num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
@@ -188,18 +189,18 @@ class SVGP_map():
         # If this particle has been resampled, save SVGP to disk
         # to share it with the rest
         response = ResampleResponse(True)
-        # if req.p_id == self.particle_id:
-        if 0 == self.particle_id:
-            # self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
-            # print("Particle ", req.p_id, " saved to disk")
-            
-            my_file = Path(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
-            try:
-                if my_file.is_file():
-                    self.load(str(my_file.as_posix()))
-            except FileNotFoundError:
-                rospy.logerr("Particle failed to load SVGP")
-            response = ResampleResponse(False)
+        if req.p_id == self.particle_id:
+            self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+            print("Particle ", req.p_id, " saved to disk")
+        
+        # if 0 == self.particle_id:    
+            # my_file = Path(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+            # try:
+            #     if my_file.is_file():
+            #         self.load(str(my_file.as_posix()))
+            # except FileNotFoundError:
+            #     rospy.logerr("Particle failed to load SVGP")
+            # response = ResampleResponse(False)
 
         # Else, load the SVGP from the disk with the particle ID received in the msg
         else:
@@ -258,9 +259,10 @@ class SVGP_map():
                 self.loss.append(loss.detach().cpu().numpy())
                 self.iterations += 1
 
-                # print("Particle ", self.particle_id,
-                #       "with iterations: ", self.iterations)
-                # print("Training time ", time.time() - time_start)
+                if self.particle_id == 0:
+                    print("Particle ", self.particle_id,
+                        "with iterations: ", self.iterations)
+                    # print("Training time ", time.time() - time_start)
 
             else:
                 rospy.logdebug("GP missed MB %s", self.particle_id)
@@ -339,11 +341,17 @@ class SVGP_map():
             # Plot posterior and save it to image
             if goal.plot:
 
-                self.plot(beams[:,0:2], beams[:,2], 
-                            self.storage_path + 'particle_' + str(self.particle_id) 
-                            + '_training_' + str(self.n_plot) + '.png',
-                            n=50, n_contours=100 )
-                self.n_plot += 1
+                # Plot the loss
+                self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
+                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
+                self.n_plot_loss += 1
+
+                # Plot the GP posterior
+                # self.plot(beams[:,0:2], beams[:,2], 
+                #             self.storage_path + 'particle_' + str(self.particle_id) 
+                #             + '_training_' + str(self.n_plot) + '.png',
+                #             n=50, n_contours=100 )
+                # self.n_plot += 1
 
             # Save to disk 
             else:
@@ -354,6 +362,11 @@ class SVGP_map():
                 np.savez(self.storage_path + "map_" +
                         str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
                 self.plotting = False
+
+                # Plot the loss
+                self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
+                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
+                self.n_plot_loss += 1
 
             # Set action as success
             result = ManipulatePosteriorResult()
@@ -374,8 +387,8 @@ class SVGP_map():
         '''
 
         ## On your source code, call:
-        # self.likelihood.eval()
-        # self.eval()
+        self.likelihood.eval()
+        self.model.eval()
         ## before using this function to toggle evaluation mode
 
         # sanity
@@ -385,9 +398,15 @@ class SVGP_map():
         # TODO: fast_pred_var activates LOVE. Test performance on PF
         # https://towardsdatascience.com/gaussian-process-regression-using-gpytorch-2c174286f9cc
         with torch.no_grad(), gpytorch.settings.fast_pred_var():
+            # time_start = time.time()
             x = torch.from_numpy(x).to(self.device).float()
             dist = self.likelihood(self.model(x))
+            
+            # print("Sampling time ", time.time() - time_start)
+            self.likelihood.train()
+            self.model.train()
             return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
+        
 
 
     def save_posterior(self, n, xlb, xub, ylb, yub, fname, verbose=True):
@@ -514,10 +533,6 @@ class SVGP_map():
         # save
         fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
-        self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
-                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
-        self.n_plot_loss += 1
-
         # Free up GPU mem
         del inputst
         torch.cuda.empty_cache()
@@ -546,13 +561,14 @@ class SVGP_map():
 
     def load(self, fname):
         time_start = time.time()
-        # cp = torch.load(fname)
-        # self.model.load_state_dict(cp['model'])
-        # self.likelihood.load_state_dict(cp['likelihood'])
-        # self.mll.load_state_dict(cp['mll'])
-        # self.opt.load_state_dict(cp['opt'])
+        cp = torch.load(fname)
+        self.model.load_state_dict(cp['model'])
+        self.likelihood.load_state_dict(cp['likelihood'])
+        self.mll.load_state_dict(cp['mll'])
+        self.opt.load_state_dict(cp['opt'])
         
-        self.model.load_state_dict(torch.load(fname), strict=False)
+        # For localization testing
+        # self.model.load_state_dict(torch.load(fname), strict=False)
         
         self.model.train()
         self.likelihood.train() 
@@ -589,7 +605,7 @@ if __name__ == '__main__':
         # In each round, call one minibatch training iteration per SVGP
         while not rospy.is_shutdown():
             for i in range(0, int(particles_per_hdl)):
-                # particles_svgps[i].train_iteration()  
+                particles_svgps[i].train_iteration()  
                 rospy.sleep(0.01)
 
         # rospy.spin()

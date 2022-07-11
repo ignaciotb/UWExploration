@@ -10,6 +10,7 @@
     <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/gp/resample_top"/>
     <arg name="num_particles_per_handler"/>     
+    <arg name="n_beams_mbes" default="100"/>     
 
 
     <node type="rbpf_svgp.py" pkg="rbpf_slam" name="$(arg node_name)" output="screen">
@@ -27,5 +28,6 @@
       <param name="svgp_auto_stop" value="False"/>     
       <param name="svgp_verbose" value="True"/>     
       <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
+      <param name="n_beams_mbes"   type= "int"  value="$(arg n_beams_mbes)" />       
     </node>
 </launch>

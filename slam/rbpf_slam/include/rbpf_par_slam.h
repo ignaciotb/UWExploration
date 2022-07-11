@@ -143,6 +143,8 @@ private:
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
     geometry_msgs::PoseWithCovarianceStamped avg_pose_;
+    Eigen::MatrixXf ping_mat_;
+    bool first_update_;
 
     // Publishers
     ros::Publisher ip_pub_;

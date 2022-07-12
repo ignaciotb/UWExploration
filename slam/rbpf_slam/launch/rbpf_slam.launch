@@ -35,6 +35,7 @@
   <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
   <arg name="rbpf_period"   default="15" />
   <arg name="rviz_period"   default="0.3" />
+  <arg name="svgp_minibatch_size"   default="800" />
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
@@ -48,6 +49,7 @@
 
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
     <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>     
+    <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
     <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
     <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
@@ -94,6 +96,7 @@
 				<param name="path_topic"  value="/$(arg namespace)/ctrl/mission_waypoints" />
 				<param name="result_path"  value="/home/torroba/" />
 				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
+				<param name="svgp_minibatch_size"  value="$(arg svgp_minibatch_size)" />
       </node>
     </group>
   </group>

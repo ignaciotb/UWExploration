@@ -46,7 +46,7 @@ class SVGP(VariationalGP):
         return MultivariateNormal(m, v)
 
 
-def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
+def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     # Reconstruct model
     model = SVGP(400)
@@ -89,8 +89,8 @@ def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
     levels = np.linspace(min(targets)-20, max(targets)+20, n_contours)
     fig, ax = plt.subplots(3, sharex=True, sharey=True)
     cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
-                        cmap='viridis', s=0.4, edgecolors='none')
-    cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
+                        cmap='jet', s=0.4, edgecolors='none')
+    cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
     cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
     indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
     ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
@@ -113,6 +113,10 @@ def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
     ax[2].set_ylabel('$y~[m]$')
     plt.tight_layout()
 
+
+    # Plot particle trajectory
+    ax[0].plot(track[:,0], track[:,1], "-r", linewidth=0.2)
+
     # save
     fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
@@ -123,30 +127,32 @@ def plot_post(cp, inputs, targets, fname, n=80, n_contours=50):
     del inputst
     torch.cuda.empty_cache()
 
-    def plot_loss(fname, loss):
+def plot_loss(fname, loss):
 
-        # plot
-        fig, ax = plt.subplots(1)
-        ax.plot(loss, 'k-')
+    # plot
+    fig, ax = plt.subplots(1)
+    ax.plot(loss, 'k-')
 
-        # format
-        ax.set_xlabel('Iteration')
-        ax.set_ylabel('ELBO')
-        ax.set_yscale('log')
-        plt.tight_layout()
+    # format
+    ax.set_xlabel('Iteration')
+    ax.set_ylabel('ELBO')
+    ax.set_yscale('log')
+    plt.tight_layout()
 
-        # save
-        fig.savefig(fname, bbox_inches='tight', dpi=1000)
+    # save
+    fig.savefig(fname, bbox_inches='tight', dpi=1000)
+
 
 
 if __name__ == '__main__':
 
     i = str(input("Number of the particle to plot: "))
 
-    cp = torch.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/svpg_final_'+i+'.pth')))
-    data = np.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/map_'+i+'.npz')))
+    cp = torch.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/svgp_final_'+i+'.pth')))
+    data = np.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/data_particle_'+i+'.npz')))
 
     beams = data['beams']
+    track = data['track']
     # loss = data['loss']
 
-    plot_post(cp, beams[:, 0:2], beams[:, 2], './particle_map_' + i + '.png', n=50, n_contours=100)
+    plot_post(cp, beams[:, 0:2], beams[:, 2], track, './particle_map_' + i + '.png', n=50, n_contours=100)

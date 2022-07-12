@@ -168,6 +168,12 @@ class SVGP_map():
             rospy.logwarn("Couldn't lock utm to map tf")
             return
 
+        ## The first call to sample takes several seconds and slows down the DR computations.
+        ## To avoid that, we make an empty call here to allocate the GPU mem already
+        
+        # print("Empty call to GP sampling")
+        # self.sample(np.zeros((n_beams_mbes, 2)))
+
         print("Particle ", self.particle_id, " set up")
         # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
         # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
@@ -307,7 +313,7 @@ class SVGP_map():
     ## AS for interfacing the sampling, plotting or saving to disk of the GP posterior
     def manipulate_posterior_cb(self, goal):
 
-        beams = np.asarray(list(pc2.read_points(goal.ping, 
+        beams = np.asarray(list(pc2.read_points(goal.pings, 
                                 field_names = ("x", "y", "z"), skip_nans=True)))
         beams = np.reshape(beams, (-1,3)) 
 
@@ -355,12 +361,16 @@ class SVGP_map():
 
             # Save to disk 
             else:
+                track = np.asarray(list(pc2.read_points(goal.trajectory, 
+                                field_names = ("x", "y", "z"), skip_nans=True)))
+                track = np.reshape(track, (-1,3)) 
+
                 # Save GP hyperparams
                 self.save(self.storage_path + "svgp_final_" +
                         str(self.particle_id) + ".pth")
-                # Save particle's MBES map and inducing points
-                np.savez(self.storage_path + "map_" +
-                        str(self.particle_id) + ".npz", beams=beams, loss=self.loss)
+                # Save particle's MBES map, trajectory and loss
+                np.savez(self.storage_path + "data_particle_" +
+                        str(self.particle_id) + ".npz", beams=beams, loss=self.loss, track=track)
                 self.plotting = False
 
                 # Plot the loss

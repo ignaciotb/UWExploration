@@ -1,7 +1,8 @@
 #goal definition
 bool plot
 bool sample
-sensor_msgs/PointCloud2 ping
+sensor_msgs/PointCloud2 pings
+sensor_msgs/PointCloud2 trajectory
 ---
 #result definition for sampling the posterior
 int32 p_id

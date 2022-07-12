@@ -105,6 +105,8 @@ private:
     std::vector<RbpfParticle> particles_;
     std::vector<RbpfParticle> dr_particle_;
     std::mt19937 rng_;
+    std::mt19937 g_;
+
 
 
     tf::TransformListener tfListener_;
@@ -137,13 +139,13 @@ private:
     bool survey_finished_;
     double time_;
     double old_time_;
-    std::random_device rd_;
     float rbpf_period_, rviz_period_;
 
     sensor_msgs::PointCloud2 prev_mbes_;
     sensor_msgs::PointCloud2 latest_mbes_;
     geometry_msgs::PoseWithCovarianceStamped avg_pose_;
     Eigen::MatrixXf ping_mat_;
+    Eigen::MatrixXf mb_mat_;
     bool first_update_;
 
     // Publishers
@@ -218,7 +220,7 @@ private:
     //             const nav_msgs::OdometryConstPtr &odom_msg);
 
     // Other functions
-    void save_gp_maps(const bool plot);
+    void save_gps(const bool plot);
     void predict(nav_msgs::Odometry odom_t, float dt);
     void update_particles_history();
     void update_rviz(const ros::TimerEvent &);

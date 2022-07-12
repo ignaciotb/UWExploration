@@ -196,10 +196,15 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                            std::vector<float>(6, 0.), meas_std_, motion_cov_));
 
+    // Initialize aux variables
     ping_mat_ = Eigen::MatrixXf(beams_real_, 3);
     int mb_size;
     nh_->param<int>(("svgp_minibatch_size"), mb_size, 100);
     mb_mat_ = Eigen::MatrixXf(mb_size, 3);
+
+    std::string enable_lc_top;
+    nh_->param<string>(("particle_enable_lc"), enable_lc_top, "/enable_lc");
+    enable_lc_sub_ = nh_->subscribe(enable_lc_top, 100, &RbpfSlam::enable_lc, this);
 
     ROS_INFO("RBPF instantiated");
 }
@@ -212,6 +217,12 @@ bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Respons
 
 void RbpfSlam::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
 
+
+// Receive IDs of SVGPs when they are ready to be used for LC prompting 
+void RbpfSlam::enable_lc(const std_msgs::Int32::ConstPtr& enable_lc)
+{
+    svgp_lc_ready_.push_back(enable_lc->data);
+}
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
@@ -249,18 +260,18 @@ void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 
 void RbpfSlam::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
-    ROS_DEBUG("PF node: Survey finished received");
+    ROS_INFO("RBPF node: Survey finished received");
     mission_finished_ = true;
     save_gps(false);
-    ROS_DEBUG("We done bitches, this time in c++");
+    ROS_INFO("We done bitches");
 }
 
 
 void RbpfSlam::save_cb(const std_msgs::Bool::ConstPtr& save_msg)
 {
-    ROS_DEBUG("PF node: saving without finishing the mission");
+    ROS_INFO("PF node: saving without finishing the mission");
     save_gps(save_msg->data);
-    ROS_DEBUG("Aaaand it's saved");
+    ROS_INFO("Aaaand it's saved");
 }
 
 void RbpfSlam::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
@@ -299,8 +310,10 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
         if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
         {
             prev_mbes_ = latest_mbes_;
-            if(start_training_ && count_pings_ > 1000){
-            // // if(start_training_){
+            // Conditions to start LC prompting:
+            // 1) Pings collected > 1000: prevents from sampling undertrained GPs
+            // 2) Num of GPs whose ELBO has converged > Num particles/2
+            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ / 2)){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }
@@ -592,7 +605,6 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         updated_w_ids_.clear();
         std::vector<double> weights;
         for(int i=0; i<pc_; i++){
-            // std::cout << particles_.at(i).index_ << " " << particles_.at(i).w_ << std::endl;
             weights.push_back(particles_.at(i).w_);
         }
         this->resample(weights);
@@ -602,9 +614,9 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
         ROS_WARN("Lost weights on the way, skipping resampling");
     }
 
-    auto t2 = high_resolution_clock::now();
-    duration<double, std::milli> ms_double = t2 - t1;
-    std::cout << ms_double.count() / 1000.0 << std::endl;
+    // auto t2 = high_resolution_clock::now();
+    // duration<double, std::milli> ms_double = t2 - t1;
+    // std::cout << ms_double.count() / 1000.0 << std::endl;
 }
 
 void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,

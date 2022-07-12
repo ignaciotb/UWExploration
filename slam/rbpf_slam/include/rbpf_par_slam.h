@@ -132,6 +132,7 @@ private:
     std::vector<int> pings_idx_;
     std::vector<int> ancestry_sizes_;
     std::vector<int> beams_idx_;
+    std::vector<int> svgp_lc_ready_;
     Eigen::VectorXf latest_mbes_z_;
 
     float n_eff_filt_;
@@ -182,6 +183,7 @@ private:
     ros::Subscriber finished_sub_;
     ros::Subscriber save_sub_;
     ros::Subscriber lc_manual_sub_;
+    ros::Subscriber enable_lc_sub_;
     ros::Subscriber path_sub_;
 
     // typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
@@ -206,6 +208,7 @@ private:
 
     // Callbacks
     bool empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+    void enable_lc(const std_msgs::Int32::ConstPtr& enable_lc);
     void mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr &goal);
     void manual_lc(const std_msgs::Bool::ConstPtr& lc_msg);
     void path_cb(const nav_msgs::PathConstPtr& wp_path);

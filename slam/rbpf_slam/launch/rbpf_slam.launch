@@ -57,6 +57,10 @@
 
   <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen"/>
   <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>
+  <node type="fake_synch.py" pkg="lolo_pf_interface" name="fake_synch_node" output="screen">
+    <param name="survey_finished_top" value="/gt/survey_finished" />       
+    <param name="odometry_topic" value="$(arg odometry_topic)" />       
+  </node>
 
   <!-- <node type="static_transform_publisher" pkg="tf" name="tf_utm_to_map" args="0 0 0 0 0 0 utm map 10"/>
   <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/> -->

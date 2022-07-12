@@ -24,8 +24,8 @@
       <param name="svgp_num_ind_points" value="400"/>     
       <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
       <param name="svgp_learning_rate" value="1e-1"/>     
-      <param name="svgp_rtol" value="1e-4"/>     
-      <param name="svgp_n_window" type="int" value="100"/>     
+      <param name="svgp_rtol" value="1e-2"/>     
+      <param name="svgp_n_window" type="int" value="50"/>     
       <param name="svgp_auto_stop" value="False"/>     
       <param name="svgp_verbose" value="True"/>     
       <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     

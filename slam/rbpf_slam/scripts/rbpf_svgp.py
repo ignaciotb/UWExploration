@@ -10,7 +10,6 @@ from gpytorch.distributions import MultivariateNormal
 from gpytorch.mlls import VariationalELBO, PredictiveLogLikelihood, ExactMarginalLogLikelihood
 from gpytorch.test.utils import least_used_cuda_device
 import gpytorch.settings
-#from convergence import ExpMAStoppingCriterion
 from gp_mapping.convergence import ExpMAStoppingCriterion
 import matplotlib.pyplot as plt
 
@@ -20,7 +19,7 @@ from sensor_msgs import point_cloud2
 from std_msgs.msg import Header
 import sensor_msgs.point_cloud2 as pc2
 from rospy.numpy_msg import numpy_msg
-from std_msgs.msg import Float32, Int32MultiArray
+from std_msgs.msg import Int32, Float32, Int32MultiArray
 from geometry_msgs.msg import PointStamped
 
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
@@ -147,9 +146,13 @@ class SVGP_map():
         ], lr=float(self.lr))
         # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
-        # convergence criterion
-        if self.auto: self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
-                                                    minimize=True, n_window=self.n_window)
+        # Convergence criterion
+        self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
+                                                minimize=True, n_window=self.n_window)
+        self.ready_for_LC = False # Set to true when ELBO converges
+        enable_lc_top = rospy.get_param("~particle_enable_lc", '/enable_lc')
+        self.enable_lc_pub = rospy.Publisher(enable_lc_top, Int32, queue_size=10)
+        
         # Toggle training mode
         self.model.train()
         self.likelihood.train()
@@ -260,10 +263,19 @@ class SVGP_map():
                 self.opt.zero_grad()
                 loss.backward()
                 self.opt.step()
-                self.training = False
 
-                self.loss.append(loss.detach().cpu().numpy())
+                self.training = False
                 self.iterations += 1
+
+                # Check for ELBO convergence to signal this SVGP is ready
+                # to start LC prompting
+                if not self.ready_for_LC and self.criterion.evaluate(loss):
+                    print("Particle ", self.particle_id, " ready for LCs ")
+                    self.ready_for_LC = True
+                    self.enable_lc_pub.publish(self.particle_id)
+                    
+                # Store loss for postprocessing
+                self.loss.append(loss.detach().cpu().numpy())
 
                 if self.particle_id == 0:
                     print("Particle ", self.particle_id,

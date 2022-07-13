@@ -147,13 +147,15 @@ if __name__ == '__main__':
     # i = str(input("Number of the particle to plot: "))
     i = argv[1]    
     path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/0/'))
-    print("Plotting ", path + '/svgp_final_'+i+'.pth')
 
     cp = torch.load(path + '/svgp_final_'+i+'.pth')
     data = np.load(path + '/data_particle_'+i+'.npz')
 
     beams = data['beams']
+    print(beams.shape)
+
     track_position = data['track_position']
+    print(track_position.shape)
     plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=50, n_contours=100)
 
     loss = data['loss']

@@ -21,7 +21,7 @@ class experiments_loop(object):
         particle_count = 30
         num_particle_handlers=3
 
-        tests = [0] # UI
+        tests = [1] # UI
         path = "/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf/lolo_0/"
         # for std in np.linspace(4.,4.9,10):
         # for std in [0]:
@@ -43,7 +43,7 @@ class experiments_loop(object):
 
             print("Shutting down test ", i)
             # 30 sec per 10 GPs in small mission
-            rospy.sleep(num_particle_handlers*3)
+            rospy.sleep(num_particle_handlers*4)
             parent.shutdown()
             self.finished = False
 

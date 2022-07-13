@@ -467,9 +467,6 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 void RbpfSlam::save_gps(const bool plot)
 {
     int pings_t = mbes_history_.size()-1;
-    Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
-    Eigen::MatrixXf track_position_mat(pings_t, 3);
-    Eigen::MatrixXf track_orientation_mat(pings_t, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
@@ -477,6 +474,10 @@ void RbpfSlam::save_gps(const bool plot)
     for(int p=0; p<pc_; p++)
     // for(int p=0; p<4; p++)
     {
+        Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
+        Eigen::MatrixXf track_position_mat(pings_t, 3);
+        Eigen::MatrixXf track_orientation_mat(pings_t*3, 3);
+        int rots = 0;
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
             auto ancestry_it = ancestry_sizes_.begin();
@@ -518,8 +519,26 @@ void RbpfSlam::save_gps(const bool plot)
                     }
                     // Store particle pose for that ping
                     track_position_mat.row(ping_i) = pos_i.transpose();
-                    Eigen::Vector3f euler = rot_i.eulerAngles(0,1,2);
-                    track_orientation_mat.row(ping_i) = euler.transpose();
+                    // Eigen::Vector3f euler = rot_i.eulerAngles(0,1,2);
+                    if(p == 29){
+                        std::cout << rot_i << std::endl;
+                        // std::cout << euler.transpose() << std::endl;
+                    }
+                    std::vector<float> aux;
+                    for (int k = 0; k < rot_i.size(); k++){
+                        aux.push_back(*(rot_i.data() + k));
+
+                    }
+                    Eigen::MatrixXf test = Eigen::Map<Eigen::Matrix<float, 1, 9> >(aux.data());
+                    track_orientation_mat.row(rots) = test.leftCols(3);
+                    rots ++;
+                    track_orientation_mat.row(rots) = test.middleCols(3, 3);
+                    rots ++;
+                    track_orientation_mat.row(rots) = test.rightCols(3);
+                    rots ++;
+                    if(p == 29){
+                        std::cout << test << std::endl;
+                    }
                 }
                 else
                 {

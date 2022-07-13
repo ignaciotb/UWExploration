@@ -76,8 +76,8 @@
   <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/> -->
   <!-- <include file="$(find lolo_description)/launch/lolo_description.launch" /> -->
 
-  <param name="robot_description"
-        command="$(find xacro)/xacro '$(find lolo_description)/urdf/rviz.xacro' robot_namespace:=$(arg namespace)" />
+  <!-- <param name="robot_description"
+        command="$(find xacro)/xacro '$(find lolo_description)/urdf/rviz.xacro' robot_namespace:=$(arg namespace)" /> -->
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">

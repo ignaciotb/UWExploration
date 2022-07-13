@@ -22,11 +22,11 @@ class FakeSynch:
         while not rospy.is_shutdown():
             self.time = rospy.Time.now().to_sec()
 
-            if self.time - self.time_odom > 2. and not self.survey_finished:
+            if self.time - self.time_odom > 4. and not self.survey_finished:
                 # Rosbag finished
-                rospy.loginfo("ROSBAG FINISHED")
                 self.finish_pub.publish(True)
                 self.survey_finished = True
+                rospy.loginfo("ROSBAG FINISHED")
 
             rospy.sleep(0.1)
 

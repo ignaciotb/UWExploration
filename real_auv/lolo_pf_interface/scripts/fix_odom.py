@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rospy
+from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
 import numpy as np
 from tf.transformations import quaternion_matrix, quaternion_from_matrix
@@ -18,6 +19,18 @@ class FixOdom:
         self.init_odom_count = 0
         self.old_time = rospy.Time.now().to_sec()
         self.time = rospy.Time.now().to_sec()
+
+        finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
+        self.synch_pub = rospy.Subscriber(finished_top, Bool, self.save_cb)
+        self.storage_path = rospy.get_param("~results_path")
+
+        self.track_list = []
+
+    def save_cb(self, save):
+        track = np.asarray(self.track_list)
+        track = np.reshape(track, (-1, 3))
+        np.savez(self.storage_path + "/gt_trajectory.npz", track=track)
+        rospy.loginfo("GT odom saved")
 
     def odom_cb(self, odom_t):
         odom_t.header.frame_id = "lolo/odom"
@@ -59,6 +72,11 @@ class FixOdom:
             odom_t.twist.twist.angular.y = pitch_step / dt
             odom_t.twist.twist.angular.z = yaw_step / dt
             
+            position_t = np.array([odom_t.pose.pose.position.x, 
+                                    odom_t.pose.pose.position.y, 
+                                    odom_t.pose.pose.position.z])
+            self.track_list.append(position_t)
+
             self.prev_odom = odom_t
 
         self.old_time = self.time

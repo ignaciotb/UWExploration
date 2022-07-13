@@ -356,7 +356,8 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
     Eigen::Matrix3f rot_i;
     int ping_i;
     // If enough beams collected to start minibatch training
-    if (count_pings_ > (mb_size / beams_per_ping))
+    // and survey not finished
+    if (mission_finished_ != true && count_pings_ > (mb_size / beams_per_ping))
     {
         auto t1 = high_resolution_clock::now();
         // Shuffle indexes of pings collected so far and take the first int(mb_size / beams_per_pings)
@@ -467,13 +468,14 @@ void RbpfSlam::save_gps(const bool plot)
 {
     int pings_t = mbes_history_.size()-1;
     Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
-    Eigen::MatrixXf trajectory_mat(pings_t, 3);
+    Eigen::MatrixXf track_position_mat(pings_t, 3);
+    Eigen::MatrixXf track_orientation_mat(pings_t, 3);
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
-    // for(int p=0; p<pc_; p++)
-    for(int p=0; p<1; p++)
+    for(int p=0; p<pc_; p++)
+    // for(int p=0; p<4; p++)
     {
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
@@ -515,7 +517,9 @@ void RbpfSlam::save_gps(const bool plot)
                         mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
                     }
                     // Store particle pose for that ping
-                    trajectory_mat.row(ping_i) = pos_i.transpose();
+                    track_position_mat.row(ping_i) = pos_i.transpose();
+                    Eigen::Vector3f euler = rot_i.eulerAngles(0,1,2);
+                    track_orientation_mat.row(ping_i) = euler.transpose();
                 }
                 else
                 {
@@ -529,18 +533,26 @@ void RbpfSlam::save_gps(const bool plot)
         sensor_msgs::PointCloud2 mbes_pcloud;
         eigenToPointcloud2msg(mbes_pcloud, mbes_mat);
 
-        sensor_msgs::PointCloud2 trajectory_pcloud;
-        eigenToPointcloud2msg(trajectory_pcloud, trajectory_mat);
+        sensor_msgs::PointCloud2 track_position_pcloud;
+        eigenToPointcloud2msg(track_position_pcloud, track_position_mat);
+
+        sensor_msgs::PointCloud2 track_orientation_pcloud;
+        eigenToPointcloud2msg(track_orientation_pcloud, track_orientation_mat);
 
         // Set action as success
         goal.pings = mbes_pcloud;
-        goal.trajectory = trajectory_pcloud;
+        goal.track_position = track_position_pcloud;
+        goal.track_orientation = track_orientation_pcloud;
         goal.plot = plot;
         goal.sample = false;
         p_manipulate_acs_.at(p)->sendGoal(goal);
+        
         // We want these calls to be secuential since plotting is GPU-heavy
-        // and not time critical, so we want the particles to do it one by one
-        bool received = p_manipulate_acs_.at(p)->waitForResult();
+        // and not time critical, so we want the particles to do it one by one.
+        // Otherwise no need to wait for the result
+        if(plot){
+            bool received = p_manipulate_acs_.at(p)->waitForResult();
+        }
     }
 
 }
@@ -670,15 +682,8 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     }
     pred_threads_vec_.clear();
 
-    // for (int i = 0; i < 6; i++)
-    // {
-    //     std::normal_distribution<float> sampler{0, std::sqrt(dr_particle_.at(0).process_cov_.at(i))};
-    //     noise_vec(i) = sampler(seed);
-    // }
-    // dr_particle_.at(0).noise_vec_ = noise_vec;
     // Particle to compute DR without filtering
     dr_particle_.at(0).motion_prediction(vel_rot, vel_p, depth, dt, rng_);
-
 
     // auto t2 = high_resolution_clock::now();
     // duration<double, std::milli> ms_double = t2 - t1;
@@ -755,11 +760,11 @@ void RbpfSlam::resample(vector<double> weights)
     {
         // Normalize weights
         transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
-        // std::cout << "Normalized weights :" << std::endl;
-        // for(auto weight: weights){
-        //     std::cout << weight << " ";
-        // }
-        // std::cout << std::endl;
+        std::cout << "Normalized weights :" << std::endl;
+        for(auto weight: weights){
+            std::cout << weight << " ";
+        }
+        std::cout << std::endl;
 
         // Compute effective number
         double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
@@ -773,77 +778,77 @@ void RbpfSlam::resample(vector<double> weights)
     std::cout << std::endl;
     std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
     
-    // if (N_eff < std::round(pc_ / 2) || lc_detected_)
-    // // if (N_eff < 90 || lc_detected_)
-    // {
-    //     // Resample particles
-    //     ROS_INFO("Resampling");
-    //     indices = systematic_resampling(weights);
+    if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    // if (N_eff < 90 || lc_detected_)
+    {
+        // Resample particles
+        ROS_INFO("Resampling");
+        indices = systematic_resampling(weights);
         
-    //     // For manual lc testing
-    //     if(lc_detected_){
-    //         indices = vector<int>(pc_, 0);
-    //     }
+        // For manual lc testing
+        if(lc_detected_){
+            indices = vector<int>(pc_, 0);
+        }
 
-    //     set<int> s(indices.begin(), indices.end());
-    //     keep.assign(s.begin(), s.end());
-    //     for(int i = 0; i < pc_; i++)
-    //     {
-    //         if (!count(keep.begin(), keep.end(), i))
-    //             lost.push_back(i);
-    //     }
+        set<int> s(indices.begin(), indices.end());
+        keep.assign(s.begin(), s.end());
+        for(int i = 0; i < pc_; i++)
+        {
+            if (!count(keep.begin(), keep.end(), i))
+                lost.push_back(i);
+        }
 
-    //     dupes = indices;
-    //     for (int i : keep)
-    //     {
-    //         if (count(dupes.begin(), dupes.end(), i))
-    //         {
-    //             idx = find(dupes.begin(), dupes.end(), i);
-    //             dupes.erase(idx);
-    //         }
-    //     }
+        dupes = indices;
+        for (int i : keep)
+        {
+            if (count(dupes.begin(), dupes.end(), i))
+            {
+                idx = find(dupes.begin(), dupes.end(), i);
+                dupes.erase(idx);
+            }
+        }
 
-    //     // Reasign and ddd noise to particles poses
-    //     ROS_INFO("Reasigning poses");
-    //     reassign_poses(lost, dupes);
-    //     for(int i = 0; i < pc_; i++)
-    //         particles_[i].add_noise(res_noise_cov_);
+        // Reasign and ddd noise to particles poses
+        ROS_INFO("Reasigning poses");
+        reassign_poses(lost, dupes);
+        for(int i = 0; i < pc_; i++)
+            particles_[i].add_noise(res_noise_cov_);
 
-    //     // Reassign SVGP maps: send winning indexes to SVGP nodes
-    //     slam_msgs::Resample k_ros;
-    //     slam_msgs::Resample l_ros;
-    //     std::cout << "Keep " << std::endl;
-    //     auto t1 = high_resolution_clock::now();
-    //     if(!dupes.empty())
-    //     {
-    //         for(int k : keep)
-    //         {
-    //             std::cout << k << " ";
-    //             k_ros.request.p_id = k;
-    //             p_resampling_srvs_[k].call(k_ros);
-    //         }
-    //         std::cout << std::endl;
+        // Reassign SVGP maps: send winning indexes to SVGP nodes
+        slam_msgs::Resample k_ros;
+        slam_msgs::Resample l_ros;
+        std::cout << "Keep " << std::endl;
+        auto t1 = high_resolution_clock::now();
+        if(!dupes.empty())
+        {
+            for(int k : keep)
+            {
+                std::cout << k << " ";
+                k_ros.request.p_id = k;
+                p_resampling_srvs_[k].call(k_ros);
+            }
+            std::cout << std::endl;
 
-    //         int j = 0;
-    //         for (int l : lost)
-    //         {
-    //             // Send the ID of the particle to copy to the particle that has not been resampled
-    //             l_ros.request.p_id = dupes[j];
-    //             if(p_resampling_srvs_[l].call(l_ros)){
-    //                 ROS_DEBUG("Dupe sent");
-    //             }
-    //             else{
-    //                 ROS_WARN("Failed to call resample srv");
-    //             }
-    //             j++;
-    //         }
-        // }
-        // lc_detected_ = false;
+            int j = 0;
+            for (int l : lost)
+            {
+                // Send the ID of the particle to copy to the particle that has not been resampled
+                l_ros.request.p_id = dupes[j];
+                if(p_resampling_srvs_[l].call(l_ros)){
+                    ROS_DEBUG("Dupe sent");
+                }
+                else{
+                    ROS_WARN("Failed to call resample srv");
+                }
+                j++;
+            }
+        }
+        lc_detected_ = false;
 
-        // // auto t2 = high_resolution_clock::now();
-        // // duration<double, std::milli> ms_double = t2 - t1;
-        // // std::cout << ms_double.count() / 1000.0 << std::endl;
-    // }
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // std::cout << ms_double.count() / 1000.0 << std::endl;
+    }
 }
 
 void RbpfSlam::reassign_poses(vector<int> lost, vector<int> dupes)
@@ -932,9 +937,6 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         tf::Matrix3x3 m(q);
         m.getRPY(roll_i, pitch_i, yaw_i);
 
-        // Wrap yaw around [0;2*pi]
-        yaw_i = angle_limit(yaw_i);
-
         roll.push_back(roll_i);
         pitch.push_back(pitch_i);
         yaw.push_back(yaw_i);
@@ -947,6 +949,9 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     float roll_ave = accumulate(roll.begin(), roll.end(), 0.0) / roll.size();
     float pitch_ave = accumulate(pitch.begin(), pitch.end(), 0.0) / pitch.size();
     float yaw_ave = accumulate(yaw.begin(), yaw.end(), 0.0) / yaw.size();
+
+    // Wrap yaw around [0;2*pi]
+    yaw_ave = angle_limit(yaw_ave);
 
     avg_pose_.pose.pose.position.x = x_ave;
     avg_pose_.pose.pose.position.y = y_ave;

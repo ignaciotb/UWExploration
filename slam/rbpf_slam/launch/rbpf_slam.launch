@@ -5,7 +5,7 @@
   <arg name="mode" default="gt"/>
 	<arg name="namespace" default="lolo"/>
 	<arg name="debug" default="0"/>
-	<arg name="dataset" default="ripples"/>
+	<arg name="dataset" default="lolo_0"/>
 	<arg name="app" default="rbpf"/>
   <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
 
@@ -32,7 +32,7 @@
   <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
-  <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
+  <arg name="results_path" default="$(find uw_tests)/$(arg app)/$(arg dataset)/"/>     
   <arg name="rbpf_period"   default="15" />
   <arg name="rviz_period"   default="0.3" />
   <arg name="svgp_minibatch_size"   default="800" />
@@ -47,18 +47,28 @@
   <arg name="particle_sim_mbes_topic"           default="/$(arg namespace)/$(arg app)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
+  <!-- Rosbags from lolo -->
+  <node pkg="rosbag" type="play" name="mission_player" output="screen" args="-s 1100 -u 300 $(arg path)/2022-06-07-12-22-19.bag"/>
+  
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>     
+    <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
+    <param name="results_path" value="$(arg results_path)" />
     <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
     <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
     <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
     <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
   </node>
 
-  <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen"/>
+  <!-- Aux nodes for Lolo interface -->
+  <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen">
+    <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+    <param name="results_path" value="$(arg results_path)" />
+  </node>
+
   <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>
+  
   <node type="fake_synch.py" pkg="lolo_pf_interface" name="fake_synch_node" output="screen">
-    <param name="survey_finished_top" value="/gt/survey_finished" />       
+    <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
     <param name="odometry_topic" value="$(arg odometry_topic)" />       
   </node>
 
@@ -76,7 +86,7 @@
         <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000001]</rosparam>
         <rosparam param="resampling_noise_covariance">[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <param name="measurement_std"                         value="1" />
+        <param name="measurement_std"                         value="0.5" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
@@ -90,9 +100,8 @@
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
         <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
-        <param name="survey_finished_top" value="/gt/survey_finished" />       
-        <param name="pf_stats_top" value="/stats/pf_data" />  
-        <!-- <param name="plot_gp_server" value="$(arg gp_plot_server)"/>      -->
+        <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+        <param name="pf_stats_top" value="/stats/data" />  
         <param name="manipulate_gp_server" value="$(arg manipulate_gp_server)"/>  
         <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
         <param name="rbpf_period" value="$(arg rbpf_period)"/> 
@@ -105,13 +114,10 @@
     </group>
   </group>
 
-  <arg name="node_start_delay" default="100.0" />  
-  <!-- <node name="listener" pkg="roscpp_tutorials" type="listener" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
-  <!-- <node pkg="rostopic" type="rostopic" name="lc" args="pub /manual_lc std_msgs/Bool false" output="screen" launch-prefix="bash -c 'sleep $(arg node_start_delay); $0 $@' " /> -->
 
-
-    <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
-      <param name="pf_stats_top" value="/stats/pf_data" />       
+  <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
+      <param name="particle_count" type= "int" value="$(arg particle_count)" />
+      <param name="pf_stats_top" value="/stats/data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="$(arg survey_finished_top)" />       

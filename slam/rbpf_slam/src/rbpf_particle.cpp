@@ -152,10 +152,6 @@ float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& 
 double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean,
                             Eigen::VectorXd &gp_sigmas, double &mbes_sigma)
 {
-    // double n = double(x.cols());
-    // Eigen::VectorXd diff = (x - mean).array().square() * (1 / (2 * std::pow(mbes_sigma, 2)));
-    // double logl = -(n / 2.0) * std::log(std::pow(mbes_sigma, 2)) - (n / 2.0) * std::log(2 * M_PI) - diff.array().sum();
-
     double n = double(x.cols());
     
     // Set GP variances to zero (for testing)

@@ -3,7 +3,7 @@
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
-	<arg name="dataset" default="lolo"/>
+	<arg name="dataset" default="lolo_0"/>
     <arg name="app" default="basic"/>
     <arg name="map_frame" default="map"/>
     <arg name="odom_frame" default="lolo/odom"/>

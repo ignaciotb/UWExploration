@@ -79,7 +79,7 @@ class SVGP_map():
 
         ## ROS INTERFACE
         self.particle_id = particle_id
-        self.storage_path = rospy.get_param("~results_path")
+        self.storage_path = rospy.get_param("~storage_path")
         self.count_training = 0
         
         # AS for plotting results
@@ -199,7 +199,7 @@ class SVGP_map():
         # to share it with the rest
         response = ResampleResponse(True)
         if req.p_id == self.particle_id:
-            self.save(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+            self.save(self.storage_path + "/svgp_" + str(req.p_id) + ".pth")
             print("Particle ", req.p_id, " saved to disk")
         
         # if 0 == self.particle_id:    
@@ -216,7 +216,7 @@ class SVGP_map():
             ## Loading from disk
             # print("Particle ", self.particle_id,
             #       "loading particle ", req.p_id)
-            my_file = Path(self.storage_path + "svgp_" + str(req.p_id) + ".pth")
+            my_file = Path(self.storage_path + "/svgp_" + str(req.p_id) + ".pth")
             try:
                 if my_file.is_file():
                     self.load(str(my_file.as_posix()))
@@ -245,47 +245,52 @@ class SVGP_map():
         result = self.ac_mb.get_result()
 
         # If minibatch received from server
-        if result.success:
-            time_start = time.time()
-            # Store beams as array of 3D points
-            beams = np.asarray(list(pc2.read_points(result.minibatch, 
-                                    field_names = ("x", "y", "z"), skip_nans=True)))
-            beams = np.reshape(beams, (-1,3))
+        try:    
+            if result.success:
+                time_start = time.time()
+                # Store beams as array of 3D points
+                beams = np.asarray(list(pc2.read_points(result.minibatch, 
+                                        field_names = ("x", "y", "z"), skip_nans=True)))
+                beams = np.reshape(beams, (-1,3))
 
-            if not self.plotting and not self.sampling and not self.resampling:
-                self.training = True
-                
-                input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
-                target = torch.from_numpy(beams[:,2]).to(self.device).float()
-
-                # compute loss, compute gradient, and update
-                loss = -self.mll(self.model(input), target)
-                self.opt.zero_grad()
-                loss.backward()
-                self.opt.step()
-
-                self.training = False
-                self.iterations += 1
-
-                # Check for ELBO convergence to signal this SVGP is ready
-                # to start LC prompting
-                if not self.ready_for_LC and self.criterion.evaluate(loss):
-                    print("Particle ", self.particle_id, " ready for LCs ")
-                    self.ready_for_LC = True
-                    self.enable_lc_pub.publish(self.particle_id)
+                if not self.plotting and not self.sampling and not self.resampling:
+                    self.training = True
                     
-                # Store loss for postprocessing
-                self.loss.append(loss.detach().cpu().numpy())
+                    input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
+                    target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
-                if self.particle_id == 0:
-                    print("Particle ", self.particle_id,
-                        "with iterations: ", self.iterations)
-                    # print("Training time ", time.time() - time_start)
+                    # compute loss, compute gradient, and update
+                    loss = -self.mll(self.model(input), target)
+                    self.opt.zero_grad()
+                    loss.backward()
+                    self.opt.step()
 
-            else:
-                rospy.logdebug("GP missed MB %s", self.particle_id)
-                rospy.sleep(0.1)
-            
+                    self.training = False
+                    self.iterations += 1
+
+                    # Check for ELBO convergence to signal this SVGP is ready
+                    # to start LC prompting
+                    if not self.ready_for_LC and self.criterion.evaluate(loss):
+                        print("Particle ", self.particle_id, " ready for LCs ")
+                        self.ready_for_LC = True
+                        self.enable_lc_pub.publish(self.particle_id)
+                        
+                    # Store loss for postprocessing
+                    self.loss.append(loss.detach().cpu().numpy())
+
+                    if self.particle_id == 0:
+                        print("Particle ", self.particle_id,
+                            "with iterations: ", self.iterations)
+                        # print("Training time ", time.time() - time_start)
+
+                else:
+                    rospy.logdebug("GP missed MB %s", self.particle_id)
+                    rospy.sleep(0.1)
+        
+        except AttributeError:
+            rospy.sleep(0.1)
+            pass
+
         # print("Done with the training ", self.particle_id)
 
     def ip_cb(self, ip_cloud):
@@ -360,42 +365,47 @@ class SVGP_map():
             if goal.plot:
 
                 # Plot the loss
-                self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
+                self.plot_loss(self.storage_path + '/particle_' + str(self.particle_id) 
                         + '_training_loss_' + str(self.n_plot_loss) + '.png' )
                 self.n_plot_loss += 1
 
                 # Plot the GP posterior
-                # self.plot(beams[:,0:2], beams[:,2], 
-                #             self.storage_path + 'particle_' + str(self.particle_id) 
-                #             + '_training_' + str(self.n_plot) + '.png',
-                #             n=50, n_contours=100 )
-                # self.n_plot += 1
+                self.plot(beams[:,0:2], beams[:,2], 
+                            self.storage_path + '/particle_' + str(self.particle_id) 
+                            + '_training_' + str(self.n_plot) + '.png',
+                            n=50, n_contours=100 )
+                self.n_plot += 1
 
             # Save to disk 
             else:
-                track = np.asarray(list(pc2.read_points(goal.trajectory, 
+                track_position = np.asarray(list(pc2.read_points(goal.track_position, 
                                 field_names = ("x", "y", "z"), skip_nans=True)))
-                track = np.reshape(track, (-1,3)) 
+                track_position = np.reshape(track_position, (-1,3)) 
+
+                track_orientation = np.asarray(list(pc2.read_points(goal.track_orientation, 
+                                field_names = ("x", "y", "z"), skip_nans=True)))
+                track_orientation = np.reshape(track_orientation, (-1,3)) 
 
                 # Save GP hyperparams
-                self.save(self.storage_path + "svgp_final_" +
+                self.save(self.storage_path + "/svgp_final_" +
                         str(self.particle_id) + ".pth")
                 # Save particle's MBES map, trajectory and loss
-                np.savez(self.storage_path + "data_particle_" +
-                        str(self.particle_id) + ".npz", beams=beams, loss=self.loss, track=track)
+                np.savez(self.storage_path + "/data_particle_" +
+                        str(self.particle_id) + ".npz", beams=beams, loss=self.loss, 
+                        track_position=track_position, track_orientation=track_orientation)
                 self.plotting = False
 
                 # Plot the loss
-                self.plot_loss(self.storage_path + 'particle_' + str(self.particle_id) 
-                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
-                self.n_plot_loss += 1
+                # self.plot_loss(self.storage_path + '/particle_' + str(self.particle_id) 
+                #         + '_training_loss_' + str(self.n_plot_loss) + '.png' )
+                # self.n_plot_loss += 1
 
             # Set action as success
             result = ManipulatePosteriorResult()
             result.success = True
             self._as_manipulate.set_succeeded(result)
             self.plotting = False
-            print("Saving GP ", self.particle_id, " after ", self.iterations, " iterations")
+            print("Saved GP ", self.particle_id, " after ", self.iterations, " iterations")
 
 
     def sample(self, x):

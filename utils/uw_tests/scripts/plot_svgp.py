@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+from sys import argv
 import torch
 import numpy as np
 import tqdm
@@ -120,9 +121,6 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
     # save
     fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
-    # plot_loss(self.storage_path + 'particle_' + str(self.particle_id)
-    #                 + '_training_loss.png', loss)
-
     # Free up GPU mem
     del inputst
     torch.cuda.empty_cache()
@@ -146,13 +144,17 @@ def plot_loss(fname, loss):
 
 if __name__ == '__main__':
 
-    i = str(input("Number of the particle to plot: "))
+    # i = str(input("Number of the particle to plot: "))
+    i = argv[1]    
+    path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/0/'))
+    print("Plotting ", path + '/svgp_final_'+i+'.pth')
 
-    cp = torch.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/svgp_final_'+i+'.pth')))
-    data = np.load(os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/data_particle_'+i+'.npz')))
+    cp = torch.load(path + '/svgp_final_'+i+'.pth')
+    data = np.load(path + '/data_particle_'+i+'.npz')
 
     beams = data['beams']
-    track = data['track']
-    # loss = data['loss']
+    track_position = data['track_position']
+    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=50, n_contours=100)
 
-    plot_post(cp, beams[:, 0:2], beams[:, 2], track, './particle_map_' + i + '.png', n=50, n_contours=100)
+    loss = data['loss']
+    plot_loss(path + '/particle_loss_' + i + '.png', loss)

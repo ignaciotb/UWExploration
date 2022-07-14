@@ -932,6 +932,7 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     vector<float> y;
     vector<float> z;
     Eigen::Quaternionf q_avg = Eigen::Quaternionf(0., 0., 0., 0.);
+    Eigen::MatrixXf Q_T(pose_list.poses.size(), 4);
 
     double roll_i, pitch_i, yaw_i;
 
@@ -941,28 +942,45 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         y.push_back(pose_list.poses[i].position.y);
         z.push_back(pose_list.poses[i].position.z);
 
-        Eigen::Quaternionf q_e(
-            pose_list.poses[i].orientation.x,
-            pose_list.poses[i].orientation.y,
-            pose_list.poses[i].orientation.z,
-            pose_list.poses[i].orientation.w);
-        q_avg.coeffs() += q_e.coeffs();
+        // Eigen::Quaternionf q_e(
+        //     pose_list.poses[i].orientation.x,
+        //     pose_list.poses[i].orientation.y,
+        //     pose_list.poses[i].orientation.z,
+        //     pose_list.poses[i].orientation.w);
+        // q_avg.coeffs() += q_e.coeffs();
+        
+        Eigen::VectorXf v_e(4); 
+        v_e << pose_list.poses[i].orientation.x,
+                pose_list.poses[i].orientation.y,
+                pose_list.poses[i].orientation.z,
+                pose_list.poses[i].orientation.w;
+        Q_T.row(i) = v_e.transpose();
     }
 
     // Compute averages
     float x_ave = accumulate(x.begin(), x.end(), 0.0) / pose_list.poses.size();
     float y_ave = accumulate(y.begin(), y.end(), 0.0) / pose_list.poses.size();
     float z_ave = accumulate(z.begin(), z.end(), 0.0) / pose_list.poses.size();
-    q_avg.coeffs() /= pose_list.poses.size();
-    q_avg = q_avg.normalized();
+    // q_avg.coeffs() /= pose_list.poses.size();
+    // q_avg = q_avg.normalized();
+
+    Eigen::MatrixXf Q_quad = Q_T.transpose() * Q_T;
+    Eigen::SelfAdjointEigenSolver<Eigen::MatrixXf> eig;
+    eig.compute(Q_quad);
+    // Eigen::Array<float, 1, Eigen::Dynamic> eigenvalues = eig.eigenvalues();
+	Eigen::MatrixXf eigenvectors = eig.eigenvectors();
+
+    // std::cout << "--------" << std::endl;
+    // std::cout << q_avg.coeffs() << std::endl;
+    // std::cout << eig.eigenvectors() << std::endl;
 
     avg_pose_.pose.pose.position.x = x_ave;
     avg_pose_.pose.pose.position.y = y_ave;
     avg_pose_.pose.pose.position.z = z_ave;
-    avg_pose_.pose.pose.orientation.x = q_avg.w();
-    avg_pose_.pose.pose.orientation.y = q_avg.x();
-    avg_pose_.pose.pose.orientation.z = q_avg.y();
-    avg_pose_.pose.pose.orientation.w = q_avg.z();
+    avg_pose_.pose.pose.orientation.x = eigenvectors.col(3)[0];
+    avg_pose_.pose.pose.orientation.y = eigenvectors.col(3)[1];
+    avg_pose_.pose.pose.orientation.z = eigenvectors.col(3)[2];
+    avg_pose_.pose.pose.orientation.w = eigenvectors.col(3)[3];
 
     avg_pose_.header.stamp = ros::Time::now();
     avg_pub_.publish(avg_pose_);

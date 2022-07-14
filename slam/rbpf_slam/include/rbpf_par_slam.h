@@ -46,6 +46,10 @@
 #include <slam_msgs/ManipulatePosteriorAction.h>
 #include <slam_msgs/PlotPosteriorAction.h>
 #include <slam_msgs/Resample.h>
+
+#include "tf/transform_datatypes.h"
+#include "tf_conversions/tf_eigen.h"
+
 // #include <slam_msgs/MbRequest.h>
 // #include <slam_msgs/MbResult.h>
 

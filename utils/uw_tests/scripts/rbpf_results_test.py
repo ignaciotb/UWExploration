@@ -13,32 +13,32 @@ from scipy.spatial.transform import Rotation as rot
 # plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, avg_pos_in, avg_ors_in, data_in)
 
 
-def plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, avg_pos_in, avg_ors_in, data_in):
+def plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, data_in):
 
     # print(avg_pos_out.shape)
     # print(beams_0.shape)
 
     i = 0
     j = 0
-    rot_mat_0 = avg_ors_out[i]
-    rot_mat_29 = avg_ors_in[i]
+    rot_mat_avg = avg_ors_out[i]
+    rot_mat_in = ors_in[i]
 
     beams_in = data_in["beams"]
-    beams_out = data_out["beams"]   # for testing
+    # beams_out = data_out["beams"]   # for testing
     beams_tf = []
     for beam in beams_in:
         if j == 100:
             j = 0
             i += 1
-            rot_mat_0 = avg_ors_out[i]
-            rot_mat_29 = avg_ors_in[i]
+            rot_mat_avg = avg_ors_out[i]
+            rot_mat_in = ors_in[i]
 
         # Back to map origin
-        beam = np.add(beam.T, -avg_pos_in[i])
-        beam = np.matmul(rot_mat_29.T, beam)
+        beam = np.add(beam.T, -pos_in[i])
+        beam = np.matmul(rot_mat_in.T, beam)
 
         # Transform to avg pose
-        beam = np.matmul(rot_mat_0, beam)
+        beam = np.matmul(rot_mat_avg, beam)
         beam = np.add(beam.T, avg_pos_out[i])
         beams_tf.append(beam)
         j += 1
@@ -49,12 +49,12 @@ def plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, avg_pos_in, avg_ors_i
                         cmap='jet', s=0.4, edgecolors='none')
 
     # for testing
-    cr = ax.scatter(beams_out[:, 0], beams_out[:, 1], c=beams_out[:, 2],
-                        cmap='jet', s=0.4, edgecolors='none')
+    # cr = ax.scatter(beams_out[:, 0], beams_out[:, 1], c=beams_out[:, 2],
+    #                     cmap='jet', s=0.4, edgecolors='none')
+    
     fig.colorbar(cr, ax=ax)
-
     ax.plot(avg_pos_out[:,0], avg_pos_out[:,1], "-r", linewidth=0.2)
-    ax.plot(avg_pos_in[:,0], avg_pos_in[:,1], "-b", linewidth=0.2)
+    ax.plot(pos_in[:,0], pos_in[:,1], "-b", linewidth=0.2)
 
     fig.savefig("./rbpf_map.png", bbox_inches='tight', dpi=1000)
 
@@ -132,4 +132,4 @@ if __name__ == '__main__':
     print(ors_in.shape)
 
 
-    plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, pos_in, ors_in, data_in)
+    plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, data_in)

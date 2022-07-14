@@ -476,7 +476,7 @@ void RbpfSlam::save_gps(const bool plot)
     {
         Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
         Eigen::MatrixXf track_position_mat(pings_t, 3);
-        Eigen::MatrixXf track_orientation_mat(pings_t*3, 3);
+        Eigen::MatrixXf track_orientation_mat(pings_t, 3);
         int rots = 0;
         for (int ping_i = 0; ping_i < pings_t; ping_i++)
         {
@@ -517,28 +517,24 @@ void RbpfSlam::save_gps(const bool plot)
                     {
                         mbes_mat.row(ping_i * beams_real_ + b) = (rot_i * mbes_history_.at(ping_i).row(b).transpose() + pos_i).transpose();
                     }
-                    // Store particle pose for that ping
+                    // Store particle position for that ping
                     track_position_mat.row(ping_i) = pos_i.transpose();
-                    // Eigen::Vector3f euler = rot_i.eulerAngles(0,1,2);
-                    if(p == 29){
-                        std::cout << rot_i << std::endl;
-                        // std::cout << euler.transpose() << std::endl;
-                    }
-                    std::vector<float> aux;
-                    for (int k = 0; k < rot_i.size(); k++){
-                        aux.push_back(*(rot_i.data() + k));
 
-                    }
-                    Eigen::MatrixXf test = Eigen::Map<Eigen::Matrix<float, 1, 9> >(aux.data());
-                    track_orientation_mat.row(rots) = test.leftCols(3);
-                    rots ++;
-                    track_orientation_mat.row(rots) = test.middleCols(3, 3);
-                    rots ++;
-                    track_orientation_mat.row(rots) = test.rightCols(3);
-                    rots ++;
-                    if(p == 29){
-                        std::cout << test << std::endl;
-                    }
+                    // And orientation: for some reason sending the whole rotation matrix
+                    // is easier than reconstructing it in the other side from Euler
+                    // std::vector<float> aux;
+                    // for (int k = 0; k < rot_i.size(); k++){
+                    //     aux.push_back(*(rot_i.data() + k));
+
+                    // }
+                    // Eigen::MatrixXf test = Eigen::Map<Eigen::Matrix<float, 1, 9> >(aux.data());
+                    // track_orientation_mat.row(rots) = test.leftCols(3);
+                    // rots ++;
+                    // track_orientation_mat.row(rots) = test.middleCols(3, 3);
+                    // rots ++;
+                    // track_orientation_mat.row(rots) = test.rightCols(3);
+                    // rots ++;
+                    track_orientation_mat.row(ping_i) = rot_i.eulerAngles(0,1,2); 
                 }
                 else
                 {
@@ -935,9 +931,7 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     vector<float> x;
     vector<float> y;
     vector<float> z;
-    vector<float> roll;
-    vector<float> pitch;
-    vector<float> yaw;
+    Eigen::Quaternionf q_avg = Eigen::Quaternionf(0., 0., 0., 0.);
 
     double roll_i, pitch_i, yaw_i;
 
@@ -947,42 +941,28 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
         y.push_back(pose_list.poses[i].position.y);
         z.push_back(pose_list.poses[i].position.z);
 
-        // Quaternion to Euler
-        tf::Quaternion q(
+        Eigen::Quaternionf q_e(
             pose_list.poses[i].orientation.x,
             pose_list.poses[i].orientation.y,
             pose_list.poses[i].orientation.z,
             pose_list.poses[i].orientation.w);
-        tf::Matrix3x3 m(q);
-        m.getRPY(roll_i, pitch_i, yaw_i);
-
-        roll.push_back(roll_i);
-        pitch.push_back(pitch_i);
-        yaw.push_back(yaw_i);
+        q_avg.coeffs() += q_e.coeffs();
     }
 
     // Compute averages
-    float x_ave = accumulate(x.begin(), x.end(), 0.0) / x.size();
-    float y_ave = accumulate(y.begin(), y.end(), 0.0) / y.size();
-    float z_ave = accumulate(z.begin(), z.end(), 0.0) / z.size();
-    float roll_ave = accumulate(roll.begin(), roll.end(), 0.0) / roll.size();
-    float pitch_ave = accumulate(pitch.begin(), pitch.end(), 0.0) / pitch.size();
-    float yaw_ave = accumulate(yaw.begin(), yaw.end(), 0.0) / yaw.size();
-
-    // Wrap yaw around [0;2*pi]
-    yaw_ave = angle_limit(yaw_ave);
+    float x_ave = accumulate(x.begin(), x.end(), 0.0) / pose_list.poses.size();
+    float y_ave = accumulate(y.begin(), y.end(), 0.0) / pose_list.poses.size();
+    float z_ave = accumulate(z.begin(), z.end(), 0.0) / pose_list.poses.size();
+    q_avg.coeffs() /= pose_list.poses.size();
+    q_avg = q_avg.normalized();
 
     avg_pose_.pose.pose.position.x = x_ave;
     avg_pose_.pose.pose.position.y = y_ave;
     avg_pose_.pose.pose.position.z = z_ave;
-
-    tf2::Quaternion avg_q;
-    avg_q.setRPY(roll_ave, pitch_ave, yaw_ave);
-    avg_q = avg_q.normalize();
-    avg_pose_.pose.pose.orientation.x = avg_q.getX();
-    avg_pose_.pose.pose.orientation.y = avg_q.getY();
-    avg_pose_.pose.pose.orientation.z = avg_q.getZ();
-    avg_pose_.pose.pose.orientation.w = avg_q.getW();
+    avg_pose_.pose.pose.orientation.x = q_avg.w();
+    avg_pose_.pose.pose.orientation.y = q_avg.x();
+    avg_pose_.pose.pose.orientation.z = q_avg.y();
+    avg_pose_.pose.pose.orientation.w = q_avg.z();
 
     avg_pose_.header.stamp = ros::Time::now();
     avg_pub_.publish(avg_pose_);

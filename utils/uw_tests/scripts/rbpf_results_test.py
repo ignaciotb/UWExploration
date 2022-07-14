@@ -86,7 +86,7 @@ if __name__ == '__main__':
     orientations = np.asarray(orientations_all)
     orientations = np.reshape(orientations, (orientations.shape[1], 3)) 
     orientations = np.reshape(orientations, (-1, 9)) 
-    print(orientations)
+    # print(orientations)
 
     avg_or = []
     for ori in orientations:
@@ -109,38 +109,27 @@ if __name__ == '__main__':
     # print(avg_pos)
     # print(avg_ors)
 
-    # # Load particle 0 data
-    positions_all = []
-    orientations_all = []
+    #### Load particle 0 data to be moved to average trajectory
+    positions_in = []
+    orientations_in = []
     data_in = np.load(os.path.join(path, "data_particle_0.npz"))
-    positions_all.append(data_in["track_position"])
-    orientations_all.append(data_in["track_orientation"])
+    positions_in.append(data_in["track_position"])
+    orientations_in.append(data_in["track_orientation"])
     
-    positions = np.asarray(positions_all)
-    positions = np.reshape(positions, (-1,particle_count*3)) 
-    
-    orientations = np.asarray(orientations_all)
-    orientations = np.reshape(orientations, (orientations.shape[1], 3)) 
+    positions = np.asarray(positions_in)
+    positions = np.reshape(positions, (-1, 3)) 
+    orientations = np.asarray(orientations_in)
     orientations = np.reshape(orientations, (-1, 9)) 
-    print(orientations)
 
     avg_or = []
     for ori in orientations:
         rot_mat_0 = ori.reshape(3,3).T
         avg_or.append(rot_mat_0)
-        # print(rot_mat_0)
 
-    # # Average poses of particles
-    avg_positions = []
-    # avg_or = []
-    for row in range(0, positions.shape[0]):
-        step_pos = positions[row, :].reshape(-1, 3).sum(0)/particle_count
-        avg_positions.append(step_pos)
+    pos_in = positions
+    ors_in = np.asarray(avg_or)
+    print(pos_in.shape)
+    print(ors_in.shape)
 
-    #     step_or = orientations[row, :].reshape(-1, 3).sum(0)/particle_count
-    #     avg_or.append(step_or)
 
-    avg_pos_in = np.asarray(avg_positions)
-    avg_ors_in = np.asarray(avg_or)
-
-    plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, avg_pos_in, avg_ors_in, data_in)
+    plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, pos_in, ors_in, data_in)

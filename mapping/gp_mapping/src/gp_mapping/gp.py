@@ -335,7 +335,7 @@ class SVGP(VariationalGP):
         # save it
         np.save(fname, cloud)
 
-    def plot(self, inputs, targets, track, fname, n=80, n_contours=50):
+    def plot(self, inputs, targets, fname, n=80, n_contours=50, track=None):
 
         '''
         Plots:
@@ -402,8 +402,8 @@ class SVGP(VariationalGP):
         ax[2].set_ylabel('$y~[m]$')
         plt.tight_layout()
 
-        ax[0].plot(track[:,0], track[:,1], "-b", linewidth=0.2)
-
+        if track != None:
+            ax[0].plot(track[:,0], track[:,1], "-b", linewidth=0.2)
 
         # save
         fig.savefig(fname, bbox_inches='tight', dpi=1000)

@@ -48,7 +48,7 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <!-- Rosbags from lolo -->
-  <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 1200 -u 200 $(arg path)/2022-06-07-12-22-19.bag"/>
+  <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 1200 -u 300 $(arg path)/2022-06-07-12-22-19.bag"/>
   
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
     <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  

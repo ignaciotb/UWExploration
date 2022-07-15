@@ -70,6 +70,7 @@ def trace_kernel(gp_path):
     ip = gp.variational_strategy.inducing_points.data
     print(np.trace(gp.cov(ip).cpu().numpy()))
 
+
 def load_plot(gp_path, survey_name, trajectory_name):
     gp = SVGP.load(400, gp_path)
     gp.likelihood.eval()
@@ -85,11 +86,11 @@ def load_plot(gp_path, survey_name, trajectory_name):
     print("Targets ", targets.shape)
 
     track_file = np.load(trajectory_name)
-    track = track_file["track"]
+    track = track_file["track_position"]
 
     name = "svgp_di"
-    gp.plot(inputs, targets, track, name + '.png',
-             n=100, n_contours=100)
+    gp.plot(inputs, targets, name + '.png',
+             n=100, n_contours=100, track=track)
 
 
 if __name__ == '__main__':

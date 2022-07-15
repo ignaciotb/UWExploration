@@ -199,7 +199,7 @@ class PFStatsVisualization(object):
    
     def stat_cb(self, stat_msg):
 
-        data_t = stat_msg.data.copy().reshape(self.datagram_size,1)
+        data_t = stat_msg.data.reshape(self.datagram_size,1)
         # Rotate AUV trajectory to place wrt odom in the image
         data_t[2:5] = self.m2o_mat[0:3,0:3].dot(data_t[2:5])
         data_t[5:8] = self.m2o_mat[0:3,0:3].dot(data_t[5:8])

@@ -39,8 +39,9 @@ If you find the repo and the methods useful, please cite us.
 ```
 @article{torroba2022fully,
   title={Fully-probabilistic Terrain Modelling with Stochastic Variational Gaussian Process Maps},
-  author={Torroba, Ignacio and Sprague, Christopher Illife and Folkesson, John},
-  journal={arXiv preprint arXiv:2203.10893},
+  author={Torroba, Ignacio and Illife Sprague, Christopher and Folkesson, John},
+  journal={arXiv e-prints},
+  pages={arXiv--2203},
   year={2022}
 }
 ```

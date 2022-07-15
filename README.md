@@ -38,11 +38,11 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 If you find the repo and the methods useful, please cite us.
 ```
 @article{torroba2022fully,
-  title={Fully-probabilistic Terrain Modelling with Stochastic Variational Gaussian Process Maps},
-  author={Torroba, Ignacio and Illife Sprague, Christopher and Folkesson, John},
-  journal={arXiv e-prints},
-  pages={arXiv--2203},
-  year={2022}
+  title={Fully-Probabilistic Terrain Modelling and Localization With Stochastic Variational Gaussian Process Maps},
+  author={Torroba, Ignacio and Sprague, Christopher Iliffe and Folkesson, John},
+  journal={IEEE Robotics and Automation Letters},
+  year={2022},
+  publisher={IEEE}
 }
 ```
 

@@ -30,6 +30,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("particle_poses_topic"), pose_array_top_, "/particle_poses");
     pf_pub_ = nh_->advertise<geometry_msgs::PoseArray>(pose_array_top_, 10);
 
+    nh_->param<string>(("dr_pose_topic"), pose_dr_top_, "/dr_pose");
+    dr_estimate_pub_ = nh_->advertise<geometry_msgs::PoseStamped>(pose_dr_top_, 10);
+
     // Initialize average of poses publisher
     nh_->param<string>(("average_pose_topic"), avg_pose_top_, "/average_pose");
     avg_pub_ = nh_->advertise<geometry_msgs::PoseWithCovarianceStamped>(avg_pose_top_, 10);
@@ -97,7 +100,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Timer for updating RVIZ
     nh_->param<float>(("rviz_period"), rviz_period_, 0.3);
-    timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
+    if(rviz_period_ != 0.){
+        timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
+    }
 
     // Subscription to manually triggering LC detection. Just for testing
     nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
@@ -194,7 +199,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Dead reckoning particle
     dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                           std::vector<float>(6, 0.), meas_std_, motion_cov_));
+                                           std::vector<float>(6, 0.), meas_std_, std::vector<float>(6,0.)));
 
     // Initialize aux variables
     ping_mat_ = Eigen::MatrixXf(beams_real_, 3);
@@ -313,9 +318,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // Conditions to start LC prompting:
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
-            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ / 2)){
-                this->update_particles_weights(latest_mbes_, odom_latest_);
-            }
+            // if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
+            //     this->update_particles_weights(latest_mbes_, odom_latest_);
+            // }
         }
     }
 }
@@ -519,21 +524,6 @@ void RbpfSlam::save_gps(const bool plot)
                     }
                     // Store particle position for that ping
                     track_position_mat.row(ping_i) = pos_i.transpose();
-
-                    // And orientation: for some reason sending the whole rotation matrix
-                    // is easier than reconstructing it in the other side from Euler
-                    // std::vector<float> aux;
-                    // for (int k = 0; k < rot_i.size(); k++){
-                    //     aux.push_back(*(rot_i.data() + k));
-
-                    // }
-                    // Eigen::MatrixXf test = Eigen::Map<Eigen::Matrix<float, 1, 9> >(aux.data());
-                    // track_orientation_mat.row(rots) = test.leftCols(3);
-                    // rots ++;
-                    // track_orientation_mat.row(rots) = test.middleCols(3, 3);
-                    // rots ++;
-                    // track_orientation_mat.row(rots) = test.rightCols(3);
-                    // rots ++;
                     track_orientation_mat.row(ping_i) = rot_i.eulerAngles(0,1,2); 
                 }
                 else
@@ -590,11 +580,9 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
     for(int p=0; p<pc_; p++){
-        // Transform x random beams to particle pose in map frame
-        // pos_i = particles_.at(p).pos_history_.back();
-        // rot_i = particles_.at(p).rot_history_.back();
         {
-            // std::lock_guard<std::mutex> lock(particles_.at(p).pc_mutex_);
+            // Latest particle pose
+            std::lock_guard<std::mutex> lock(*particles_.at(p).pc_mutex_);
             pos_i = particles_.at(p).pos_history_.back()->back();
             rot_i = particles_.at(p).rot_history_.back()->back();
         }
@@ -725,32 +713,53 @@ void RbpfSlam::update_particles_history()
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
-    geometry_msgs::PoseArray array_msg;
-    array_msg.header.frame_id = odom_frame_;
-    array_msg.header.stamp = ros::Time::now();
+    if(start_training_)
+    {
+        geometry_msgs::PoseArray array_msg;
+        array_msg.header.frame_id = odom_frame_;
+        array_msg.header.stamp = ros::Time::now();
 
-    for (int i=0; i<pc_; i++){
-        geometry_msgs::Pose pose_i;
-        pose_i.position.x = particles_.at(i).p_pose_(0);
-        pose_i.position.y = particles_.at(i).p_pose_(1);
-        pose_i.position.z = particles_.at(i).p_pose_(2);
+        for (int i=0; i<pc_; i++){
+            geometry_msgs::Pose pose_i;
+            pose_i.position.x = particles_.at(i).p_pose_(0);
+            pose_i.position.y = particles_.at(i).p_pose_(1);
+            pose_i.position.z = particles_.at(i).p_pose_(2);
 
-        Eigen::AngleAxisf rollAngle(particles_.at(i).p_pose_(3), Eigen::Vector3f::UnitX());
-        Eigen::AngleAxisf pitchAngle(particles_.at(i).p_pose_(4), Eigen::Vector3f::UnitY());
-        Eigen::AngleAxisf yawAngle(particles_.at(i).p_pose_(5), Eigen::Vector3f::UnitZ());
+            Eigen::AngleAxisf rollAngle(particles_.at(i).p_pose_(3), Eigen::Vector3f::UnitX());
+            Eigen::AngleAxisf pitchAngle(particles_.at(i).p_pose_(4), Eigen::Vector3f::UnitY());
+            Eigen::AngleAxisf yawAngle(particles_.at(i).p_pose_(5), Eigen::Vector3f::UnitZ());
+            Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
+            pose_i.orientation.x = q.x();
+            pose_i.orientation.y = q.y();
+            pose_i.orientation.z = q.z();
+            pose_i.orientation.w = q.w();
+
+            array_msg.poses.push_back(pose_i);
+        }
+        pf_pub_.publish(array_msg);
+        average_pose(array_msg);
+
+        // DR estimate
+        geometry_msgs::PoseStamped pose_dr;
+        pose_dr.header.frame_id = map_frame_;
+        pose_dr.header.stamp = ros::Time::now();
+        pose_dr.pose.position.x = dr_particle_.at(0).p_pose_(0);
+        pose_dr.pose.position.y = dr_particle_.at(0).p_pose_(1);
+        pose_dr.pose.position.z = dr_particle_.at(0).p_pose_(2);
+
+        Eigen::AngleAxisf rollAngle(dr_particle_.at(0).p_pose_(3), Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitchAngle(dr_particle_.at(0).p_pose_(4), Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yawAngle(dr_particle_.at(0).p_pose_(5), Eigen::Vector3f::UnitZ());
         Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-        pose_i.orientation.x = q.x();
-        pose_i.orientation.y = q.y();
-        pose_i.orientation.z = q.z();
-        pose_i.orientation.w = q.w();
+        pose_dr.pose.orientation.x = q.x();
+        pose_dr.pose.orientation.y = q.y();
+        pose_dr.pose.orientation.z = q.z();
+        pose_dr.pose.orientation.w = q.w();
+        dr_estimate_pub_.publish(pose_dr);
 
-        array_msg.poses.push_back(pose_i);
+        // Update stats
+        publish_stats(odom_latest_);
     }
-    pf_pub_.publish(array_msg);
-    average_pose(array_msg);
-
-    // Update stats
-    publish_stats(odom_latest_);
 }
 
 void RbpfSlam::resample(vector<double> weights)

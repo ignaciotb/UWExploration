@@ -259,24 +259,31 @@ class SVGP_map():
                     input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
                     target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
-                    # compute loss, compute gradient, and update
-                    loss = -self.mll(self.model(input), target)
+                    # # compute loss, compute gradient, and update
                     self.opt.zero_grad()
+                    loss = -self.mll(self.model(input), target)
                     loss.backward()
                     self.opt.step()
 
+                    del input
+                    del target
+                    torch.cuda.empty_cache()
                     self.training = False
                     self.iterations += 1
 
                     # Check for ELBO convergence to signal this SVGP is ready
                     # to start LC prompting
-                    if not self.ready_for_LC and self.criterion.evaluate(loss):
-                        print("Particle ", self.particle_id, " ready for LCs ")
-                        self.ready_for_LC = True
-                        self.enable_lc_pub.publish(self.particle_id)
+                    loss_np = loss.detach().cpu().numpy()
+                    if not self.ready_for_LC:
+                        # Delete self.criterion when ready for LCs. It consumes mem af
+                        if self.criterion.evaluate(torch.from_numpy(loss_np)):
+                            print("Particle ", self.particle_id, " ready for LCs ")
+                            self.ready_for_LC = True
+                            self.enable_lc_pub.publish(self.particle_id)
+                            del self.criterion
                         
                     # Store loss for postprocessing
-                    self.loss.append(loss.detach().cpu().numpy())
+                    self.loss.append(loss_np)
 
                     if self.particle_id == 0:
                         print("Particle ", self.particle_id,
@@ -352,10 +359,10 @@ class SVGP_map():
             self._as_manipulate.set_succeeded(result)
             # print("GP ", self.particle_id, " sampled")
 
-            # Publish for debugging
-            mbes_gp = np.concatenate((np.asarray(beams)[:, 0:2], np.reshape(mu, (-1,1))), axis=1)
-            mbes_pcloud = self.pack_cloud("map", mbes_gp)
-            self.pcloud_pub.publish(mbes_pcloud)
+            # Publish for testing
+            # mbes_gp = np.concatenate((np.asarray(beams)[:, 0:2], np.reshape(mu, (-1,1))), axis=1)
+            # mbes_pcloud = self.pack_cloud("map", mbes_gp)
+            # self.pcloud_pub.publish(mbes_pcloud)
         #####
         else:
             # Flag to stop training

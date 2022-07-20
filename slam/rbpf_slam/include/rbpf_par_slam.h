@@ -161,6 +161,7 @@ private:
     ros::Publisher avg_pub_;
     ros::Publisher pf_mbes_pub_;
     ros::Publisher stats_;
+    ros::Publisher dr_estimate_pub_;
 
     string pose_array_top_;
     string avg_pose_top_;
@@ -199,6 +200,7 @@ private:
     string save_top_;
     string lc_manual_topic_;
     string path_topic_;
+    string pose_dr_top_;
 
     // End of mission timer
     bool mission_finished_;

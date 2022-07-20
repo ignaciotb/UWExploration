@@ -111,8 +111,6 @@ private:
     std::mt19937 rng_;
     std::mt19937 g_;
 
-
-
     tf::TransformListener tfListener_;
     tf2_ros::Buffer tf_buffer_;
     
@@ -177,6 +175,7 @@ private:
     std::vector<actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction>*> p_manipulate_acs_;
     string manipulate_gp_server_;
     std::vector<int> updated_w_ids_;
+    std::vector<int> updated_saved_ids_;
 
     // Server
     ros::ServiceServer srv_server_;
@@ -225,6 +224,7 @@ private:
     void rbpf_update(const ros::TimerEvent&);
     void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
+    void saveCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
     //             const nav_msgs::OdometryConstPtr &odom_msg);
 

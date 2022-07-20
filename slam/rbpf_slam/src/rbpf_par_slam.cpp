@@ -318,9 +318,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // Conditions to start LC prompting:
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
-            // if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
-            //     this->update_particles_weights(latest_mbes_, odom_latest_);
-            // }
+            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
+                this->update_particles_weights(latest_mbes_, odom_latest_);
+            }
         }
     }
 }
@@ -471,6 +471,8 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
 
 void RbpfSlam::save_gps(const bool plot)
 {
+    updated_saved_ids_.clear();
+
     int pings_t = mbes_history_.size()-1;
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
@@ -550,16 +552,25 @@ void RbpfSlam::save_gps(const bool plot)
         goal.track_orientation = track_orientation_pcloud;
         goal.plot = plot;
         goal.sample = false;
-        p_manipulate_acs_.at(p)->sendGoal(goal);
-        
+
         // We want these calls to be secuential since plotting is GPU-heavy
         // and not time critical, so we want the particles to do it one by one.
-        // Otherwise no need to wait for the result
         if(plot){
             bool received = p_manipulate_acs_.at(p)->waitForResult();
         }
+        else{ 
+            p_manipulate_acs_.at(p)->sendGoal(goal, boost::bind(&RbpfSlam::saveCB, this, _1, _2));
+        }
     }
 
+    // Collect all updated weights and call resample()
+    while (updated_saved_ids_.size() < pc_ && ros::ok())
+    {
+        // ROS_DEBUG("Waiting for weights");
+        ros::Duration(1.).sleep();
+        std::cout << "Number of SVGPs saved " << updated_saved_ids_.size() << std::endl;            
+    }
+    
 }
 
 void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
@@ -632,6 +643,12 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     // auto t2 = high_resolution_clock::now();
     // duration<double, std::milli> ms_double = t2 - t1;
     // std::cout << ms_double.count() / 1000.0 << std::endl;
+}
+
+void RbpfSlam::saveCB(const actionlib::SimpleClientGoalState &state,
+                        const slam_msgs::ManipulatePosteriorResultConstPtr &result)
+{
+    updated_saved_ids_.push_back(result->p_id);
 }
 
 void RbpfSlam::sampleCB(const actionlib::SimpleClientGoalState &state,

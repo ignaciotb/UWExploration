@@ -424,11 +424,9 @@ class SVGP_map():
             mu: (n,) numpy array of predictive mean at x
             sigma: (n,) numpy array of predictive variance at x
         '''
-
-        ## On your source code, call:
+        
         self.likelihood.eval()
         self.model.eval()
-        ## before using this function to toggle evaluation mode
 
         # sanity
         assert len(x.shape) == x.shape[1] == 2
@@ -442,9 +440,9 @@ class SVGP_map():
             dist = self.likelihood(self.model(x))
             
             # print("Sampling time ", time.time() - time_start)
-            self.likelihood.train()
-            self.model.train()
-            return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
+        self.likelihood.train()
+        self.model.train()
+        return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
         
 
 

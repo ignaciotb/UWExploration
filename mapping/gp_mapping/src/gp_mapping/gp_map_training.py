@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_option("--gp", dest="gp",
                   default="", help="GP already trained")
     parser.add_option("--trajectory", dest="track",
-                  default="", help="AUV GT track")
+                  default="", help="AUV track")
 
     (options, args) = parser.parse_args()
     gp_inputs_type = options.gp_inputs

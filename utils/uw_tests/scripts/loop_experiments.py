@@ -18,11 +18,11 @@ class experiments_loop(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
         dataset = "lolo_0"
-        particle_count = 30
-        num_particle_handlers=3
+        particle_count = 100
+        num_particle_handlers = 10
+        path = "/media/orin/Seagate Expansion Drive/rbpf_results/lolo_0/"
 
-        tests = [1] # UI
-        path = "/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf/lolo_0/"
+        tests = [4] # UI
         # for std in np.linspace(4.,4.9,10):
         # for std in [0]:
         for i in tests:
@@ -43,7 +43,7 @@ class experiments_loop(object):
 
             print("Shutting down test ", i)
             # 30 sec per 10 GPs in small mission
-            rospy.sleep(num_particle_handlers*4)
+            rospy.sleep(num_particle_handlers*10)
             parent.shutdown()
             self.finished = False
 

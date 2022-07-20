@@ -23,14 +23,16 @@ class FixOdom:
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.save_cb)
         self.storage_path = rospy.get_param("~results_path")
+        self.heading_noise = rospy.get_param("~heading_noise", 0.0)
+
 
         self.track_list = []
 
     def save_cb(self, save):
         track = np.asarray(self.track_list)
         track = np.reshape(track, (-1, 3))
-        np.savez(self.storage_path + "/gt_trajectory.npz", track=track)
-        rospy.loginfo("GT odom saved")
+        # np.savez(self.storage_path + "/gt_trajectory.npz", track=track)
+        # rospy.loginfo("GT odom saved")
 
     def odom_cb(self, odom_t):
         odom_t.header.frame_id = "lolo/odom"
@@ -71,11 +73,16 @@ class FixOdom:
             odom_t.twist.twist.angular.x = roll_step / dt
             odom_t.twist.twist.angular.y = pitch_step / dt
             odom_t.twist.twist.angular.z = yaw_step / dt
-            
+
+            # Corrupt heading velocity            
+            odom_t.twist.twist.angular.z = yaw_step / dt
+            odom_t.twist.twist.angular.z += np.sqrt(self.heading_noise) * np.random.randn()
+
+
             position_t = np.array([odom_t.pose.pose.position.x, 
                                     odom_t.pose.pose.position.y, 
                                     odom_t.pose.pose.position.z])
-            self.track_list.append(position_t)
+            # self.track_list.append(position_t)
 
             self.prev_odom = odom_t
 

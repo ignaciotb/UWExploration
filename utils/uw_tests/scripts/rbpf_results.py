@@ -62,18 +62,19 @@ if __name__ == '__main__':
 
     i = sys.argv[1]    
     path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/' + str(i)))
-    particle_count = 30
+    particle_count = 10
 
     positions_all = []
     orientations_all = []
     i = 0
     for file in os.listdir(path):
-        if file.endswith(".npz") and not file.startswith("gt") and i < particle_count:
+        if file.endswith(".npz") and not file.startswith("trajectories") and i < particle_count:
             print(os.path.join(path, file))
             data = np.load(os.path.join(path, file))
             positions_all.append(data["track_position"])
             orientations_all.append(data["track_orientation"])
             i += 1
+            print(i)
    
     positions = np.asarray(positions_all)
     orientations = np.asarray(orientations_all)

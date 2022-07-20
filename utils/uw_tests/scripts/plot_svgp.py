@@ -50,7 +50,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(400)
+    model = SVGP(300)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()
@@ -146,7 +146,7 @@ if __name__ == '__main__':
 
     # i = str(input("Number of the particle to plot: "))
     i = argv[1]    
-    path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/0/'))
+    path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/3/'))
 
     cp = torch.load(path + '/svgp_final_'+i+'.pth')
     data = np.load(path + '/data_particle_'+i+'.npz')

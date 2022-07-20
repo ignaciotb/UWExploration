@@ -18,19 +18,22 @@ class FakeSynch:
         self.time_odom = rospy.Time.now().to_sec()
         self.time = rospy.Time.now().to_sec()
         self.survey_finished = False
+        self.survey_started = False
         
         while not rospy.is_shutdown():
             self.time = rospy.Time.now().to_sec()
 
-            if self.time - self.time_odom > 4. and not self.survey_finished:
+            if self.time - self.time_odom > 6. and self.survey_started and not self.survey_finished:
                 # Rosbag finished
                 self.finish_pub.publish(True)
                 self.survey_finished = True
-                rospy.loginfo("ROSBAG FINISHED")
+                rospy.loginfo("-------------------ROSBAG FINISHED-------------------")
 
             rospy.sleep(0.1)
 
     def odom_cb(self, odom_t):
+        if not self.survey_started:
+            self.survey_started = True
         
         self.time_odom = rospy.Time.now().to_sec()
 

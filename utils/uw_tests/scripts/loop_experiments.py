@@ -14,7 +14,7 @@ class experiments_loop(object):
         uuid = roslaunch.rlutil.get_or_generate_uuid(None, False)
         roslaunch.configure_logging(uuid)
 
-        finished_top = rospy.get_param("~survey_finished_top", "/gt/survey_finished")
+        finished_top = rospy.get_param("~rbpf_saved_top", "/gt/rbpf_saved")
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
         dataset = "lolo_0"
@@ -42,8 +42,7 @@ class experiments_loop(object):
                 rospy.sleep(1)
 
             print("Shutting down test ", i)
-            # 30 sec per 10 GPs in small mission
-            rospy.sleep(num_particle_handlers*10)
+            # rospy.sleep(particle_count*10)
             parent.shutdown()
             self.finished = False
 

@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as rot
 # plot_rbpf_solution(avg_pos_out, avg_ors_out, data_out, avg_pos_in, avg_ors_in, data_in)
 
 
-def plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, data_in):
+def plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, pos_particles, data_in, path):
 
     i = 0
     j = 0
@@ -52,17 +52,17 @@ def plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, data_in):
                         cmap='jet', s=0.4, edgecolors='none')
     
     fig.colorbar(cr, ax=ax)
-    ax.plot(avg_pos_out[:,0], avg_pos_out[:,1], "-r", linewidth=0.2)
-    ax.plot(pos_in[:,0], pos_in[:,1], "-b", linewidth=0.2)
+    ax.plot(avg_pos_out[:,0], avg_pos_out[:,1], "-b", linewidth=0.2)
+    
+    ax.plot(pos_particles[:,0], pos_particles[:,1], "-r", linewidth=0.2)
 
-    fig.savefig("./rbpf_map.png", bbox_inches='tight', dpi=1000)
+    fig.savefig(path + "/rbpf_map.png", bbox_inches='tight', dpi=1000)
 
 
 if __name__ == '__main__':
 
-    i = sys.argv[1]    
-    path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/' + str(i)))
-    particle_count = 10
+    path = sys.argv[1]    
+    particle_count = int(sys.argv[2])
 
     positions_all = []
     orientations_all = []
@@ -74,7 +74,6 @@ if __name__ == '__main__':
             positions_all.append(data["track_position"])
             orientations_all.append(data["track_orientation"])
             i += 1
-            print(i)
    
     positions = np.asarray(positions_all)
     orientations = np.asarray(orientations_all)
@@ -133,4 +132,4 @@ if __name__ == '__main__':
     pos_in = positions
     ors_in = np.asarray(avg_or)
 
-    plot_rbpf_solution(avg_pos, avg_ors, pos_in, ors_in, data)
+    plot_rbpf_solution(avg_pos, avg_ors, pos_in, ors_in, positions_arranged, data, path)

@@ -42,8 +42,8 @@ loss_tensor_1 = torch.from_numpy(loss_1)
 #         print(i) 
 #         break
 
-criterion = ExpMAStoppingCriterion(rel_tol=1e-2, minimize=True, n_window=50) 
-print("Stop criterion")
+criterion = ExpMAStoppingCriterion(rel_tol=1e-3, minimize=True, n_window=400) 
+print("Total iterations ", len(loss_tensor_1))
 for i in range(0,len(loss_1)): 
     if criterion.evaluate(loss_tensor_1[i]): 
         print("Stopping here ", i)

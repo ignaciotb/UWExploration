@@ -144,9 +144,8 @@ def plot_loss(fname, loss):
 
 if __name__ == '__main__':
 
-    # i = str(input("Number of the particle to plot: "))
-    i = argv[1]    
-    path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'rbpf/lolo_0/3/'))
+    path = argv[1]  # /media/orin/Seagate\ Expansion\ Drive/rbpf_results/lolo_0/  
+    i = argv[2] # Number of the particle to plot
 
     cp = torch.load(path + '/svgp_final_'+i+'.pth')
     data = np.load(path + '/data_particle_'+i+'.npz')

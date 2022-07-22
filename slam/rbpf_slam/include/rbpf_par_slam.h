@@ -138,6 +138,7 @@ private:
     Eigen::VectorXf latest_mbes_z_;
 
     float n_eff_filt_;
+    int N_eff_;
     int count_pings_;
     bool survey_finished_;
     double time_;
@@ -160,6 +161,7 @@ private:
     ros::Publisher pf_mbes_pub_;
     ros::Publisher stats_;
     ros::Publisher dr_estimate_pub_;
+    ros::Publisher gp_saved_pub_;
 
     string pose_array_top_;
     string avg_pose_top_;

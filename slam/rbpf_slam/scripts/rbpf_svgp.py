@@ -187,6 +187,7 @@ class SVGP_map():
 
         self.n_plot = 0
         self.n_plot_loss = 0
+        self.mission_finished = False
 
     def resampling_cb(self, req):
 
@@ -234,6 +235,10 @@ class SVGP_map():
         # Don't train until the inducing points from the RBPF node have been received
         if not self.inducing_points_received:
             rospy.loginfo_once("Waiting for inducing points")
+            return
+
+        if self.mission_finished:
+            rospy.loginfo_once("GP finished ", self.particle_id)
             return
 
         # Get beams for minibatch training as pcl
@@ -401,7 +406,13 @@ class SVGP_map():
                         str(self.particle_id) + ".npz", beams=beams, loss=self.loss, 
                         track_position=track_position, track_orientation=track_orientation)
                 self.plotting = False
+                self.mission_finished = True
 
+                del self.model
+                del self.likelihood
+                del self.opt
+                torch.cuda.empty_cache()
+                
                 # Plot the loss
                 # self.plot_loss(self.storage_path + '/particle_' + str(self.particle_id) 
                 #         + '_training_loss_' + str(self.n_plot_loss) + '.png' )

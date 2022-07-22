@@ -211,6 +211,10 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("particle_enable_lc"), enable_lc_top, "/enable_lc");
     enable_lc_sub_ = nh_->subscribe(enable_lc_top, 100, &RbpfSlam::enable_lc, this);
 
+    std::string gps_saved_top;
+    nh_->param<string>(("rbpf_saved_top"), gps_saved_top, "/gt/rbpf_saved");
+    gp_saved_pub_ = nh_->advertise<std_msgs::Bool>(gps_saved_top, 10);
+
     ROS_INFO("RBPF instantiated");
 }
 
@@ -369,14 +373,16 @@ void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
         std::shuffle(pings_idx_.begin(), pings_idx_.end(), g_);
         for (int i = 0; i < int(mb_size / beams_per_ping); i++)
         {
-            // Take the first 10 pings from the latest collected
-            if(i < 10){
-                ping_i = pings_idx_.size() - (i*2+2);    
-            }
-            // And take the rest randomly from the history
-            else{
-                ping_i = pings_idx_.at(i);
-            }
+            // // Take the first 10 pings from the latest collected
+            // if(i < 10){
+            //     ping_i = pings_idx_.size() - (i*2+2);    
+            // }
+            // // And take the rest randomly from the history
+            // else{
+            //     ping_i = pings_idx_.at(i);
+            // }
+            ping_i = pings_idx_.at(i);
+
             // Avoid using the latest ping since some particle might not have updated their pose histories
             // std::cout << "Current ping " << ping_i << std::endl;
             if(ping_i == pings_idx_.size()-1){
@@ -555,22 +561,27 @@ void RbpfSlam::save_gps(const bool plot)
 
         // We want these calls to be secuential since plotting is GPU-heavy
         // and not time critical, so we want the particles to do it one by one.
-        if(plot){
+        // if(plot){
+            std::cout << "Saving GP " << p << std::endl;
+            p_manipulate_acs_.at(p)->sendGoal(goal);
             bool received = p_manipulate_acs_.at(p)->waitForResult();
-        }
-        else{ 
-            p_manipulate_acs_.at(p)->sendGoal(goal, boost::bind(&RbpfSlam::saveCB, this, _1, _2));
-        }
+        // }
+        // else{ 
+        //     p_manipulate_acs_.at(p)->sendGoal(goal, boost::bind(&RbpfSlam::saveCB, this, _1, _2));
+        // }
     }
+    std::cout << "SVGPs saved " << std::endl;
+    std_msgs::Bool msg;
+    msg.data = true;
+    gp_saved_pub_.publish(msg);
 
     // Collect all updated weights and call resample()
-    while (updated_saved_ids_.size() < pc_ && ros::ok())
-    {
-        // ROS_DEBUG("Waiting for weights");
-        ros::Duration(1.).sleep();
-        std::cout << "Number of SVGPs saved " << updated_saved_ids_.size() << std::endl;            
-    }
-    
+    // while (updated_saved_ids_.size() < pc_ && ros::ok())
+    // {
+    //     // ROS_DEBUG("Waiting for weights");
+    //     ros::Duration(1.).sleep();
+    //     std::cout << "Number of SVGPs saved " << updated_saved_ids_.size() << std::endl;            
+    // }    
 }
 
 void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
@@ -781,7 +792,7 @@ void RbpfSlam::update_rviz(const ros::TimerEvent &)
 
 void RbpfSlam::resample(vector<double> weights)
 {
-    int N_eff = pc_;
+    N_eff_ = pc_;
     vector<int> indices;
     vector<int> lost;
     vector<int> keep;
@@ -809,17 +820,18 @@ void RbpfSlam::resample(vector<double> weights)
 
         // Compute effective number
         double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
-        N_eff = 1 / w_sq_sum;
+        N_eff_ = 1 / w_sq_sum;
     }
 
-    n_eff_mask_.erase(n_eff_mask_.begin());
-    n_eff_mask_.push_back(N_eff);
-    n_eff_filt_ = moving_average(n_eff_mask_, 3);
+    // n_eff_mask_.erase(n_eff_mask_.begin());
+    // n_eff_mask_.push_back(N_eff);
+    // n_eff_filt_ = moving_average(n_eff_mask_, 3);
 
     std::cout << std::endl;
-    std::cout << "Mask " << N_eff << " N_thres " << std::round(pc_ / 2) << std::endl;
-    
-    if (N_eff < std::round(pc_ / 2) || lc_detected_)
+    std::cout << "Mask exp " << N_eff_ << " N_thres " << std::round(pc_ / 2) << std::endl;
+
+
+    if (N_eff_ < std::round(pc_ / 2) || lc_detected_)
     // if (N_eff < 90 || lc_detected_)
     {
         // Resample particles
@@ -1045,7 +1057,7 @@ void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     // Send statistics for visualization
     std_msgs::Float32MultiArray stats;
-    stats.data.push_back(n_eff_filt_);
+    stats.data.push_back(float(N_eff_));
     stats.data.push_back(pc_/2.f);
     stats.data.push_back(gt_odom.pose.pose.position.x);
     stats.data.push_back(gt_odom.pose.pose.position.y);

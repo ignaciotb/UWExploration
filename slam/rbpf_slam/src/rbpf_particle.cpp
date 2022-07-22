@@ -150,28 +150,30 @@ float mvn_pdf(const Eigen::VectorXd& x, Eigen::VectorXd& mean, Eigen::MatrixXd& 
 }
 
 double log_pdf_uncorrelated(const Eigen::VectorXd &x, Eigen::VectorXd &mean,
-                            Eigen::VectorXd &gp_sigmas, double &mbes_sigma)
+                            Eigen::VectorXd &gp_var, double &mbes_sigma)
 {
     double n = double(x.cols());
     
     // Set GP variances to zero (for testing)
-    // gp_sigmas.setZero();
+    // gp_var.setZero();
 
-    // Eigen::VectorXd sigmas_2 = gp_sigmas.array().square() + std::pow(mbes_sigma, 2);
+    // Eigen::VectorXd sigmas_2 = gp_var.array().square() + std::pow(mbes_sigma, 2);
     // Eigen::VectorXd diff = (x - mean).array().square();
     // diff.array() *= ((2. * sigmas_2.array()).inverse()).transpose(); // Nasty inverse
     // double logl = -(1./2.)*(sigmas_2.array().log()).sum() - (n / 2.0) 
     //                 * std::log(2 * M_PI) - diff.array().sum();
 
     // std::cout << (x - mean).array().sum() << std::endl;
-    Eigen::VectorXd sigmas_2_diag = gp_sigmas.array().square() + std::pow(mbes_sigma, 2);
-    Eigen::MatrixXd sigma = sigmas_2_diag.asDiagonal();
-    Eigen::VectorXd diff = (x - mean).array().transpose() * sigma.inverse().array() * (x - mean).array();
-    double logl = -(n / 2.) * std::log(sigma.determinant()) 
+    Eigen::VectorXd var_diag = gp_var.array() + std::pow(mbes_sigma, 2);
+    Eigen::MatrixXd var_inv = var_diag.cwiseInverse().asDiagonal();
+    Eigen::MatrixXd var_mat = var_diag.asDiagonal();
+    Eigen::VectorXd diff = (x - mean).array().transpose() * var_inv.array() * 
+                            (x - mean).array();
+    double logl = -(n / 2.) * std::log(var_mat.determinant()) 
                   -(1 / 2.0) * diff.array().sum();
 
     return exp(logl);
-    // return 1.0/logl;
+    // return 1./logl;
 }
 
 vector<float> list2ranges(vector<Eigen::Array3f> points)

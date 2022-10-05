@@ -594,8 +594,10 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     // Latest ping depths in map frame
     Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
-    // Nacho: Fix for Lolo in the surface
+    // Nacho: Hugin and Lolo have a different frame for the MBES
+    // Use this one with Hugin data
     // latest_mbes_z_ = latest_mbes.col(2);
+    // And this one with Lolo
     latest_mbes_z_ = -latest_mbes.col(0);
 
     Eigen::Vector3f pos_i;
@@ -852,14 +854,17 @@ void RbpfSlam::resample(vector<double> weights)
         }
 
         dupes = indices;
+        std::cout << "Keep " << std::endl;
         for (int i : keep)
         {
+            std::cout << i << " ";
             if (count(dupes.begin(), dupes.end(), i))
             {
                 idx = find(dupes.begin(), dupes.end(), i);
                 dupes.erase(idx);
             }
         }
+        std::cout << std::endl;
 
         // Reasign and ddd noise to particles poses
         ROS_INFO("Reasigning poses");
@@ -870,17 +875,14 @@ void RbpfSlam::resample(vector<double> weights)
         // Reassign SVGP maps: send winning indexes to SVGP nodes
         slam_msgs::Resample k_ros;
         slam_msgs::Resample l_ros;
-        std::cout << "Keep " << std::endl;
         auto t1 = high_resolution_clock::now();
         if(!dupes.empty())
         {
             for(int k : keep)
             {
-                std::cout << k << " ";
                 k_ros.request.p_id = k;
                 p_resampling_srvs_[k].call(k_ros);
             }
-            std::cout << std::endl;
 
             int j = 0;
             for (int l : lost)

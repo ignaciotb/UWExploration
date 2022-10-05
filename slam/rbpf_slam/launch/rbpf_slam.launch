@@ -33,7 +33,7 @@
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
   <arg name="results_path" default="/media/orin/Seagate Expansion Drive/rbpf_results/lolo_0"/>     
-  <arg name="rbpf_period"   default="20" />
+  <arg name="rbpf_period"   default="15." />
   <arg name="rviz_period"   default="1." />
   <arg name="svgp_minibatch_size"   default="1000" />
 
@@ -70,10 +70,10 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000005]</rosparam>
-        <rosparam param="resampling_noise_covariance">[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <param name="measurement_std"                         value="0.3" />
+        <rosparam param="init_covariance">[0.1, 0.1, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.0000001]</rosparam>
+        <rosparam param="resampling_noise_covariance">[3.0, 3.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <param name="measurement_std"                         value="10." />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
@@ -120,7 +120,7 @@
   <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen">
     <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
     <param name="results_path" value="$(arg results_path)" />
-    <param name="heading_noise" value="0.00001" />
+    <param name="heading_noise" value="0.00005" />
   </node>
 
   <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>

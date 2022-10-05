@@ -200,7 +200,7 @@ class SVGP_map():
         # to share it with the rest
         response = ResampleResponse(True)
         if req.p_id == self.particle_id:
-            self.save(self.storage_path + "/svgp_" + str(req.p_id) + ".pth")
+            self.save("/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf" + "/svgp_" + str(req.p_id) + ".pth")
             print("Particle ", req.p_id, " saved to disk")
         
         # if 0 == self.particle_id:    
@@ -217,7 +217,7 @@ class SVGP_map():
             ## Loading from disk
             # print("Particle ", self.particle_id,
             #       "loading particle ", req.p_id)
-            my_file = Path(self.storage_path + "/svgp_" + str(req.p_id) + ".pth")
+            my_file = Path("/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf" + "/svgp_" + str(req.p_id) + ".pth")
             try:
                 if my_file.is_file():
                     self.load(str(my_file.as_posix()))
@@ -238,7 +238,7 @@ class SVGP_map():
             return
 
         if self.mission_finished:
-            rospy.loginfo_once("GP finished ", self.particle_id)
+            rospy.loginfo_once("GP finished %s", self.particle_id)
             return
 
         # Get beams for minibatch training as pcl

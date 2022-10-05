@@ -596,9 +596,9 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
     // Nacho: Hugin and Lolo have a different frame for the MBES
     // Use this one with Hugin data
-    // latest_mbes_z_ = latest_mbes.col(2);
+    latest_mbes_z_ = latest_mbes.col(2);
     // And this one with Lolo
-    latest_mbes_z_ = -latest_mbes.col(0);
+    // latest_mbes_z_ = -latest_mbes.col(0);
 
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;

@@ -17,12 +17,12 @@ class experiments_loop(object):
         finished_top = rospy.get_param("~rbpf_saved_top", "/gt/rbpf_saved")
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
-        dataset = "lolo_0"
-        particle_count = 50
-        num_particle_handlers = 5
-        path = "/media/orin/Seagate Expansion Drive/rbpf_results/lolo_0/"
+        dataset = "overnight_2020"
+        particle_count = 10
+        num_particle_handlers = 2
+        path = "/media/orin/Seagate Expansion Drive/rbpf_results/hugin/"
 
-        tests = [7] # UI
+        tests = [0] # UI
         # for std in np.linspace(4.,4.9,10):
         # for std in [0]:
         for i in tests:

@@ -50,7 +50,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(300)
+    model = SVGP(400)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()
@@ -87,21 +87,25 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
         variance = outputs.variance.cpu().numpy().reshape(s)
 
     # plot raw, mean, and variance
-    levels = np.linspace(min(targets)-20, max(targets)+20, n_contours)
+    levels = np.linspace(min(targets), max(targets), n_contours)
     fig, ax = plt.subplots(3, sharex=True, sharey=True)
     cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
                         cmap='jet', s=0.4, edgecolors='none')
-    cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
+    cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=levels)
+    # cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
     cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
     indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
     ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
+
+    post_cloud = np.hstack((inputst.cpu().numpy(), outputs.mean.cpu().numpy().reshape(-1, 1)))
+    np.save("./posterior.npy", post_cloud)
 
     # colorbars
     fig.colorbar(cr, ax=ax[0])
     fig.colorbar(cm, ax=ax[1])
     fig.colorbar(cv, ax=ax[2])
 
-    # formatting
+    # # formatting
     ax[0].set_aspect('equal')
     ax[0].set_title('Raw data')
     ax[0].set_ylabel('$y~[m]$')
@@ -118,7 +122,7 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
     # Plot particle trajectory
     ax[0].plot(track[:,0], track[:,1], "-r", linewidth=0.2)
 
-    # save
+    # # save
     fig.savefig(fname, bbox_inches='tight', dpi=1000)
 
     # Free up GPU mem
@@ -155,7 +159,7 @@ if __name__ == '__main__':
 
     track_position = data['track_position']
     print(track_position.shape)
-    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=50, n_contours=100)
+    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=100, n_contours=100)
 
     loss = data['loss']
     plot_loss(path + '/particle_loss_' + i + '.png', loss)

@@ -18,8 +18,8 @@ class experiments_loop(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
         dataset = "overnight_2020"
-        particle_count = 10
-        num_particle_handlers = 2
+        particle_count = 100
+        num_particle_handlers = 10
         path = "/media/orin/Seagate Expansion Drive/rbpf_results/hugin/"
 
         tests = [0] # UI

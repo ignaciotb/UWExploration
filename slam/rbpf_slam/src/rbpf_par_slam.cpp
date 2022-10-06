@@ -322,9 +322,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // Conditions to start LC prompting:
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
-            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
-                this->update_particles_weights(latest_mbes_, odom_latest_);
-            }
+            // if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
+            //     this->update_particles_weights(latest_mbes_, odom_latest_);
+            // }
         }
     }
 }

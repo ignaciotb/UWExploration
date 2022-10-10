@@ -215,6 +215,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("rbpf_saved_top"), gps_saved_top, "/gt/rbpf_saved");
     gp_saved_pub_ = nh_->advertise<std_msgs::Bool>(gps_saved_top, 10);
 
+    iterations_cnt_ = 0;
     ROS_INFO("RBPF instantiated");
 }
 
@@ -322,9 +323,10 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // Conditions to start LC prompting:
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
-            // if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
-            //     this->update_particles_weights(latest_mbes_, odom_latest_);
-            // }
+            if(count_pings_ > 1000 && svgp_lc_ready_.size() == pc_){
+            // if(count_pings_ > 30){
+                this->update_particles_weights(latest_mbes_, odom_latest_);
+            }
         }
     }
 }
@@ -596,14 +598,43 @@ void RbpfSlam::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav
     latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
     // Nacho: Hugin and Lolo have a different frame for the MBES
     // Use this one with Hugin data
-    latest_mbes_z_ = latest_mbes.col(2);
+    // latest_mbes_z_ = latest_mbes.col(2);
     // And this one with Lolo
-    // latest_mbes_z_ = -latest_mbes.col(0);
+    latest_mbes_z_ = -latest_mbes.col(0);
+
+    // Some filtering?
+    // float med = median(latest_mbes_z_);
+    // Eigen::VectorXf diff = (latest_mbes_z_.array() - med).array().square();
+    // diff = diff.array().sqrt();
+    // float med_abs_deviation = median(diff);
+    // Eigen::VectorXf modified_z_score  = 0.6745 * diff.array() / med_abs_deviation;
+    // return modified_z_score > thresh
+
+    // Check variance of data
+    // Eigen::VectorXf vals = (latest_mbes_z_.array() - latest_mbes_z_.mean()).array().square();
+    // float var = vals.sum() / float(latest_mbes_z_.rows() - 1);
+    // std::cout << "Variance " << var << std::endl;    
+    
+    // This ugly piece of code fractions the start of the LC prompting. 
+    // Sampling 100 particles at once the first time slows down too much everything else
+    // and the DR lags behind, so we do it in 3 steps
+    int pc_test = pc_;
+    if(iterations_cnt_ < 2){
+        int aux;
+        if(iterations_cnt_ == 0){
+            aux = 3;
+        }
+        if(iterations_cnt_ == 1){
+            aux = 6;
+        }
+        pc_test = std::round(pc_ * aux/10.);
+    }
+    iterations_cnt_++;
 
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
-    for(int p=0; p<pc_; p++){
+    for(int p=0; p<pc_test; p++){
         {
             // Latest particle pose
             std::lock_guard<std::mutex> lock(*particles_.at(p).pc_mutex_);

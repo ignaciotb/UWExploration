@@ -69,6 +69,8 @@
 #include <random>
 #include <vector>
 #include <future>
+#include <Eigen/Core>
+#include <Eigen/Dense>
 
 
 using namespace std;
@@ -87,6 +89,14 @@ public:
     ~RbpfSlam();
 
     Eigen::Matrix<float, 6, 1> init_p_pose_;
+
+    float median(Eigen::VectorXf d){
+        std::sort(d.data(), d.data() + d.size());
+        // std::sort( d.array().begin(), d.array().end() );
+        return d.size() % 2 == 0 ?
+            d.segment( (d.size()-2)/2, 2 ).mean() :
+            d( d.size()/2 );
+    }
 
 private:
     ros::NodeHandle *nh_;
@@ -136,6 +146,7 @@ private:
     std::vector<int> beams_idx_;
     std::vector<int> svgp_lc_ready_;
     Eigen::VectorXf latest_mbes_z_;
+    int iterations_cnt_;
 
     float n_eff_filt_;
     int N_eff_;

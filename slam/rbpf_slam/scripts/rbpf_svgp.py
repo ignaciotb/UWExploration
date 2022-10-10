@@ -160,16 +160,16 @@ class SVGP_map():
         self.iterations = 0
 
         self.listener = tf.TransformListener()
-        # try:
-        #     self.listener.waitForTransform("utm", "map", rospy.Time(0), rospy.Duration(60.))
-        #     (trans, rot) = self.listener.lookupTransform(
-        #         "utm", "map", rospy.Time(0))
-        #     self.trans = np.array(trans)
-        #     self.rot = quaternion_matrix(
-        #         (rot[0], rot[1], rot[2], rot[3]))[0:3, 0:3]
-        # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        #     rospy.logwarn("Couldn't lock utm to map tf")
-        #     return
+        try:
+            self.listener.waitForTransform("utm", "map", rospy.Time(0), rospy.Duration(60.))
+            (trans, rot) = self.listener.lookupTransform(
+                "utm", "map", rospy.Time(0))
+            self.trans = np.array(trans)
+            self.rot = quaternion_matrix(
+                (rot[0], rot[1], rot[2], rot[3]))[0:3, 0:3]
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logwarn("Couldn't lock utm to map tf")
+            return
 
         ## The first call to sample takes several seconds and slows down the DR computations.
         ## To avoid that, we make an empty call here to allocate the GPU mem already
@@ -313,9 +313,9 @@ class SVGP_map():
             wp_locations = []
             for p_utm in pc2.read_points(ip_cloud, 
                                     field_names = ("x", "y", "z"), skip_nans=True):
-                # p_map = np.dot(self.rot, p_utm)
-                # p_map = np.add(p_map, -self.trans)
-                p_map = p_utm
+                p_map = np.dot(self.rot, p_utm)
+                p_map = np.add(p_map, -self.trans)
+                # p_map = p_utm
                 wp_locations.append((p_map[0], p_map[1], p_map[2]))
                 
             wp_locations = np.asarray(wp_locations)
@@ -455,8 +455,11 @@ class SVGP_map():
             # print("Sampling time ", time.time() - time_start)
         self.likelihood.train()
         self.model.train()
-        return dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
         
+        mean, variance = dist.mean.cpu().numpy(), dist.variance.cpu().numpy()
+        torch.cuda.empty_cache()
+        
+        return mean, variance
 
 
     def save_posterior(self, n, xlb, xub, ylb, yub, fname, verbose=True):

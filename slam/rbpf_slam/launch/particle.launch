@@ -22,11 +22,12 @@
       <param name="manipulate_gp_server" value="$(arg manipulate_gp_server)"/>     
       <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>   
 			<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
-      <param name="svgp_num_ind_points" value="400"/>     
+      <param name="svgp_num_ind_points" value="300"/>     
       <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
       <param name="svgp_learning_rate" value="1e-1"/>     
-      <param name="svgp_rtol" value="1e-3"/>     
-      <param name="svgp_n_window" type="int" value="400"/>     
+      <param name="svgp_rtol" value="1e-1"/>     
+      <!-- <param name="svgp_n_window" type="int" value="500"/>      -->
+      <param name="svgp_n_window" type="int" value="150"/>     
       <param name="svgp_auto_stop" value="False"/>     
       <param name="svgp_verbose" value="True"/>     
       <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     

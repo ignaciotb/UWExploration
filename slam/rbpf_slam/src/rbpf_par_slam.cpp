@@ -30,8 +30,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("particle_poses_topic"), pose_array_top_, "/particle_poses");
     pf_pub_ = nh_->advertise<geometry_msgs::PoseArray>(pose_array_top_, 10);
 
-    nh_->param<string>(("dr_pose_topic"), pose_dr_top_, "/dr_pose");
-    dr_estimate_pub_ = nh_->advertise<geometry_msgs::PoseStamped>(pose_dr_top_, 10);
+    // nh_->param<string>(("dr_pose_topic"), pose_dr_top_, "/dr_pose");
+    // dr_estimate_pub_ = nh_->advertise<geometry_msgs::PoseStamped>(pose_dr_top_, 10);
 
     // Initialize average of poses publisher
     nh_->param<string>(("average_pose_topic"), avg_pose_top_, "/average_pose");
@@ -165,9 +165,12 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("mbes_pings_topic"), mbes_pings_top_, "mbes_pings");
     mbes_sub_ = nh_->subscribe(mbes_pings_top_, 10, &RbpfSlam::mbes_real_cb, this);
 
-    // Establish subscription to odometry message (intentionally last)
+    // Establish subscription to odometry message
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");
     odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
+
+    nh_->param<string>(("corrupted_odom_topic"), cr_odom_top_, "odom");
+    cr_odom_sub_ = nh_->subscribe(cr_odom_top_, 100, &RbpfSlam::cr_odom_callback, this);
 
     // Initialize the particles on top of LoLo 
     tf::StampedTransform o2b_tf;
@@ -198,8 +201,8 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     }
 
     // Dead reckoning particle
-    dr_particle_.emplace_back(RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                           std::vector<float>(6, 0.), meas_std_, std::vector<float>(6,0.)));
+    // dr_particle_ = std::shared_ptr<RbpfParticle>(new RbpfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
+    //                 std::vector<float>(6, 0.), meas_std_, std::vector<float>(6,0.)));
 
     // Initialize aux variables
     ping_mat_ = Eigen::MatrixXf(beams_real_, 3);
@@ -324,7 +327,6 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
             if(count_pings_ > 1000 && svgp_lc_ready_.size() == pc_){
-            // if(count_pings_ > 30){
                 this->update_particles_weights(latest_mbes_, odom_latest_);
             }
         }
@@ -349,10 +351,6 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
         }
     }
     old_time_ = time_;
-    
-    // // Update stats and visual
-    // publish_stats(*odom_msg);
-    // update_rviz();
 }
 
 void RbpfSlam::mb_cb(const slam_msgs::MinibatchTrainingGoalConstPtr& goal)
@@ -730,6 +728,10 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
     // Depth (read directly)
     float depth = odom_t.pose.pose.position.z;
 
+    // Particle to compute DR without filtering
+    // dr_particle_->motion_prediction(vel_rot, vel_p, depth, dt, rng_);
+
+    // DR of real particles
     for(int i = 0; i < pc_; i++)
     {
         pred_threads_vec_.emplace_back(std::thread(&RbpfParticle::motion_prediction, 
@@ -745,9 +747,6 @@ void RbpfSlam::predict(nav_msgs::Odometry odom_t, float dt)
         }
     }
     pred_threads_vec_.clear();
-
-    // Particle to compute DR without filtering
-    dr_particle_.at(0).motion_prediction(vel_rot, vel_p, depth, dt, rng_);
 
     // auto t2 = high_resolution_clock::now();
     // duration<double, std::milli> ms_double = t2 - t1;
@@ -799,24 +798,6 @@ void RbpfSlam::update_rviz(const ros::TimerEvent &)
         }
         pf_pub_.publish(array_msg);
         average_pose(array_msg);
-
-        // DR estimate
-        geometry_msgs::PoseStamped pose_dr;
-        pose_dr.header.frame_id = map_frame_;
-        pose_dr.header.stamp = ros::Time::now();
-        pose_dr.pose.position.x = dr_particle_.at(0).p_pose_(0);
-        pose_dr.pose.position.y = dr_particle_.at(0).p_pose_(1);
-        pose_dr.pose.position.z = dr_particle_.at(0).p_pose_(2);
-
-        Eigen::AngleAxisf rollAngle(dr_particle_.at(0).p_pose_(3), Eigen::Vector3f::UnitX());
-        Eigen::AngleAxisf pitchAngle(dr_particle_.at(0).p_pose_(4), Eigen::Vector3f::UnitY());
-        Eigen::AngleAxisf yawAngle(dr_particle_.at(0).p_pose_(5), Eigen::Vector3f::UnitZ());
-        Eigen::Quaternion<float> q = rollAngle * pitchAngle * yawAngle;
-        pose_dr.pose.orientation.x = q.x();
-        pose_dr.pose.orientation.y = q.y();
-        pose_dr.pose.orientation.z = q.z();
-        pose_dr.pose.orientation.w = q.w();
-        dr_estimate_pub_.publish(pose_dr);
 
         // Update stats
         publish_stats(odom_latest_);
@@ -1086,6 +1067,11 @@ void RbpfSlam::average_pose(geometry_msgs::PoseArray pose_list)
     cov_ /= pc_;
 }
 
+void RbpfSlam::cr_odom_callback(const geometry_msgs::PoseStamped::ConstPtr & cr_odom)
+{
+    cr_odom_latest_ = *cr_odom;
+}
+
 void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
 {
     // Send statistics for visualization
@@ -1098,9 +1084,9 @@ void RbpfSlam::publish_stats(nav_msgs::Odometry gt_odom)
     stats.data.push_back(avg_pose_.pose.pose.position.x);
     stats.data.push_back(avg_pose_.pose.pose.position.y);
     stats.data.push_back(avg_pose_.pose.pose.position.z);
-    stats.data.push_back(dr_particle_.at(0).p_pose_(0));
-    stats.data.push_back(dr_particle_.at(0).p_pose_(1));
-    stats.data.push_back(dr_particle_.at(0).p_pose_(2));
+    stats.data.push_back(cr_odom_latest_.pose.position.x);
+    stats.data.push_back(cr_odom_latest_.pose.position.y);
+    stats.data.push_back(cr_odom_latest_.pose.position.z);
     stats.data.push_back(cov_(0, 0));
     stats.data.push_back(cov_(0, 1));
     stats.data.push_back(cov_(0, 2));

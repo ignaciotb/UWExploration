@@ -4,8 +4,11 @@ import rospy
 from std_msgs.msg import Bool
 from nav_msgs.msg import Odometry
 import numpy as np
-from tf.transformations import quaternion_matrix, quaternion_from_matrix
+from tf.transformations import quaternion_matrix, quaternion_from_matrix, quaternion_from_euler
 from tf.transformations import quaternion_multiply, quaternion_inverse, euler_from_quaternion
+from scipy.spatial.transform import Rotation as rot
+from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import Transform, Quaternion
 
 class FixOdom:
 
@@ -23,8 +26,12 @@ class FixOdom:
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.save_cb)
         self.storage_path = rospy.get_param("~results_path")
-        self.heading_noise = rospy.get_param("~heading_noise", 0.0)
-
+        self.heading_noise = rospy.get_param("~heading_noise", '/odom_corrupted')
+        
+        # Corrupted DR for experiments
+        self.cr_odom_top = rospy.get_param("~corrupted_odom_topic", 0.0)
+        self.corr_dr_pub = rospy.Publisher(self.cr_odom_top, PoseStamped, queue_size=0)
+        self.corrupted_pose_t = [0]*6
 
         self.track_list = []
 
@@ -35,6 +42,8 @@ class FixOdom:
         # rospy.loginfo("GT odom saved")
 
     def odom_cb(self, odom_t):
+        # The original odom msg from Lolo does not contain velocities, required
+        # by the PF to propagate the particles, so we interpolate them here 
         odom_t.header.frame_id = "lolo/odom"
         odom_t.child_frame_id = "lolo/base_link"
 
@@ -43,6 +52,17 @@ class FixOdom:
         if self.init_odom_count == 0:
             self.prev_odom = odom_t
             self.init_odom_count += 1
+
+            self.corrupted_pose_t[0] = odom_t.pose.pose.position.x
+            self.corrupted_pose_t[1] = odom_t.pose.pose.position.y
+            self.corrupted_pose_t[2] = odom_t.pose.pose.position.z
+
+            q_t = np.array([odom_t.pose.pose.orientation.x, odom_t.pose.pose.orientation.y,
+                            odom_t.pose.pose.orientation.z, odom_t.pose.pose.orientation.w])
+            roll_t, pitch_t, yaw_t = euler_from_quaternion(q_t)
+            self.corrupted_pose_t[2] = roll_t
+            self.corrupted_pose_t[4] = pitch_t
+            self.corrupted_pose_t[5] = yaw_t
 
         if self.old_time and self.time > self.old_time:
 
@@ -79,12 +99,45 @@ class FixOdom:
             odom_t.twist.twist.angular.z += np.sqrt(self.heading_noise) * np.random.randn()
 
 
-            position_t = np.array([odom_t.pose.pose.position.x, 
-                                    odom_t.pose.pose.position.y, 
-                                    odom_t.pose.pose.position.z])
             # self.track_list.append(position_t)
 
             self.prev_odom = odom_t
+
+            ############# Compute corrupted DR here
+            vel_rot = np.array([odom_t.twist.twist.angular.x,
+                                odom_t.twist.twist.angular.y,
+                                odom_t.twist.twist.angular.z])
+            rot_t = np.array(self.corrupted_pose_t[3:6]) + vel_rot * dt
+
+            rot_t[0] = 0.
+            rot_t[1] = 0.
+            rot_t[2] = ((rot_t[2]) + 2 * np.pi) % (2 * np.pi)
+            self.corrupted_pose_t[3:6] = rot_t
+
+            # Linear motion
+            vel_p = np.array([odom_t.twist.twist.linear.x,
+                            odom_t.twist.twist.linear.y,
+                            odom_t.twist.twist.linear.z])
+            
+            rot_mat_t = rot.from_euler("xyz", rot_t).as_matrix()
+            step_t = np.matmul(rot_mat_t, vel_p * dt)
+
+            self.corrupted_pose_t[0] += step_t[0]
+            self.corrupted_pose_t[1] += step_t[1]
+            # Seems to be a problem when integrating depth from Ping vessel, so we just read it
+            self.corrupted_pose_t[2] = odom_t.pose.pose.position.z
+
+            # Publish
+            self.avg_pose = PoseStamped()
+            self.avg_pose.pose.position.x = self.corrupted_pose_t[0]
+            self.avg_pose.pose.position.y = self.corrupted_pose_t[1]
+            self.avg_pose.pose.position.z = self.corrupted_pose_t[2]            
+            self.avg_pose.pose.orientation = Quaternion(*quaternion_from_euler(rot_t[0],
+                                                                                    rot_t[1],
+                                                                                    rot_t[2]))
+            self.avg_pose.header.frame_id = odom_t.header.frame_id
+            self.avg_pose.header.stamp = odom_t.header.stamp
+            self.corr_dr_pub.publish(self.avg_pose)
 
         self.old_time = self.time
 

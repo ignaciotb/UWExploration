@@ -188,6 +188,11 @@ class SVGP_map():
         self.n_plot = 0
         self.n_plot_loss = 0
         self.mission_finished = False
+        
+        # Save only these SVGP maps at the end of the mission
+        self.save_particles_list = []
+        for i in range(0,20):
+            self.save_particles_list.append(i)
 
     def resampling_cb(self, req):
 
@@ -401,8 +406,9 @@ class SVGP_map():
                 track_orientation = np.reshape(track_orientation, (-1,3)) 
 
                 # Save GP hyperparams
-                self.save(self.storage_path + "/svgp_final_" +
-                        str(self.particle_id) + ".pth")
+                if self.particle_id in self.save_particles_list:
+                    self.save(self.storage_path + "/svgp_final_" +
+                            str(self.particle_id) + ".pth")
                 # Save particle's MBES map, trajectory and loss
                 np.savez(self.storage_path + "/data_particle_" +
                         str(self.particle_id) + ".npz", beams=beams, loss=self.loss, 
@@ -410,10 +416,11 @@ class SVGP_map():
                 self.plotting = False
                 self.mission_finished = True
 
+                torch.cuda.empty_cache()
                 del self.model
                 del self.likelihood
                 del self.opt
-                torch.cuda.empty_cache()
+                del self.mll
                 
                 # Plot the loss
                 # self.plot_loss(self.storage_path + '/particle_' + str(self.particle_id) 

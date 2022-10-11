@@ -117,7 +117,7 @@ private:
     string mbes_frame_;
     string odom_frame_;
     std::vector<RbpfParticle> particles_;
-    std::vector<RbpfParticle> dr_particle_;
+    // std::shared_ptr<RbpfParticle> dr_particle_;
     std::mt19937 rng_;
     std::mt19937 g_;
 
@@ -197,6 +197,7 @@ private:
     // Subscribers
     ros::Subscriber mbes_sub_;
     ros::Subscriber odom_sub_;
+    ros::Subscriber cr_odom_sub_;
     ros::Subscriber finished_sub_;
     ros::Subscriber save_sub_;
     ros::Subscriber lc_manual_sub_;
@@ -208,6 +209,7 @@ private:
 
     string mbes_pings_top_;
     string odom_top_;
+    string cr_odom_top_;
     string finished_top_;
     string save_top_;
     string lc_manual_topic_;
@@ -219,6 +221,7 @@ private:
     float time_wo_motion_;
     nav_msgs::Odometry odom_latest_;
     nav_msgs::Odometry odom_end_;
+    geometry_msgs::PoseStamped cr_odom_latest_;
 
     // Transforms
     Eigen::Matrix4f base2mbes_mat_;
@@ -238,6 +241,8 @@ private:
     void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     void saveCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
+    void cr_odom_callback(const geometry_msgs::PoseStamped::ConstPtr &cr_odom);
+
     // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
     //             const nav_msgs::OdometryConstPtr &odom_msg);
 

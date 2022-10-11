@@ -23,6 +23,7 @@
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="4"/> <!--50 -->
   <arg name="num_particle_handlers"             default="2"/> 
+  <arg name="measurement_std"   default="1." />
   <arg name="survey_finished_top" default="/gt/survey_finished"/>
   
   <!-- API for SVGP particles -->
@@ -41,6 +42,7 @@
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
   <!-- <arg name="odometry_topic"                    default="/gt/$(arg namespace)/odom"/> -->
   <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/>
+  <arg name="corrupted_odom_topic"                    default="/lolo/dr/odom_corrupted"/>
   <!-- <arg name="mbes_pings_topic"                  default="/gt/$(arg namespace)/mbes_pings"/> -->
   <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/>
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
@@ -74,8 +76,9 @@
         <rosparam param="init_covariance">[0.01, 0.01, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000001]</rosparam>
         <rosparam param="resampling_noise_covariance">[1.0, 1.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
-        <param name="measurement_std"                         value="0.5" />
+        <param name="measurement_std"                         value="$(arg measurement_std)" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
+        <param name="corrupted_odom_topic"                          value="$(arg corrupted_odom_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
         <param name="odom_frame"                              value="$(arg odom_frame)" />
@@ -121,6 +124,7 @@
     <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
     <param name="results_path" value="$(arg results_path)" />
     <param name="heading_noise" value="0.000001" />
+    <param name="corrupted_odom_topic"  value="$(arg corrupted_odom_topic)" />
   </node>
 
   <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>

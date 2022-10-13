@@ -220,7 +220,7 @@ class PFStatsVisualization(object):
 
         self.filt_vec = np.hstack((self.filt_vec, data_t))
         self.filter_cnt += 1
-        if self.filter_cnt > 0:
+        if self.filter_cnt > 5:
             
             # plt.gcf().canvas.mpl_connect('key_release_event',
             #         lambda event: [exit(0) if event.key == 'escape' else None])
@@ -281,15 +281,24 @@ class PFStatsVisualization(object):
             plt.figure(2)
             plt.subplot(3, 1, 1)
             plt.cla()
-            t_steps = np.linspace(0,self.filter_cnt, self.filter_cnt)
+            t_steps = np.linspace(5,self.filter_cnt, self.filter_cnt-5)
 
             # Error between GT and DR
             plt.plot(t_steps,
-                        np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[8:10,:], axis=0), "-r")
+                        np.linalg.norm(self.filt_vec[2:4,5:]-self.filt_vec[8:10,5:], axis=0), "-r")
 
             # Error between GT and filter
             plt.plot(t_steps,
-                        np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[5:7,:], axis=0), "-b")
+                        np.linalg.norm(self.filt_vec[2:4,5:]-self.filt_vec[5:7,5:], axis=0), "-b")
+
+
+            # # Error between GT and DR
+            # a = np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[8:10,:], axis=0)
+            # plt.plot(t_steps, [0 if i > 100 else i for i in a], "-r")
+
+            # # Error between GT and filter
+            # b = np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[5:7,:], axis=0)
+            # plt.plot(t_steps, [0 if i > 100 else i for i in b], "-b")
 
             plt.grid(True)
 
@@ -297,16 +306,17 @@ class PFStatsVisualization(object):
             plt.subplot(3, 1, 2)
             plt.cla()
             plt.plot(t_steps,
-                    np.tile(np.asarray(self.particle_count/2.), (self.filter_cnt, 1)), "-r")
+                    np.tile(np.asarray(self.particle_count/2.), (self.filter_cnt-5, 1)), "-r")
             plt.plot(t_steps,
-                    np.asarray(self.filt_vec[0, :]), "-g")
+                    np.asarray(self.filt_vec[0, 5:]), "-g")
             plt.grid(True)
 
             # Plot trace of cov matrix
             plt.subplot(3, 1, 3)
             plt.cla()
+            c = np.asarray(self.cov_traces)
             plt.plot(t_steps,
-                        np.asarray(self.cov_traces), "-k")
+                        c[5:], "-k")
             plt.grid(True)
 
             if self.survey_finished:

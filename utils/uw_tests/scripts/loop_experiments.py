@@ -18,18 +18,19 @@ class experiments_loop(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
         dataset = "lolo_1"
-        particle_count = 100
-        num_particle_handlers = 10
+        particle_count = 10
+        num_particle_handlers = 2
         path = "/media/orin/Seagate Expansion Drive/rbpf_results/lolo_1/"
 
-        tests = [1] # UI
-        # for std in np.linspace(4.,4.9,10):
-        # for std in [0]:
-        for i in tests:
+        # tests = [2] # UI
+        i = 4
+        # for std in np.linspace(1.7,2.3,7):
+        for std in [2.1]:
+        # for i in tests:
             Path(path + str(i)).mkdir(parents=True, exist_ok=True)
             cli_args = ['/home/orin/catkin_ws/src/UWExploration/slam/rbpf_slam/launch/rbpf_slam.launch', 
                         'num_particle_handlers:=' + str(num_particle_handlers), 'particle_count:=' + str(particle_count),
-                        'results_path:=' + path + str(i), "dataset:=" + str(dataset)]
+                        'results_path:=' + path + str(i), 'measurement_std:=' + str(std), "dataset:=" + str(dataset)]
             roslaunch_args = cli_args[1:]
             roslaunch_file = [(roslaunch.rlutil.resolve_launch_arguments(cli_args)[0], 
                                 roslaunch_args)]
@@ -45,7 +46,8 @@ class experiments_loop(object):
             # rospy.sleep(particle_count*10)
             parent.shutdown()
             self.finished = False
-            rospy.sleep(10)
+            i += 1
+            rospy.sleep(5)
 
         # duration = 2  # seconds
         # freq = 340  # Hz

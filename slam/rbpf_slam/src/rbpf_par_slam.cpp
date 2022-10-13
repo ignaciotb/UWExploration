@@ -47,10 +47,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Action server for interacting with the GP posterior
     nh_->param<string>(("manipulate_gp_server"), manipulate_gp_server_, "gp_sample_server");
 
-    // Timer for end of mission: finish when no more odom is being received
-    mission_finished_ = false;
-    time_wo_motion_ = 5.;
-
     // Transforms from auv_2_ros
             
     tf2_ros::TransformListener tf_listener(tf_buffer_);
@@ -85,7 +81,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     // Subscription to the end of mission topic
     nh_->param<string>(("survey_finished_top"), finished_top_, "/survey_finished");
     finished_sub_ = nh_->subscribe(finished_top_, 100, &RbpfSlam::synch_cb, this);
-    survey_finished_ = false;
+    mission_finished_ = false;
 
     // Subscription to the save topic
     save_sub_ = nh_->subscribe("/save", 100, &RbpfSlam::save_cb, this);
@@ -176,10 +172,15 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     tf::StampedTransform o2b_tf;
     tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(30.0));
     tfListener_.lookupTransform(odom_frame_, base_frame_, ros::Time(0), o2b_tf);
+
+    tf::StampedTransform o2mbes_tf;
+    tfListener_.waitForTransform(odom_frame_, mbes_frame_, ros::Time(0), ros::Duration(30.0));
+    tfListener_.lookupTransform(odom_frame_, mbes_frame_, ros::Time(0), o2mbes_tf);
+
     double x, y, z, roll_o2b, pitch_o2b, yaw_o2b;
-    x = o2b_tf.getOrigin().x();
-    y = o2b_tf.getOrigin().y();
-    z = o2b_tf.getOrigin().z();
+    x = o2mbes_tf.getOrigin().x();
+    y = o2mbes_tf.getOrigin().y();
+    z = o2mbes_tf.getOrigin().z();
     o2b_tf.getBasis().getRPY(roll_o2b, pitch_o2b, yaw_o2b);
     init_p_pose_(0)= x;
     init_p_pose_(1)= y;
@@ -346,7 +347,8 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
         {
             // Added in the MBES CB to synch the DR steps with the pings log
             nav_msgs::Odometry odom_cp = odom_latest_; // local copy
-            float dt = float(time_ - old_time_);
+            // float dt = float(time_ - old_time_);
+            float dt = 0.05;
             this->predict(odom_cp, dt);
         }
     }
@@ -484,8 +486,8 @@ void RbpfSlam::save_gps(const bool plot)
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
-    for(int p=0; p<pc_; p++)
-    // for(int p=0; p<4; p++)
+    // for(int p=0; p<pc_; p++)
+    for(int p=0; p<10; p++)
     {
         Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
         Eigen::MatrixXf track_position_mat(pings_t, 3);
@@ -826,11 +828,11 @@ void RbpfSlam::resample(vector<double> weights)
     {
         // Normalize weights
         transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
-        std::cout << "Normalized weights :" << std::endl;
-        for(auto weight: weights){
-            std::cout << weight << " ";
-        }
-        std::cout << std::endl;
+        // std::cout << "Normalized weights :" << std::endl;
+        // for(auto weight: weights){
+        //     std::cout << weight << " ";
+        // }
+        // std::cout << std::endl;
 
         // Compute effective number
         double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth

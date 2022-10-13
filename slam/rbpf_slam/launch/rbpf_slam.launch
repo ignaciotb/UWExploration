@@ -33,7 +33,7 @@
   <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
   <arg name="gp_resample_top" default="/gp/resample_top"/>
   
-  <arg name="results_path" default="/media/orin/Seagate Expansion Drive/rbpf_results/lolo_1"/>     
+  <arg name="results_path" default="/media/orin/Seagate Expansion Drive/rbpf_results/$(arg dataset)/"/>     
   <arg name="rbpf_period"   default="11." />
   <arg name="rviz_period"   default="1." />
   <arg name="svgp_minibatch_size"   default="1000" />
@@ -52,6 +52,7 @@
 
   <!-- Rosbags from lolo -->
   <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 450 $(arg path)/2022-09-23-12-27-51.bag"/>
+  <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args=" $(arg path)/2022-09-01-12-48-32_4.bag"/> -->
   
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
     <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
@@ -120,11 +121,20 @@
    </node>
 
   <!-- Aux nodes for Lolo interface -->
-  <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen">
+  <!-- <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen">
     <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
     <param name="results_path" value="$(arg results_path)" />
-    <param name="heading_noise" value="0.000001" />
+    <param name="heading_noise" value="0.00000001" />
     <param name="corrupted_odom_topic"  value="$(arg corrupted_odom_topic)" />
+  </node> -->
+
+  <node type="mbes_odom.py" pkg="lolo_pf_interface" name="mbes_odom" output="screen">
+    <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+    <param name="results_path" value="$(arg results_path)" />
+    <param name="heading_noise" value="0.00000001" />
+    <param name="corrupted_odom_topic"  value="$(arg corrupted_odom_topic)" />
+    <param name="odom_frame" value="$(arg odom_frame)" />       
+    <param name="mbes_link" value="$(arg namespace)/enu/mbes_link" />       
   </node>
 
   <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/>

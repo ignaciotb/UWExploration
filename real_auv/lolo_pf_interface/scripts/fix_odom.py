@@ -67,6 +67,7 @@ class FixOdom:
         if self.old_time and self.time > self.old_time:
 
             dt = self.time - self.old_time
+            # dt = 0.05
 
             q_array = np.array([odom_t.pose.pose.orientation.x, odom_t.pose.pose.orientation.y,
                                 odom_t.pose.pose.orientation.z, odom_t.pose.pose.orientation.w])
@@ -98,9 +99,6 @@ class FixOdom:
             odom_t.twist.twist.angular.z = yaw_step / dt
             odom_t.twist.twist.angular.z += np.sqrt(self.heading_noise) * np.random.randn()
 
-
-            # self.track_list.append(position_t)
-
             self.prev_odom = odom_t
 
             ############# Compute corrupted DR here
@@ -128,16 +126,16 @@ class FixOdom:
             self.corrupted_pose_t[2] = odom_t.pose.pose.position.z
 
             # Publish
-            self.avg_pose = PoseStamped()
-            self.avg_pose.pose.position.x = self.corrupted_pose_t[0]
-            self.avg_pose.pose.position.y = self.corrupted_pose_t[1]
-            self.avg_pose.pose.position.z = self.corrupted_pose_t[2]            
-            self.avg_pose.pose.orientation = Quaternion(*quaternion_from_euler(rot_t[0],
+            self.corrupted_pose = PoseStamped()
+            self.corrupted_pose.pose.position.x = self.corrupted_pose_t[0]
+            self.corrupted_pose.pose.position.y = self.corrupted_pose_t[1]
+            self.corrupted_pose.pose.position.z = self.corrupted_pose_t[2]            
+            self.corrupted_pose.pose.orientation = Quaternion(*quaternion_from_euler(rot_t[0],
                                                                                     rot_t[1],
                                                                                     rot_t[2]))
-            self.avg_pose.header.frame_id = odom_t.header.frame_id
-            self.avg_pose.header.stamp = odom_t.header.stamp
-            self.corr_dr_pub.publish(self.avg_pose)
+            self.corrupted_pose.header.frame_id = odom_t.header.frame_id
+            self.corrupted_pose.header.stamp = odom_t.header.stamp
+            self.corr_dr_pub.publish(self.corrupted_pose)
 
         self.old_time = self.time
 

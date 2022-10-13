@@ -23,15 +23,15 @@ def plot_errors(filt_vec, particle_count, filter_cnt, path):
     plt.figure(2)
     plt.subplot(2, 1, 1)
     plt.cla()
-    t_steps = np.linspace(0,filter_cnt, filter_cnt)
+    t_steps = np.linspace(5,30000, 30000-5)
 
     # Error between GT and DR
     plt.plot(t_steps,
-                np.linalg.norm(filt_vec[2:4,:]-filt_vec[8:10,:], axis=0), "-r")
+                np.linalg.norm(filt_vec[2:4,5:30000]-filt_vec[8:10,5:30000], axis=0), "-r")
 
     # Error between GT and filter
     plt.plot(t_steps,
-                np.linalg.norm(filt_vec[2:4,:]-filt_vec[5:7,:], axis=0), "-b")
+                np.linalg.norm(filt_vec[2:4,5:30000]-filt_vec[5:7,5:30000], axis=0), "-b")
 
     plt.grid(True)
 
@@ -39,9 +39,9 @@ def plot_errors(filt_vec, particle_count, filter_cnt, path):
     plt.subplot(2, 1, 2)
     plt.cla()
     plt.plot(t_steps,
-            np.tile(np.asarray(particle_count/2.), (filter_cnt, 1)), "-r")
+            np.tile(np.asarray(particle_count/2.), (30000-5, 1)), "-r")
     plt.plot(t_steps,
-            np.asarray(filt_vec[0, :]), "-g")
+            np.asarray(filt_vec[0, 5:30000]), "-g")
     plt.grid(True)
 
     # Plot trace of cov matrix
@@ -56,26 +56,26 @@ def plot_errors(filt_vec, particle_count, filter_cnt, path):
 
 def plot_trajectories(filt_vec, beams, path):
     
-    fig, ax = plt.subplots(1, sharex=True, sharey=True)
+    # fig, ax = plt.subplots(1, sharex=True, sharey=True)
 
-    cr = ax.scatter(beams[:, 0], beams[:, 1], c=beams[:, 2],
-                        cmap='jet', s=0.4, edgecolors='none')
+    # cr = ax.scatter(beams[:, 0], beams[:, 1], c=beams[:, 2],
+    #                     cmap='jet', s=0.4, edgecolors='none')
     
-    fig.colorbar(cr, ax=ax)
-    ax.plot(filt_vec[2,1:], filt_vec[3,1:], "-k", linewidth=0.3)
-    ax.plot(filt_vec[5,1:], filt_vec[6,1:], "-b", linewidth=0.3)
-    ax.plot(filt_vec[8,1:], filt_vec[9,1:], "-r", linewidth=0.3)
+    # fig.colorbar(cr, ax=ax)
+    # ax.plot(filt_vec[2,1:], filt_vec[3,1:], "-k", linewidth=0.3)
+    # ax.plot(filt_vec[5,1:], filt_vec[6,1:], "-b", linewidth=0.3)
+    # ax.plot(filt_vec[8,1:], filt_vec[9,1:], "-r", linewidth=0.3)
 
-    fig.savefig(path + "/rbpf_trajectories.png", bbox_inches='tight', dpi=1000)
+    # fig.savefig(path + "/rbpf_trajectories.png", bbox_inches='tight', dpi=1000)
 
     # RMSE
     # GT and DR
     print("RMSE GT and DR")
-    norms = np.linalg.norm(filt_vec[2:4,:]-filt_vec[8:10,:], axis=0)
+    norms = np.linalg.norm(filt_vec[2:4,5:30000]-filt_vec[8:10,5:30000], axis=0)
     print(np.sum(norms)/len(norms))
     # GT and filter
     print("RMSE GT and RBPF")
-    norms = np.linalg.norm(filt_vec[2:4,:]-filt_vec[5:7,:], axis=0)
+    norms = np.linalg.norm(filt_vec[2:4,5:30000]-filt_vec[5:7,5:30000], axis=0)
     print(np.sum(norms)/len(norms))
 
 
@@ -87,8 +87,8 @@ if __name__ == '__main__':
     filt_vec = np.load(path + '/' + experiment + '/trajectories.npz')
     filt_vec = filt_vec['full_dataset']
 
-    beams = np.load(path + '/map_mbes.npy')
-
-    plot_trajectories(filt_vec, beams, path + '/' + experiment)
+    # beams = np.load(path + '/map_mbes.npy')
+    # plot_trajectories(filt_vec, beams, path + '/' + experiment)
+    plot_trajectories(filt_vec, None, path + '/' + experiment)
 
     plot_errors(filt_vec, 100, filt_vec.shape[1], path + '/' + experiment)

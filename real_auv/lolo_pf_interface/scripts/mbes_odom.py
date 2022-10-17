@@ -76,12 +76,12 @@ class FixOdom:
         odom_t.pose.pose.orientation.w = rot_mbes[3]
 
         # Original velocities seem unusable
-        odom_t.twist.twist.linear.x = self.odom_msg.twist.twist.linear.x
-        odom_t.twist.twist.linear.y = self.odom_msg.twist.twist.linear.y
-        odom_t.twist.twist.linear.z = self.odom_msg.twist.twist.linear.z
-        odom_t.twist.twist.angular.x = self.odom_msg.twist.twist.angular.x
-        odom_t.twist.twist.angular.y = self.odom_msg.twist.twist.angular.y
-        odom_t.twist.twist.angular.z = self.odom_msg.twist.twist.angular.z
+        # odom_t.twist.twist.linear.x = self.odom_msg.twist.twist.linear.x
+        # odom_t.twist.twist.linear.y = self.odom_msg.twist.twist.linear.y
+        # odom_t.twist.twist.linear.z = self.odom_msg.twist.twist.linear.z
+        # odom_t.twist.twist.angular.x = self.odom_msg.twist.twist.angular.x
+        # odom_t.twist.twist.angular.y = self.odom_msg.twist.twist.angular.y
+        # odom_t.twist.twist.angular.z = self.odom_msg.twist.twist.angular.z
 
         if self.init_odom_count == 0:
             self.prev_odom = odom_t

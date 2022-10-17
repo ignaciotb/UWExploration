@@ -20,7 +20,7 @@ class PFStatsVisualization(object):
     
     def __init__(self):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
-        self.stats_sub = rospy.Subscriber(stats_top, Float32MultiArray, self.stat_cb)
+        self.stats_sub = rospy.Subscriber(stats_top, Float32MultiArray, self.stat_cb, queue_size=100)
         # mean_depth_path = os.path.abspath(os.path.join(os.path.dirname(
         #     __file__), '../../../', 'utils/uw_tests/datasets/overnight_2020/default_real_mean_depth.png'))
         # self.path_img = rospy.get_param(
@@ -73,6 +73,8 @@ class PFStatsVisualization(object):
         self.survey_finished = False
 
         self.cov_traces = [0.]
+        self.time = rospy.Time.now().to_sec()
+        self.time_prev = rospy.Time.now().to_sec()
 
         # rospy.on_shutdown(self.save_figs)
 
@@ -201,7 +203,9 @@ class PFStatsVisualization(object):
 
    
     def stat_cb(self, stat_msg):
-
+        self.time = rospy.Time.now().to_sec()
+        # print("time ", self.time - self.time_prev)
+        self.time_prev = self.time
         data_t = np.asarray(stat_msg.data).reshape(self.datagram_size,1)
 
         # Rotate AUV trajectory to place wrt odom in the image
@@ -277,7 +281,6 @@ class PFStatsVisualization(object):
 
 
     def plot_errors(self):
-        
             plt.figure(2)
             plt.subplot(3, 1, 1)
             plt.cla()

@@ -347,8 +347,8 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
         {
             // Added in the MBES CB to synch the DR steps with the pings log
             nav_msgs::Odometry odom_cp = odom_latest_; // local copy
-            // float dt = float(time_ - old_time_);
-            float dt = 0.05;
+            float dt = float(time_ - old_time_);
+            // float dt = 0.05;
             this->predict(odom_cp, dt);
         }
     }
@@ -487,7 +487,7 @@ void RbpfSlam::save_gps(const bool plot)
     slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
     // for(int p=0; p<pc_; p++)
-    for(int p=0; p<10; p++)
+    for(int p=0; p<20; p++)
     {
         Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
         Eigen::MatrixXf track_position_mat(pings_t, 3);
@@ -571,6 +571,9 @@ void RbpfSlam::save_gps(const bool plot)
         // else{ 
         //     p_manipulate_acs_.at(p)->sendGoal(goal, boost::bind(&RbpfSlam::saveCB, this, _1, _2));
         // }
+        // mbes_mat << Eigen::MatrixXf::Zero(pings_t * beams_real_, 3);
+        // track_position_mat << Eigen::MatrixXf::Zero(pings_t, 3);
+        // track_orientation_mat << Eigen::MatrixXf::Zero(pings_t, 3);
     }
     std::cout << "SVGPs saved " << std::endl;
     std_msgs::Bool msg;

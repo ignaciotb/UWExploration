@@ -1,4 +1,4 @@
-#include "rbpf_par_slam.h"
+#include "rbpf_slam/rbpf_par_slam.h"
 
 RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_mb_(&nh_mb), rng_((std::random_device())()), g_((std::random_device())())
 {

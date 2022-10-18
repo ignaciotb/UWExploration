@@ -1,4 +1,4 @@
-#include "rbpf_par_slam.h"
+#include "rbpf_slam/rbpf_par_slam.h"
 #include <ros/callback_queue.h>
 
 

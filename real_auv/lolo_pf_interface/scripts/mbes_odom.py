@@ -156,7 +156,7 @@ class FixOdom:
                             odom_t.twist.twist.linear.y,
                             odom_t.twist.twist.linear.z])
             
-            rot_mat_t = rot.from_euler("xyz", rot_t).as_matrix()
+            rot_mat_t = rot.from_euler("xyz", rot_t).as_dcm()
             step_t = np.matmul(rot_mat_t, vel_p * dt)
 
             self.corrupted_pose_t[0] += step_t[0]

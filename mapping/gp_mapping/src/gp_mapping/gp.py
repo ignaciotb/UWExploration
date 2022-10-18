@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
-import torch, numpy as np, tqdm, matplotlib.pyplot as plt
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
 from gpytorch.models import VariationalGP, ExactGP
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
 from gpytorch.means import ConstantMean

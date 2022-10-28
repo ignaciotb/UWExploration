@@ -51,7 +51,8 @@
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
   <!-- Rosbags from lolo -->
-  <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 450 $(arg path)/2022-09-23-12-27-51.bag"/>
+  <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 0 /media/orin/Samsung_T5/LOLO/scientist/2022-10-24/rbpf_results/lolo_1/2022-10-24-14-59-20.bag"/> -->
+  <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 450 $(arg path)/2022-09-23-12-27-51.bag"/> -->
   <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args=" $(arg path)/2022-09-01-12-48-32_4.bag"/> -->
   
   <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
@@ -74,9 +75,9 @@
     <group ns="$(arg namespace)">
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[0.1, 0.1, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="init_covariance">[0.01, 0.01, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000001]</rosparam>
-        <rosparam param="resampling_noise_covariance">[1., 1., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="resampling_noise_covariance">[0.1, 0.1, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="$(arg measurement_std)" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="corrupted_odom_topic"                          value="$(arg corrupted_odom_topic)" />
@@ -129,7 +130,7 @@
   <node type="mbes_odom.py" pkg="lolo_pf_interface" name="mbes_odom" output="screen">
     <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
     <param name="results_path" value="$(arg results_path)" />
-    <param name="heading_noise" value="0.0000000" />
+    <param name="heading_noise" value="0.00000001" />
     <param name="corrupted_odom_topic"  value="$(arg corrupted_odom_topic)" />
     <param name="odom_frame" value="$(arg odom_frame)" />       
     <param name="mbes_link" value="$(arg namespace)/enu/mbes_link" />       

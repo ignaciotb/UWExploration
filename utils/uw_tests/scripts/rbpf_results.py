@@ -56,8 +56,11 @@ def plot_rbpf_solution(avg_pos_out, avg_ors_out, pos_in, ors_in, pos_particles, 
     
     ax.plot(pos_particles[:,0], pos_particles[:,1], "-r", linewidth=0.2)
 
-    fig.savefig(path + "/rbpf_map.png", bbox_inches='tight', dpi=1000)
+    fig.savefig(path + "/rbpf_trajectories.png", bbox_inches='tight', dpi=1000)
 
+    # print("RMSE GT and RBPF")
+    # norms = np.linalg.norm(pos_particles[:,0:1]-avg_pos_out[:,0:1], axis=0)
+    # print(np.sum(norms)/len(norms))
 
 if __name__ == '__main__':
 

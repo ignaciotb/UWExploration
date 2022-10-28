@@ -83,7 +83,7 @@ class FixOdom:
         # odom_t.twist.twist.angular.y = self.odom_msg.twist.twist.angular.y
         # odom_t.twist.twist.angular.z = self.odom_msg.twist.twist.angular.z
 
-        if self.init_odom_count == 0:
+        if self.init_odom_count == 0 and self.odom_cnt!= 0:
             self.prev_odom = odom_t
             self.init_odom_count += 1
 
@@ -120,7 +120,7 @@ class FixOdom:
             vel_t = np.array([vel_t_x, vel_t_y, vel_t_z])
             prev_q_mat = quaternion_matrix(prev_q_array)
             prev_q_mat = prev_q_mat[0:3, 0:3]
-            vel_rel = np.matmul(np.linalg.inv(prev_q_mat), vel_t)
+            vel_rel = np.matmul(prev_q_mat.T, vel_t)
 
             odom_t.twist.twist.linear.x = vel_rel[0]
             odom_t.twist.twist.linear.y = vel_rel[1]

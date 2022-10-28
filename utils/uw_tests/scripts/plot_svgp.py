@@ -50,7 +50,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(300)
+    model = SVGP(400)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()

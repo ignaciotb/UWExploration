@@ -17,15 +17,15 @@ class experiments_loop(object):
         finished_top = rospy.get_param("~rbpf_saved_top", "/gt/rbpf_saved")
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
-        dataset = "lolo_1"
-        particle_count = 10
-        num_particle_handlers = 2
-        path = "/media/orin/Seagate Expansion Drive/rbpf_results/lolo_1/"
+        dataset = "lolo_2"
+        particle_count = 80
+        num_particle_handlers = 8
+        path = "/media/orin/Seagate Expansion Drive/rbpf_results/lolo_2/"
 
         # tests = [2] # UI
-        i = 4
+        std = 2.5
         # for std in np.linspace(1.7,2.3,7):
-        for std in [2.1]:
+        for i in [2]:
         # for i in tests:
             Path(path + str(i)).mkdir(parents=True, exist_ok=True)
             cli_args = ['/home/orin/catkin_ws/src/UWExploration/slam/rbpf_slam/launch/rbpf_slam.launch', 
@@ -46,7 +46,7 @@ class experiments_loop(object):
             # rospy.sleep(particle_count*10)
             parent.shutdown()
             self.finished = False
-            i += 1
+            # i += 1
             rospy.sleep(5)
 
         # duration = 2  # seconds

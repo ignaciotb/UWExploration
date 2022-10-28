@@ -61,7 +61,7 @@ class PFStatsVisualization(object):
         try:
             rospy.loginfo("Waiting for transforms")
             m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
-                                               rospy.Time(0), rospy.Duration(35))
+                                               rospy.Time(0), rospy.Duration(60.))
             self.m2o_mat = matrix_from_tf(m2o_tf)
             rospy.loginfo("Transforms locked - stats node")
         except:

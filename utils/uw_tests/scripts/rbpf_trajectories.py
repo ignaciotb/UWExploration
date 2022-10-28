@@ -11,6 +11,9 @@ from scipy.spatial.transform import Rotation as rot
 
 def plot_errors(filt_vec, particle_count, filter_cnt, path):
 
+    # 19998 For test 6
+    # 30000 For test 3
+    
     # cov_traces = []
     # for i in filt_vec:
     #     cov_mat = np.zeros((3,3))

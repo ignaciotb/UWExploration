@@ -77,14 +77,21 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
     s = inputst[0].shape
     inputst = [_.flatten() for _ in inputst]
     inputst = np.vstack(inputst).transpose()
-    inputst = torch.from_numpy(inputst).to(device).float()
 
-    # sample
+    mean_list = []
+    var_list = []
+    divs = 200
     with torch.no_grad():
-        outputs = model(inputst)
-        outputs = likelihood(outputs)
-        mean = outputs.mean.cpu().numpy().reshape(s)
-        variance = outputs.variance.cpu().numpy().reshape(s)
+        for i in range(0, divs):
+            # sample
+            inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
+            outputs = model(inputst_temp)
+            outputs = likelihood(outputs)
+            mean_list.append(outputs.mean.cpu().numpy())
+            var_list.append(outputs.variance.cpu().numpy())
+
+    mean = np.vstack(mean_list).reshape(s)
+    variance = np.vstack(var_list).reshape(s)
 
     # plot raw, mean, and variance
     levels = np.linspace(min(targets), max(targets), n_contours)
@@ -97,7 +104,7 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
     indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
     ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
 
-    post_cloud = np.hstack((inputst.cpu().numpy(), outputs.mean.cpu().numpy().reshape(-1, 1)))
+    post_cloud = np.hstack((inputst, mean.reshape(-1, 1)))
     np.save("./posterior.npy", post_cloud)
 
     # colorbars
@@ -159,7 +166,7 @@ if __name__ == '__main__':
 
     track_position = data['track_position']
     print(track_position.shape)
-    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=100, n_contours=100)
+    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=2000, n_contours=200)
 
     loss = data['loss']
     plot_loss(path + '/particle_loss_' + i + '.png', loss)

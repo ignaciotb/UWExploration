@@ -18,6 +18,9 @@
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+
 #include <tf2/LinearMath/Transform.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf/transform_listener.h>
@@ -162,6 +165,7 @@ private:
     ros::Publisher stats_;
     ros::Publisher dr_estimate_pub_;
     ros::Publisher gp_saved_pub_;
+    ros::Publisher vis_pub_;
 
     string pose_array_top_;
     string avg_pose_top_;
@@ -242,5 +246,5 @@ private:
     vector<int> systematic_resampling(vector<double> weights);
     vector<int> arange(int start, int stop, int step);
     void average_pose(geometry_msgs::PoseArray pose_list);
-
+    void pub_markers(const geometry_msgs::PoseArray &array_msg);
 };

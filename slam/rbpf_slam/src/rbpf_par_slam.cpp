@@ -215,6 +215,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("rbpf_saved_top"), gps_saved_top, "/gt/rbpf_saved");
     gp_saved_pub_ = nh_->advertise<std_msgs::Bool>(gps_saved_top, 10);
 
+    // For Hugin markers
+    vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>("/markers", 0);
+
     ROS_INFO("RBPF instantiated");
 }
 
@@ -740,6 +743,41 @@ void RbpfSlam::update_particles_history()
     upd_threads_vec_.clear();
 }
 
+void RbpfSlam::pub_markers(const geometry_msgs::PoseArray& array_msg)
+{
+    visualization_msgs::MarkerArray markers;
+    int i = 0;
+    for (geometry_msgs::Pose pose_i : array_msg.poses)
+    {
+        visualization_msgs::Marker marker;
+        marker.header.frame_id = odom_frame_;
+        marker.header.stamp = ros::Time();
+        marker.ns = "markers";
+        marker.id = i;
+        marker.type = visualization_msgs::Marker::MESH_RESOURCE;
+        marker.action = visualization_msgs::Marker::ADD;
+        marker.pose.position.x = pose_i.position.x;
+        marker.pose.position.y = pose_i.position.y;
+        marker.pose.position.z = pose_i.position.z;
+        marker.pose.orientation.x = pose_i.orientation.x;
+        marker.pose.orientation.y = pose_i.orientation.y;
+        marker.pose.orientation.z = pose_i.orientation.z;
+        marker.pose.orientation.w = pose_i.orientation.w;
+        marker.scale.x = 0.001;
+        marker.scale.y = 0.001;
+        marker.scale.z = 0.001;
+        marker.color.a = 1.0; 
+        marker.color.r = 0.0;
+        marker.color.g = 1.0;
+        marker.color.b = 0.0;
+        marker.mesh_resource = "package://hugin_description/mesh/Hugin_big_meter.dae";
+        markers.markers.push_back(marker);
+        i++;
+    }
+
+    vis_pub_.publish(markers);
+}
+
 void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
     if(start_training_)
@@ -765,8 +803,14 @@ void RbpfSlam::update_rviz(const ros::TimerEvent &)
 
             array_msg.poses.push_back(pose_i);
         }
-        pf_pub_.publish(array_msg);
         average_pose(array_msg);
+        
+        if(false){
+            pf_pub_.publish(array_msg);
+        }
+        else{
+            pub_markers(array_msg);
+        }
 
         // DR estimate
         geometry_msgs::PoseStamped pose_dr;

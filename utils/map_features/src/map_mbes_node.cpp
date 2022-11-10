@@ -41,7 +41,6 @@ public:
         nh_->param<std::string>("base_link", base_frame_, "base_frame");
         nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_frame");
         nh_->param<std::string>("map_topic", map_topic, "/map_mbes");
-        nh_->param<bool>("record_map", record_map_, false);
         nh_->param<bool>("publish_mbes_cloud", publish_mbes_, true);
 
         // Synchronizer for MBES and odom msgs
@@ -92,15 +91,13 @@ public:
     void addPingCB(const sensor_msgs::PointCloud2Ptr &mbes_ping,
                    const nav_msgs::OdometryPtr &odom_msg)
     {
-        if(record_map_){
-            tf::Transform odom_base_tf;
-            tf::poseMsgToTF(odom_msg->pose.pose, odom_base_tf);
-            
-            PointCloudT pcl_ping;
-            pcl::fromROSMsg(*mbes_ping, pcl_ping);
-            pcl_ros::transformPointCloud(pcl_ping, pcl_ping, tf_map_odom_ * odom_base_tf * tf_base_mbes_);
-            mbes_map_ += pcl_ping;
-        }
+        tf::Transform odom_base_tf;
+        tf::poseMsgToTF(odom_msg->pose.pose, odom_base_tf);
+        
+        PointCloudT pcl_ping;
+        pcl::fromROSMsg(*mbes_ping, pcl_ping);
+        pcl_ros::transformPointCloud(pcl_ping, pcl_ping, tf_map_odom_ * odom_base_tf * tf_base_mbes_);
+        mbes_map_ += pcl_ping;
 
         if(publish_mbes_){
             // For live visualization in rviz
@@ -112,7 +109,7 @@ public:
 
     std::string node_name_;
     ros::NodeHandle *nh_;
-    bool record_map_, publish_mbes_;
+    bool publish_mbes_;
 
     message_filters::Subscriber<sensor_msgs::PointCloud2> mbes_subs_;
     message_filters::Subscriber<nav_msgs::Odometry> odom_subs_;

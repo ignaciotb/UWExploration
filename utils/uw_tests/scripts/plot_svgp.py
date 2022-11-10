@@ -50,7 +50,7 @@ class SVGP(VariationalGP):
 def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     # Reconstruct model
-    model = SVGP(400)
+    model = SVGP(200)
     likelihood = GaussianLikelihood()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     likelihood.to(device).float()
@@ -80,7 +80,7 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
 
     mean_list = []
     var_list = []
-    divs = 200
+    divs = 10
     with torch.no_grad():
         for i in range(0, divs):
             # sample
@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
     track_position = data['track_position']
     print(track_position.shape)
-    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=2000, n_contours=200)
+    plot_post(cp, beams[:, 0:2], beams[:, 2], track_position, path + '/particle_map_' + i + '.png', n=100, n_contours=100)
 
     loss = data['loss']
     plot_loss(path + '/particle_loss_' + i + '.png', loss)

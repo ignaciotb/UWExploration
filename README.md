@@ -157,7 +157,9 @@ In order to plot a SVGP map offline, call
 Where 0 is the number of the SVGP map you want to plot. Adjust the number of inducing points in this script to that used in the RBPF.
 The results will look like these (for 3 random particles)
 
-<img src="utils/media/rbpf.png" height="400" width="300"/>
+<img src="utils/media/rbpf.png" height="400" width="600"/>
+
+**Important**: this is a very computationally heavy algorithm, tune it with care or your PC will run out of resources quickly. The params "particle_count" and "num_particle_handlers" will have a direct impact on the memory and GPU usage, so careful when instantiating them. The same applies to the SVGP parameters "svgp_num_ind_points" and "svgp_minibatch_size" and how often the filter prompts a loop closure detection "rbpf_period".
 
 ### Submap graph SLAM
 Currently porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.

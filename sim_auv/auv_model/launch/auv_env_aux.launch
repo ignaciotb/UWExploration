@@ -3,18 +3,21 @@
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
-	<arg name="dataset" default="ripples"/>
+	<arg name="dataset" default="lolo"/>
     <arg name="app" default="basic"/>
+    <arg name="map_frame" default="map"/>
+    <arg name="odom_frame" default="lolo/odom"/>
+    <arg name="namespace" default="lolo"/>
 
 	<!-- <group ns="$(arg namespace)"> -->
 
 		<!-- Publish map as pcl  -->
 		<node type="map_pcl_vis.py" pkg="map_visualizer" name="map_pub" output="screen">
-			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/pcl.npy" />
-			<!--<param name="map_gp_path"  value=""/>-->
-			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di_post.npy" />
+			<param name="map_cloud_path"  value="$(find uw_tests)/datasets/$(arg dataset)/map_mbes.pcd" />
+			<!-- <param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di_post.npy" /> -->
+			<param name="map_gp_path"  value="$(find uw_tests)/datasets/$(arg dataset)/svgp_di_post.npy" /> 
+			<!-- <param name="map_gp_path"  value="" /> -->
 			<param name="map_sift_path"  value=""/>
-			<!-- <param name="map_sift_path"  value="$(find uw_tests)/$(arg app)/$(arg dataset)/sift_map.pcd"/> -->
 			<param name="map_frame" value="map" />
 			<param name="map_mbes" value="/map_mbes" />
 			<param name="use_pings_cloud" type= "bool" value="True" />
@@ -27,5 +30,19 @@
         <param name="map_frame" value="map" />
         <param name="map_mbes" value="/map_mbes" />
     </node> -->
+
+	<!-- <node type="map_mbes_node" pkg="map_features" name="map_mbes_node" output="screen">
+		<param name="mbes_pings"  value="/rbpf/mbes_pings" />
+		<param name="odom_topic"  value="/lolo/dr/odom_fixed" />
+		<param name="map_frame" value="$(arg map_frame)" />
+		<param name="odom_frame" value="$(arg odom_frame)" />
+		<param name="base_link" value="$(arg namespace)/base_link" />
+		<param name="mbes_link" value="$(arg namespace)/mbes_link" />
+		<param name="save_map_srv" value="/$(arg namespace)/save_map" />
+		<param name="save_map_path" value="$(find uw_tests)/datasets/$(arg dataset)/map_mbes.pcd" />
+		<param name="map_topic" value="/$(arg namespace)/mbes_pings" />
+		<param name="record_map" type= "bool" value="True" />
+		<param name="publish_mbes_cloud" type= "bool" value="False" />
+	</node> -->
 
 </launch>

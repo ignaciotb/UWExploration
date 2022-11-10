@@ -8,7 +8,7 @@ import os
 
 from scipy.spatial.transform import Rotation as Rot
 from rospy_tutorials.msg import Floats
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, Float32MultiArray
 from rospy.numpy_msg import numpy_msg
 import tf2_ros
 from rbpf_particle import matrix_from_tf
@@ -20,11 +20,15 @@ class PFStatsVisualization(object):
     
     def __init__(self):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
-        self.stats_sub = rospy.Subscriber(stats_top, numpy_msg(Floats), self.stat_cb)
-        self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
+        self.stats_sub = rospy.Subscriber(stats_top, Float32MultiArray, self.stat_cb)
+        # mean_depth_path = os.path.abspath(os.path.join(os.path.dirname(
+        #     __file__), '../../../', 'utils/uw_tests/datasets/overnight_2020/default_real_mean_depth.png'))
+        # self.path_img = rospy.get_param(
+        #     '~background_img_path', mean_depth_path)
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.result_path = rospy.get_param('~result_path', 'survey')
+        self.particle_count = rospy.get_param('~particle_count')
 
         # Real mbes pings subscriber
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
@@ -32,8 +36,8 @@ class PFStatsVisualization(object):
         # PF ping subscriber
         pf_pings_top = rospy.get_param("~particle_sim_mbes_topic", 'pf_mbes_pings')
 
-        if not os.path.exists(self.result_path + 'plot_result/'):
-            os.makedirs(self.result_path + 'plot_result/')
+        # if not os.path.exists(self.result_path + 'plot_result/'):
+        #     os.makedirs(self.result_path + 'plot_result/')
 
         self.real_pings_sub = message_filters.Subscriber(mbes_pings_top, PointCloud2)
         self.pf_pings_sub = message_filters.Subscriber(pf_pings_top, PointCloud2)
@@ -49,7 +53,7 @@ class PFStatsVisualization(object):
         self.filter_cnt = 1
         self.datagram_size = 17
         self.filt_vec = np.zeros((self.datagram_size,1))
-        self.img = plt.imread(self.path_img)
+        # self.img = plt.imread(self.path_img)
 
         # Map to odom transform to plot AUV pose on top of image
         tfBuffer = tf2_ros.Buffer()
@@ -70,7 +74,7 @@ class PFStatsVisualization(object):
 
         self.cov_traces = [0.]
 
-        rospy.on_shutdown(self.save_figs)
+        # rospy.on_shutdown(self.save_figs)
 
         rospy.spin()
 
@@ -80,8 +84,8 @@ class PFStatsVisualization(object):
         plt.cla()
         #  Center image on odom frame
         plt.figure(1)
-        plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
-                                        -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
+        # plt.imshow(self.img, extent=[-647-self.m2o_mat[0,3], 1081-self.m2o_mat[0,3],
+        #                                 -1190-self.m2o_mat[1,3], 523-self.m2o_mat[1,3]])
         #  plt.imshow(self.img, extent=[-740, 980, -690, 1023])
         plt.plot(self.filt_vec[8,:],
                     self.filt_vec[9,:], "-r")
@@ -95,7 +99,7 @@ class PFStatsVisualization(object):
         plt.title('Path')
         plt.xlabel('x axis (m)')
         plt.ylabel('y axis (m)')
-        plt.savefig(self.result_path + "trajectories.png")  
+        plt.savefig(self.result_path + "/trajectories.png")  
 
         ### Errors
         plt.cla()
@@ -126,8 +130,7 @@ class PFStatsVisualization(object):
         plt.legend(['Trace of cov matrix'])
         plt.xlabel('Time')
         plt.ylabel('Error')
-        plt.savefig(self.result_path + "errors.png")
-
+        plt.savefig(self.result_path + "/errors.png")
 
 
     def ping_cb(self, real_ping, pf_ping):
@@ -148,7 +151,9 @@ class PFStatsVisualization(object):
 
     def synch_cb(self, finished_msg):
         self.survey_finished = finished_msg.data
-        np.savez(self.result_path+".npz", full_dataset=self.filt_vec.tolist())
+        np.savez(self.result_path + "/trajectories.npz", full_dataset=self.filt_vec.tolist())
+        
+        self.plot_errors()
         rospy.loginfo("Stats node: Survey finished received")
 
 
@@ -197,7 +202,8 @@ class PFStatsVisualization(object):
    
     def stat_cb(self, stat_msg):
 
-        data_t = stat_msg.data.copy().reshape(self.datagram_size,1)
+        data_t = np.asarray(stat_msg.data).reshape(self.datagram_size,1)
+
         # Rotate AUV trajectory to place wrt odom in the image
         data_t[2:5] = self.m2o_mat[0:3,0:3].dot(data_t[2:5])
         data_t[5:8] = self.m2o_mat[0:3,0:3].dot(data_t[5:8])
@@ -239,31 +245,9 @@ class PFStatsVisualization(object):
 
                 # self.plot_covariance_ellipse(self.filt_vec[5:7,-1], self.filt_vec[11:17,-1])
 
-            # Plot error between DR PF and GT
+            # Plot errors
             if True:
-                plt.figure(2)
-                plt.subplot(3, 1, 1)
-                plt.cla()
-                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                         np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[8:10,:])**2,
-                                        axis=0)), "-k")
-                plt.grid(True)
-
-                # Error between PF and GT
-                plt.subplot(3, 1, 2)
-                plt.cla()
-                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                         np.sqrt(np.sum((self.filt_vec[2:4,:]-self.filt_vec[5:7,:])**2,
-                                        axis=0)), "-b")
-
-                plt.grid(True)
-
-                # Plot trace of cov matrix
-                plt.subplot(3, 1, 3)
-                plt.cla()
-                plt.plot(np.linspace(0,self.filter_cnt, self.filter_cnt),
-                         np.asarray(self.cov_traces), "-k")
-                plt.grid(True)
+                self.plot_errors()
 
             # Plot real pings vs expected meas
             if False:
@@ -291,6 +275,42 @@ class PFStatsVisualization(object):
             
             plt.pause(0.0001)
 
+
+    def plot_errors(self):
+        
+            plt.figure(2)
+            plt.subplot(3, 1, 1)
+            plt.cla()
+            t_steps = np.linspace(0,self.filter_cnt, self.filter_cnt)
+
+            # Error between GT and DR
+            plt.plot(t_steps,
+                        np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[8:10,:], axis=0), "-r")
+
+            # Error between GT and filter
+            plt.plot(t_steps,
+                        np.linalg.norm(self.filt_vec[2:4,:]-self.filt_vec[5:7,:], axis=0), "-b")
+
+            plt.grid(True)
+
+            # Plot N_eff against threshold
+            plt.subplot(3, 1, 2)
+            plt.cla()
+            plt.plot(t_steps,
+                    np.tile(np.asarray(self.particle_count/2.), (self.filter_cnt, 1)), "-r")
+            plt.plot(t_steps,
+                    np.asarray(self.filt_vec[0, :]), "-g")
+            plt.grid(True)
+
+            # Plot trace of cov matrix
+            plt.subplot(3, 1, 3)
+            plt.cla()
+            plt.plot(t_steps,
+                        np.asarray(self.cov_traces), "-k")
+            plt.grid(True)
+
+            if self.survey_finished:
+                plt.savefig(self.result_path + "/errors.png")
 
 
 if __name__ == "__main__":

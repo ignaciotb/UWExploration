@@ -1,0 +1,80 @@
+<?xml version="1.0"?>
+<!-- Copyright (c) 2016 The UUV Simulator Authors.
+     All rights reserved.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" >
+  <!-- Import macro files -->
+  <xacro:include filename="$(find uuv_descriptions)/urdf/common.urdf.xacro" />
+  <xacro:include filename="$(find uuv_sensor_ros_plugins)/urdf/sensor_snippets.xacro"/>
+  <xacro:include filename="$(find uuv_gazebo_ros_plugins)/urdf/snippets.xacro"/>
+    <!--Include LAUV snippets for fins and thrusters-->
+    <xacro:include filename="$(find lolo_description)/urdf/snippets.xacro"/>
+  <!-- Import sensor snippet macros files -->
+  <!--<xacro:include filename="$(find smarc_sensor_ros_plugins)/urdf/sonar_snippets.xacro"/>-->
+
+  <!-- Properties -->
+  <xacro:property name="mass" value="30.48"/>
+  <xacro:property name="length" value="1.7"/>
+  <xacro:property name="diameter" value="0.19"/>
+  <xacro:property name="radius" value="${diameter*0.5}"/>
+  <!--Center of gravity-->
+  <xacro:property name="cob" value="0 0 0.0196"/>
+  <!--Fluid density-->
+  <xacro:property name="rho" value="1025.0"/>
+
+  <!--Visual mesh-->
+  <xacro:property name="visual_mesh_file" value="file://$(find lolo_description)/mesh/lolo_hull.dae"/>
+  <!--Collision mesh-->
+  <!--<xacro:property name="collision_mesh_file" value="file://$(find lolo_description)/mesh/lolo_hull.dae"/>-->
+
+  <xacro:macro name="lolo_base" params="namespace *gazebo inertial_reference_frame">
+    <link name="${namespace}/base_link">
+      <inertial>
+        <mass value="${mass}" />
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <inertia ixx="0.177" ixy="0" ixz="0"
+                 iyy="3.45" iyz="0"
+                 izz="3.45" />
+      </inertial>
+
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <geometry>
+          <mesh filename="${visual_mesh_file}" scale="1 1 1" />
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 ${0.5*pi} 0"/>
+        <geometry>
+          <cylinder length="${length}" radius="${radius}"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <gazebo reference="${namespace}/base_link">
+        <selfCollide>false</selfCollide>
+    </gazebo>
+
+    <!-- Set up hydrodynamic plugin -->
+    <xacro:insert_block name="gazebo"/>
+    <!--Include thrusters-->
+    <xacro:include filename="$(find lolo_description)/urdf/actuators.xacro"/>
+    <!--Include sensors-->
+    <xacro:include filename="$(find lolo_description)/urdf/sensors.xacro"/>
+
+  </xacro:macro>
+
+</robot>

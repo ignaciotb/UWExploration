@@ -2,59 +2,79 @@
 <launch>
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
-  <arg name="mode" default="sim"/>
-	<arg name="namespace" default="hugin"/>
+  <arg name="mode" default="gt"/>
+	<arg name="namespace" default="hugin_0"/>
 	<arg name="debug" default="0"/>
-	<arg name="dataset" default="ripples"/>
+	<arg name="dataset" default="lolo_0"/>
 	<arg name="app" default="rbpf"/>
-  <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
+  <!-- <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/> -->
 
-  <!-- MBES sensor -->
-	<arg name="n_beams_mbes" default="50"/>	
-	<arg name="mbes_open_angle" value="1.050" /> 
+  <!-- Num of beams per MBES pings to store in the log -->
+	<arg name="n_beams_mbes" default="100"/>	
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-	<arg name="x" default="0.0"/>
-	<arg name="y" default="0.0"/>
+	<!-- <arg name="x" default="-300.0"/>
+	<arg name="y" default="-400.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>
-	<arg name="yaw" default="0.0"/>
+	<arg name="yaw" default="0.0"/> -->
 
   <!-- RBPF params  -->
-  <arg name="particle_count"                    default="3"/> <!--50 -->
-  <!-- [x, y, z, roll, pitch, yaw] -->
-  <!-- <arg name="init_covariance" default="[0., 0., 0.0, 0.0, 0.0, 0.0]"/> -->
-  <arg name="init_covariance" default="[10., 5., 0.0, 0.0, 0.0, 0.0]"/>
-  <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.00005]"/>
-  <arg name="resampling_noise_covariance" default="[2.0, 2.0, 0.0, 0.0, 0.0, 0.0]"/>
-  <!-- <arg name="motion_covariance" default="[0.0, 0.0, 0.0, 0.0, 0.0, 0.001]"/> -->
-  <!-- <arg name="resampling_noise_covariance" default="[10, 10, 0.0, 0.0, 0.0, 0.0]"/>  -->
-  <arg name="measurement_std"  default="3"/>
+  <arg name="particle_count"                    default="4"/> <!--50 -->
+  <arg name="num_particle_handlers"             default="2"/> 
   <arg name="survey_finished_top" default="/gt/survey_finished"/>
-  <arg name="gp_plot_server" default="/gp/plot_server"/>
-  <arg name="sample_plot_server" default="/gp/sample_server"/>
-  <arg name="results_path"   default="$(find uw_tests)/$(arg app)/$(arg dataset)/" /> <!-- Where to save the results  -->
-  <arg name="rbpf_period"   default="0.3" />
+  
+  <!-- API for SVGP particles -->
+  <arg name="gp_ip_topic" default="/gp/inducing_points"/>
+  <arg name="gp_mb_server" default="/gp/minibatch_server"/>
+  <!-- <arg name="gp_plot_server" default="/gp/plot_server"/> -->
+  <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
+  <arg name="gp_resample_top" default="/gp/resample_top"/>
+  
+  <arg name="results_path" default="/media/orin/Seagate Expansion Drive/rbpf_results/hugin"/>     
+  <arg name="rbpf_period"   default="15." />
+  <arg name="rviz_period"   default="1." />
+  <arg name="svgp_minibatch_size"   default="1000" />
 
   <arg name="map_frame"                         default="map"/>
-  <arg name="odom_frame"                         default="$(arg namespace)/odom"/>
-  <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
-  <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
+  <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
+  <arg name="odometry_topic"                    default="/gt/$(arg namespace)/odom"/>
+  <!-- <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/> -->
+  <arg name="mbes_pings_topic"                  default="/gt/$(arg namespace)/mbes_pings"/>
+  <!-- <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/> -->
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
   <arg name="particle_sim_mbes_topic"           default="/$(arg namespace)/$(arg app)/sim_mbes"/>
   <arg name="average_mbes_topic"                default="/$(arg namespace)/$(arg app)/avg_mbes"/>
 
+  <!-- Rosbags from lolo -->
+  <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 1050 $(arg path)/2022-06-07-12-22-19.bag"/> -->
+  
+  <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+    <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
+    <param name="results_path" value="$(arg results_path)" />
+    <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
+    <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
+    <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
+    <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+  </node>
+
+  <!-- <node type="static_transform_publisher" pkg="tf" name="tf_utm_to_map" args="0 0 0 0 0 0 utm map 10"/>
+  <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/> -->
+  <!-- <include file="$(find lolo_description)/launch/lolo_description.launch" /> -->
+
+  <!-- <param name="robot_description"
+        command="$(find xacro)/xacro '$(find lolo_description)/urdf/rviz.xacro' robot_namespace:=$(arg namespace)" /> -->
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
-      <node type="rbpf_slam.py" pkg="rbpf_slam" name="rbpf_slam" output="screen">
+      <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <param name="init_covariance"                         value="$(arg init_covariance)" />
-        <param name="resampling_noise_covariance"             value="$(arg resampling_noise_covariance)" />
-        <param name="measurement_std"                         value="$(arg measurement_std)" />
-        <param name="motion_covariance"                       value="$(arg motion_covariance)" />
+        <rosparam param="init_covariance">[0., 0., 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000000]</rosparam>
+        <rosparam param="resampling_noise_covariance">[3.0, 3.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
+        <param name="measurement_std"                         value="10." />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
         <param name="map_frame"                               value="$(arg map_frame)" />
@@ -62,44 +82,57 @@
         <param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
         <param name="base_link"                               value="$(arg namespace)/base_link" />
         <param name="synch_topic"                             value="/$(arg app)/synch" />
-        <param name="result_path"                             value="$(arg results_path)" />
-        <param name="mbes_open_angle"                         value="$(arg mbes_open_angle)" />
+        <param name="results_path"                            value="$(arg results_path)" />
         <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
+        <param name="dr_pose_topic"                      value="/$(arg namespace)/dr/corrupted" />
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-        <param name="num_beams_sim"                           value="$(arg n_beams_mbes)" />
-        <param name="n_beams_mbes"                            value="$(arg n_beams_mbes)" />       
-        <param name="mesh_path" value="$(arg path)/mesh.npz" />       
-        <param name="survey_finished_top" value="/gt/survey_finished" />       
-        <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
-        <param name="pf_stats_top" value="/stats/pf_data" />  
-        <param name="plot_gp_server" value="$(arg gp_plot_server)"/>     
-        <param name="sample_gp_server" value="$(arg sample_plot_server)"/>  
-        <param name="rbpf_period" value="$(arg rbpf_period)"/>  
+        <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
+        <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+        <param name="pf_stats_top" value="/stats/data" />  
+        <param name="manipulate_gp_server" value="$(arg manipulate_gp_server)"/>  
+        <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
+        <param name="rbpf_period" value="$(arg rbpf_period)"/> 
+				<param name="rviz_period"  value="$(arg rviz_period)" />
+        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
+				<!-- <param name="path_topic"  value="/$(arg namespace)/ctrl/mission_waypoints" /> -->
+				<param name="path_topic"  value="/waypoints" />
+				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
+				<param name="svgp_minibatch_size"  value="$(arg svgp_minibatch_size)" />
       </node>
     </group>
   </group>
 
-    <!-- Each GP in now trained in a ROS node. This launches a GP ROS node per particle  -->
-    <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-      <param name="num_particles" value="$(arg particle_count)"/>     
-      <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
-    </node> -->
 
-    <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
-      <param name="pf_stats_top" value="/stats/pf_data" />       
+  <!-- <node type="visual_tools.py" pkg="rbpf_slam" name="visual_tools" output="screen">
+      <param name="particle_count" type= "int" value="$(arg particle_count)" />
+      <param name="pf_stats_top" value="/stats/data" />       
       <param name="map_frame" value="$(arg map_frame)" />       
       <param name="odom_frame" value="$(arg odom_frame)" />       
       <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
-      <param name="background_img_path" value="/home/torroba/workspace/bathymetric_svgp/src/utils/default_real_mean_depth.png" />       
       <param name="result_path" value="$(arg results_path)" />
       <param name="mbes_pings_topic" value="/$(arg mode)/mbes_pings" />
       <param name="particle_sim_mbes_topic" value="$(arg particle_sim_mbes_topic)" />
    </node> -->
 
+  <!-- Aux nodes for Lolo interface -->
+  <!-- <node type="fix_odom.py" pkg="lolo_pf_interface" name="fix_odom" output="screen">
+    <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+    <param name="results_path" value="$(arg results_path)" />
+    <param name="heading_noise" value="0.00005" />
+  </node> -->
+
+  <!-- <node type="fix_mbes_node" pkg="lolo_pf_interface" name="fix_mbes_node" output="screen"/> -->
+  
+  <!-- <node type="fake_synch.py" pkg="lolo_pf_interface" name="fake_synch_node" output="screen">
+    <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
+    <param name="odometry_topic" value="$(arg odometry_topic)" />       
+  </node> -->
+
     <!-- UW environment -->
-    <include file="$(find auv_model)/launch/auv_environment.launch" >
+  	<!-- <arg name="mbes_open_angle" value="1.050" />  -->
+    <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
       <arg name="mode" value="$(arg mode)"/>
       <arg name="namespace" value="$(arg namespace)"/>
       <arg name="debug" default="0"/>
@@ -113,7 +146,7 @@
       <arg name="roll" value="$(arg roll)"/>
       <arg name="pitch" value="$(arg pitch)"/>
       <arg name="yaw" value="$(arg yaw)"/>
-    </include>
+    </include> -->
 
 </launch>
 

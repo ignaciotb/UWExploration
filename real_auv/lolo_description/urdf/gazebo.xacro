@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<!-- Copyright (c) 2016 The UUV Simulator Authors.
+     All rights reserved.
+
+     Licensed under the Apache License, Version 2.0 (the "License");
+     you may not use this file except in compliance with the License.
+     You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+     Unless required by applicable law or agreed to in writing, software
+     distributed under the License is distributed on an "AS IS" BASIS,
+     WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+     See the License for the specific language governing permissions and
+     limitations under the License.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <!-- Properties -->
+  <xacro:property name="mass" value="30.48"/>
+  <xacro:property name="length" value="1.7"/>
+  <xacro:property name="diameter" value="0.19"/>
+  <xacro:property name="radius" value="${diameter*0.5}"/>
+  <!-- <xacro:property name="volume" value="${length*pi*radius*radius}"/> -->
+  <xacro:property name="volume" value="0.030431864"/>
+  <xacro:property name="cob" value="0 0 0.0196"/>
+  <xacro:property name="rho" value="1025.0"/>
+
+    <!-- Set up hydrodynamic plugin -->
+    <xacro:macro name="lolo_hydro_model" params="namespace">
+        <link name="${namespace}/base_link">
+          <neutrally_buoyant>0</neutrally_buoyant>
+          <volume>${volume}</volume>
+          <box>
+            <width>${diameter}</width>
+            <length>${length}</length>
+            <height>${diameter}</height>
+          </box>
+          <center_of_buoyancy>${cob}</center_of_buoyancy>
+          <hydrodynamic_model>
+            <type>fossen</type>
+            <added_mass>
+              0.93 0 0 0 0 0
+              0 35.5 0 0 0 -1.93
+              0 0 35.5 0 1.93 0
+              0 0 0 0.0704 0 0
+              0 0 1.93 0 4.88 0
+              0 -1.93 0 0 0 4.88
+            </added_mass>
+            <linear_damping>
+                -5.8596 -38.2014808 -38.2014808 0 -4.09 -4.09
+            </linear_damping>
+            <quadratic_damping>
+                -1.62 -1310 -1310 -0.13 -188 -188
+            </quadratic_damping>
+          </hydrodynamic_model>
+        </link>
+    </xacro:macro>
+
+</robot>

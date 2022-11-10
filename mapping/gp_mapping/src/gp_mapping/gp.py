@@ -218,7 +218,7 @@ class SVGP(VariationalGP):
         # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # convergence criterion
-        print("N window ", n_window)
+        # print("N window ", n_window)
         if auto: criterion = ExpMAStoppingCriterion(rel_tol=rtol, minimize=True, n_window=n_window)
 
         # episode iteratior
@@ -335,7 +335,7 @@ class SVGP(VariationalGP):
         # save it
         np.save(fname, cloud)
 
-    def plot(self, inputs, targets, fname, n=80, n_contours=50):
+    def plot(self, inputs, targets, fname, n=80, n_contours=50, track=None):
 
         '''
         Plots:
@@ -378,8 +378,8 @@ class SVGP(VariationalGP):
 
         # plot raw, mean, and variance
         fig, ax = plt.subplots(3, sharex=True, sharey=True)
-        cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='viridis', s=0.4, edgecolors='none')
-        cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
+        cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='jet', s=0.4, edgecolors='none')
+        cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
         indpts = self.variational_strategy.inducing_points.data.cpu().numpy()
         ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)
@@ -401,6 +401,9 @@ class SVGP(VariationalGP):
         ax[2].set_xlabel('$x~[m]$')
         ax[2].set_ylabel('$y~[m]$')
         plt.tight_layout()
+
+        if track != None:
+            ax[0].plot(track[:,0], track[:,1], "-b", linewidth=0.2)
 
         # save
         fig.savefig(fname, bbox_inches='tight', dpi=1000)

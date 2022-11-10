@@ -15,14 +15,21 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   tf
   tf2_ros
+  tf_conversions
   sensor_msgs
   actionlib_msgs
   actionlib
-  # message_generation
+  eigen_conversions
+  pcl_ros
+  message_generation
+  slam_msgs
 )
 
+find_package(Eigen3 REQUIRED)
+find_package(Threads REQUIRED)
+
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -114,7 +121,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES auv_particle_filter
-#  CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs
+ CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs slam_msgs
 #  DEPENDS system_lib
 )
 
@@ -125,14 +132,32 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
+  ${EIGEN_INCLUDE_DIRS} 
+	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/auv_particle_filter.cpp
+# add_library(${ROJECT_NAME}
+#   src/rbpf_particle.cpp
+#   src/rbpf_par_slam.cpp
 # )
+# add_executable(${PROJECT_NAME}
+#   rbpf_par_slam_node src/rbpf_par_slam_node.cpp
+# )
+# target_link_libraries(${PROJECT_NAME} 
+#   ${PCL_LIBRARIES}
+#   ${catkin_LIBRARIES}
+# )
+add_executable(rbpf_par_slam_node src/rbpf_par_slam_node.cpp
+                src/rbpf_particle.cpp
+                src/rbpf_par_slam.cpp)
+
+add_dependencies(rbpf_par_slam_node ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(rbpf_par_slam_node ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(rbpf_par_slam_node Threads::Threads)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries

@@ -3,6 +3,7 @@
 # Standard dependencies
 import os
 import math
+import time
 
 from numpy.core.fromnumeric import shape
 import rospy
@@ -145,31 +146,7 @@ class rbpf_slam(object):
         stats_top = rospy.get_param('~pf_stats_top', 'stats')
         self.stats = rospy.Publisher(stats_top, numpy_msg(Floats), queue_size=10)
 
-        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')
-        
-        # Load mesh
-        svp_path = rospy.get_param('~sound_velocity_prof')
-        mesh_path = rospy.get_param('~mesh_path')
-        
-        if svp_path.split('.')[1] != 'cereal':
-            sound_speeds = csv_data.csv_asvp_sound_speed.parse_file(svp_path)
-        else:
-            sound_speeds = csv_data.csv_asvp_sound_speed.read_data(svp_path)  
-
-        data = np.load(mesh_path)
-        V, F, bounds = data['V'], data['F'], data['bounds'] 
-        print("Mesh loaded")
-
-        # Create draper
-        self.draper = base_draper.BaseDraper(V, F, bounds, sound_speeds)
-        self.draper.set_ray_tracing_enabled(False)            
-        data = None
-        V = None
-        F = None
-        bounds = None 
-        sound_speeds = None
-        print("draper created")
-        print("Size of draper: ", sys.getsizeof(self.draper))        
+        self.mbes_pc_top = rospy.get_param("~particle_sim_mbes_topic", '/sim_mbes')     
 
         # Action server for plotting the GP maps
         self.plot_gp_server = rospy.get_param('~plot_gp_server', 'gp_plot_server')
@@ -240,7 +217,7 @@ class rbpf_slam(object):
         self.particles[i+1] = Particle(self.beams_num, self.pc, i+1, self.base2mbes_mat,
                                          self.m2o_mat, init_cov=[0.]*6, meas_std=meas_std,
                                          process_cov=[0.]*6)
-        self.particles[i].ID = self.p_ID
+        self.particles[i+1].ID = self.p_ID
         self.p_ID += 1
         
         finished_top = rospy.get_param("~survey_finished_top", '/survey_finished')
@@ -281,17 +258,20 @@ class rbpf_slam(object):
     def manual_lc(self, lc_msg):
         self.lc_detected = True
 
-    def mission_finished_cb(self, event):
-        if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
-            print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
-            self.mission_finished = True
-            # self.lc_detected = True
-            self.plot_gp_maps()
+    # def mission_finished_cb(self, event):
+    #     if self.odom_latest.pose.pose == self.odom_end.pose.pose and not self.mission_finished:
+    #         print("------AUV hasn't moved for self.time_wo_motion seconds: Mission finished!---------")
+    #         self.mission_finished = True
+    #         # self.lc_detected = True
+    #         self.plot_gp_maps()
         
-        self.odom_end = self.odom_latest
+    #     self.odom_end = self.odom_latest
 
     def synch_cb(self, finished_msg):
         rospy.loginfo("PF node: Survey finished received") 
+        self.mission_finished = True
+        self.plot_gp_maps()
+        rospy.loginfo("We done bitches") 
         # rospy.signal_shutdown("Survey finished")
 
     def mbes_real_cb(self, msg):
@@ -351,9 +331,9 @@ class rbpf_slam(object):
 
         # For sequential plotting on this node
         # Wait until GP training is done to not overload GPU. 
-        while not rospy.is_shutdown() and self.pings_since_training != 0:
-            rospy.loginfo("Waiting to finish GP training")
-            rospy.Rate(1.).sleep()
+        # while not rospy.is_shutdown() and self.pings_since_training != 0:
+        #     rospy.loginfo("Waiting to finish GP training")
+        #     rospy.Rate(1.).sleep()
 
         for i in range(0, self.pc):
             # For parallel plotting on secondary node 
@@ -431,16 +411,16 @@ class rbpf_slam(object):
             beams_i = np.reshape(beams_i, (-1,3))         
             mu, sigma = self.particles[i].gp.sample(np.asarray(beams_i)[:, 0:2])
             
-            # mbes_pcloud = pack_cloud(self.map_frame, pings_i)
-            # goal = SamplePosteriorGoal(mbes_pcloud)
+            mbes_pcloud = pack_cloud(self.map_frame, beams_i)
+            goal = SamplePosteriorGoal(mbes_pcloud)
 
-            # # Send to as and wait
+            # Send to as and wait
             # ac_sample.send_goal(goal)
             # ac_sample.wait_for_result()
             # result = ac_sample.get_result()  
-
-            # Sample GP with the ping in map frame
+            ## Sample GP with the ping in map frame
             # mu, sigma = result.mu, result.sigma
+
             
             mu_array = np.array([mu])
 
@@ -466,16 +446,19 @@ class rbpf_slam(object):
 
 
     def update_maps(self, real_mbes, odom):
-             
+
         # To transform from base to mbes
         R = self.base2mbes_mat.transpose()[0:3,0:3]
         
         # If time to retrain GP map
         if self.pings_since_training > 50:
             self.map_updates += 1
-            for i in range(0, self.pc):           
+            for i in range(0, self.pc):  
+                print(i)         
                 # Transform each MBES ping in vehicle frame to the particle trajectory 
                 # (result in map frame)
+                start_time = time.time()
+                print("Pings total ", len(self.mbes_history))
                 part_ping_map = []
                 for j in range(0, len(self.mbes_history)): 
                     # For particle i, get all its trajectory in the map frame
@@ -487,7 +470,7 @@ class rbpf_slam(object):
                 # As array
                 pings_i = np.asarray(part_ping_map)
                 pings_i = np.reshape(pings_i, (-1,3))     
-                print(pings_i)       
+                # print(pings_i)       
                     
                 # Publish (for visualization)
                 mbes_pcloud = pack_cloud(self.map_frame, pings_i)
@@ -496,18 +479,19 @@ class rbpf_slam(object):
                 self.pcloud_pub.publish(mbes_pcloud)
 
                 # Retrain the particle's GP
-                print("Training GP ", i)
+                # print("Training GP ", i)
                 # n_samples = a fourth of the total number of beams
                 self.particles[i].gp.fit(pings_i[:,0:2], pings_i[:,2], n_samples= 100, 
                                          max_iter=200, learning_rate=1e-1, rtol=1e-4, 
-                                         ntol=100, auto=False, verbose=False)
-                # # Plot posterior
+                                         n_window=100, auto=False, verbose=False)
+                # Plot posterior
                 # self.particles[i].gp.plot(pings_i[:,0:2], pings_i[:,2], 
                 #                           self.storage_path + 'gp_result/' + 'particle_' + str(i) 
                 #                           + '_training_' + str(self.count_training) + '.png',
                 #                           n=100, n_contours=100 )
                 
-                print("GP trained ", i)
+                # print("GP trained ", i)
+                print("--- %s seconds ---" % (time.time() - start_time))  
 
             # Reset pings for training
             self.count_training += 1

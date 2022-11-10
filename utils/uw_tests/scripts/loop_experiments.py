@@ -18,11 +18,11 @@ class experiments_loop(object):
         self.synch_pub = rospy.Subscriber(finished_top, Bool, self.synch_cb)
         self.finished = False
         dataset = "overnight_2020"
-        particle_count = 100
-        num_particle_handlers = 10
+        particle_count = 1
+        num_particle_handlers = 1
         path = "/media/orin/Seagate Expansion Drive/rbpf_results/hugin/"
 
-        tests = [0] # UI
+        tests = [10] # UI
         # for std in np.linspace(4.,4.9,10):
         # for std in [0]:
         for i in tests:
@@ -45,7 +45,7 @@ class experiments_loop(object):
             # rospy.sleep(particle_count*10)
             parent.shutdown()
             self.finished = False
-            rospy.sleep(120)
+            rospy.sleep(5)
 
         # duration = 2  # seconds
         # freq = 340  # Hz

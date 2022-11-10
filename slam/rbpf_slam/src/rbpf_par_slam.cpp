@@ -485,7 +485,6 @@ void RbpfSlam::save_gps(const bool plot)
     slam_msgs::ManipulatePosteriorGoal goal;
     int ping_i;
     for(int p=0; p<pc_; p++)
-    // for(int p=0; p<4; p++)
     {
         Eigen::MatrixXf mbes_mat(pings_t * beams_real_, 3);
         Eigen::MatrixXf track_position_mat(pings_t, 3);

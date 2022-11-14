@@ -12,10 +12,9 @@
 
 #include "data_tools/std_data.h"
 
-#include "submaps_tools/cxxopts.hpp"
-#include "submaps_tools/submaps.hpp"
-//#include "registration/utils_visualization.hpp"
-//#include "meas_models/multibeam_simple.hpp"
+#include "auv_2_ros/cxxopts.hpp"
+#include "auv_2_ros/submaps.hpp"
+#include <auv_2_ros/MbesSimAction.h>
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
@@ -31,9 +30,8 @@
 #include <tf_conversions/tf_eigen.h>
 #include <std_msgs/Bool.h>
 #include <std_srvs/Empty.h>
-
 #include <actionlib/client/simple_action_client.h>
-#include <auv_2_ros/MbesSimAction.h>
+
 
 
 using namespace Eigen;

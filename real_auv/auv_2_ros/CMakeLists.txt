@@ -20,11 +20,11 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-find_package(Ceres REQUIRED)
+# find_package(Ceres REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
-find_package(g2o REQUIRED)
+# find_package(g2o REQUIRED)
 
 # AUVLIB stuff
 find_package(LibXTF REQUIRED)
@@ -34,12 +34,6 @@ find_package(DataTools REQUIRED)
 find_package(SonarTracing REQUIRED)
 find_package(AuvlibGlad REQUIRED)
 find_package(BathyMaps REQUIRED)
-
-# Bathymetric SLAM
-find_package(SubmapsTools REQUIRED)
-find_package(GraphOptimization REQUIRED)
-find_package(SubmapRegistration REQUIRED)
-find_package(MeasModels REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -149,18 +143,10 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
 include
-  	${catkin_INCLUDE_DIRS}
-	${CERES_INCLUDE_DIRS}
-	${EIGEN_INCLUDE_DIRS} 
-	${G2O_INCLUDE_DIRS} 
-	${PCL_INCLUDE_DIRS}
-  	${OpenCV_INCLUDE_DIRS}
-#        ${mbes_model_INCLUDE_DIRS}
-#   	${LibXTF_INCLUDE_DIRS}
-#   	${LibGSF_INCLUDE_DIRS}
-#   	${EigenCereal_INCLUDE_DIRS}
-#   	${DataTools_INCLUDE_DIRS}
-#   	${BathyMaps_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
+  ${EIGEN_INCLUDE_DIRS} 
+  ${PCL_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
 )
 
 # Add cmake target dependencies of the library
@@ -177,6 +163,7 @@ include
 add_executable(auv_2_ros 
        src/auv_2_ros_node.cpp
        src/auv_2_ros.cpp
+       src/submaps.cpp
 )
 
 #add_executable(mbes_meas_node
@@ -203,11 +190,11 @@ add_dependencies(auv_2_ros
 
 # Specify libraries to link a library or executable target against
 target_link_libraries(auv_2_ros 
-    utils_visualization
-    submaps_tools
+    # utils_visualization
+    # submaps_tools
     data_transforms
     std_data
-    multibeam_simple
+    # multibeam_simple
     ${PCL_LIBRARIES}
     ${catkin_LIBRARIES}
 )

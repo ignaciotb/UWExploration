@@ -136,6 +136,31 @@ To train a SVGP to regress the bathymetry collected and build a map with DIs or 
 
 Note this is not a ROS node. This script is based on the GPytorch implementation of SVGP, take a look at their tutorials to understand and tune the parameters. After the training, it will save the trained SVGP, a point cloud sampled from the SVGP posterior for visualization in RVIZ and some images. The output SVGP map (.pth) can be directly used for the PF-GP implementation above pointing the auv_pf.launch to it.
 
+### RBPF SLAM with SVGP maps
+To run the RBPF SLAM framework: 
+```
+roslaunch auv_model auv_environment.launch namespace:=hugin_0 mode:=gt
+roslaunch auv_model auv_env_aux.launch mode:=gt
+roslaunch rbpf_slam rbpf_slam.launch namespace:=hugin_0 particle_count:=20 num_particle_handlers:=4 results_path:=/path/to/save/results
+```
+Once the RBPF terminal is ready, use the Waypoints in rviz to cage the area to map (use at least 4, the order doesn't matter) and publish them. If you're running a sim mission, the mission plan waypoints will suffice for this. You should see something like this.
+
+![](utils/media/rbpf.gif)
+
+The RBPF will stop and save the SVGP maps when the last ping has been replayed (see param end_mission_ping_num). You can also stop it calling 
+```
+rostopic pub /gt/survey_finished std_msgs/Bool "data: false"
+```
+In order to plot a SVGP map offline, call 
+```
+./plot_svgp.py /path/to/save/results 0
+```
+Where 0 is the number of the SVGP map you want to plot. Adjust the number of inducing points in this script to that used in the RBPF.
+The results will look like these (for 3 random particles)
+
+<img src="utils/media/rbpf.png" height="400" width="800"/>
+
+**Important**: this is a very computationally heavy algorithm, tune it with care or your PC will run out of resources quickly. The params "particle_count" and "num_particle_handlers" will have a direct impact on the memory and GPU usage, so careful when instantiating them. The same applies to the SVGP parameters "svgp_num_ind_points" and "svgp_minibatch_size" and how often the filter prompts a loop closure detection "rbpf_period".
 
 ### Submap graph SLAM
 Currently porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.

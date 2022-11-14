@@ -5,9 +5,12 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 ## Dependencies (tested on Ubuntu 20.04)
 * ROS Noetic
 * AUVLIB [here](https://github.com/nilsbore/auvlib) And set the same cmake flags required for Ubuntu 18.
+
+Only required if working with the **bathy_graph_slam** package (currently under development and ignored during building):
 * Bathymetric SLAM [here](https://github.com/ignaciotb/bathymetric_slam)
 * GTSAM [here](https://github.com/borglab/gtsam)
 
+Python deps:
 ```
 sudo apt install python3-pygame python3-scipy python3-configargparse python3-numpy
 pip install configargparse pygame 

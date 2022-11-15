@@ -36,7 +36,7 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
-## Paper introducing the framework
+## Papers introducing the frameworks
 [Paper](https://arxiv.org/abs/2203.10893)
 If you find the repo and the methods useful, please cite us.
 ```
@@ -47,6 +47,14 @@ If you find the repo and the methods useful, please cite us.
   year={2022},
   publisher={IEEE}
 }
+
+@article{torroba2022online,
+  title={Online Stochastic Variational Gaussian Process Mapping for Large-Scale SLAM in Real Time},
+  author={Torroba, Ignacio and Chella, Marco and Teran, Aldo and Rolleberg, Niklas and Folkesson, John},
+  journal={arXiv preprint arXiv:2211.05601},
+  year={2022}
+}
+
 ```
 
 ## Demos

@@ -1,10 +1,13 @@
 #goal definition
-sensor_msgs/PointCloud2 ping
+int32 n
+float64  xmin
+float64  xmax
+float64  ymin
+float64  ymax
+int32 subdivs
 ---
 #result definition
-int32 p_id
-float64[] mu
-float64[] sigma
+sensor_msgs/PointCloud2 posterior
 ---
 #feedback (not used)
 # std_msgs/bool feedback

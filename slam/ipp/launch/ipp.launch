@@ -1,0 +1,87 @@
+<?xml version="1.0" ?>
+
+<launch>
+	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
+	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
+    <arg name="mode" default="sim"/>
+    <arg name="namespace" default="hugin"/>
+    <arg name="debug" default="0"/>
+    <arg name="dataset" default="ripples"/>
+    <arg name="app" default="ipp"/>
+
+    <!-- MBES sensor -->
+	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="mbes_open_angle" value="2.250" />
+  
+    <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
+    <arg name="x" default="0.0"/>
+    <arg name="y" default="0.0"/>
+    <arg name="z" default="0.0"/>
+    <arg name="roll" default="0.0"/>
+    <arg name="pitch" default="0.0"/>
+    <arg name="yaw" default="0.0"/>
+
+    <arg name="map_frame"                         default="map"/>
+    <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
+    <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
+    <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
+
+    <!-- RBPF params  -->
+    <arg name="particle_count"                    default="1"/>
+    <arg name="num_particle_handlers"             default="1"/> 
+    <arg name="survey_finished_top" default="/gt/survey_finished"/>
+
+    <!-- API for SVGP particles -->
+    <arg name="gp_ip_topic" default="/gp/inducing_points"/>
+    <arg name="gp_mb_server" default="/gp/minibatch_server"/>
+    <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
+    <arg name="gp_resample_top" default="/gp/resample_top"/>
+
+    <arg name="storage_path" default="/home/torroba"/>     
+
+    <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+        <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
+        <param name="storage_path" value="$(arg storage_path)" />
+        <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
+        <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
+        <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+    </node>
+
+    <node type="auv_ui_online.py" pkg="uncert_management" name="auv_ui_online" output="screen">
+        <param name="map_frame" value="$(arg map_frame)" />
+        <param name="odom_frame" value="$(arg odom_frame)" />
+        <param name="base_link" value="$(arg namespace)/base_link" />
+        <param name="mbes_link" value="$(arg namespace)/mbes_link" />
+        <param name="odometry_topic" value="$(arg odometry_topic)" />
+        <param name="mbes_pings_topic" value="$(arg mbes_pings_topic)" />
+        <param name="background_img_path" value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
+        <param name="dataset" value="$(arg dataset)" />       
+        <param name="visualization_period" value="0.5" />       
+        <param name="survey_finished_top" value="$(arg survey_finished_top)" />
+        <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
+        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
+        <param name="path_topic"  value="/$(arg namespace)/waypoints" />
+        <param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
+        <param name="manipulate_gp_server"  value="$(arg manipulate_gp_server)" />
+        <param name="synch_topic" value="/$(arg app)/synch" />
+    </node>
+
+    <!-- UW environment -->
+    <include file="$(find auv_model)/launch/auv_environment.launch" >
+        <arg name="mode" value="$(arg mode)"/>
+        <arg name="namespace" value="$(arg namespace)"/>
+        <arg name="dataset" value="$(arg dataset)" />
+        <arg name="debug" value="$(arg debug)" />
+        <arg name="app" value="$(arg app)"/>
+        <arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>
+        <arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+        <arg name="x" value="$(arg x)"/>
+        <arg name="y" value="$(arg y)"/>
+        <arg name="z" value="$(arg z)"/>
+        <arg name="roll" value="$(arg roll)"/>
+        <arg name="pitch" value="$(arg pitch)"/>
+        <arg name="yaw" value="$(arg yaw)"/>
+    </include>
+
+</launch>
+

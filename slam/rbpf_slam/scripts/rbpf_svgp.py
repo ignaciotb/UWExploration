@@ -82,15 +82,15 @@ class SVGP_map():
         self.storage_path = rospy.get_param("~storage_path")
         self.count_training = 0
         
-        # AS for plotting results
-        # plot_gp_name = rospy.get_param("~plot_gp_server")
-        # self._as_plot = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + plot_gp_name, PlotPosteriorAction, 
-        #                                              execute_cb=self.save_posterior_cb, auto_start=False)
-        # self._as_plot.start()
+        # AS for posterior region
+        sample_gp_name = rospy.get_param("~sample_gp_server")
+        self._as_posterior = actionlib.SimpleActionServer(sample_gp_name, SamplePosteriorAction,
+                                                     execute_cb=self.full_posterior_cb, auto_start=False)
+        self._as_posterior.start()
 
         # AS for expected meas
         manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
-        self._as_manipulate = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + manipulate_gp_name, ManipulatePosteriorAction, 
+        self._as_manipulate = actionlib.SimpleActionServer(manipulate_gp_name, ManipulatePosteriorAction, 
                                                 execute_cb=self.manipulate_posterior_cb, auto_start = False)
         self._as_manipulate.start()
         
@@ -160,27 +160,8 @@ class SVGP_map():
         self.iterations = 0
 
         self.listener = tf.TransformListener()
-        # try:
-        #     self.listener.waitForTransform("utm", "map", rospy.Time(0), rospy.Duration(60.))
-        #     (trans, rot) = self.listener.lookupTransform(
-        #         "utm", "map", rospy.Time(0))
-        #     self.trans = np.array(trans)
-        #     self.rot = quaternion_matrix(
-        #         (rot[0], rot[1], rot[2], rot[3]))[0:3, 0:3]
-        # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        #     rospy.logwarn("Couldn't lock utm to map tf")
-        #     return
-
-        ## The first call to sample takes several seconds and slows down the DR computations.
-        ## To avoid that, we make an empty call here to allocate the GPU mem already
-        
-        # print("Empty call to GP sampling")
-        # self.sample(np.zeros((n_beams_mbes, 2)))
 
         print("Particle ", self.particle_id, " set up")
-        # print("torch.cuda.memory_allocated: %fGB"%(torch.cuda.memory_allocated(self.device)/1024/1024/1024))
-        # print("torch.cuda.memory_reserved: %fGB"%(torch.cuda.memory_reserved(self.device)/1024/1024/1024))
-        # print("torch.cuda.max_memory_reserved: %fGB"%(torch.cuda.max_memory_reserved(self.device)/1024/1024/1024))
 
         # Remove Qt out of main thread warning (use with caution)
         warnings.filterwarnings("ignore")
@@ -279,13 +260,13 @@ class SVGP_map():
                     # Check for ELBO convergence to signal this SVGP is ready
                     # to start LC prompting
                     loss_np = loss.detach().cpu().numpy()
-                    if not self.ready_for_LC:
-                        # Delete self.criterion when ready for LCs. It consumes mem af
-                        if self.criterion.evaluate(torch.from_numpy(loss_np)):
-                            print("Particle ", self.particle_id, " ready for LCs ")
-                            self.ready_for_LC = True
-                            self.enable_lc_pub.publish(self.particle_id)
-                            del self.criterion
+                    # if not self.ready_for_LC:
+                    #     # Delete self.criterion when ready for LCs. It consumes mem af
+                    #     if self.criterion.evaluate(torch.from_numpy(loss_np)):
+                    #         print("Particle ", self.particle_id, " ready for LCs ")
+                    #         self.ready_for_LC = True
+                    #         self.enable_lc_pub.publish(self.particle_id)
+                    #         del self.criterion
                         
                     # Store loss for postprocessing
                     self.loss.append(loss_np)
@@ -293,7 +274,7 @@ class SVGP_map():
                     if self.particle_id == 0:
                         print("Particle ", self.particle_id,
                             "with iterations: ", self.iterations)
-                        # print("Training time ", time.time() - time_start)
+                    # print("Training time ", time.time() - time_start)
 
                 else:
                     rospy.logdebug("GP missed MB %s", self.particle_id)
@@ -459,47 +440,32 @@ class SVGP_map():
         
 
 
-    def save_posterior(self, n, xlb, xub, ylb, yub, fname, verbose=True):
-
-        '''
-        Samples the GP posterior on a inform grid over the
-        rectangular region defined by (xlb, xub) and (ylb, yub)
-        and saves it as a pointcloud array.
-
-        n: determines n² number of sampling locations
-        xlb, xub: lower and upper bounds of x sampling locations
-        ylb, yub: lower and upper bounds of y sampling locations
-        fname: path to save array at (use .npy extension)
-        '''
-
-        # sanity
-        assert('.npy' in fname)
+    def full_posterior_cb(self, goal):
 
         # toggle evaluation mode
         self.likelihood.eval()
         self.model.eval()
-        torch.cuda.empty_cache()
 
         # posterior sampling locations
         inputs = [
-            np.linspace(xlb, xub, n),
-            np.linspace(ylb, yub, n)
+            np.linspace(goal.xmin, goal.xmax, goal.n),
+            np.linspace(goal.ymin, goal.ymax, goal.n)
         ]
         inputs = np.meshgrid(*inputs)
         inputs = [_.flatten() for _ in inputs]
         inputs = np.vstack(inputs).transpose()
 
         # split the array into smaller ones for memory
-        inputs = np.split(inputs, 4000, axis=0)
+        inputs = np.split(inputs, goal.subdivs, axis=0)
 
         # compute the posterior for each batch
         means, variances = list(), list()
-        with torch.no_grad():
+        with torch.no_grad(), gpytorch.settings.fast_pred_var():
             for i, input in enumerate(inputs):
-                if verbose: print('Batch {}'.format(i))
-                mean, variance = self.sample(input)
-                means.append(mean)
-                variances.append(variance)
+                input = torch.from_numpy(input).to(self.device).float()
+                dist = self.likelihood(self.model(input))
+                means.append(dist.mean.cpu().numpy())
+                variances.append(dist.variance.cpu().numpy())
 
         # assemble probabalistic pointcloud
         cloud = np.hstack((
@@ -508,8 +474,14 @@ class SVGP_map():
             np.hstack(variances).reshape(-1, 1)
         ))
 
-        # save it
-        np.save(fname, cloud)
+        self.likelihood.train()
+        self.model.train()
+
+        result = SamplePosteriorResult()
+        result.posterior = cloud
+        self._as_posterior.set_succeeded(result)
+
+
 
     def plot(self, inputs, targets, fname, n=80, n_contours=50):
 
@@ -553,11 +525,11 @@ class SVGP_map():
             variance = outputs.variance.cpu().numpy().reshape(s)
 
         # plot raw, mean, and variance
-        # levels = np.linspace(-550, -450, n_contours)
+        levels = np.linspace(min(targets), max(targets), n_contours)
         fig, ax = plt.subplots(3, sharex=True, sharey=True)
         cr = ax[0].scatter(inputs[:,0], inputs[:,1], c=targets, cmap='viridis', s=0.4, edgecolors='none')
-        cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
-        # cm = ax[1].contourf(*inputsg, mean, levels=levels)
+        # cm = ax[1].contourf(*inputsg, mean, levels=n_contours)
+        cm = ax[1].contourf(*inputsg, mean, levels=levels)
         cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
         indpts = self.model.variational_strategy.inducing_points.data.cpu().numpy()
         ax[2].plot(indpts[:,0], indpts[:,1], 'ko', markersize=1, alpha=0.2)
@@ -653,10 +625,11 @@ if __name__ == '__main__':
             # particles_ids.append(int(hdl_number)+i)
 
         # In each round, call one minibatch training iteration per SVGP
+        r = rospy.Rate(30)
         while not rospy.is_shutdown():
             for i in range(0, int(particles_per_hdl)):
                 particles_svgps[i].train_iteration()  
-                rospy.sleep(0.01)
+                r.sleep()
 
         # rospy.spin()
     except rospy.ROSInterruptException:

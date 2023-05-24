@@ -12,12 +12,12 @@ import open3d as o3d
 def train_svgp(gp_inputs_type, survey_name):
 
     print("Loading ", survey_name)
-    # cloud = np.load(survey_name)
-    # points = cloud['points']
+    cloud = np.load(survey_name)
+    points = cloud['points']
     
-    pcd = o3d.io.read_point_cloud(survey_name)
-    pcd = pcd.uniform_down_sample(every_k_points=3)
-    points = np.asarray(pcd.points)
+    # pcd = o3d.io.read_point_cloud(survey_name)
+    # pcd = pcd.uniform_down_sample(every_k_points=3)
+    # points = np.asarray(pcd.points)
     inputs = points[:, [0,1]]
     print("Inputs ", inputs.shape)
     targets = points[:,2]
@@ -27,11 +27,11 @@ def train_svgp(gp_inputs_type, survey_name):
     if gp_inputs_type == 'di':
         name = "svgp_di"
         covariances = None
-    # else:
-    #     ## UI
-    #     covariances = cloud['covs'][:,0:2,0:2]
-    #     print("Covariances ", covariances.shape)
-    #     name = "svgp_ui"    
+    else:
+        ## UI
+        covariances = cloud['covs']
+        print("Covariances ", covariances.shape)
+        name = "svgp_ui"    
 
     # initialise GP with 1000 inducing points
     gp = SVGP(400)
@@ -111,7 +111,7 @@ if __name__ == '__main__':
     gp_path = options.gp
     track_path = options.track
 
-    # train_svgp(gp_inputs_type, survey_name)
+    train_svgp(gp_inputs_type, survey_name)
 
-    load_plot(gp_path, survey_name, track_path)
+    # load_plot(gp_path, survey_name, track_path)
     # trace_kernel(survey_name)

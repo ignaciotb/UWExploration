@@ -29,19 +29,22 @@
     <!-- RBPF params  -->
     <arg name="particle_count"                    default="1"/>
     <arg name="num_particle_handlers"             default="1"/> 
-    <arg name="survey_finished_top" default="/gt/survey_finished"/>
+    <arg name="survey_finished_top" default="/$(arg mode)/survey_finished"/>
+    <arg name="svgp_minibatch_size"   default="1000" />
 
     <!-- API for SVGP particles -->
     <arg name="gp_ip_topic" default="/$(arg namespace)/gp/inducing_points"/>
     <arg name="gp_mb_server" default="/$(arg namespace)/gp/minibatch_server"/>
-    <arg name="manipulate_gp_server" default="/$(arg namespace)/gp/manipulate_server"/>
+    <arg name="manipulate_gp_server" default="/particle_0/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
 
-    <arg name="storage_path" default="/home/torroba"/>     
+    <arg name="results_path" default=""/>     
 
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+        <param name="namespace" value="$(arg namespace)"/>  
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
-        <param name="storage_path" value="$(arg storage_path)" />
+        <param name="results_path" value="$(arg results_path)" />
+        <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
         <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
         <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
         <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
@@ -67,7 +70,7 @@
     </node>
 
     <!-- UW environment -->
-    <include file="$(find auv_model)/launch/auv_environment.launch" >
+    <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
         <arg name="mode" value="$(arg mode)"/>
         <arg name="namespace" value="$(arg namespace)"/>
         <arg name="dataset" value="$(arg dataset)" />
@@ -81,7 +84,7 @@
         <arg name="roll" value="$(arg roll)"/>
         <arg name="pitch" value="$(arg pitch)"/>
         <arg name="yaw" value="$(arg yaw)"/>
-    </include>
+    </include> -->
 
 </launch>
 

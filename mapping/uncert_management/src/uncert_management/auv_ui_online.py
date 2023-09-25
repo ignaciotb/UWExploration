@@ -273,7 +273,7 @@ class auv_ui_online(object):
         mbes_pcloud = pack_cloud(self.map_frame, np.asarray(self.means_all))
         goal.pings = mbes_pcloud
         goal.sample = False
-        goal.plot = True
+        goal.plot = self.survey_finished
         self.ac_manipulate.send_goal(goal)
         self.ac_manipulate.wait_for_result()
 

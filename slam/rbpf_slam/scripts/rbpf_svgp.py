@@ -90,7 +90,7 @@ class SVGP_map():
 
         # AS for expected meas
         manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
-        self._as_manipulate = actionlib.SimpleActionServer(manipulate_gp_name, ManipulatePosteriorAction, 
+        self._as_manipulate = actionlib.SimpleActionServer("/particle_" + str(self.particle_id) + manipulate_gp_name, ManipulatePosteriorAction, 
                                                 execute_cb=self.manipulate_posterior_cb, auto_start = False)
         self._as_manipulate.start()
         

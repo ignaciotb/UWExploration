@@ -98,8 +98,8 @@ def plot_post(cp, inputs, targets, track, fname, n=80, n_contours=50):
     fig, ax = plt.subplots(3, sharex=True, sharey=True)
     cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
                         cmap='jet', s=0.4, edgecolors='none')
-    cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=levels)
-    # cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
+    #cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=levels)
+    cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
     cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
     indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
     ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)

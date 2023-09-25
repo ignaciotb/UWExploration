@@ -4,10 +4,13 @@ Collection of ROS packages for localization, map building and SLAM with autonomo
 
 ## Dependencies (tested on Ubuntu 20.04)
 * ROS Noetic
-* AUVLIB [here](https://github.com/nilsbore/auvlib) And set the same cmake flags required for Ubuntu 18.
+* AUVLIB [here](https://github.com/nilsbore/auvlib)
+
+Only required if working with the **bathy_graph_slam** package (currently under development and ignored during building):
 * Bathymetric SLAM [here](https://github.com/ignaciotb/bathymetric_slam)
 * GTSAM [here](https://github.com/borglab/gtsam)
 
+Python deps:
 ```
 sudo apt install python3-pygame python3-scipy python3-configargparse python3-numpy
 pip install configargparse pygame 
@@ -28,12 +31,19 @@ This is a collection of ROS packages. Just clone the repo within your catking wo
 rosdep install --from-paths catkin_ws --ignore-src --rosdistro=$ROS_DISTRO -y
 catkin_make -DCMAKE_BUILD_TYPE=Release install
 ```
+
+Finally, add the following lines to your ~/.bashrc file adapted to your own installation
+```
+export PATH=$PATH:/path/to/folder/auvlib/install/share
+export PYTHONPATH=$PYTHONPATH:/path/to/folder/auvlib/install/lib
+```
+
 ## Troubleshooting
 If you experience errors with GTSAM libraries not being found, add this line at the end of your .bashrc
 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
-## Paper introducing the framework
+## Papers introducing the frameworks
 [Paper](https://arxiv.org/abs/2203.10893)
 If you find the repo and the methods useful, please cite us.
 ```
@@ -44,6 +54,15 @@ If you find the repo and the methods useful, please cite us.
   year={2022},
   publisher={IEEE}
 }
+
+@article{torroba2023online,
+  title={Online Stochastic Variational Gaussian Process Mapping for Large-Scale Bathymetric SLAM in Real Time},
+  author={Torroba, Ignacio and Cella, Marco and Ter{\'a}n, Aldo and Rolleberg, Niklas and Folkesson, John},
+  journal={IEEE Robotics and Automation Letters},
+  year={2023},
+  publisher={IEEE}
+}
+
 ```
 
 ## Demos

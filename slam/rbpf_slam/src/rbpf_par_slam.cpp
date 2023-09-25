@@ -171,7 +171,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     // Initialize the particles on top of LoLo 
     tf::StampedTransform o2b_tf;
-    tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(30.0));
+    tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(300.0));
     tfListener_.lookupTransform(odom_frame_, base_frame_, ros::Time(0), o2b_tf);
     double x, y, z, roll_o2b, pitch_o2b, yaw_o2b;
     x = o2b_tf.getOrigin().x();
@@ -216,7 +216,9 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     gp_saved_pub_ = nh_->advertise<std_msgs::Bool>(gps_saved_top, 10);
 
     // For Hugin markers
-    vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>("/markers", 0);
+    std::string rbpf_markers_top;
+    nh_->param<string>(("markers_top"), rbpf_markers_top, "/markers");
+    vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>(rbpf_markers_top, 0);
 
     ROS_INFO("RBPF instantiated");
 }
@@ -238,7 +240,6 @@ void RbpfSlam::enable_lc(const std_msgs::Int32::ConstPtr& enable_lc)
 
 void RbpfSlam::path_cb(const nav_msgs::PathConstPtr& wp_path)
 {
-
     if (wp_path->poses.size() > 0)
     {
         if (!start_training_){
@@ -325,9 +326,9 @@ void RbpfSlam::rbpf_update(const ros::TimerEvent&)
             // Conditions to start LC prompting:
             // 1) Pings collected > 1000: prevents from sampling undertrained GPs
             // 2) Num of GPs whose ELBO has converged > Num particles/2
-            // if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
-            //     this->update_particles_weights(latest_mbes_, odom_latest_);
-            // }
+            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
+                this->update_particles_weights(latest_mbes_, odom_latest_);
+            }
         }
     }
 }

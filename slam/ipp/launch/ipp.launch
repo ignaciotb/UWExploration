@@ -32,10 +32,10 @@
     <arg name="survey_finished_top" default="/gt/survey_finished"/>
 
     <!-- API for SVGP particles -->
-    <arg name="gp_ip_topic" default="/gp/inducing_points"/>
-    <arg name="gp_mb_server" default="/gp/minibatch_server"/>
-    <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
-    <arg name="gp_resample_top" default="/gp/resample_top"/>
+    <arg name="gp_ip_topic" default="/$(arg namespace)/gp/inducing_points"/>
+    <arg name="gp_mb_server" default="/$(arg namespace)/gp/minibatch_server"/>
+    <arg name="manipulate_gp_server" default="/$(arg namespace)/gp/manipulate_server"/>
+    <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
 
     <arg name="storage_path" default="/home/torroba"/>     
 

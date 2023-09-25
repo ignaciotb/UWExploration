@@ -373,7 +373,7 @@ void BathymapConstructor::publishMeas(int ping_num){
     
     // Publish pings in MBES frame
     // Resize for ripples demo. Only one MBES head worked on that survey
-    traj_pings_.at(ping_num).submap_pcl_.points.resize(160);
+    // traj_pings_.at(ping_num).submap_pcl_.points.resize(160);
     pcl_ros::transformPointCloud(traj_pings_.at(ping_num).submap_pcl_, *mbes_i_pcl, tf_map_mbes.inverse());
 
     // Sample down pings for example demo

@@ -48,11 +48,12 @@ If you find the repo and the methods useful, please cite us.
   publisher={IEEE}
 }
 
-@article{torroba2022online,
-  title={Online Stochastic Variational Gaussian Process Mapping for Large-Scale SLAM in Real Time},
-  author={Torroba, Ignacio and Chella, Marco and Teran, Aldo and Rolleberg, Niklas and Folkesson, John},
-  journal={arXiv preprint arXiv:2211.05601},
-  year={2022}
+@article{torroba2023online,
+  title={Online Stochastic Variational Gaussian Process Mapping for Large-Scale Bathymetric SLAM in Real Time},
+  author={Torroba, Ignacio and Cella, Marco and Ter{\'a}n, Aldo and Rolleberg, Niklas and Folkesson, John},
+  journal={IEEE Robotics and Automation Letters},
+  year={2023},
+  publisher={IEEE}
 }
 
 ```

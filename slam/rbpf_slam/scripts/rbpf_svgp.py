@@ -79,7 +79,7 @@ class SVGP_map():
 
         ## ROS INTERFACE
         self.particle_id = particle_id
-        self.storage_path = rospy.get_param("~storage_path")
+        self.storage_path = rospy.get_param("~results_path")
         self.count_training = 0
         
         # AS for posterior region

@@ -299,8 +299,6 @@ class auv_ui_online(object):
             dt_real = self.time - self.old_time 
             # dt_real = 0.2
             
-            # Turn off np warning
-            np.warnings.filterwarnings('ignore', category=np.VisibleDeprecationWarning) 
             vt = np.array([odom_msg.twist.twist.linear.x,
                         odom_msg.twist.twist.linear.y,
                         odom_msg.twist.twist.linear.z,
@@ -308,7 +306,7 @@ class auv_ui_online(object):
                         odom_msg.twist.twist.angular.x,
                         odom_msg.twist.twist.angular.y,
                         #    odom_msg.twist.twist.angular.z], dtype=object)
-                        odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)], dtype=object)
+                        odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)[0]], dtype=object)
 
             ## Prediction
             mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)

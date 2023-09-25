@@ -4,7 +4,6 @@
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
 	<arg name="dataset" default="ripples"/>
-    <arg name="app" default="basic"/>
     <arg name="map_frame" default="map"/>
     <arg name="namespace" default="hugin_0"/>
     <arg name="odom_frame" default="$(arg namespace)/odom"/>

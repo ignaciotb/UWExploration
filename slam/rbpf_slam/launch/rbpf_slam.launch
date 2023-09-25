@@ -23,14 +23,14 @@
   <!-- RBPF params  -->
   <arg name="particle_count"                    default="20"/> <!--50 -->
   <arg name="num_particle_handlers"             default="4"/> 
-  <arg name="survey_finished_top" default="/gt/survey_finished"/>
+  <arg name="survey_finished_top" default="/$(arg mode)/survey_finished"/>
   
   <!-- API for SVGP particles -->
-  <arg name="gp_ip_topic" default="/gp/inducing_points"/>
-  <arg name="gp_mb_server" default="/gp/minibatch_server"/>
+  <arg name="gp_ip_topic" default="/$(arg namespace)/gp/inducing_points"/>
+  <arg name="gp_mb_server" default="/$(arg namespace)/gp/minibatch_server"/>
   <!-- <arg name="gp_plot_server" default="/gp/plot_server"/> -->
-  <arg name="manipulate_gp_server" default="/gp/manipulate_server"/>
-  <arg name="gp_resample_top" default="/gp/resample_top"/>
+  <arg name="manipulate_gp_server" default="/$(arg namespace)/gp/manipulate_server"/>
+  <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
   
   <arg name="results_path" default=""/>     
   <arg name="rbpf_period"   default="15." />
@@ -39,9 +39,9 @@
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
-  <arg name="odometry_topic"                    default="/gt/$(arg namespace)/odom"/>
+  <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
   <!-- <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/> -->
-  <arg name="mbes_pings_topic"                  default="/gt/$(arg namespace)/mbes_pings"/>
+  <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
   <!-- <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/> -->
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
@@ -51,14 +51,6 @@
   <!-- Rosbags from lolo -->
   <!-- <node pkg="rosbag" type="play" name="mission_player" output="log" args="-s 1050 $(arg path)/2022-06-07-12-22-19.bag"/> -->
   
-  <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
-    <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
-    <param name="results_path" value="$(arg results_path)" />
-    <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
-    <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
-    <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
-    <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
-  </node>
 
   <!-- <node type="static_transform_publisher" pkg="tf" name="tf_utm_to_map" args="0 0 0 0 0 0 utm map 10"/>
   <node type="static_transform_publisher" pkg="tf" name="tf_map_to_odom" args="0 0 0 0 0 0 map $(arg odom_frame) 10"/> -->
@@ -69,6 +61,17 @@
 
   <group ns="$(arg app)">
     <group ns="$(arg namespace)">
+      
+      <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+        <param name="namespace" value="$(arg namespace)"/>  
+        <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
+        <param name="results_path" value="$(arg results_path)" />
+        <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
+        <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
+        <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
+        <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
+      </node>
+
       <node type="rbpf_par_slam_node" pkg="rbpf_slam" name="rbpf_slam" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
         <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.1]</rosparam>
@@ -97,9 +100,12 @@
 				<param name="rviz_period"  value="$(arg rviz_period)" />
         <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
 				<!-- <param name="path_topic"  value="/$(arg namespace)/ctrl/mission_waypoints" /> -->
-				<param name="path_topic"  value="/waypoints" />
+				<param name="path_topic"  value="/$(arg namespace)/waypoints" />
 				<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
 				<param name="svgp_minibatch_size"  value="$(arg svgp_minibatch_size)" />
+				<param name="particle_enable_lc"  value="/$(arg namespace)/enable_lc" />
+				<param name="rbpf_saved_top"  value="/$(arg namespace)/rbpf_saved" />
+				<param name="markers_top"  value="/$(arg namespace)/markers" />
       </node>
     </group>
   </group>

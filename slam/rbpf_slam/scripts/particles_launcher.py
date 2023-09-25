@@ -5,6 +5,7 @@ import numpy as np
 
 class particles_launcher():
     def __init__(self):
+        self.namespace = rospy.get_param('~namespace', "hugin")
         self.num_particle_hdl = rospy.get_param('~num_particle_handlers', 2)
         self.storage_path = rospy.get_param("~results_path", "./ros/")
         self.num_particles_per_hdl = rospy.get_param('~num_particles_per_handler', 2)
@@ -18,6 +19,7 @@ class particles_launcher():
             print("Launching particle handler: ", i)
             proc = Popen(["roslaunch", launch_file, "node_name:=particle_hdl_" + str(i),
                           "num_particles_per_handler:=" + str(self.num_particles_per_hdl),
+                          "namespace:=" + str(self.namespace),
                           "storage_path:=" + str(self.storage_path)])
             # rospy.sleep(int(self.num_particles_per_hdl))
             rospy.sleep(3)

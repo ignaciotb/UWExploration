@@ -641,6 +641,8 @@ if __name__ == '__main__':
 
     rospy.init_node('rbpf_svgp' , disable_signals=False)
     node_name = rospy.get_name()
+    namespace = rospy.get_namespace()
+    node_name = node_name.replace(namespace, '')
     hdl_number = int(node_name.split('_')[2])
     particles_per_hdl = rospy.get_param("~num_particles_per_handler")
 

@@ -43,9 +43,8 @@ If you experience errors with GTSAM libraries not being found, add this line at 
 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
-## Papers introducing the frameworks
-[Paper](https://arxiv.org/abs/2203.10893)
-If you find the repo and the methods useful, please cite us.
+## Papers using the frameworks and datasets
+If you find the repo and datasets useful, please cite us.
 ```
 @article{torroba2022fully,
   title={Fully-Probabilistic Terrain Modelling and Localization With Stochastic Variational Gaussian Process Maps},
@@ -63,10 +62,19 @@ If you find the repo and the methods useful, please cite us.
   publisher={IEEE}
 }
 
+@inproceedings{tan2023data,
+  title={Data-driven loop closure detection in bathymetric point clouds for underwater slam},
+  author={Tan, Jiarui and Torroba, Ignacio and Xie, Yiping and Folkesson, John},
+  booktitle={2023 IEEE International Conference on Robotics and Automation (ICRA)},
+  pages={3131--3137},
+  year={2023},
+  organization={IEEE}
+}
 ```
 
 ## Demos
-We provide a dataset collected with a hull-mounted MBES on a ship for example demos. However the code will need to be tuned for applications in different setups (bathymetry, sensors, vehicle and so on).
+We provide a dataset collected with a hull-mounted MBES on a ship for toy demos. However the code will need to be tuned for applications in different setups (bathymetry, sensors, vehicle and so on).
+We have now added a second dataset ![](utils/uw_tests/datasets/antarctica19_7) with a survey collected with a HUGIN AUV under the ice in Antarctica. The dataset was introduced in this [paper](https://ieeexplore.ieee.org/abstract/document/10160783/).
 
 ### Basic demo with one AUV
 Reproduce a real bathymetric survey (gt):

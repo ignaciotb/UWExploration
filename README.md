@@ -74,7 +74,7 @@ If you find the repo and datasets useful, please cite us.
 
 ## Demos
 We provide a dataset collected with a hull-mounted MBES on a ship for toy demos. However the code will need to be tuned for applications in different setups (bathymetry, sensors, vehicle and so on).
-We have now added a second dataset ![](utils/uw_tests/datasets/antarctica19_7) with a survey collected with a HUGIN AUV under the ice in Antarctica. The dataset was introduced in this [paper](https://ieeexplore.ieee.org/abstract/document/10160783/).
+We have now added a second ![dataset](utils/uw_tests/datasets/antarctica19_7) with a survey collected with a HUGIN AUV under the ice in Antarctica. The dataset was introduced in this [paper](https://ieeexplore.ieee.org/abstract/document/10160783/).
 
 ### Basic demo with one AUV
 Reproduce a real bathymetric survey (gt):

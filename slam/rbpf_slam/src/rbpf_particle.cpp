@@ -1,4 +1,4 @@
-#include "rbpf_particle.h"
+#include "rbpf_slam/rbpf_particle.h"
 
 RbpfParticle::RbpfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes_tf_matrix,
                            Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,

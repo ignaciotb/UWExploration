@@ -1,4 +1,4 @@
-#include "rbpf_par_slam.h"
+#include "rbpf_slam/rbpf_par_slam.h"
 #include <ros/callback_queue.h>
 
 
@@ -13,6 +13,7 @@ int main(int argc, char** argv){
     nh_mb.setCallbackQueue(&mb_queue);
 
     boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh, nh_mb));
+    rbpf->setup_svgps();
 
     // Spinner for AUV interface callbacks
     ros::AsyncSpinner spinner_rbpf(1000, &rbpf_queue);

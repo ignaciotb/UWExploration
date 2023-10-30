@@ -1,7 +1,7 @@
 // HEADER DEFINING THE RBPF_SLAM CLASS
 #pragma once
 
-#include "rbpf_particle.h"
+#include "rbpf_slam/rbpf_particle.h"
 
 // Standard dependencies
 #include <fstream>
@@ -86,8 +86,10 @@ class RbpfSlam
 {
 
 public:
-    RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
+
+    // RbpfSlam();
     ~RbpfSlam();
+    RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
 
     Eigen::Matrix<float, 6, 1> init_p_pose_;
 

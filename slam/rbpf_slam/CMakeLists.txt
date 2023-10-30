@@ -119,7 +119,7 @@ find_package(Boost REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+ INCLUDE_DIRS include
 #  LIBRARIES auv_particle_filter
  CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs slam_msgs
 #  DEPENDS system_lib
@@ -139,17 +139,21 @@ include_directories(
 )
 
 ## Declare a C++ library
-# add_library(${ROJECT_NAME}
-#   src/rbpf_particle.cpp
-#   src/rbpf_par_slam.cpp
-# )
+add_library(rbpf_slam
+  src/rbpf_particle.cpp
+  src/rbpf_par_slam.cpp
+)
+
 # add_executable(${PROJECT_NAME}
 #   rbpf_par_slam_node src/rbpf_par_slam_node.cpp
 # )
-# target_link_libraries(${PROJECT_NAME} 
-#   ${PCL_LIBRARIES}
-#   ${catkin_LIBRARIES}
-# )
+
+target_link_libraries(rbpf_slam 
+  ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES}
+  ${eigen_LIBRARIES}
+)
+
 add_executable(rbpf_par_slam_node src/rbpf_par_slam_node.cpp
                 src/rbpf_particle.cpp
                 src/rbpf_par_slam.cpp)
@@ -206,18 +210,18 @@ target_link_libraries(rbpf_par_slam_node Threads::Threads)
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
+install(TARGETS rbpf_slam
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES

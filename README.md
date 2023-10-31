@@ -168,7 +168,7 @@ To run the RBPF SLAM framework:
 ```
 roslaunch auv_model auv_environment.launch namespace:=hugin_0 mode:=gt
 roslaunch auv_model auv_env_aux.launch mode:=gt
-roslaunch rbpf_slam rbpf_slam.launch namespace:=hugin_0 particle_count:=20 num_particle_handlers:=4 results_path:=/path/to/save/results
+roslaunch rbpf_slam rbpf_slam.launch namespace:=hugin_0 particle_count:=20 num_particle_handlers:=4 results_path:=/path/to/save/results mode:=gt
 ```
 Once the RBPF terminal is ready, use the Waypoints in rviz to cage the area to map (use at least 4, the order doesn't matter) and publish them. If you're running a sim mission, the mission plan waypoints will suffice for this. You should see something like this.
 

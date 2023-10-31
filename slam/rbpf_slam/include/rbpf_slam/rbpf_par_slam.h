@@ -87,13 +87,12 @@ class RbpfSlam
 
 public:
 
-    // RbpfSlam();
-    ~RbpfSlam();
+    RbpfSlam();
     RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb);
+    ~RbpfSlam();
 
     Eigen::Matrix<float, 6, 1> init_p_pose_;
 
-private:
     ros::NodeHandle *nh_;
     ros::NodeHandle *nh_mb_;
     std::string node_name_;
@@ -229,18 +228,19 @@ private:
     void save_cb(const std_msgs::Bool::ConstPtr& save_msg);
     void mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr &msg);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
-    void rbpf_update(const ros::TimerEvent&);
-    void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
     void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     void saveCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
     //             const nav_msgs::OdometryConstPtr &odom_msg);
 
     // Other functions
+    void setup_svgps();
+    void rbpf_update(const ros::TimerEvent&);
+    void update_rviz(const ros::TimerEvent &);
+    void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
     void save_gps(const bool plot);
     void predict(nav_msgs::Odometry odom_t, float dt);
     void update_particles_history();
-    void update_rviz(const ros::TimerEvent &);
     void publish_stats(nav_msgs::Odometry gt_odom);
     float moving_average(vector<int> a, int n);
     void resample(vector<double> weights);

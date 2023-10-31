@@ -1,4 +1,8 @@
-#include "rbpf_par_slam.h"
+#include "rbpf_slam/rbpf_par_slam.h"
+
+RbpfSlam::RbpfSlam()
+{
+}
 
 RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_mb_(&nh_mb), rng_((std::random_device())()), g_((std::random_device())())
 {
@@ -43,9 +47,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
 
     nh_->param<string>(("pf_stats_top"), stats_top_, "stats");
     stats_ = nh_->advertise<std_msgs::Float32MultiArray>(stats_top_, 10);
-
-    // Action server for interacting with the GP posterior
-    nh_->param<string>(("manipulate_gp_server"), manipulate_gp_server_, "gp_sample_server");
 
     // Timer for end of mission: finish when no more odom is being received
     mission_finished_ = false;
@@ -104,46 +105,6 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
         timer_rviz_ = nh_->createTimer(ros::Duration(rviz_period_), &RbpfSlam::update_rviz, this, false);
     }
 
-    // Subscription to manually triggering LC detection. Just for testing
-    nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
-    lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
-
-    // The mission waypoints as a path
-    nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
-    path_sub_ = nh_->subscribe(path_topic_, 1, &RbpfSlam::path_cb, this);
-
-    // Publisher for inducing points to SVGP maps
-    std::string ip_top;
-    nh_->param<string>(("inducing_points_top"), ip_top, "/inducing_points");
-    ip_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
-
-    // Publisher for particles indexes to be resampled
-    std::string p_resampling_top;
-    nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
-    for (int i = 0; i < pc_; i++)
-        p_resampling_srvs_.push_back(nh_->serviceClient<slam_msgs::Resample>(p_resampling_top + "/particle_" + std::to_string(i)));
-
-    // Service for sending minibatches of beams to the SVGP particles
-    std::string mb_gp_name;
-    nh_mb_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
-    as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_mb_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
-    as_mb_->start();
-
-    // Action clients for manipulating the GP posteriors
-    for (int i = 0; i < pc_; i++)
-    {
-        actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction> *ac =
-                    new actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction>("/particle_" + std::to_string(i)
-                    + manipulate_gp_server_, true);
-        while (!ac->waitForServer() && ros::ok())
-        {
-            std::cout << "Waiting for SVGP plot server "
-                      << "/particle_" + std::to_string(i) + manipulate_gp_server_ << std::endl;
-            ros::Duration(2).sleep();
-        }
-        p_manipulate_acs_.push_back(ac);
-    }
-
     // Create vector of beams indexes per ping.
     // It can be done only once since we're making sure all pings have the
     // same num of beams
@@ -169,7 +130,7 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");
     odom_sub_ = nh_->subscribe(odom_top_, 100, &RbpfSlam::odom_callback, this);
 
-    // Initialize the particles on top of LoLo 
+    // Initialize the particles on top of vehicle 
     tf::StampedTransform o2b_tf;
     tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(300.0));
     tfListener_.lookupTransform(odom_frame_, base_frame_, ros::Time(0), o2b_tf);
@@ -220,7 +181,53 @@ RbpfSlam::RbpfSlam(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_m
     nh_->param<string>(("markers_top"), rbpf_markers_top, "/markers");
     vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>(rbpf_markers_top, 0);
 
-    ROS_INFO("RBPF instantiated");
+    ROS_INFO("Particle filter instantiated");
+}
+
+void RbpfSlam::setup_svgps(){
+
+    // Subscription to manually triggering LC detection. Just for testing
+    nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
+    lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &RbpfSlam::manual_lc, this);
+
+    // The mission waypoints as a path
+    nh_->param<string>(("path_topic"), path_topic_, "/waypoints");
+    path_sub_ = nh_->subscribe(path_topic_, 1, &RbpfSlam::path_cb, this);
+
+    // Publisher for inducing points to SVGP maps
+    std::string ip_top;
+    nh_->param<string>(("inducing_points_top"), ip_top, "/inducing_points");
+    ip_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(ip_top, 1);
+
+    // Publisher for particles indexes to be resampled
+    std::string p_resampling_top;
+    nh_->param<string>(("gp_resampling_top"), p_resampling_top, "/resample_top");
+    for (int i = 0; i < pc_; i++)
+        p_resampling_srvs_.push_back(nh_->serviceClient<slam_msgs::Resample>(p_resampling_top + "/particle_" + std::to_string(i)));
+
+    // Service for sending minibatches of beams to the SVGP particles
+    std::string mb_gp_name;
+    nh_mb_->param<string>(("minibatch_gp_server"), mb_gp_name, "minibatch_server");
+    as_mb_ = new actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>(*nh_mb_, mb_gp_name, boost::bind(&RbpfSlam::mb_cb, this, _1), false);
+    as_mb_->start();
+
+    // Action clients for manipulating the GP posteriors
+    nh_->param<string>(("manipulate_gp_server"), manipulate_gp_server_, "gp_sample_server");
+    for (int i = 0; i < pc_; i++)
+    {
+        actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction> *ac =
+                    new actionlib::SimpleActionClient<slam_msgs::ManipulatePosteriorAction>("/particle_" + std::to_string(i)
+                    + manipulate_gp_server_, true);
+        while (!ac->waitForServer() && ros::ok())
+        {
+            std::cout << "Waiting for SVGP plot server "
+                      << "/particle_" + std::to_string(i) + manipulate_gp_server_ << std::endl;
+            ros::Duration(2).sleep();
+        }
+        p_manipulate_acs_.push_back(ac);
+    }
+    
+    ROS_INFO("SVGPs instantiated");
 }
 
 bool RbpfSlam::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
@@ -339,7 +346,8 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     odom_latest_ = *odom_msg;
 
     // // Flag to finish the mission
-    if(mission_finished_ != true && start_training_)
+    // if(mission_finished_ != true && start_training_)
+    if(mission_finished_ != true)
     {
         // Motion prediction
         if (time_ > old_time_)
@@ -781,7 +789,7 @@ void RbpfSlam::pub_markers(const geometry_msgs::PoseArray& array_msg)
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
-    if(start_training_)
+    // if(start_training_)
     {
         geometry_msgs::PoseArray array_msg;
         array_msg.header.frame_id = odom_frame_;

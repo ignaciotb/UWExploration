@@ -1,28 +1,29 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(rbpf_slam)
+cmake_minimum_required(VERSION 3.0.2)
+project(rbpf_multiagent)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  nav_msgs
-  roscpp
-  rospy
-  std_msgs
-  tf
-  tf2_ros
-  tf_conversions
-  sensor_msgs
-  actionlib_msgs
-  actionlib
-  eigen_conversions
-  pcl_ros
-  message_generation
-  slam_msgs
+    geometry_msgs
+    nav_msgs
+    roscpp
+    rospy
+    std_msgs
+    tf
+    tf2_ros
+    tf_conversions
+    sensor_msgs
+    actionlib_msgs
+    actionlib
+    eigen_conversions
+    pcl_ros
+    message_generation
+    slam_msgs  
+    rbpf_slam 
 )
 
 find_package(Eigen3 REQUIRED)
@@ -30,7 +31,6 @@ find_package(Threads REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED)
-
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -75,18 +75,17 @@ find_package(Boost REQUIRED)
 #   Service2.srv
 # )
 
-# Generate actions in the 'action' folder
+## Generate actions in the 'action' folder
 # add_action_files(
-#   DIRECTORY action
-#   FILES PlotPosterior.action
+#   FILES
+#   Action1.action
+#   Action2.action
 # )
 
-# Generate added messages and services with any dependencies listed here
+## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   actionlib_msgs
-#   sensor_msgs
-#   std_msgs
+#   std_msgs  # Or other packages containing msgs
 # )
 
 ################################################
@@ -119,9 +118,9 @@ find_package(Boost REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
- INCLUDE_DIRS include
-#  LIBRARIES auv_particle_filter
- CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs slam_msgs
+#  INCLUDE_DIRS include
+#  LIBRARIES rbpf_multiagent
+#  CATKIN_DEPENDS other_catkin_pkg
 #  DEPENDS system_lib
 )
 
@@ -137,31 +136,18 @@ include_directories(
 	${PCL_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
-
 ## Declare a C++ library
-add_library(rbpf_slam
-  src/rbpf_particle.cpp
-  src/rbpf_par_slam.cpp
-)
-
-# add_executable(${PROJECT_NAME}
-#   rbpf_par_slam_node src/rbpf_par_slam_node.cpp
+# add_library(${PROJECT_NAME}
+#   src/${PROJECT_NAME}/rbpf_multiagent.cpp
 # )
 
-target_link_libraries(rbpf_slam 
-  ${PCL_LIBRARIES}
-  ${catkin_LIBRARIES}
-  ${eigen_LIBRARIES}
-)
+add_executable(rbpf_multiagent_node 
+                src/rbpf_multiagent_node.cpp
+                src/rbpf_multiagent.cpp)
 
-add_executable(rbpf_par_slam_node src/rbpf_par_slam_node.cpp
-                src/rbpf_particle.cpp
-                src/rbpf_par_slam.cpp)
+add_dependencies(rbpf_multiagent_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
-add_dependencies(rbpf_par_slam_node ${catkin_EXPORTED_TARGETS})
-
-target_link_libraries(rbpf_par_slam_node ${PCL_LIBRARIES} ${catkin_LIBRARIES})
-target_link_libraries(rbpf_par_slam_node Threads::Threads)
+target_link_libraries(rbpf_multiagent_node rbpf_slam)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -171,7 +157,7 @@ target_link_libraries(rbpf_par_slam_node Threads::Threads)
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/auv_particle_filter_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/rbpf_multiagent_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -197,7 +183,7 @@ target_link_libraries(rbpf_par_slam_node Threads::Threads)
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
+# catkin_install_python(PROGRAMS
 #   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
@@ -210,18 +196,18 @@ target_link_libraries(rbpf_par_slam_node Threads::Threads)
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-install(TARGETS rbpf_slam
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-)
+# install(TARGETS ${PROJECT_NAME}
+#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+# )
 
 ## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.h"
-  PATTERN ".svn" EXCLUDE
-)
+# install(DIRECTORY include/${PROJECT_NAME}/
+#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#   FILES_MATCHING PATTERN "*.h"
+#   PATTERN ".svn" EXCLUDE
+# )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -235,7 +221,7 @@ install(DIRECTORY include/${PROJECT_NAME}/
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_particle_filter.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_rbpf_multiagent.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

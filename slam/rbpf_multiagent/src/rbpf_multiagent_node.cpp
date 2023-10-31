@@ -1,9 +1,9 @@
-#include "rbpf_slam/rbpf_par_slam.h"
+#include <rbpf_multiagent/rbpf_multiagent.hpp>
 #include <ros/callback_queue.h>
 
 
 int main(int argc, char** argv){
-    ros::init(argc, argv, "rbpf_node");
+    ros::init(argc, argv, "rbpf_multiagent_node");
 
     ros::NodeHandle nh("~");
     ros::NodeHandle nh_mb("~");
@@ -12,8 +12,7 @@ int main(int argc, char** argv){
     nh.setCallbackQueue(&rbpf_queue);
     nh_mb.setCallbackQueue(&mb_queue);
 
-    boost::shared_ptr<RbpfSlam> rbpf(new RbpfSlam(nh, nh_mb));
-    rbpf->setup_svgps();
+    boost::shared_ptr<RbpfSlam> rbpf_multi(new RbpfMultiagent(nh, nh_mb));
 
     // Spinner for AUV interface callbacks
     ros::AsyncSpinner spinner_rbpf(1000, &rbpf_queue);
@@ -38,7 +37,7 @@ int main(int argc, char** argv){
 
     ros::waitForShutdown();
     if(!ros::ok()){
-        rbpf.reset();
+        rbpf_multi.reset();
     }
 
     return 0;

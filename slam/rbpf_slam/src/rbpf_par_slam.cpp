@@ -346,7 +346,8 @@ void RbpfSlam::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
     odom_latest_ = *odom_msg;
 
     // // Flag to finish the mission
-    if(mission_finished_ != true && start_training_)
+    // if(mission_finished_ != true && start_training_)
+    if(mission_finished_ != true)
     {
         // Motion prediction
         if (time_ > old_time_)
@@ -788,7 +789,7 @@ void RbpfSlam::pub_markers(const geometry_msgs::PoseArray& array_msg)
 
 void RbpfSlam::update_rviz(const ros::TimerEvent &)
 {
-    if(start_training_)
+    // if(start_training_)
     {
         geometry_msgs::PoseArray array_msg;
         array_msg.header.frame_id = odom_frame_;

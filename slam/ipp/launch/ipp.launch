@@ -4,7 +4,7 @@
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode" default="sim"/>
-    <arg name="namespace" default="hugin"/>
+    <arg name="namespace" default="hugin_0"/>
     <arg name="debug" default="0"/>
     <arg name="dataset" default="ripples"/>
     <arg name="app" default="ipp"/>
@@ -30,7 +30,6 @@
     <arg name="particle_count"                    default="1"/>
     <arg name="num_particle_handlers"             default="1"/> 
     <arg name="survey_finished_top" default="/$(arg mode)/survey_finished"/>
-    <arg name="svgp_minibatch_size"   default="1000" />
 
     <!-- API for SVGP particles -->
     <arg name="gp_ip_topic" default="/$(arg namespace)/gp/inducing_points"/>
@@ -38,13 +37,12 @@
     <arg name="manipulate_gp_server" default="/particle_0/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
 
-    <arg name="results_path" default=""/>     
+    <arg name="results_path" default="/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/utils/uw_tests/datasets/lost_targets/"/>     
 
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
         <param name="namespace" value="$(arg namespace)"/>  
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
         <param name="results_path" value="$(arg results_path)" />
-        <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
         <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
         <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
         <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     

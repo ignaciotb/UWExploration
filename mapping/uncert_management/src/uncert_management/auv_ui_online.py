@@ -193,7 +193,7 @@ class auv_ui_online(object):
 
         # Subscribe when ready
         odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_cb, queue_size=10)
+        rospy.Subscriber(odom_top, Odometry, self.odom_cb, queue_size=1)
         
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=1)
@@ -217,12 +217,13 @@ class auv_ui_online(object):
                     wps.append(np.array([pose.pose.position.x, pose.pose.position.y, 0.]))
 
                 wp_cloud = pack_cloud(self.map_frame, wps)
-                self.start_training = True
                 self.ip_pub.publish(wp_cloud)
 
                 # This service will start the auv simulation or auv_2_ros nodes to start the mission
                 synch_top = rospy.get_param("~synch_topic", '/pf_synch')
                 self.srv_server = rospy.Service(synch_top, Empty, self.empty_srv)
+
+                self.start_training = True
 
 
     def empty_srv(self, req):
@@ -297,7 +298,14 @@ class auv_ui_online(object):
         if not self.survey_finished and self.start_training:
 
             self.time = odom_msg.header.stamp.to_sec()
+            
+            if self.first_odom:
+                self.old_time = self.time
+                self.first_odom = False
+                return
+
             dt_real = self.time - self.old_time 
+            print(dt_real)
             # dt_real = 0.2
             
             vt = np.array([odom_msg.twist.twist.linear.x,
@@ -306,8 +314,8 @@ class auv_ui_online(object):
                         #    odom_msg.twist.twist.angular.x + np.random.normal(0, 0.001, 1),
                         odom_msg.twist.twist.angular.x,
                         odom_msg.twist.twist.angular.y,
-                        #    odom_msg.twist.twist.angular.z], dtype=object)
-                        odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)[0]], dtype=object)
+                           odom_msg.twist.twist.angular.z], dtype=object)
+                        # odom_msg.twist.twist.angular.z + np.random.normal(0, 0.002, 1)[0]], dtype=object)
 
             ## Prediction
             mu_hat_t = np.concatenate(self.g(self.mu_t, vt, dt_real), axis=0)
@@ -364,15 +372,15 @@ class auv_ui_online(object):
             beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
             # Use only N beams
-            N = 100
+            N = 50
             idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
             beams_mbes_filt = beams_mbes[idx]
             print("UI ping ", self.pings_num, " with: ", len(beams_mbes_filt), " beams")
             
-            for n in range(len(beams_mbes_filt)):
+            for n, beam in enumerate(beams_mbes_filt):
             # for n in range(len(beams_mbes)):
                 # Create landmark as expected patch of seabed to be hit (in map frame)
-                beam_map = np.matmul(Tm2mbes, beams_mbes_filt[n])
+                beam_map = np.matmul(Tm2mbes, beam)
                 # beam_map = np.matmul(Tm2mbes, beams_mbes[n])
                 # print(beam_map[0:3])
             

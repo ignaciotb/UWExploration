@@ -108,6 +108,7 @@ class auv_ui_online(object):
         self.gt_pose_vec = np.zeros((3, 1))  # For plotting
         self.time = rospy.Time.now().to_sec()
         self.old_time = rospy.Time.now().to_sec()
+        self.first_odom = True
         
         # Noise models
         self.Q_3d = np.diag([0.0001, 0.0001, 0.0001]) # Meas noise (x,y,z)

@@ -48,6 +48,10 @@ class W2WMissionPlanner(object):
                           self.planner_as_name)
         rospy.loginfo("Action client connected: %s", self.planner_as_name)
 
+        rospy.loginfo("Waiting for synch service")
+        synch_top = rospy.get_param("~synch_topic", '/pf_synch')
+        rospy.wait_for_service(synch_top)
+        rospy.loginfo("Synch service started")
 
         while not rospy.is_shutdown():
             

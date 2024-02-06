@@ -2,13 +2,13 @@
 <launch>
 
 	<arg name="mode" default="sim"/>
-	<arg name="namespace" default="hugin"/>
+	<arg name="namespace" default="hugin_0"/>
     <arg name="debug" default="0"/>
 	<arg name="dataset" default="overnight_2020"/>
-    <arg name="app" default="pf"/>
+    <arg name="app" default="basic"/>
     <arg name="manual_control" default="true"/>
 
-    <arg name="max_throttle" default="4.0"/>
+    <arg name="max_throttle" default="2.0"/>
 
 	<group ns="navigation">
 		<group ns="$(arg namespace)">
@@ -20,6 +20,7 @@
 					<param name="map_frame"  value="map" />
 					<param name="wp_topic"  value="/navigation/lc_wp" />
 					<param name="relocalize_topic"  value="/$(arg namespace)/pause_planner"/>
+			        <param name="synch_topic" value="/$(arg app)/synch" />
 				</node>
 
 				<node type="w2w_planner.py" pkg="basic_navigation" name="path_planner" output="screen">

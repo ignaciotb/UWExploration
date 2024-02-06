@@ -10,7 +10,6 @@
     <arg name="manipulate_gp_server" default="/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
     <arg name="n_beams_mbes" default="100"/>     
-    <arg name="svgp_minibatch_size" default="1000"/>     
     <!-- Args from launcher -->
     <arg name="node_name"/>
     <arg name="results_path" default=""/>     
@@ -24,13 +23,15 @@
       <param name="sample_gp_server" value="$(arg sample_gp_server)"/>     
       <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>   
 			<param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
+      <!-- SVGP params -->
       <param name="svgp_num_ind_points" value="400"/>     
-      <param name="svgp_minibatch_size" value="$(arg svgp_minibatch_size)"/>     
+      <param name="svgp_minibatch_size" value="1000"/>     
       <param name="svgp_learning_rate" value="1e-1"/>     
       <param name="svgp_rtol" value="1e-3"/>     
       <param name="svgp_n_window" type="int" value="400"/>     
       <param name="svgp_auto_stop" value="False"/>     
       <param name="svgp_verbose" value="True"/>     
+      <!-- End SVGP params -->
       <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
       <param name="results_path" value="$(arg results_path)"/> 
       <param name="particle_enable_lc" value="/$(arg namespace)/enable_lc"/> 

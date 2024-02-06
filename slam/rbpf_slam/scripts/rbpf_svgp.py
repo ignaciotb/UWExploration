@@ -231,7 +231,8 @@ class SVGP_map():
         result = self.ac_mb.get_result()
 
         # If minibatch received from server
-        try:    
+        try:  
+              
             if result.success:
                 time_start = time.time()
                 # Store beams as array of 3D points

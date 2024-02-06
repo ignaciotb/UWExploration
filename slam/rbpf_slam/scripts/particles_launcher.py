@@ -4,7 +4,9 @@ from subprocess import call, Popen
 import numpy as np
 
 class particles_launcher():
+
     def __init__(self):
+
         self.namespace = rospy.get_param('~namespace', "hugin")
         self.num_particle_hdl = rospy.get_param('~num_particle_handlers', 2)
         self.storage_path = rospy.get_param("~results_path", "./ros/")

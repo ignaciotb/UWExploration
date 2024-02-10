@@ -6,7 +6,7 @@
     <arg name="mode" default="sim"/>
     <arg name="namespace" default="hugin_0"/>
     <arg name="debug" default="0"/>
-    <arg name="dataset" default="ripples"/>
+    <arg name="dataset" default="lost_targets"/>
     <arg name="app" default="ipp"/>
 
     <!-- MBES sensor -->

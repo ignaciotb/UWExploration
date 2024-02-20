@@ -29,7 +29,7 @@
 #include <sensor_msgs/PointCloud2.h>
 
 #include <actionlib/client/simple_action_client.h>
-#include <auv_2_ros/MbesSimAction.h>
+#include <auv_model/MbesSimAction.h>
 
 using namespace Eigen;
 using namespace std;
@@ -63,7 +63,7 @@ private:
     tf::StampedTransform tf_base_mbes_;
     tf2_ros::TransformBroadcaster br_;
 
-    actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
+    actionlib::SimpleActionClient<auv_model::MbesSimAction>* ac_;
 
     Eigen::Isometry3d map_tf_;
     Eigen::Isometry3d odom_tf_;

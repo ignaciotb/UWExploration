@@ -26,6 +26,14 @@ find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV 4 REQUIRED)
 # find_package(g2o REQUIRED)
 
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/LibXTF/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/LibGSF/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/EigenCereal/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/DataTools/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/SonarTracing/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/AuvlibGlad/")
+list(APPEND CMAKE_PREFIX_PATH "~/catkin_ws/src/auvlib/install/share/BathyMaps/")
+
 # AUVLIB stuff
 find_package(LibXTF REQUIRED)
 find_package(LibGSF REQUIRED)

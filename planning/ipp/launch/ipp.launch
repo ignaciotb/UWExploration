@@ -14,8 +14,8 @@
 	<arg name="mbes_open_angle" value="2.250" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x" default="0.0"/>
-    <arg name="y" default="0.0"/>
+    <arg name="x" default="-307"/>
+    <arg name="y" default="120"/>
     <arg name="z" default="0.0"/>
     <arg name="roll" default="0.0"/>
     <arg name="pitch" default="0.0"/>
@@ -37,7 +37,7 @@
     <arg name="manipulate_gp_server" default="/particle_0/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
 
-    <arg name="results_path" default="~/catkin_workspaces/auv_ws/src/UWExploration/utils/uw_tests/datasets/lost_targets/"/>     
+    <arg name="results_path" default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>     
 
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
         <param name="namespace" value="$(arg namespace)"/>  
@@ -60,7 +60,7 @@
         <param name="visualization_period" value="0.5" />       
         <param name="survey_finished_top" value="$(arg survey_finished_top)" />
         <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>    
-        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>     
+        <param name="inducing_points_top" value="/hugin_o/corners"/>     
         <param name="path_topic"  value="/$(arg namespace)/waypoints" />
         <param name="gp_resampling_top"  value="$(arg gp_resample_top)" />
         <param name="manipulate_gp_server"  value="$(arg manipulate_gp_server)" />
@@ -76,6 +76,8 @@
         <arg name="mode"            default="sim"/>
         <arg name="namespace"       default="hugin_0"/>
         <arg name="dataset"         default="lost_targets"/>
+        <arg name="x"               default="-300"/>
+        <arg name="y"               default="100"/>
     </include>
 
     <include file="$(find auv_model)/launch/auv_env_aux.launch" >

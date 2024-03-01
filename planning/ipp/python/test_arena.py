@@ -1,61 +1,78 @@
-import dubins
-import numpy as np
-import matplotlib.pyplot as plt
-import rospy
-from nav_msgs.msg import Path
-from geometry_msgs.msg import PoseStamped
-import std_msgs.msg
+import itertools
+import warnings
 
 import torch
+from botorch.fit import fit_gpytorch_mll
+from botorch.models.approximate_gp import (
+    _SingleTaskVariationalGP,
+    ApproximateGPyTorchModel,
+    SingleTaskVariationalGP,
+)
+from botorch.models.transforms.input import Normalize
+from botorch.models.transforms.outcome import Log
+from botorch.models.utils.inducing_point_allocators import (
+    GreedyImprovementReduction,
+    GreedyVarianceReduction,
+)
+from botorch.posteriors import GPyTorchPosterior, TransformedPosterior
+from botorch.utils.testing import BotorchTestCase
+from gpytorch.likelihoods import GaussianLikelihood, MultitaskGaussianLikelihood
+from gpytorch.mlls import VariationalELBO
+from gpytorch.variational import (
+    IndependentMultitaskVariationalStrategy,
+    VariationalStrategy,
+)
 
-"""
-### TESTING DUBINS PATH GENERATION
-
-p1 = [0, 0, 0]
-p2 = [10, 0, 0]
-
-path = dubins.shortest_path(p1, p2, 0.1)
-
-wp, l = path.sample_many(0.5)
-
-print(l[-1])
-#print(wp)
-
-arr2 = np.array(wp)
-x = arr2[:, 0]
-y = arr2[:, 1]
-#print(x)
-#print(y)
-
-plt.plot(x, y)
-plt.show()
-
-#print(dubins.dubins_path_length(path))
-
-### TESTING SAMPLING DIMENSIONS
+import math
+import torch
+import tqdm
+import gpytorch
+from matplotlib import pyplot as plt
 
 
-bounds = [0, 10, 5, -5]
+from gpytorch.models import ApproximateGP
+from gpytorch.variational import CholeskyVariationalDistribution
+from gpytorch.variational import VariationalStrategy
 
-n_samples = 3
+from botorch.acquisition import UpperConfidenceBound
+from botorch.optim import optimize_acqf
 
-samples = np.random.uniform(low=[bounds[0], bounds[3]], high=[bounds[1], bounds[2]], size=[n_samples, 2])
 
-print(samples)
-h = std_msgs.msg.Header()
-#h.stamp = rospy.Time.now()
-lm_path = Path()
-lm_path.header = h
+corners = [-250, -150, 0, -60]
 
-for sample in samples:
-    wp = PoseStamped()
-    wp.header = h
-    wp.pose.position.x = sample[0]
-    wp.pose.position.y = sample[1]
-    lm_path.append()
-    
-"""
+n_ip = 10
+minibatch = 5
+lr = 0.01
 
-bounds = [0, 10, 5, -5]
-b = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]])
-print(b)
+
+bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
+print(bounds)
+initial_x = torch.randn(4,2)
+print(initial_x)
+var_dist = CholeskyVariationalDistribution(5)
+model = SingleTaskVariationalGP(
+    train_X=initial_x,
+    num_outputs=1,
+    variational_distribution=var_dist,
+    inducing_points = n_ip,
+    learn_inducing_points=True,
+    mean_module=gpytorch.means.ConstantMean(),
+    covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
+model.variational_strategy = VariationalStrategy(model, torch.randn((5, 1)), var_dist, learn_inducing_locations=True)
+
+likelihood = GaussianLikelihood()
+        
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+mll = gpytorch.mlls.VariationalELBO(likelihood, model.model, minibatch, combine_terms=True)
+likelihood.to(device).float()
+model.to(device).float()
+
+opt = torch.optim.Adam([
+    {'params': model.parameters()},
+    {'params': likelihood.parameters()},
+], lr=float(lr))
+
+
+aq_func = UpperConfidenceBound(model, beta=0.1)
+
+candidate, acq_value = optimize_acqf(aq_func, bounds=bounds, q=1, num_restarts=5, raw_samples=20)

@@ -4,6 +4,7 @@ from abc import abstractmethod
 # Math libraries
 import dubins
 import numpy as np
+import torch
 
 # ROS imports
 import rospy
@@ -13,6 +14,7 @@ import std_msgs.msg
 
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
+from GaussianProcessClass import SVGP_map
 
 
 class PlannerBase():
@@ -36,12 +38,6 @@ class PlannerBase():
         # Logic checks
         assert len(self.bounds) == 4, "Wrong number of boundaries given"
         assert self.turning_radius > 0.1, "Turning radius is too small"
-        
-    @abstractmethod
-    def generate_path():
-        """ Abstract class which needs to be defined for usable planners
-        """
-        pass
         
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
@@ -133,8 +129,7 @@ class SimplePlanner(PlannerBase):
         
         x = l + beta
         y = u + alpha
-        print(x)
-        print(y)
+
         for i in range(n):
             if i % 2 == 0:
                 h_1 = std_msgs.msg.Header()
@@ -180,6 +175,25 @@ class BOPlanner(PlannerBase):
     Args:
         PlannerBase (obj): Basic template of planner class
     """
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius):
+        """ Constructor method
+
+        Args:
+            corner_topic    (string): publishing topic for corner waypoints
+            path_topic      (string): publishing topic for planner waypoints
+            bounds   (array[double]): [left bound, right bound, upper bound, lower bound]
+            turning_radius  (double): the radius on which the vehicle can turn on yaw axis
+        """
+        super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        self.gp = SVGP_map(0, "botorch", self.bounds)
+        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
+        self.path_pub    = rospy.Publisher('/hugin_0/waypoints', Path, queue_size=10)
+        corners = self.generate_ip_corners()
+        self.corner_pub.publish(corners)
+        initial_path = self.initial_sampling_path(1)
+        self.path_pub.publish(initial_path) 
+        rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
+        rospy.spin()
     
     def cost_function(self, current_pose, suggested_pose, wp_resolution = 0.5):
         """ Calculates cost in terms of dubins path between poses
@@ -198,7 +212,6 @@ class BOPlanner(PlannerBase):
         cost = length_arr[-1] + wp_resolution
         return cost
         
-    
     def initial_sampling_path(self, n_samples):
         """ Generates a set of waypoints for initial sampling of BO
 
@@ -221,9 +234,24 @@ class BOPlanner(PlannerBase):
             sampling_path.poses.append(wp)
         return sampling_path
             
-    
+    def get_path_cb(self, msg):
+        BO = BayesianOptimizer(self.gp.model, self.bounds)
+        candidate, value = BO.optimize()
+        print(candidate)
+        print(value)
+        h = std_msgs.msg.Header()
+        h.stamp = rospy.Time.now()
+        sampling_path = Path()
+        sampling_path.header = h
+        wp = PoseStamped()
+        wp.header = h
+        sampling_path.poses.append(wp)
+        self.path_pub.publish(sampling_path)
+        
+        
+        
     def generate_path(self, gp):
-        BO = BayesianOptimizer(gp, self.bounds)
+        BO = BayesianOptimizer(self.gp, self.bounds)
         candidate, value = BO.optimize()
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()

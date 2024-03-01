@@ -13,10 +13,8 @@ class BayesianOptimizer():
             gp  (gpytorch.models.VariationalGP): Gaussian process model
             bounds              (array[double]): Boundaries of suggested candidates
         """
-        
-        self.gp = gp
         self.bounds = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
-        self.aq_func = UpperConfidenceBound(self.gp, beta=0.1)
+        self.aq_func = UpperConfidenceBound(gp, beta=0.1)
         
     def optimize(self):
         """ Returns the most optimal candidate for sampling
@@ -24,17 +22,8 @@ class BayesianOptimizer():
         Returns:
             ([double, double], double): Candidate location and expected value of sampling that location
         """
-        candidate, acq_value = optimize_acqf(self.aq_func, bounds=self.bounds, q=1, num_restarts=5, raw_samples=20)
+        candidate, acq_value = optimize_acqf(self.aq_func, bounds=self.bounds, q=1, num_restarts=5, raw_samples=100)
         return candidate, acq_value
-
-    def update_gp(self, gp):
-        """ Update the posterior GP used for sampling (needed before optimization)
-
-        Args:
-            gp  (gpytorch.models.VariationalGP): Gaussian process model
-        """
-        self.gp = gp
-        self.aq_func = UpperConfidenceBound(self.gp, beta=0.1)
 
 
 ## Old shit below, used during development for testing

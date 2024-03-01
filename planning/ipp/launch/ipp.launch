@@ -14,8 +14,8 @@
 	<arg name="mbes_open_angle" value="2.250" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x" default="-280"/>
-    <arg name="y" default="70"/>
+    <arg name="x" default="0"/>
+    <arg name="y" default="0"/>
     <arg name="z" default="0.0"/>
     <arg name="roll" default="0.0"/>
     <arg name="pitch" default="0.0"/>
@@ -36,9 +36,34 @@
     <arg name="gp_mb_server" default="/$(arg namespace)/gp/minibatch_server"/>
     <arg name="manipulate_gp_server" default="/particle_0/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top" default="/$(arg namespace)/gp/resample_top"/>
+    <arg name="results_path" default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>   
+    <arg name="num_particles_per_handler" default="1"/>      
 
-    <arg name="results_path" default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>     
+    <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
+        <param name="gp_ip_topic" value="/$(arg namespace)/gp/inducing_points"/>
+        <param name="inducing_points_top" value="$(arg gp_ip_topic)"/>   
+        <param name="gp_mb_server" value="/$(arg namespace)/gp/minibatch_server"/>
+        <param name="manipulate_gp_server" value="/particle_0/$(arg namespace)/gp/manipulate_server"/>
+        <param name="gp_resample_top" value="/$(arg namespace)/gp/resample_top"/>
+        <param name="gp_resampling_top" value="/$(arg namespace)/gp/resample_top"/>
+        <param name="results_path" value="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>
+        <param name="sample_gp_server" value="/$(arg namespace)/gp/sample_server"/>
+        <param name="minibatch_gp_server" value="$(arg gp_mb_server)"/>     
+        <param name="svgp_num_ind_points" value="400"/>     
+        <param name="svgp_minibatch_size" value="1000"/>     
+        <param name="svgp_learning_rate" value="1e-1"/>     
+        <param name="svgp_rtol" value="1e-3"/>     
+        <param name="svgp_n_window" type="int" value="400"/>     
+        <param name="svgp_auto_stop" value="False"/>     
+        <param name="svgp_verbose" value="True"/>     
+        <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
+        <param name="results_path" value="$(arg results_path)"/> 
+        <param name="particle_enable_lc" value="/$(arg namespace)/enable_lc"/> 
 
+        <param name="n_beams_mbes"   type= "int"  value="$(arg n_beams_mbes)" />  
+    </node>
+
+    <!--
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
         <param name="namespace" value="$(arg namespace)"/>  
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
@@ -47,6 +72,10 @@
         <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
         <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
     </node>
+    -->
+
+
+
 
     <node type="auv_ui_online.py" pkg="uncert_management" name="auv_ui_online" output="screen">
         <param name="map_frame" value="$(arg map_frame)" />

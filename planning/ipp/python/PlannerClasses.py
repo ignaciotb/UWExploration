@@ -1,5 +1,6 @@
 # Python functionality
 from abc import abstractmethod
+import copy
 
 # Math libraries
 import dubins
@@ -187,10 +188,10 @@ class BOPlanner(PlannerBase):
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
         self.gp = SVGP_map(0, "botorch", self.bounds)
         self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
-        self.path_pub    = rospy.Publisher('/hugin_0/waypoints', Path, queue_size=10)
+        self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=10)
         corners = self.generate_ip_corners()
         self.corner_pub.publish(corners)
-        initial_path = self.initial_sampling_path(1)
+        initial_path = self.initial_sampling_path(5)
         self.path_pub.publish(initial_path) 
         rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
         rospy.spin()
@@ -235,7 +236,8 @@ class BOPlanner(PlannerBase):
         return sampling_path
             
     def get_path_cb(self, msg):
-        BO = BayesianOptimizer(self.gp.model, self.bounds)
+        gp = copy.deepcopy(self.gp.model)
+        BO = BayesianOptimizer(gp=gp, bounds=self.bounds)
         candidate, value = BO.optimize()
         print(candidate)
         print(value)
@@ -244,12 +246,15 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         wp = PoseStamped()
+        location = candidate.numpy()
+        wp.pose.position.x = location[0][0]
+        wp.pose.position.y = location[0][1]
         wp.header = h
         sampling_path.poses.append(wp)
         self.path_pub.publish(sampling_path)
         
         
-        
+    """  
     def generate_path(self, gp):
         BO = BayesianOptimizer(self.gp, self.bounds)
         candidate, value = BO.optimize()
@@ -261,5 +266,6 @@ class BOPlanner(PlannerBase):
         wp.header = h
         sampling_path.poses.append(wp)
         return sampling_path
+    """
     
         

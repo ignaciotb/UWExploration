@@ -40,6 +40,9 @@ class W2WMissionPlanner(object):
         # to stop the vehicle until the LC area has been selected
         rospy.Subscriber(self.relocalize_topic, Bool, self.start_relocalize, queue_size=1)
         self.relocalizing = False
+        
+        self.started = False
+        self.finished_pub = rospy.Publisher("wp_status", Bool)
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -67,9 +70,14 @@ class W2WMissionPlanner(object):
                 self.ac.send_goal(goal)
                 self.ac.wait_for_result()
                 rospy.loginfo("WP reached, moving on to next one")
+                self.started = True
 
             elif not self.latest_path.poses:
                 rospy.loginfo_once("Mission finished")
+                if self.started == True:
+                    self.finished_pub.publish(True)
+                    self.started = False
+                
             
 
     def start_relocalize(self, bool_msg):

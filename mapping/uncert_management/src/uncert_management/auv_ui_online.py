@@ -307,7 +307,7 @@ class auv_ui_online(object):
                 return
 
             dt_real = self.time - self.old_time 
-            print(dt_real)
+            #print(dt_real)
             # dt_real = 0.2
             
             vt = np.array([odom_msg.twist.twist.linear.x,
@@ -377,7 +377,7 @@ class auv_ui_online(object):
             N = 50
             idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
             beams_mbes_filt = beams_mbes[idx]
-            print("UI ping ", self.pings_num, " with: ", len(beams_mbes_filt), " beams")
+            #print("UI ping ", self.pings_num, " with: ", len(beams_mbes_filt), " beams")
             
             for n, beam in enumerate(beams_mbes_filt):
             # for n in range(len(beams_mbes)):

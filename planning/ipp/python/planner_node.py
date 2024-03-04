@@ -22,6 +22,7 @@ if __name__ == "__main__":
         path_pub    = rospy.Publisher('/hugin_0/waypoints', Path, queue_size=10)
         #auv_ui_online()
         # Run lawnmower pattern
+        #choice="lawnmower"
         if choice == "lawnmower":
             rospy.loginfo("Initializing planner node! Using Lawnmower pattern.")  
             planner = SimplePlanner('/hugin_0/corners', '/hugin_0/waypoints', [-250, -150, 0, -60], 8)

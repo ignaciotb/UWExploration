@@ -38,3 +38,4 @@ install/*
 
 # Datasets
 datasets/
+real_auv/auv_2_ros/CMakeLists.txt

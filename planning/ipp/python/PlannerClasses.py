@@ -194,7 +194,13 @@ class BOPlanner(PlannerBase):
         initial_path = self.initial_sampling_path(5)
         self.path_pub.publish(initial_path) 
         rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
-        rospy.spin()
+        
+        r = rospy.Rate(30)
+        while not rospy.is_shutdown():
+            self.gp.train_iteration()  
+            r.sleep()
+        
+        # rospy.spin()
     
     def cost_function(self, current_pose, suggested_pose, wp_resolution = 0.5):
         """ Calculates cost in terms of dubins path between poses

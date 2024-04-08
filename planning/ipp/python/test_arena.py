@@ -37,6 +37,8 @@ from gpytorch.variational import VariationalStrategy
 from botorch.acquisition import UpperConfidenceBound
 from botorch.optim import optimize_acqf
 
+import numpy as np
+
 
 corners = [-250, -150, 0, -60]
 
@@ -45,6 +47,19 @@ minibatch = 5
 lr = 0.01
 
 
+
+
+costs = torch.Tensor()
+
+a = torch.cat((costs,torch.Tensor([0.1])),0)
+
+print(costs)
+
+print(a)
+
+
+
+"""
 bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
 print(bounds)
 initial_x = torch.randn(4,2)
@@ -76,3 +91,4 @@ opt = torch.optim.Adam([
 aq_func = UpperConfidenceBound(model, beta=0.1)
 
 candidate, acq_value = optimize_acqf(aq_func, bounds=bounds, q=1, num_restarts=5, raw_samples=20)
+"""

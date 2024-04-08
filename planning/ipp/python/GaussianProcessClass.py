@@ -158,20 +158,22 @@ class SVGP_map():
         #n_beams_mbes = rospy.get_param("~n_beams_mbes", 1000)
 
         # Number of inducing points
-        num_inducing = 40 #rospy.get_param("~svgp_num_ind_points", 100)
+        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
 
         # hardware allocation
         if version == "botorch":
             self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
-            initial_x = torch.randn(40,2)
+            samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
+            inducing_tensor = torch.tensor(samples).to(torch.float)
+            initial_x = torch.randn(self.s,2)
             var_dist = CholeskyVariationalDistribution(self.s)
             self.model = SingleTaskVariationalGP(
                 train_X=initial_x,
                 num_outputs=1,
                 variational_distribution=var_dist,
-                inducing_points = self.s,
+                inducing_points = inducing_tensor, #self.s,
                 learn_inducing_points=True,
                 mean_module=gpytorch.means.ConstantMean(),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))

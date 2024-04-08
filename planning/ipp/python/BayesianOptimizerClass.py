@@ -2,11 +2,12 @@
 import torch
 from botorch.acquisition import UpperConfidenceBound
 from botorch.optim import optimize_acqf
+from AcquisitionFunctionClass import UCB_custom
 
 class BayesianOptimizer():
     """ Defines methods for BO optimization
     """
-    def __init__(self, gp, bounds):
+    def __init__(self, gp, bounds, beta, current_pose):
         """ Constructor method
 
         Args:
@@ -14,7 +15,7 @@ class BayesianOptimizer():
             bounds              (array[double]): Boundaries of suggested candidates
         """
         self.bounds = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
-        self.aq_func = UpperConfidenceBound(gp, beta=0.1)
+        self.aq_func = UCB_custom(gp, beta, current_pose)
         
     def optimize(self):
         """ Returns the most optimal candidate for sampling

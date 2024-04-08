@@ -1,6 +1,7 @@
 # Python functionality
 from abc import abstractmethod
 import copy
+import pickle
 
 # Math libraries
 import dubins
@@ -9,14 +10,17 @@ import torch
 
 # ROS imports
 import rospy
-from nav_msgs.msg import Path
+from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import PoseStamped
 import std_msgs.msg
+import tf.transformations
+
+# BoTorch
+from botorch.models.approximate_gp import SingleTaskVariationalGP
 
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
 from GaussianProcessClass import SVGP_map
-
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
@@ -186,15 +190,26 @@ class BOPlanner(PlannerBase):
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        self.state = [0, 0, 0]
         self.gp = SVGP_map(0, "botorch", self.bounds)
         self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=10)
         corners = self.generate_ip_corners()
         self.corner_pub.publish(corners)
-        initial_path = self.initial_sampling_path(5)
+        initial_path = self.initial_sampling_path(n_samples=1)
         self.path_pub.publish(initial_path) 
         rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
-        rospy.spin()
+        rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
+        
+        
+        # TODO: why set the training rate at 30 hz?
+        
+        r = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            self.gp.train_iteration()  
+            r.sleep()
+        
+        #rospy.spin()
     
     def cost_function(self, current_pose, suggested_pose, wp_resolution = 0.5):
         """ Calculates cost in terms of dubins path between poses
@@ -236,8 +251,34 @@ class BOPlanner(PlannerBase):
         return sampling_path
             
     def get_path_cb(self, msg):
-        gp = copy.deepcopy(self.gp.model)
-        BO = BayesianOptimizer(gp=gp, bounds=self.bounds)
+        #PATH = "model.pt"
+        #print(self.gp.model.model)
+        #torch.save(self.gp.model.state_dict(), PATH)
+        #device = torch.device('cpu')    
+        #initial_x = self.gp.model._original_train_inputs()
+        #model = SingleTaskVariationalGP(initial_x)
+        #model.load_state_dict(torch.load(PATH, map_location=device))
+        
+        # TODO: fix "dictionary changed size during iteration", caused by 
+        # pickling object changing size while it is being dumped.
+        # Fundamentally the issue with deepcopy as well, cannot
+        # deepcopy an object with grad enabled.
+        # Current solution is a hack to keep attempting pickle.
+        
+        pickled = False
+        while pickled == False:
+            try:
+                with open("" + "model_name.dump" , "wb") as f:
+                    pickle.dump(self.gp.model, f)
+                
+                model = pickle.load(open("" + "model_name.dump","rb"))
+                pickled = True
+            except:
+                pass
+
+        
+        current_pose = []
+        BO = BayesianOptimizer(gp=model, bounds=self.bounds, beta=2.0, current_pose=self.state)
         candidate, value = BO.optimize()
         print(candidate)
         print(value)
@@ -252,20 +293,12 @@ class BOPlanner(PlannerBase):
         wp.header = h
         sampling_path.poses.append(wp)
         self.path_pub.publish(sampling_path)
-        
-        
-    """  
-    def generate_path(self, gp):
-        BO = BayesianOptimizer(self.gp, self.bounds)
-        candidate, value = BO.optimize()
-        h = std_msgs.msg.Header()
-        h.stamp = rospy.Time.now()
-        sampling_path = Path()
-        sampling_path.header = h
-        wp = PoseStamped()
-        wp.header = h
-        sampling_path.poses.append(wp)
-        return sampling_path
-    """
-    
+
+
+    def odom_state_cb(self, msg):
+        explicit_quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
+        _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        self.state = [x, y, yaw]
         

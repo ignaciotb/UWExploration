@@ -25,10 +25,9 @@ from gpytorch.variational import (
 
 import math
 import torch
-import tqdm
 import gpytorch
 from matplotlib import pyplot as plt
-
+import dubins
 
 from gpytorch.models import ApproximateGP
 from gpytorch.variational import CholeskyVariationalDistribution
@@ -38,8 +37,81 @@ from botorch.acquisition import UpperConfidenceBound
 from botorch.optim import optimize_acqf
 
 import numpy as np
+import time
+import random
+import open3d as o3d
 
 
+current_pose = [0, 0, 0]
+suggested_pose = [20, 15, 0]
+d1= [suggested_pose[0] - current_pose[0], suggested_pose[1] - current_pose[1]]
+n1 = np.sqrt(d1[0] ** 2 + d1[1] ** 2)
+turning_radius = 3
+wp_resolution = n1 / 50
+print(n1)
+print(wp_resolution)
+
+path = dubins.shortest_path(current_pose, suggested_pose, turning_radius)
+wp, length_arr = path.sample_many(wp_resolution) 
+cost = length_arr[-1] + wp_resolution
+
+t1 = time.time()
+
+def get_orthogonal_samples(poses):
+    all_samples = []
+    for pose in poses:
+        x = pose[0]
+        y = pose[1]
+        yaw = pose[2]
+
+        dx = np.sin(yaw) # shifted by 90 degree for orthogonality
+        dy = np.cos(yaw) 
+
+        for i in np.linspace(0.2, 1, 3):
+            dx_s = dx * i
+            dy_s = dy * i
+            n1 = [x + dx_s, y - dy_s]
+            n2 = [x - dx_s, y + dy_s]
+            all_samples.append(np.array([n1, n2]))
+
+        #n1 = [x + dx, y - dy]
+        #n2 = [x - dx, y + dy]
+        #orthogonal_samples = np.random.uniform(low=[min(x + dx, x - dx), min(y - dy, y + dy)], high=[max(x + dx, x - dx), max(y - dy, y + dy)], size=[10, 2])
+        #all_samples.append(np.array([n1, n2]))
+    return all_samples
+
+
+wp_samples = wp[::5]
+
+point_list = get_orthogonal_samples(wp_samples)
+
+print(time.time()-t1)
+
+plt.figure(figsize = (10,8))
+for points in point_list:
+    plt.scatter(points[:, 0], points[:, 1])
+
+
+#print(wp)
+#print(cost)
+
+x_val = [x[0] for x in wp]
+y_val = [x[1] for x in wp]
+yaw_val = [x[2] for x in wp]
+
+#print(x_val, y_val)
+
+plt.plot(x_val, y_val)
+plt.axis('scaled')
+plt.show()
+
+
+
+
+
+
+
+"""
 corners = [-250, -150, 0, -60]
 
 n_ip = 10
@@ -56,7 +128,7 @@ a = torch.cat((costs,torch.Tensor([0.1])),0)
 print(costs)
 
 print(a)
-
+"""
 
 
 """

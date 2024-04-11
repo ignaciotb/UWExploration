@@ -2,6 +2,8 @@
 from abc import abstractmethod
 import copy
 import pickle
+import time
+import os
 
 # Math libraries
 import dubins
@@ -268,13 +270,16 @@ class BOPlanner(PlannerBase):
         pickled = False
         while pickled == False:
             try:
-                with open("" + "model_name.dump" , "wb") as f:
+                fp = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+                it = str(self.gp.iterations)
+                with open(fp + "_iteration_" + it + "_GP.pickle" , "wb") as f:
                     pickle.dump(self.gp.model, f)
                 
-                model = pickle.load(open("" + "model_name.dump","rb"))
+                model = pickle.load(open(fp + "_iteration_" + it + "_GP.pickle","rb"))
+                print("Pickled!")
                 pickled = True
             except:
-                pass
+                print("Collide with training iteration. Re-attempting model storage.")
 
         
         current_pose = []

@@ -40,6 +40,7 @@ import numpy as np
 import time
 import random
 import open3d as o3d
+import pickle
 
 
 current_pose = [0, 0, 0]
@@ -91,6 +92,8 @@ plt.figure(figsize = (10,8))
 for points in point_list:
     plt.scatter(points[:, 0], points[:, 1])
 
+                    
+model = pickle.load(open(r"/home/alex/.ros/Thu, 11 Apr 2024 18:58:57_iteration_930_GP.pickle","rb"))
 
 #print(wp)
 #print(cost)

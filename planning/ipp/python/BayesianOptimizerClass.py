@@ -3,6 +3,7 @@ import torch
 from botorch.acquisition import UpperConfidenceBound
 from botorch.optim import optimize_acqf
 from AcquisitionFunctionClass import UCB_custom
+import numpy as np
 
 class BayesianOptimizer():
     """ Defines methods for BO optimization
@@ -14,7 +15,7 @@ class BayesianOptimizer():
             gp  (gpytorch.models.VariationalGP): Gaussian process model
             bounds              (array[double]): Boundaries of suggested candidates
         """
-        self.bounds = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
+        self.bounds = torch.tensor([[bounds[0], bounds[3], -np.pi/2], [bounds[1], bounds[2], np.pi/2]]).to(torch.float)
         self.aq_func = UCB_custom(gp, beta, current_pose)
         
     def optimize(self):
@@ -23,7 +24,7 @@ class BayesianOptimizer():
         Returns:
             ([double, double], double): Candidate location and expected value of sampling that location
         """
-        candidate, acq_value = optimize_acqf(self.aq_func, bounds=self.bounds, q=1, num_restarts=5, raw_samples=100)
+        candidate, acq_value = optimize_acqf(self.aq_func, bounds=self.bounds, q=1, num_restarts=5, raw_samples=10)
         return candidate, acq_value
 
 

@@ -28,11 +28,11 @@ class UCB_custom(UpperConfidenceBound):
 
         # Get the reward along path associated with travelling to candidates
         rewards = self._dubins_swath(xy, theta)
-        print(X)
-        print(rewards)
-        mean, sigma = self._mean_and_sigma(xy)
-        ucb = (mean if self.maximize else -mean) + self.beta.sqrt() * sigma
-        print(ucb)
+        #print(X)
+        #print(rewards)
+        #mean, sigma = self._mean_and_sigma(xy)
+        #ucb = (mean if self.maximize else -mean) + self.beta.sqrt() * sigma
+        #print(ucb)
         return rewards
     
     def _dubins_swath(self, xy, theta) -> Tuple[Tensor, Optional[Tensor]]:
@@ -52,7 +52,7 @@ class UCB_custom(UpperConfidenceBound):
         angles = (theta.squeeze(-2).squeeze(-1))
         #print(destinations)
         wp_resolution = 2
-        turning_radius = 5
+        turning_radius = 8
         rewards = Tensor()
         for idx, place in enumerate(destinations):
             
@@ -66,8 +66,8 @@ class UCB_custom(UpperConfidenceBound):
             
             # Calculate UCB/cost reward of travelling to candidate
             mean, sigma = self._mean_and_sigma(points)
-            mean = mean.mean()
-            sigma = sigma.mean()
+            mean = mean.sum()
+            sigma = sigma.sum()
             ucb = (mean if self.maximize else -mean) + self.beta.sqrt() * sigma
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)

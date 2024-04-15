@@ -42,7 +42,109 @@ import random
 import open3d as o3d
 import pickle
 
+model = pickle.load(open(r"/home/alex/.ros/Mon, 15 Apr 2024 08:26:50_iteration_1069_GP.pickle","rb"))
 
+
+model.model.eval()
+model.likelihood.eval()
+n = 100
+test_x = torch.zeros(int(pow(n, 2)), 2)
+x_min = -250
+x_max = -150
+y_min = 0
+y_max = -60
+for i, x in enumerate(np.linspace(x_min, x_max, n)):
+    for j, y in enumerate(np.linspace(y_min, y_max, n)):
+        test_x[n*i + j][0] = x 
+        test_x[n*i + j][1] = y
+
+with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    observed_pred = model.likelihood(model.model(test_x))
+
+pred_labels = observed_pred.mean.view(n,n)
+
+print(pred_labels)
+
+# Calc abosolute error
+#test_y_actual = torch.sin(((test_x[:, 0] + test_x[:, 1]) * (2 * np.pi))).view(n, n)
+#delta_y = torch.abs(pred_labels - test_y_actual).detach().numpy()
+
+# Define a plotting function
+def ax_plot(f, ax, y_labels, title):
+    im = ax.imshow(y_labels)
+    ax.set_title(title)
+    f.colorbar(im)
+
+# Plot our predictive means
+plt.imshow(pred_labels, extent=[x_min, x_max, y_min, y_max])
+points = model.variational_strategy.inducing_points.detach().numpy()
+plt.scatter(points[:,0], points[:,1])
+plt.colorbar()
+plt.show()
+
+
+#f, observed_ax = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax, pred_labels, 'Predicted Mean Values')
+
+# Plot the true values
+#f, observed_ax2 = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax2, test_y_actual, 'Actual Values')
+
+# Plot the absolute errors
+#f, observed_ax3 = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax3, delta_y, 'Absolute Error Surface')
+
+
+"""
+model = pickle.load(open(r"/home/alex/.ros/Thu, 11 Apr 2024 18:58:57_iteration_930_GP.pickle","rb"))
+
+x = model.variational_strategy.get_fantasy_model()
+
+print(x)
+
+"""
+
+"""
+inputsg = [
+        np.linspace(min(inputs[:, 0]), max(inputs[:, 0]), n),
+        np.linspace(min(inputs[:, 1]), max(inputs[:, 1]), n)
+    ]
+inputst = np.meshgrid(*inputsg)
+s = inputst[0].shape
+inputst = [_.flatten() for _ in inputst]
+inputst = np.vstack(inputst).transpose()
+
+mean_list = []
+var_list = []
+divs = 10
+with torch.no_grad():
+    for i in range(0, divs):
+        # sample
+        inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
+        outputs = model(inputst_temp)
+        outputs = likelihood(outputs)
+        mean_list.append(outputs.mean.cpu().numpy())
+        var_list.append(outputs.variance.cpu().numpy())
+
+mean = np.vstack(mean_list).reshape(s)
+variance = np.vstack(var_list).reshape(s)
+
+
+
+# plot raw, mean, and variance
+levels = np.linspace(min(targets), max(targets), n_contours)
+fig, ax = plt.subplots(3, sharex=True, sharey=True)
+cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
+                    cmap='jet', s=0.4, edgecolors='none')
+cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=levels)  # Normalized across plots
+# cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
+cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
+indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
+ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
+
+"""
+
+"""
 current_pose = [0, 0, 0]
 suggested_pose = [20, 15, 0]
 d1= [suggested_pose[0] - current_pose[0], suggested_pose[1] - current_pose[1]]
@@ -92,9 +194,6 @@ plt.figure(figsize = (10,8))
 for points in point_list:
     plt.scatter(points[:, 0], points[:, 1])
 
-                    
-model = pickle.load(open(r"/home/alex/.ros/Thu, 11 Apr 2024 18:58:57_iteration_930_GP.pickle","rb"))
-
 #print(wp)
 #print(cost)
 
@@ -108,7 +207,7 @@ plt.plot(x_val, y_val)
 plt.axis('scaled')
 plt.show()
 
-
+"""
 
 
 

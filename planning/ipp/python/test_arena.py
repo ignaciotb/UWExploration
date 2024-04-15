@@ -42,7 +42,7 @@ import random
 import open3d as o3d
 import pickle
 
-model = pickle.load(open(r"/home/alex/.ros/Mon, 15 Apr 2024 08:26:50_iteration_1069_GP.pickle","rb"))
+model = pickle.load(open(r"/home/alex/.ros/Mon, 15 Apr 2024 13:00:51_iteration_7294_GP.pickle","rb"))
 
 
 model.model.eval()
@@ -50,9 +50,9 @@ model.likelihood.eval()
 n = 100
 test_x = torch.zeros(int(pow(n, 2)), 2)
 x_min = -250
-x_max = -150
-y_min = 0
-y_max = -60
+x_max = 0
+y_min = -100
+y_max = 100
 for i, x in enumerate(np.linspace(x_min, x_max, n)):
     for j, y in enumerate(np.linspace(y_min, y_max, n)):
         test_x[n*i + j][0] = x 

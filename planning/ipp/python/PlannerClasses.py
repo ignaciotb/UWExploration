@@ -16,6 +16,9 @@ from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import PoseStamped
 import std_msgs.msg
 import tf.transformations
+import tf
+import tf_conversions
+import geometry_msgs
 
 # BoTorch
 from botorch.models.approximate_gp import SingleTaskVariationalGP
@@ -191,44 +194,35 @@ class BOPlanner(PlannerBase):
             bounds   (array[double]): [left bound, right bound, upper bound, lower bound]
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
+        # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        
+        # Setup class attributes
         self.state = [0, 0, 0]
         self.gp = SVGP_map(0, "botorch", self.bounds)
+        
+        # Corner publisher - needed as boundary for generating inducing points
         self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
-        self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=10)
         corners = self.generate_ip_corners()
         self.corner_pub.publish(corners)
+        
+        # Path publisher - publishes waypoints for AUV to follow
+        self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=10)
+        
+        # Publish an initial path
         initial_path = self.initial_sampling_path(n_samples=1)
         self.path_pub.publish(initial_path) 
+        
+        # Subscribers with callback methods
         rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
         rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
         
-        
-        # TODO: why set the training rate at 30 hz?
-        
+        # Initiate training of GP
+        # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
             self.gp.train_iteration()  
             r.sleep()
-        
-        #rospy.spin()
-    
-    def cost_function(self, current_pose, suggested_pose, wp_resolution = 0.5):
-        """ Calculates cost in terms of dubins path between poses
-
-        Args:
-            current_pose             (_type_): _description_
-            suggested_pose           (_type_): _description_
-            wp_resolution   (float, optional): _description_. Defaults to 0.5.
-
-        Returns:
-            double: cost of path
-        """
-
-        path = dubins.shortest_path(current_pose, suggested_pose, self.turning_radius)
-        _, length_arr = path.sample_many(wp_resolution) # _ = waypoints, if needed for future reference
-        cost = length_arr[-1] + wp_resolution
-        return cost
         
     def initial_sampling_path(self, n_samples):
         """ Generates a set of waypoints for initial sampling of BO
@@ -241,6 +235,7 @@ class BOPlanner(PlannerBase):
         """
         samples = np.random.uniform(low=[self.bounds[0], self.bounds[3]], high=[self.bounds[1], self.bounds[2]], size=[n_samples, 2])
         h = std_msgs.msg.Header()
+        h.frame_id = "map"
         h.stamp = rospy.Time.now()
         sampling_path = Path()
         sampling_path.header = h
@@ -253,20 +248,13 @@ class BOPlanner(PlannerBase):
         return sampling_path
             
     def get_path_cb(self, msg):
-        #PATH = "model.pt"
-        #print(self.gp.model.model)
-        #torch.save(self.gp.model.state_dict(), PATH)
-        #device = torch.device('cpu')    
-        #initial_x = self.gp.model._original_train_inputs()
-        #model = SingleTaskVariationalGP(initial_x)
-        #model.load_state_dict(torch.load(PATH, map_location=device))
+        """ When called, calls optimization to find the best new path to take.
+
+        Args:
+            msg (_type_): _description_
+        """
         
-        # TODO: fix "dictionary changed size during iteration", caused by 
-        # pickling object changing size while it is being dumped.
-        # Fundamentally the issue with deepcopy as well, cannot
-        # deepcopy an object with grad enabled.
-        # Current solution is a hack to keep attempting pickle.
-        
+        # Freeze a copy of current model for planning, to let real model keep training
         pickled = False
         while pickled == False:
             try:
@@ -281,26 +269,48 @@ class BOPlanner(PlannerBase):
             except:
                 print("Collide with training iteration. Re-attempting model storage.")
 
-        
-        current_pose = []
-        BO = BayesianOptimizer(gp=model, bounds=self.bounds, beta=2.0, current_pose=self.state)
-        candidate, value = BO.optimize()
+        # Get a new candidate trajectory with Bayesian optimization
+        horizon_distance = 40
+        low_x = min(self.state[0] - horizon_distance, self.state[0] + horizon_distance)
+        high_x = max(self.state[0] - horizon_distance, self.state[0] + horizon_distance)
+        low_y = min(self.state[1] - horizon_distance, self.state[1] + horizon_distance)
+        high_y = max(self.state[1] - horizon_distance, self.state[1] + horizon_distance)
+        dynamic_bounds = [low_x, high_x, high_y, low_y] #self.bounds
+        BO = BayesianOptimizer(gp=model, bounds=dynamic_bounds, beta=200.0, current_pose=self.state)
+        candidate, value = BO.optimize_no_grad()
         print(candidate)
         print(value)
+        
+        # Publish this trajectory as a set of waypoints
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()
+        h.frame_id = "map"
         sampling_path = Path()
         sampling_path.header = h
-        wp = PoseStamped()
         location = candidate.numpy()
-        wp.pose.position.x = location[0][0]
-        wp.pose.position.y = location[0][1]
+        path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], 8)
+        wp_poses, _ = path.sample_many(5)
+        for pose in wp_poses[5:]:       #removing first 5 as hack to ensure AUV doesnt get stuck
+            wp = PoseStamped()
+            wp.header = h
+            wp.pose.position.x = pose[0] 
+            wp.pose.position.y = pose[1]  
+            wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
+            sampling_path.poses.append(wp)
+        location = candidate.numpy()
+        wp.pose.position.x = location[0]
+        wp.pose.position.y = location[1]
         wp.header = h
         sampling_path.poses.append(wp)
         self.path_pub.publish(sampling_path)
 
 
     def odom_state_cb(self, msg):
+        """ Gets our current 2D state (x,y,theta) from the odometry topic
+
+        Args:
+            msg (_type_): A pose message
+        """
         explicit_quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
         x = msg.pose.pose.position.x

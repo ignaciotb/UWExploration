@@ -105,8 +105,8 @@
         <arg name="mode"            default="sim"/>
         <arg name="namespace"       default="hugin_0"/>
         <arg name="dataset"         default="lost_targets"/>
-        <arg name="x"               default="-270"/>
-        <arg name="y"               default="130"/>
+        <arg name="x"               default="0"/>
+        <arg name="y"               default="0"/>
     </include>
 
     <include file="$(find auv_model)/launch/auv_env_aux.launch" >

@@ -1,6 +1,11 @@
 # Optimization and BO libraries
 import torch
+import botorch
+from botorch.fit import fit_gpytorch_mll
+from gpytorch.mlls import ExactMarginalLogLikelihood
+from botorch.models import SingleTaskGP
 from botorch.acquisition import UpperConfidenceBound
+from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 from AcquisitionFunctionClass import UCB_custom
 import numpy as np
@@ -10,17 +15,69 @@ import time
 class BayesianOptimizer():
     """ Defines methods for BO optimization
     """
-    def __init__(self, gp, bounds, beta, current_pose):
+    def __init__(self, gp_terrain, bounds, beta, current_pose):
         """ Constructor method
 
         Args:
             gp  (gpytorch.models.VariationalGP): Gaussian process model
             bounds              (array[double]): Boundaries of suggested candidates
         """
-        # TODO: bounds[:][2] should be half a pi up and down from current yaw 
         self.bounds_torch = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
         self.bounds_list  = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
-        self.aq_func      = UCB_custom(gp, beta, current_pose)
+        self.path_reward  = UCB_custom(gp_terrain, beta, current_pose)
+        
+        
+        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=100)
+        self.gp_path      = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
+        self.mll = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
+        fit_gpytorch_mll(self.mll)
+        self.gp_path_acqf = UpperConfidenceBound(self.gp_path, 10)
+    
+    def _sample_paths(self, nbr_samples, X=None):
+        """_summary_
+
+        Args:
+            nbr_samples (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+        with torch.no_grad():
+            if X is None:
+                train_X = (torch.from_numpy(np.random.uniform(low=self.bounds_list[0], 
+                                    high=self.bounds_list[1], size=[nbr_samples, 3]))).type(torch.FloatTensor)
+            else:
+                train_X = X
+            train_Y = (self.path_reward.forward(train_X.unsqueeze(-2))).unsqueeze(1)
+        return train_X, train_Y        
+        
+    
+    def optimize_with_grad(self, max_iter=10):
+        """ Returns the most optimal candidate to move towards
+
+        Returns:
+            ([double, double, double]): Candidate pose in 2D [x, y, yaw]
+        """
+        iteration = 0
+        best_value = 0
+        while iteration < max_iter:
+            #t1 = time.time()
+            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=5, raw_samples=40)
+            train_X, train_Y  = self._sample_paths(nbr_samples=1, X=candidate)
+            #t2 = time.time()
+            self.train_X = torch.cat((self.train_X,train_X),0)
+            self.train_Y = torch.cat((self.train_Y,train_Y),0)
+            self.gp_path = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
+            fit_gpytorch_mll(ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path))
+            #t3 = time.time()
+            if value > best_value:
+                best_value = value
+                best_candidate = candidate
+            iteration += 1
+            #print(t2-t1)
+            #print(t3-t2)
+            
+        return best_candidate
     
     def optimize_no_grad(self):
         """ Zeroth-order optimization, using CMA-ES. 
@@ -51,15 +108,6 @@ class BayesianOptimizer():
         best_y = es.best.f
 
         return best_x, best_y
-    
-    def optimize__with_grad(self):
-        """ Returns the most optimal candidate for sampling
-
-        Returns:
-            ([double, double], double): Candidate location and expected value of sampling that location
-        """
-        candidate, acq_value = optimize_acqf(self.aq_func, bounds=self.bounds, q=1, num_restarts=5, raw_samples=10)
-        return candidate, acq_value
 
 
 ## Old shit below, used during development for testing

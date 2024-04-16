@@ -242,8 +242,8 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             wp = PoseStamped()
             wp.header = h
-            wp.pose.position.x = sample[0]
-            wp.pose.position.y = sample[1]
+            wp.pose.position.x = -20 #sample[0]
+            wp.pose.position.y = 10 # sample[1]
             sampling_path.poses.append(wp)
         return sampling_path
             

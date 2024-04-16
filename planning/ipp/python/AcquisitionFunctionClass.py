@@ -49,13 +49,12 @@ class UCB_custom(UpperConfidenceBound):
             Removes the last two dimensions if they have size one.
         """
         destinations = (xy.squeeze(-2).squeeze(-1))
-        angles = (theta.squeeze(-2).squeeze(-1))
+        angles = (theta.squeeze(-1))
         #print(destinations)
         wp_resolution = 2
         turning_radius = 8
         rewards = Tensor()
         for idx, place in enumerate(destinations):
-            
             # Calculate dubins path to candidate, and travel cost
             path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], turning_radius)
             wp_poses, length_arr = path.sample_many(wp_resolution)
@@ -80,8 +79,8 @@ class UCB_custom(UpperConfidenceBound):
             y = pose[1]
             yaw = pose[2]
 
-            dx = np.sin(yaw) # shifted by 90 degree for orthogonality
-            dy = np.cos(yaw) 
+            dx = 4*np.sin(yaw) # shifted by 90 degree for orthogonality
+            dy = 4*np.cos(yaw) 
 
             for i in np.linspace(0.2, 1, 3):
                 dx_s = dx * i

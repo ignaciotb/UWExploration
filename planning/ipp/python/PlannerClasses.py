@@ -242,8 +242,8 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             wp = PoseStamped()
             wp.header = h
-            wp.pose.position.x = -20 #sample[0]
-            wp.pose.position.y = 10 # sample[1]
+            wp.pose.position.x = sample[0] #-20 
+            wp.pose.position.y = sample[1] #10 
             sampling_path.poses.append(wp)
         return sampling_path
             
@@ -276,10 +276,15 @@ class BOPlanner(PlannerBase):
         low_y = min(self.state[1] - horizon_distance, self.state[1] + horizon_distance)
         high_y = max(self.state[1] - horizon_distance, self.state[1] + horizon_distance)
         dynamic_bounds = [low_x, high_x, high_y, low_y] #self.bounds
-        BO = BayesianOptimizer(gp=model, bounds=dynamic_bounds, beta=200.0, current_pose=self.state)
-        candidate, value = BO.optimize_no_grad()
+        
+        
+        # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
+        BO = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=200.0, current_pose=self.state)
+        candidate = BO.optimize_with_grad()
+        
+        # Signature out: Candidate (xy theta)
         print(candidate)
-        print(value)
+        #print(value)
         
         # Publish this trajectory as a set of waypoints
         h = std_msgs.msg.Header()
@@ -288,20 +293,20 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()
+        print(location)
+        print(location.shape)
+        location = np.squeeze(location, 0)
+        print(location)
+        print(location.shape)
         path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], 8)
         wp_poses, _ = path.sample_many(5)
-        for pose in wp_poses[5:]:       #removing first 5 as hack to ensure AUV doesnt get stuck
+        for pose in wp_poses[3:]:       #removing first few as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
             wp.header = h
             wp.pose.position.x = pose[0] 
             wp.pose.position.y = pose[1]  
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
-        location = candidate.numpy()
-        wp.pose.position.x = location[0]
-        wp.pose.position.y = location[1]
-        wp.header = h
-        sampling_path.poses.append(wp)
         self.path_pub.publish(sampling_path)
 
 

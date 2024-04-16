@@ -42,6 +42,38 @@ import random
 import open3d as o3d
 import pickle
 
+from botorch.models import SingleTaskGP
+from botorch.fit import fit_gpytorch_mll
+from gpytorch.mlls import ExactMarginalLogLikelihood
+from botorch.models.transforms.outcome import Standardize
+
+
+train_X = torch.rand(10, 2, dtype=torch.float64)
+# explicit output dimension -- Y is 10 x 1
+train_Y = 1 - (train_X - 0.5)
+train_Y = train_Y.norm(dim=-1, keepdim=True)
+train_Y += 0.1 * torch.rand_like(train_Y)
+
+print(train_X)
+print(train_X.dtype)
+print(train_X.grad_fn)
+print(train_Y)
+print(train_Y.dtype)
+print(train_Y.grad_fn)
+
+gp = SingleTaskGP(train_X, train_Y, outcome_transform=Standardize(m=1))
+mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
+fit_gpytorch_mll(mll)
+
+
+
+
+"""
+x = torch.from_numpy(np.random.uniform(low=[0, 0, -np.pi], 
+                               high=[10, 10, np.pi], size=[10, 3]))
+print(x)
+"""
+"""
 model = pickle.load(open(r"/home/alex/.ros/Mon, 15 Apr 2024 13:00:51_iteration_7294_GP.pickle","rb"))
 
 
@@ -94,7 +126,7 @@ plt.show()
 #f, observed_ax3 = plt.subplots(1, 1, figsize=(4, 3))
 #ax_plot(f, observed_ax3, delta_y, 'Absolute Error Surface')
 
-
+"""
 """
 model = pickle.load(open(r"/home/alex/.ros/Thu, 11 Apr 2024 18:58:57_iteration_930_GP.pickle","rb"))
 

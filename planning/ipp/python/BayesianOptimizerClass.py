@@ -1,15 +1,18 @@
-# Optimization and BO libraries
+# Torch libraries
 import torch
-import botorch
 from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models import SingleTaskGP
-from botorch.acquisition import UpperConfidenceBound
+from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound
 from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
+
+# Custom module
 from AcquisitionFunctionClass import UCB_custom
+
+# Numpy and python imports
 import numpy as np
-import cma
+import cma                      
 import time
 
 class BayesianOptimizer():
@@ -19,22 +22,28 @@ class BayesianOptimizer():
         """ Constructor method
 
         Args:
-            gp  (gpytorch.models.VariationalGP): Gaussian process model
-            bounds              (array[double]): Boundaries of suggested candidates
+            gp_terrain (gpytorch.models.VariationalGP): Gaussian process model for environment
+            bounds (array[double]): Boundaries of suggested candidates
+            beta (double): UCB parameter
+            current_pose (list[float]): 2D pose of current position of vehicle
         """
+        # Set up bounds, and environment acq_fun
         self.bounds_torch           = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
         self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
         self.path_reward            = UCB_custom(gp_terrain, beta, current_pose)
         
-        
-        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=100)
+        # Setup second layer of GP, train it
+        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=200)
         self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
         self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
         fit_gpytorch_mll(self.mll)
         self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, beta)
     
     def _sample_paths(self, nbr_samples, X=None):
-        """ Sample the reward of swaths along dubins path with environment GP
+        """ Sample the reward of swaths along dubins path with environment GP.
+            Primarily used to generate data train the second layer of GP. 
+            If not given data, generates random data inside bounds and calculates
+            reward. If given data, will calculate the target reward for that data.
 
         Args:
             nbr_samples (int): number of train and target data points to sample
@@ -56,10 +65,15 @@ class BayesianOptimizer():
     
     def optimize_with_grad(self, max_iter=10):
         """ Returns the most optimal candidate to move towards in a dubins path,
-        to gather information. Uses first order based optimization.
+        to gather information. Uses first order (gradient) based optimization, which is
+        enabled by having a second layer of GP that learns the rewards of the paths.
+
+        Args:
+            max_iter (int, optional): Number of iterations of BO to use as budget. Defaults to 10.
 
         Returns:
-            ([double, double, double]): Candidate pose in 2D [x, y, yaw]
+            (list[double, double, double]): Candidate pose in 2D [x, y, yaw]
+            botorch.models.SingleTaskGP: The trained second layer GP, if needed for debugging
         """
         iteration = 0
         best_value = 0
@@ -70,7 +84,7 @@ class BayesianOptimizer():
         
         # TODO: Training this exact GP is slow. Fixes: train batch (q candidates) or other model? 
         while iteration < max_iter:
-            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=5, raw_samples=40)
+            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=5, raw_samples=50)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=candidate)
             self.train_X = torch.cat((self.train_X,train_X),0)
             self.train_Y = torch.cat((self.train_Y,train_Y),0)
@@ -86,10 +100,11 @@ class BayesianOptimizer():
         return best_candidate, self.gp_path
     
     def optimize_no_grad(self):
-        """ Zeroth-order optimization, using CMA-ES. 
+        """ Zeroth-order optimization, using CMA-ES. This directly optimizes on the environment
+            GP, by using the full path acquisition function.
 
         Returns:
-            _type_: _description_
+            (list[float, float, float], float): tuple with candidate 2D pose, and value of candidate
         """
         x0 = np.random.uniform(low=self.bounds_list[0], 
                                high=self.bounds_list[1], size=3)
@@ -114,45 +129,3 @@ class BayesianOptimizer():
         best_y = es.best.f
 
         return best_x, best_y
-
-
-## Old shit below, used during development for testing
-
-"""
-from botorch.models import SingleTaskGP
-from botorch.fit import fit_gpytorch_mll
-from botorch.utils import standardize
-from gpytorch.mlls import ExactMarginalLogLikelihood
-
-train_X = torch.rand(10, 2)
-Y = 1 - torch.linalg.norm(train_X - 0.5, dim=-1, keepdim=True)
-Y = Y + 0.1 * torch.randn_like(Y)  # add some noise
-train_Y = standardize(Y)
-
-gp = SingleTaskGP(train_X, train_Y)
-mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
-fit_gpytorch_mll(mll)
-
-UCB = UpperConfidenceBound(gp, beta=0.1)
-
-#bounds = torch.stack([torch.zeros(2), torch.ones(2)])
-#candidate, acq_value = optimize_acqf(
-#    UCB, bounds=bounds, q=1, num_restarts=5, raw_samples=20,
-#)
-#print(candidate)  # tensor([0.4887, 0.5063])
-        
-BO = BayesianOptimizer(gp=gp, bounds=[0, 10, 10, 0])
-candidate, value = BO.optimize()
-
-print(candidate)
-bounds=[0, 10, 10, 0]
-a = torch.stack([torch.zeros(2), torch.ones(2)])
-b = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]])
-print(a)
-print(a.type())
-print(b)
-print(b.type())
-c = b.to(torch.float)
-print(c.type())
-#print(candidate)
-"""

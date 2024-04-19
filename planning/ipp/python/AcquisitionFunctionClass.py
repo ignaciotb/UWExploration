@@ -76,7 +76,7 @@ class UCB_custom(UpperConfidenceBound):
         
 
         Args:
-            poses (list): [x y theta]
+            poses (list[float]): [x y theta]
             nbr_samples (int, optional): number of samples generated for each vector. Defaults to 6.
             swath_width (int, optional): width of line sampled from, for each vector. Defaults to 5.
 

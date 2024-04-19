@@ -48,6 +48,178 @@ from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models.transforms.outcome import Standardize
 
 
+# Reconstruct model
+model = pickle.load(open(r"/home/alex/.ros/Wed, 17 Apr 2024 15:39:46_iteration_2405_GP.pickle","rb"))
+model.model.eval()
+model.likelihood.eval()
+likelihood = GaussianLikelihood()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+likelihood.to(device).float()
+model.to(device).float()
+
+print(model.model.mean_module.constant.item())
+
+points = model.variational_strategy.inducing_points.detach().numpy()
+torch.cuda.empty_cache()
+
+n = 200
+n_contours = 50
+
+# posterior sampling locations
+inputsg = [
+    np.linspace(min(points[:, 0])-50, max(points[:, 0])+50, n),
+    np.linspace(min(points[:, 1])-50, max(points[:, 1])+50, n)
+]
+inputst = np.meshgrid(*inputsg)
+s = inputst[0].shape
+inputst = [_.flatten() for _ in inputst]
+inputst = np.vstack(inputst).transpose()
+
+ucb_fun = UpperConfidenceBound(model, 10)
+
+mean_list = []
+var_list = []
+ucb_list = []
+divs = 10
+with torch.no_grad():
+    for i in range(0, divs):
+        # sample
+        inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
+        outputs = model(inputst_temp)
+        mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
+        ucb = abs(mean_r - model.model.mean_module.constant) + ucb_fun.beta.sqrt() * sigma_r
+        outputs = likelihood(outputs)
+        mean_list.append(outputs.mean.cpu().numpy())
+        var_list.append(outputs.variance.cpu().numpy())
+        ucb_list.append(ucb.cpu().numpy())
+
+mean = np.vstack(mean_list).reshape(s)
+variance = np.vstack(var_list).reshape(s)
+ucb = np.vstack(ucb_list).reshape(s)
+
+# plot raw, mean, and variance
+#levels = np.linspace(min(targets), max(targets), n_contours)
+fig, ax = plt.subplots(3, sharex=True, sharey=True)
+#cr = ax[0].scatter(inputs[:, 0], inputs[:, 1], c=targets,
+#                    cmap='jet', s=0.4, edgecolors='none')
+cm = ax[0].contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
+# cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
+cv = ax[1].contourf(*inputsg, variance, levels=n_contours)
+indpts = model.variational_strategy.inducing_points.data.cpu().numpy()
+ax[1].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
+ca = ax[2].contourf(*inputsg, ucb, levels=n_contours)
+
+post_cloud = np.hstack((inputst, mean.reshape(-1, 1)))
+#np.save("./posterior.npy", post_cloud)
+
+# colorbars
+#fig.colorbar(cr, ax=ax[0])
+fig.colorbar(cm, ax=ax[0])
+fig.colorbar(cv, ax=ax[1])
+fig.colorbar(ca, ax=ax[2])
+
+# # formatting
+#ax[0].set_aspect('equal')
+#ax[0].set_title('Raw data')
+#ax[0].set_ylabel('$y~[m]$')
+
+ax[0].set_aspect('equal')
+ax[0].set_title('Mean')
+ax[0].set_ylabel('$y~[m]$')
+ax[1].set_aspect('equal')
+ax[1].set_title('Variance')
+ax[1].set_ylabel('$y~[m]$')
+ax[2].set_aspect('equal')
+ax[2].set_title('UCB')
+ax[2].set_ylabel('$y~[m]$')
+ax[2].set_xlabel('$x~[m]$')
+plt.tight_layout()
+plt.show()
+
+# Plot particle trajectory
+#ax[0].plot(track[:,0], track[:,1], "-r", linewidth=0.2)
+
+# # save
+#fig.savefig(fname, bbox_inches='tight', dpi=1000)
+
+# Free up GPU mem
+del inputst
+torch.cuda.empty_cache()
+
+
+
+
+"""
+
+model = pickle.load(open(r"/home/alex/.ros/Wed, 17 Apr 2024 09:30:01_iteration_833_GP.pickle","rb"))
+
+
+model.model.eval()
+model.likelihood.eval()
+
+n = 500
+test_x = torch.zeros(int(pow(n, 2)), 2)
+x_min = -250
+x_max = 50
+y_min = -150
+y_max = 150
+for i, x in enumerate(np.linspace(x_min, x_max, n)):
+    for j, y in enumerate(np.linspace(y_min, y_max, n)):
+        test_x[n*i + j][0] = x
+        test_x[n*i + j][1] = y
+
+with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    observed_pred = model.likelihood(model.model(test_x))
+
+pred_labels = observed_pred.mean.view(n,n)
+
+
+# Calc abosolute error
+#test_y_actual = torch.sin(((test_x[:, 0] + test_x[:, 1]) * (2 * np.pi))).view(n, n)
+#delta_y = torch.abs(pred_labels - test_y_actual).detach().numpy()
+
+# Define a plotting function
+def ax_plot(f, ax, y_labels, title):
+    im = ax.imshow(y_labels)
+    ax.set_title(title)
+    f.colorbar(im)
+
+# Plot our predictive means
+cs = plt.contourf(pred_labels, cmap='jet')
+  
+cbar = plt.colorbar(cs) 
+#plt.imshow(pred_labels, extent=[x_min, x_max, y_min, y_max], origin="lower")
+points = model.variational_strategy.inducing_points.detach().numpy()
+plt.scatter(points[:,0], points[:,1])
+plt.show()
+
+
+#f, observed_ax = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax, pred_labels, 'Predicted Mean Values')
+
+# Plot the true values
+#f, observed_ax2 = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax2, test_y_actual, 'Actual Values')
+
+# Plot the absolute errors
+#f, observed_ax3 = plt.subplots(1, 1, figsize=(4, 3))
+#ax_plot(f, observed_ax3, delta_y, 'Absolute Error Surface')
+
+
+
+"""
+
+
+
+
+
+
+
+
+
+
+"""
+
 train_X = torch.rand(10, 2, dtype=torch.float64)
 # explicit output dimension -- Y is 10 x 1
 train_Y = 1 - (train_X - 0.5)
@@ -64,7 +236,7 @@ print(train_Y.grad_fn)
 gp = SingleTaskGP(train_X, train_Y, outcome_transform=Standardize(m=1))
 mll = ExactMarginalLogLikelihood(gp.likelihood, gp)
 fit_gpytorch_mll(mll)
-
+"""
 
 
 
@@ -72,60 +244,6 @@ fit_gpytorch_mll(mll)
 x = torch.from_numpy(np.random.uniform(low=[0, 0, -np.pi], 
                                high=[10, 10, np.pi], size=[10, 3]))
 print(x)
-"""
-"""
-model = pickle.load(open(r"/home/alex/.ros/Mon, 15 Apr 2024 13:00:51_iteration_7294_GP.pickle","rb"))
-
-
-model.model.eval()
-model.likelihood.eval()
-n = 100
-test_x = torch.zeros(int(pow(n, 2)), 2)
-x_min = -250
-x_max = 0
-y_min = -100
-y_max = 100
-for i, x in enumerate(np.linspace(x_min, x_max, n)):
-    for j, y in enumerate(np.linspace(y_min, y_max, n)):
-        test_x[n*i + j][0] = x 
-        test_x[n*i + j][1] = y
-
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    observed_pred = model.likelihood(model.model(test_x))
-
-pred_labels = observed_pred.mean.view(n,n)
-
-print(pred_labels)
-
-# Calc abosolute error
-#test_y_actual = torch.sin(((test_x[:, 0] + test_x[:, 1]) * (2 * np.pi))).view(n, n)
-#delta_y = torch.abs(pred_labels - test_y_actual).detach().numpy()
-
-# Define a plotting function
-def ax_plot(f, ax, y_labels, title):
-    im = ax.imshow(y_labels)
-    ax.set_title(title)
-    f.colorbar(im)
-
-# Plot our predictive means
-plt.imshow(pred_labels, extent=[x_min, x_max, y_min, y_max])
-points = model.variational_strategy.inducing_points.detach().numpy()
-plt.scatter(points[:,0], points[:,1])
-plt.colorbar()
-plt.show()
-
-
-#f, observed_ax = plt.subplots(1, 1, figsize=(4, 3))
-#ax_plot(f, observed_ax, pred_labels, 'Predicted Mean Values')
-
-# Plot the true values
-#f, observed_ax2 = plt.subplots(1, 1, figsize=(4, 3))
-#ax_plot(f, observed_ax2, test_y_actual, 'Actual Values')
-
-# Plot the absolute errors
-#f, observed_ax3 = plt.subplots(1, 1, figsize=(4, 3))
-#ax_plot(f, observed_ax3, delta_y, 'Absolute Error Surface')
-
 """
 """
 model = pickle.load(open(r"/home/alex/.ros/Thu, 11 Apr 2024 18:58:57_iteration_930_GP.pickle","rb"))

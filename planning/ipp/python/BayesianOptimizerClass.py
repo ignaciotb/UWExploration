@@ -22,26 +22,28 @@ class BayesianOptimizer():
             gp  (gpytorch.models.VariationalGP): Gaussian process model
             bounds              (array[double]): Boundaries of suggested candidates
         """
-        self.bounds_torch = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
-        self.bounds_list  = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
-        self.path_reward  = UCB_custom(gp_terrain, beta, current_pose)
+        self.bounds_torch           = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
+        self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
+        self.path_reward            = UCB_custom(gp_terrain, beta, current_pose)
         
         
         self.train_X, self.train_Y  = self._sample_paths(nbr_samples=100)
-        self.gp_path      = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
-        self.mll = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
+        self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
+        self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
         fit_gpytorch_mll(self.mll)
-        self.gp_path_acqf = UpperConfidenceBound(self.gp_path, 10)
+        self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, beta)
     
     def _sample_paths(self, nbr_samples, X=None):
-        """_summary_
+        """ Sample the reward of swaths along dubins path with environment GP
 
         Args:
-            nbr_samples (_type_): _description_
+            nbr_samples (int): number of train and target data points to sample
 
         Returns:
-            _type_: _description_
+            [nbr_samples x 3], [nbr_samples x 1]: tensors containing train and target data
         """
+        
+        # Disable gradients, otherwise fit_gpytorch_mll throws a fit later
         with torch.no_grad():
             if X is None:
                 train_X = (torch.from_numpy(np.random.uniform(low=self.bounds_list[0], 
@@ -53,31 +55,35 @@ class BayesianOptimizer():
         
     
     def optimize_with_grad(self, max_iter=10):
-        """ Returns the most optimal candidate to move towards
+        """ Returns the most optimal candidate to move towards in a dubins path,
+        to gather information. Uses first order based optimization.
 
         Returns:
             ([double, double, double]): Candidate pose in 2D [x, y, yaw]
         """
         iteration = 0
         best_value = 0
+        
+        # Each iteration, optimize acq fun. of path GP to generate a candidate (x,y,yaw).
+        # Then evaluate path connecting to that candidate, in environment GP. Add this data,
+        # and train the path GP on this, then loop. Return best candidate.
+        
+        # TODO: Training this exact GP is slow. Fixes: train batch (q candidates) or other model? 
         while iteration < max_iter:
-            #t1 = time.time()
             candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=5, raw_samples=40)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=candidate)
-            #t2 = time.time()
             self.train_X = torch.cat((self.train_X,train_X),0)
             self.train_Y = torch.cat((self.train_Y,train_Y),0)
             self.gp_path = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
             fit_gpytorch_mll(ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path))
-            #t3 = time.time()
+            print(value)
             if value > best_value:
+                print("changed best value!")
                 best_value = value
                 best_candidate = candidate
             iteration += 1
-            #print(t2-t1)
-            #print(t3-t2)
             
-        return best_candidate
+        return best_candidate, self.gp_path
     
     def optimize_no_grad(self):
         """ Zeroth-order optimization, using CMA-ES. 

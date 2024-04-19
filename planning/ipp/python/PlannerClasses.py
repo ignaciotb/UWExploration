@@ -207,10 +207,10 @@ class BOPlanner(PlannerBase):
         self.corner_pub.publish(corners)
         
         # Path publisher - publishes waypoints for AUV to follow
-        self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=10)
+        self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
         
         # Publish an initial path
-        initial_path = self.initial_sampling_path(n_samples=1)
+        initial_path = self.initial_sampling_path(n_samples=3)
         self.path_pub.publish(initial_path) 
         
         # Subscribers with callback methods
@@ -219,6 +219,8 @@ class BOPlanner(PlannerBase):
         
         # Initiate training of GP
         # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
+        # On laptop, training takes ~0.05 seconds, which means 30 hz is too fast.
+        # Don't know yet about jetson.
         r = rospy.Rate(10)
         while not rospy.is_shutdown():
             self.gp.train_iteration()  
@@ -258,12 +260,18 @@ class BOPlanner(PlannerBase):
         pickled = False
         while pickled == False:
             try:
-                fp = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
-                it = str(self.gp.iterations)
-                with open(fp + "_iteration_" + it + "_GP.pickle" , "wb") as f:
+                self.fp = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
+                self.it = str(self.gp.iterations)
+                with open(self.fp + "_iteration_" + self.it + "_GP_env.pickle" , "wb") as f:
                     pickle.dump(self.gp.model, f)
+                    
+                with open(self.fp + "_iteration_" + self.it + "_MBES.pickle" , "wb") as f:
+                    pickle.dump(self.gp.MBES_arr, f)
                 
-                model = pickle.load(open(fp + "_iteration_" + it + "_GP.pickle","rb"))
+                #with open(fp + "_iteration_" + it + "_path.pickle" , "wb") as f:
+                #    pickle.dump(self.gp.model, f)
+                
+                model = pickle.load(open(self.fp + "_iteration_" + self.it + "_GP_env.pickle","rb"))
                 print("Pickled!")
                 pickled = True
             except:
@@ -279,8 +287,11 @@ class BOPlanner(PlannerBase):
         
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=200.0, current_pose=self.state)
-        candidate = BO.optimize_with_grad()
+        BO = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
+        candidate, path_gp = BO.optimize_with_grad()
+        
+        with open(self.fp + "_iteration_" + self.it + "_GP_path.pickle" , "wb") as f:
+                    pickle.dump(path_gp, f)
         
         # Signature out: Candidate (xy theta)
         print(candidate)

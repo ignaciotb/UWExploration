@@ -8,6 +8,8 @@ import open3d as o3d
 import torch
 
 # GPyTorch imports
+from gpytorch.priors import NormalPrior
+from gpytorch.constraints import Interval
 from gpytorch.models import VariationalGP, ExactGP
 from gpytorch.variational import CholeskyVariationalDistribution
 from gpytorch.means import ConstantMean
@@ -105,6 +107,10 @@ class SVGP_map():
 
     def __init__(self, particle_id, version="", corners = None):
 
+        # Keep MBES for testing
+        self.MBES_arr = []
+        self.odom_arr = []
+        
         ## ROS INTERFACE
         self.particle_id = particle_id
         self.storage_path = rospy.get_param("~results_path")
@@ -158,7 +164,7 @@ class SVGP_map():
         #n_beams_mbes = rospy.get_param("~n_beams_mbes", 1000)
 
         # Number of inducing points
-        num_inducing = rospy.get_param("~svgp_num_ind_points", 100)
+        num_inducing = 400  #rospy.get_param("~svgp_num_ind_points", 100)
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
 
@@ -175,13 +181,12 @@ class SVGP_map():
                 variational_distribution=var_dist,
                 inducing_points = inducing_tensor, #self.s,
                 learn_inducing_points=True,
-                mean_module=gpytorch.means.ConstantMean(),
+                # TODO: the normal prior is a temporary fix
+                mean_module = ConstantMean(constant_prior=NormalPrior(-15, 1), constant_constraint=Interval(-16, -14)),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
             self.model.variational_strategy = VariationalStrategy(self.model, torch.randn((num_inducing, 2)), var_dist, learn_inducing_locations=True)
-            
         else:
             self.model = SVGP(num_inducing)
-
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -219,6 +224,8 @@ class SVGP_map():
         self.n_plot_loss = 0
         self.mission_finished = False
 
+
+    
     def resampling_cb(self, req):
 
         self.resampling = True
@@ -258,6 +265,7 @@ class SVGP_map():
         self.resampling = False
 
         return response
+    
  
     def train_iteration(self):
 
@@ -287,6 +295,14 @@ class SVGP_map():
                 beams = np.asarray(list(pc2.read_points(result.minibatch, 
                                         field_names = ("x", "y", "z"), skip_nans=True)))
                 beams = np.reshape(beams, (-1,3))
+                
+                # TODO: DEACTIVATE THIS LATER; USING THIS FOR TESTING
+                if self.MBES_arr == []:
+                    self.MBES_arr = np.array(beams)
+                else:
+                    self.MBES_arr = np.append(self.MBES_arr, beams, 0)
+                #np.append(self.odom_arr, odom)
+                #print(self.MBES_arr.shape)
 
                 if not self.plotting and not self.sampling and not self.resampling:
                     self.training = True
@@ -322,7 +338,7 @@ class SVGP_map():
 
                     if self.particle_id == 0:
                         print("Particle ", self.particle_id,
-                            "with iterations: ", self.iterations)
+                            "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
                     # print("Training time ", time.time() - time_start)
 
                 else:

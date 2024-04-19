@@ -67,7 +67,7 @@ class UCB_custom(UpperConfidenceBound):
             mean, sigma = self._mean_and_sigma(points)
             mean = mean.sum()
             sigma = sigma.sum()
-            ucb = (mean if self.maximize else -mean) + self.beta.sqrt() * sigma
+            ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards

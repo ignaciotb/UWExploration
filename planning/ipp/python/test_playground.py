@@ -47,7 +47,7 @@ from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models.transforms.outcome import Standardize
 
-
+"""
 # Reconstruct model
 model = pickle.load(open(r"/home/alex/.ros/Wed, 17 Apr 2024 15:39:46_iteration_2405_GP.pickle","rb"))
 model.model.eval()
@@ -147,7 +147,7 @@ del inputst
 torch.cuda.empty_cache()
 
 
-
+"""
 
 """
 
@@ -294,7 +294,7 @@ ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
 
 """
 
-"""
+
 current_pose = [0, 0, 0]
 suggested_pose = [20, 15, 0]
 d1= [suggested_pose[0] - current_pose[0], suggested_pose[1] - current_pose[1]]
@@ -312,15 +312,16 @@ t1 = time.time()
 
 def get_orthogonal_samples(poses):
     all_samples = []
+    r = 1
     for pose in poses:
         x = pose[0]
         y = pose[1]
         yaw = pose[2]
 
-        dx = np.sin(yaw) # shifted by 90 degree for orthogonality
-        dy = np.cos(yaw) 
+        dx = r/2*np.sin(yaw) # shifted by 90 degree for orthogonality
+        dy = r/2*np.cos(yaw) 
 
-        for i in np.linspace(0.2, 1, 3):
+        for i in np.linspace(-1, 1, 5):
             dx_s = dx * i
             dy_s = dy * i
             n1 = [x + dx_s, y - dy_s]
@@ -357,7 +358,7 @@ plt.plot(x_val, y_val)
 plt.axis('scaled')
 plt.show()
 
-"""
+
 
 
 

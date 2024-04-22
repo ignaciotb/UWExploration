@@ -224,8 +224,6 @@ class SVGP_map():
         self.n_plot_loss = 0
         self.mission_finished = False
 
-
-    
     def resampling_cb(self, req):
 
         self.resampling = True

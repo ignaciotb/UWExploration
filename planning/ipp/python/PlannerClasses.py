@@ -210,7 +210,7 @@ class BOPlanner(PlannerBase):
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
         
         # Publish an initial path
-        initial_path = self.initial_sampling_path(n_samples=3)
+        initial_path = self.initial_sampling_path(n_samples=1)
         self.path_pub.publish(initial_path) 
         
         # Subscribers with callback methods
@@ -244,8 +244,8 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             wp = PoseStamped()
             wp.header = h
-            wp.pose.position.x = sample[0] #-20 
-            wp.pose.position.y = sample[1] #10 
+            wp.pose.position.x = -20 #sample[0] #-20 
+            wp.pose.position.y = 10 #sample[1] #10 
             sampling_path.poses.append(wp)
         return sampling_path
             
@@ -276,7 +276,6 @@ class BOPlanner(PlannerBase):
                 pickled = True
             except:
                 print("Collide with training iteration. Re-attempting model storage.")
-
         # Get a new candidate trajectory with Bayesian optimization
         horizon_distance = 40
         low_x = max(self.bounds[0], min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
@@ -285,9 +284,8 @@ class BOPlanner(PlannerBase):
         high_y = min(self.bounds[2], max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
         dynamic_bounds = [low_x, high_x, high_y, low_y] #self.bounds
         
-        
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
+        BO = BayesianOptimizer(nbr_initial_samples = 100, gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
         candidate, path_gp = BO.optimize_with_grad()
         
         with open(self.fp + "_iteration_" + self.it + "_GP_path.pickle" , "wb") as f:

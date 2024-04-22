@@ -18,26 +18,28 @@ import time
 class BayesianOptimizer():
     """ Defines methods for BO optimization
     """
-    def __init__(self, gp_terrain, bounds, beta, current_pose):
+    def __init__(self, nbr_initial_samples, gp_terrain, bounds, beta, current_pose):
         """ Constructor method
 
         Args:
+            nbr_initial_samples (int):                  Initial samples to populate second GP with
             gp_terrain (gpytorch.models.VariationalGP): Gaussian process model for environment
-            bounds (array[double]): Boundaries of suggested candidates
-            beta (double): UCB parameter
-            current_pose (list[float]): 2D pose of current position of vehicle
+            bounds (array[double]):                     Boundaries of suggested candidates
+            beta (double):                              UCB parameter
+            current_pose (list[float]):                 2D pose of current position of vehicle
         """
         # Set up bounds, and environment acq_fun
+        self.beta                   = beta
         self.bounds_torch           = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
         self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
-        self.path_reward            = UCB_custom(gp_terrain, beta, current_pose)
+        self.path_reward            = UCB_custom(gp_terrain, self.beta, current_pose)
         
         # Setup second layer of GP, train it
-        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=200)
+        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=nbr_initial_samples)
         self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
         self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
         fit_gpytorch_mll(self.mll)
-        self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, beta)
+        self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, self.beta)
     
     def _sample_paths(self, nbr_samples, X=None):
         """ Sample the reward of swaths along dubins path with environment GP.
@@ -63,7 +65,7 @@ class BayesianOptimizer():
         return train_X, train_Y        
         
     
-    def optimize_with_grad(self, max_iter=10):
+    def optimize_with_grad(self, max_iter=5):
         """ Returns the most optimal candidate to move towards in a dubins path,
         to gather information. Uses first order (gradient) based optimization, which is
         enabled by having a second layer of GP that learns the rewards of the paths.
@@ -82,15 +84,15 @@ class BayesianOptimizer():
         # Then evaluate path connecting to that candidate, in environment GP. Add this data,
         # and train the path GP on this, then loop. Return best candidate.
         
-        # TODO: Training this exact GP is slow. Fixes: train batch (q candidates) or other model? 
+        # TODO: Training this exact GP is slow. Fixes: train batch (q candidates) or other (fantasy) model? 
         while iteration < max_iter:
-            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=5, raw_samples=50)
+            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=3, raw_samples=50)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=candidate)
-            self.train_X = torch.cat((self.train_X,train_X),0)
-            self.train_Y = torch.cat((self.train_Y,train_Y),0)
-            self.gp_path = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
-            fit_gpytorch_mll(ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path))
-            print(value)
+            
+            # TODO: need to check if fantasy model works as expected
+            self.gp_path = self.gp_path.get_fantasy_model(train_X, train_Y)
+            #self.train_X = torch.cat((self.train_X,train_X),0)
+            self.gp_path_acqf.model = self.gp_path
             if value > best_value:
                 print("changed best value!")
                 best_value = value

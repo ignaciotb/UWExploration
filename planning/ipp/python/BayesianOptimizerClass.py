@@ -8,7 +8,7 @@ from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 
 # Custom module
-from AcquisitionFunctionClass import UCB_custom
+from AcquisitionFunctionClass import UCB_path, qUCB_xy
 
 # Numpy and python imports
 import numpy as np
@@ -18,7 +18,7 @@ import time
 class BayesianOptimizer():
     """ Defines methods for BO optimization
     """
-    def __init__(self, nbr_initial_samples, gp_terrain, bounds, beta, current_pose):
+    def __init__(self, gp_terrain, bounds, beta, current_pose):
         """ Constructor method
 
         Args:
@@ -30,16 +30,18 @@ class BayesianOptimizer():
         """
         # Set up bounds, and environment acq_fun
         self.beta                   = beta
-        self.bounds_torch           = torch.tensor([[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]).to(torch.float)
-        self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
-        self.path_reward            = UCB_custom(gp_terrain, self.beta, current_pose)
+        self.bounds_XY_torch        = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
+        self.bounds_theta_torch     = torch.tensor([[-np.pi],  [np.pi]]).to(torch.float)
+        #self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
+        self.XY_acqf                = qUCB_xy(gp_terrain, self.beta)
+        self.path_reward            = UCB_path(gp_terrain, self.beta, current_pose)
         
         # Setup second layer of GP, train it
-        self.train_X, self.train_Y  = self._sample_paths(nbr_samples=nbr_initial_samples)
-        self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
-        self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
-        fit_gpytorch_mll(self.mll)
-        self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, self.beta)
+        #self.train_X, self.train_Y  = self._sample_paths(nbr_samples=nbr_initial_samples)
+        #self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
+        #self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
+        #fit_gpytorch_mll(self.mll)
+        #self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, self.beta)
     
     def _sample_paths(self, nbr_samples, X=None):
         """ Sample the reward of swaths along dubins path with environment GP.
@@ -64,7 +66,56 @@ class BayesianOptimizer():
             train_Y = (self.path_reward.forward(train_X.unsqueeze(-2))).unsqueeze(1)
         return train_X, train_Y        
         
+    def optimize_XY_with_grad(self, max_iter=5, nbr_samples=200):
+        candidates, values = optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=max_iter, raw_samples=nbr_samples)
+        return candidates
     
+    def optimize_theta_with_grad(self, XY, max_iter, nbr_samples=10):
+        
+        
+        random_thetas = (torch.from_numpy(np.random.uniform(low=-np.pi, 
+                    high=np.pi, size=[nbr_samples, 1]))).type(torch.FloatTensor)
+        XY_repeated = XY.repeat(nbr_samples, 1)
+        samples = torch.cat([XY_repeated, random_thetas], 1)
+        
+        train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
+        train_X = train_X[:, 2].unsqueeze(1)
+        
+        self.gp_theta               = SingleTaskGP(train_X, train_Y, outcome_transform=Standardize(m=1))
+        self.mll                    = ExactMarginalLogLikelihood(self.gp_theta.likelihood, self.gp_theta)
+        fit_gpytorch_mll(self.mll)
+        self.theta_acqf             = UpperConfidenceBound(self.gp_theta, self.beta)
+        
+        iteration = 0
+        best_value = 0
+        while iteration < max_iter:
+            candidate, value = optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=50)
+            
+            sample = torch.cat([XY, candidate], 1).squeeze(0)
+            train_X, train_Y  = self._sample_paths(nbr_samples=1, X=sample)
+            train_X = train_X[2].unsqueeze(0)
+            
+            self.gp_theta = self.gp_theta.get_fantasy_model(train_X, train_Y)
+
+            self.theta_acqf.model = self.gp_theta
+            if value > best_value:
+                best_value = value
+                best_candidate = candidate
+            iteration += 1
+            
+        return best_candidate, self.gp_theta
+    
+    
+    
+    
+    
+######################################################
+#
+#  OLD SHIT BELOW, not used anymore since decoupling
+#
+######################################################
+
+
     def optimize_with_grad(self, max_iter=5):
         """ Returns the most optimal candidate to move towards in a dubins path,
         to gather information. Uses first order (gradient) based optimization, which is

@@ -40,10 +40,6 @@ if __name__ == "__main__":
         else:
             rospy.loginfo("Initializing planner node! Using Bayesian Optimization.")  
             planner = BOPlanner('/hugin_0/corners', '/hugin_0/waypoints', [-260, -40, 100, -70], 8)
-            # BO planner should have a SVGP up and running initially, that trains on all incoming samples
-            # Wait until goal achieved.
-                # Get 
-                # Generate candidate waypoint. Publish
     except rospy.ROSInterruptException:
         rospy.logerr('Could not launch AUV path planner node')
         

@@ -71,6 +71,7 @@ from pathlib import Path
 import ast
 import copy
 from collections import OrderedDict
+from threading import Lock
 
 # GPYTORCH VERSION
 class SVGP(VariationalGP):
@@ -107,6 +108,9 @@ class SVGP_map():
 
     def __init__(self, particle_id, version="", corners = None):
 
+        # Mutex to share with planner
+        self.mutex = Lock()
+        
         # Keep MBES for testing
         self.MBES_arr = []
         self.odom_arr = []
@@ -288,56 +292,48 @@ class SVGP_map():
         try:  
               
             if result.success:
-                time_start = time.time()
                 # Store beams as array of 3D points
                 beams = np.asarray(list(pc2.read_points(result.minibatch, 
                                         field_names = ("x", "y", "z"), skip_nans=True)))
                 beams = np.reshape(beams, (-1,3))
-                
-                # TODO: DEACTIVATE THIS LATER; USING THIS FOR TESTING
-                if self.MBES_arr == []:
-                    self.MBES_arr = np.array(beams)
-                else:
-                    self.MBES_arr = np.append(self.MBES_arr, beams, 0)
-                #np.append(self.odom_arr, odom)
-                #print(self.MBES_arr.shape)
 
                 if not self.plotting and not self.sampling and not self.resampling:
-                    self.training = True
-                    
-                    input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
-                    target = torch.from_numpy(beams[:,2]).to(self.device).float()
-
-                    # # compute loss, compute gradient, and update
-                    self.opt.zero_grad()
-                    loss = -self.mll(self.model(input), target)
-                    loss.backward()
-                    self.opt.step()
-
-                    del input
-                    del target
-                    torch.cuda.empty_cache()
-                    self.training = False
-                    self.iterations += 1
-
-                    # Check for ELBO convergence to signal this SVGP is ready
-                    # to start LC prompting
-                    loss_np = loss.detach().cpu().numpy()
-                    # if not self.ready_for_LC:
-                    #     # Delete self.criterion when ready for LCs. It consumes mem af
-                    #     if self.criterion.evaluate(torch.from_numpy(loss_np)):
-                    #         print("Particle ", self.particle_id, " ready for LCs ")
-                    #         self.ready_for_LC = True
-                    #         self.enable_lc_pub.publish(self.particle_id)
-                    #         del self.criterion
+                    with self.mutex:
+                        self.training = True
                         
-                    # Store loss for postprocessing
-                    self.loss.append(loss_np)
+                        input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
+                        target = torch.from_numpy(beams[:,2]).to(self.device).float()
 
-                    if self.particle_id == 0:
-                        print("Particle ", self.particle_id,
-                            "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
-                    # print("Training time ", time.time() - time_start)
+                        # # compute loss, compute gradient, and update
+                        self.opt.zero_grad()
+                        loss = -self.mll(self.model(input), target)
+                        loss.backward()
+                        self.opt.step()
+
+                        del input
+                        del target
+                        torch.cuda.empty_cache()
+                        self.training = False
+                        self.iterations += 1
+
+                        # Check for ELBO convergence to signal this SVGP is ready
+                        # to start LC prompting
+                        loss_np = loss.detach().cpu().numpy()
+                        # if not self.ready_for_LC:
+                        #     # Delete self.criterion when ready for LCs. It consumes mem af
+                        #     if self.criterion.evaluate(torch.from_numpy(loss_np)):
+                        #         print("Particle ", self.particle_id, " ready for LCs ")
+                        #         self.ready_for_LC = True
+                        #         self.enable_lc_pub.publish(self.particle_id)
+                        #         del self.criterion
+                            
+                        # Store loss for postprocessing
+                        self.loss.append(loss_np)
+
+                        if self.particle_id == 0:
+                            print("Particle ", self.particle_id,
+                                "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
+                        # print("Training time ", time.time() - time_start)
 
                 else:
                     rospy.logdebug("GP missed MB %s", self.particle_id)

@@ -4,6 +4,9 @@ import copy
 import pickle
 import time
 import os
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import filelock
 
 # Math libraries
 import dubins
@@ -26,6 +29,7 @@ from botorch.models.approximate_gp import SingleTaskVariationalGP
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
 from GaussianProcessClass import SVGP_map
+from VisualizationClass import UpdateDist
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
@@ -57,6 +61,7 @@ class PlannerBase():
         """
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()
+        h.frame_id = "map"
         corners = Path()
         corners.header = h
         
@@ -70,28 +75,33 @@ class PlannerBase():
 
         # Append corners
         ul_c = PoseStamped()
-        ul_c.pose.position.x = l + 3
-        ul_c.pose.position.y = u - 4
+        ul_c.pose.position.x = l #+ 3
+        ul_c.pose.position.y = u #- 4
         ul_c.header = h
         corners.poses.append(ul_c)
         
         ur_c = PoseStamped()
         ur_c.header = h
-        ur_c.pose.position.x = r -3
-        ur_c.pose.position.y = u + 7
+        ur_c.pose.position.x = r #-3
+        ur_c.pose.position.y = u #+ 7
         corners.poses.append(ur_c)
 
-        dl_c = PoseStamped()
-        dl_c.header = h
-        dl_c.pose.position.x = l + 4
-        dl_c.pose.position.y = d - 4
-        corners.poses.append(dl_c)
+        # NOTE: switches order of dr_c and dl_c being appended to make
+        #       visualization of borders easier in RVIZ
 
         dr_c = PoseStamped()
         dr_c.header = h
         dr_c.pose.position.x = r
         dr_c.pose.position.y = d
         corners.poses.append(dr_c)
+        
+        dl_c = PoseStamped()
+        dl_c.header = h
+        dl_c.pose.position.x = l #+ 4
+        dl_c.pose.position.y = d #- 4
+        corners.poses.append(dl_c)
+        
+        corners.poses.append(ul_c)
         
         return corners
     
@@ -217,6 +227,10 @@ class BOPlanner(PlannerBase):
         rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
         rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
         
+        # Filelocks for file mutexes
+        self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
+        self.gp_angle_lock  = filelock.FileLock("GP_angle.pickle.lock")
+        
         # Initiate training of GP
         # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
         # On laptop, training takes ~0.05 seconds, which means 30 hz is too fast.
@@ -244,8 +258,8 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             wp = PoseStamped()
             wp.header = h
-            wp.pose.position.x = -20 #sample[0] #-20 
-            wp.pose.position.y = 10 #sample[1] #10 
+            wp.pose.position.x = -40 #sample[0] #-20 
+            wp.pose.position.y = 15 #sample[1] #10 
             sampling_path.poses.append(wp)
         return sampling_path
             
@@ -257,39 +271,31 @@ class BOPlanner(PlannerBase):
         """
         
         # Freeze a copy of current model for planning, to let real model keep training
-        pickled = False
-        while pickled == False:
-            try:
-                self.fp = time.strftime("%a, %d %b %Y %H:%M:%S", time.gmtime())
-                self.it = str(self.gp.iterations)
-                with open(self.fp + "_iteration_" + self.it + "_GP_env.pickle" , "wb") as f:
-                    pickle.dump(self.gp.model, f)
-                    
-                with open(self.fp + "_iteration_" + self.it + "_MBES.pickle" , "wb") as f:
-                    pickle.dump(self.gp.MBES_arr, f)
+        with self.gp.mutex:
+                pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
                 
-                #with open(fp + "_iteration_" + it + "_path.pickle" , "wb") as f:
-                #    pickle.dump(self.gp.model, f)
-                
-                model = pickle.load(open(self.fp + "_iteration_" + self.it + "_GP_env.pickle","rb"))
-                print("Pickled!")
-                pickled = True
-            except:
-                print("Collide with training iteration. Re-attempting model storage.")
+        with self.gp_env_lock:
+            model = pickle.load(open("GP_env.pickle","rb"))
+            
         # Get a new candidate trajectory with Bayesian optimization
         horizon_distance = 40
-        low_x = max(self.bounds[0], min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        high_x = min(self.bounds[1], max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        low_y = max(self.bounds[3], min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
-        high_y = min(self.bounds[2], max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
-        dynamic_bounds = [low_x, high_x, high_y, low_y] #self.bounds
+        low_x            = max(self.bounds[0], min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
+        high_x           = min(self.bounds[1], max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
+        low_y            = max(self.bounds[3], min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
+        high_y           = min(self.bounds[2], max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
+        dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO = BayesianOptimizer(nbr_initial_samples = 100, gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
-        candidate, path_gp = BO.optimize_with_grad()
+        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
+        candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
+        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=10)
+        candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
         
-        with open(self.fp + "_iteration_" + self.it + "_GP_path.pickle" , "wb") as f:
-                    pickle.dump(path_gp, f)
+        with self.gp_angle_lock:
+                pickle.dump(angle_gp, open("GP_angle.pickle" , "wb"))
+        
+        #with open(self.fp + "_iteration_" + self.it + "_GP_path.pickle" , "wb") as f:
+        #            pickle.dump(path_gp, f)
         
         # Signature out: Candidate (xy theta)
         print(candidate)
@@ -302,11 +308,6 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()
-        print(location)
-        print(location.shape)
-        location = np.squeeze(location, 0)
-        print(location)
-        print(location.shape)
         path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], 8)
         wp_poses, _ = path.sample_many(5)
         for pose in wp_poses[3:]:       #removing first few as hack to ensure AUV doesnt get stuck

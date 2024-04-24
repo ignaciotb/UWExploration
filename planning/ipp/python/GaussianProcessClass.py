@@ -113,7 +113,6 @@ class SVGP_map():
         
         # Keep MBES for testing
         self.MBES_arr = []
-        self.odom_arr = []
         
         ## ROS INTERFACE
         self.particle_id = particle_id

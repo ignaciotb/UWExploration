@@ -91,7 +91,46 @@ class qUCB_xy(MCAcquisitionFunction):
         ucb_samples = mean + self.beta_prime * (obj - mean).abs()
         return ucb_samples.max(dim=-1)[0].mean(dim=0)
     
-    
+
+class UCB_xy(UpperConfidenceBound):
+    def __init__(
+        self,
+        model: Model,
+        beta: Union[float, Tensor],
+        posterior_transform: Optional[PosteriorTransform] = None,
+        maximize: bool = True,
+        **kwargs,
+    ) -> None:
+        r"""Single-outcome Upper Confidence Bound.
+
+        Args:
+            model: A fitted single-outcome GP model (must be in batch mode if
+                candidate sets X will be)
+            beta: Either a scalar or a one-dim tensor with `b` elements (batch mode)
+                representing the trade-off parameter between mean and covariance
+            posterior_transform: A PosteriorTransform. If using a multi-output model,
+                a PosteriorTransform that transforms the multi-output posterior into a
+                single-output posterior is required.
+            maximize: If True, consider the problem a maximization problem.
+        """
+        super(UCB_xy, self).__init__(model, beta, posterior_transform = None, maximize = False, **kwargs)
+        self.register_buffer("beta", torch.as_tensor(beta))
+        self.maximize = maximize
+
+    @t_batch_mode_transform(expected_q=1)
+    def forward(self, X: Tensor) -> Tensor:
+        r"""Evaluate the Upper Confidence Bound on the candidate set X.
+
+        Args:
+            X: A `(b1 x ... bk) x 1 x d`-dim batched tensor of `d`-dim design points.
+
+        Returns:
+            A `(b1 x ... bk)`-dim tensor of Upper Confidence Bound values at the
+            given design points `X`.
+        """
+        mean, sigma = self._mean_and_sigma(X)
+        return abs(mean - self.model.model.mean_module.constant) * sigma
+
 
 
 
@@ -154,7 +193,7 @@ class UCB_path(UpperConfidenceBound):
             mean, sigma = self._mean_and_sigma(points)
             mean = mean.sum()
             sigma = sigma.sum()
-            ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
+            ucb = abs(mean - self.model.model.mean_module.constant) * sigma #relative to gp mean
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards

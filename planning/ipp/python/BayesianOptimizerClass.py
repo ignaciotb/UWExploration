@@ -7,7 +7,7 @@ from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound
 from botorch.optim import optimize_acqf
 
 # Custom module
-from AcquisitionFunctionClass import UCB_path, qUCB_xy
+from AcquisitionFunctionClass import UCB_path, UCB_xy, qUCB_xy
 
 # Numpy and python imports
 import numpy as np
@@ -31,9 +31,8 @@ class BayesianOptimizer():
         self.beta                   = beta
         self.bounds_XY_torch        = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
         self.bounds_theta_torch     = torch.tensor([[-np.pi],  [np.pi]]).to(torch.float)
-        #self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
-        self.XY_acqf                = qUCB_xy(gp_terrain, self.beta)
-        self.path_reward            = UCB_path(gp_terrain, self.beta, current_pose)
+        self.XY_acqf                = UCB_xy(model=gp_terrain, beta=self.beta)
+        self.path_reward            = UCB_path(model=gp_terrain, beta=self.beta, current_pose=current_pose)
 
     
     def _sample_paths(self, nbr_samples, X=None):

@@ -46,7 +46,57 @@ from botorch.models import SingleTaskGP
 from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models.transforms.outcome import Standardize
+from matplotlib.animation import FuncAnimation
+import filelock
 
+print(np.hypot(3-1, 3-2))
+
+
+
+
+"""
+
+n = 50
+
+model2 = pickle.load(open(r"/home/alex/.ros/GP_angle.pickle","rb"))
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    
+model2.eval()
+model2.likelihood.eval()
+likelihood2 = GaussianLikelihood()
+likelihood2.to(device).float()
+model2.to(device).float()
+torch.cuda.empty_cache()
+
+samples1D = np.linspace(-np.pi, np.pi, n)
+
+ucb_fun = UpperConfidenceBound(model2, 10)
+
+mean_list = []
+var_list = []
+ucb_list = []
+
+with torch.no_grad():
+    inputst_temp = torch.from_numpy(samples1D).to(device).float()
+    outputs = model2(inputst_temp)
+    mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
+    ucb = mean_r + ucb_fun.beta.sqrt() * sigma_r
+    outputs = likelihood2(outputs)
+    mean_list.append(outputs.mean.cpu().numpy())
+    var_list.append(outputs.variance.cpu().numpy())
+    ucb_list.append(ucb.cpu().numpy())
+
+
+mean = np.vstack(mean_list).squeeze(0)
+variance = np.vstack(var_list).squeeze(0)
+ucb = np.vstack(ucb_list)
+
+print(mean)
+print(variance)
+
+plt.plot(samples1D, mean)
+plt.fill_between(samples1D, mean+variance, mean-variance, facecolor='blue', alpha=0.5)
+plt.show()
+"""
 """
 # Reconstruct model
 model = pickle.load(open(r"/home/alex/.ros/Wed, 17 Apr 2024 15:39:46_iteration_2405_GP.pickle","rb"))
@@ -294,7 +344,7 @@ ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.2)
 
 """
 
-
+"""
 current_pose = [0, 0, 0]
 suggested_pose = [20, 15, 0]
 d1= [suggested_pose[0] - current_pose[0], suggested_pose[1] - current_pose[1]]
@@ -358,7 +408,7 @@ plt.plot(x_val, y_val)
 plt.axis('scaled')
 plt.show()
 
-
+"""
 
 
 

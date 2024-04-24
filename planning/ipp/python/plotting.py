@@ -2,16 +2,16 @@ import pickle
 from gpytorch.likelihoods import GaussianLikelihood
 from matplotlib import pyplot as plt
 from botorch.acquisition import UpperConfidenceBound
-from AcquisitionFunctionClass import UCB_custom
+from AcquisitionFunctionClass import UCB_path
 import torch
 import numpy as np
 
 # Load MBES points
-MBES = pickle.load(open(r"/home/alex/.ros/Fri, 19 Apr 2024 10:54:09_iteration_2889_MBES.pickle", "rb"))
-print(MBES.shape)
+#MBES = pickle.load(open(r"/home/alex/.ros/Mon, 22 Apr 2024 15:24:15_iteration_2312_MBES.pickle", "rb"))
+#print(MBES.shape)
 
 # Load first model
-model1 = pickle.load(open(r"/home/alex/.ros/Fri, 19 Apr 2024 10:54:09_iteration_2889_GP_env.pickle","rb"))
+model1 = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_995m.pickle","rb"))
 model1.model.eval()
 model1.likelihood.eval()
 likelihood1 = GaussianLikelihood()
@@ -22,6 +22,7 @@ ind_points = model1.variational_strategy.inducing_points.detach().numpy()
 torch.cuda.empty_cache()
 
 # Load second model
+"""
 model2 = pickle.load(open(r"/home/alex/.ros/Fri, 19 Apr 2024 10:54:09_iteration_2889_GP_path.pickle","rb"))
 model2.eval()
 model2.likelihood.eval()
@@ -29,7 +30,7 @@ likelihood2 = GaussianLikelihood()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 likelihood2.to(device).float()
 model2.to(device).float()
-
+"""
 # Plotting params
 n = 200
 n_contours = 50
@@ -57,8 +58,9 @@ inputst2 = np.vstack(inputst2).transpose()
 
 # Define acquisition functions
 ucb_fun = UpperConfidenceBound(model1, 10)
+"""
 ucb_path = UpperConfidenceBound(model2, 10)
-
+"""
 # Outputs for GP 1
 mean_list = []
 var_list = []
@@ -80,6 +82,7 @@ mean = np.vstack(mean_list).reshape(s)
 variance = np.vstack(var_list).reshape(s)
 ucb = np.vstack(ucb_list).reshape(s)
 
+"""
 # Outputs for GP 2
 ucb2_list = []
 divs = 10
@@ -96,20 +99,20 @@ with torch.no_grad():
 ucb2 = np.vstack(ucb2_list).reshape(s2)
 
 print("Donezo")
-
+"""
 
 # First plots
 # plot raw, mean, and variance
 #levels = np.linspace(min(targets), max(targets), n_contours)
-fig, ax = plt.subplots(4, sharex=True, sharey=True)
-cr = ax[0].scatter(MBES[:, 0], MBES[:, 1], c = MBES[:, 2],
-                    cmap='jet', s=0.4, edgecolors='none')
-cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
+fig, ax = plt.subplots(sharex=True, sharey=True)
+#cr = ax[0].scatter(MBES[:, 0], MBES[:, 1], c = MBES[:, 2],
+#                    cmap='jet', s=0.4, edgecolors='none')
+cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
 # cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
-cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
-indpts = model1.variational_strategy.inducing_points.data.cpu().numpy()
-ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
-ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
+#cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
+#indpts = model1.variational_strategy.inducing_points.data.cpu().numpy()
+#ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
+#ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
 
 
 
@@ -117,28 +120,31 @@ ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
 #np.save("./posterior.npy", post_cloud)
 
 # colorbars
-fig.colorbar(cr, ax=ax[0])
-fig.colorbar(cm, ax=ax[1])
-fig.colorbar(cv, ax=ax[2])
-fig.colorbar(ca, ax=ax[3])
+#fig.colorbar(cr, ax=ax[0])
+fig.colorbar(cm, ax=ax)
+#fig.colorbar(cv, ax=ax[2])
+#fig.colorbar(ca, ax=ax[3])
 
 # # formatting
-ax[0].set_aspect('equal')
-ax[0].set_title('Raw data')
-ax[0].set_ylabel('$y~[m]$')
+ax.set_aspect('equal')
+ax.set_title('Raw data')
+ax.set_ylabel('$y~[m]$')
+ax.set_xlabel('$x~[m]$')
 
-ax[1].set_aspect('equal')
-ax[1].set_title('Mean')
-ax[1].set_ylabel('$y~[m]$')
-ax[2].set_aspect('equal')
-ax[2].set_title('Variance')
-ax[2].set_ylabel('$y~[m]$')
-ax[3].set_aspect('equal')
-ax[3].set_title('UCB')
-ax[3].set_ylabel('$y~[m]$')
-ax[3].set_xlabel('$x~[m]$')
+#ax[1].set_aspect('equal')
+#ax[1].set_title('Mean')
+#ax[1].set_ylabel('$y~[m]$')
+#ax[2].set_aspect('equal')
+#ax[2].set_title('Variance')
+#ax[2].set_ylabel('$y~[m]$')
+#ax[3].set_aspect('equal')
+#ax[3].set_title('UCB')
+#ax[3].set_ylabel('$y~[m]$')
+#ax[3].set_xlabel('$x~[m]$')
 #plt.tight_layout()
 
+
+"""
 # Second plots
 # plot raw, mean, and variance
 #levels = np.linspace(min(targets), max(targets), n_contours)
@@ -188,7 +194,7 @@ ax2[3, 1].set_title('UCB2')
 ax2[3, 1].set_ylabel('$y~[m]$')
 ax2[3, 1].set_xlabel('$x~[m]$')
 plt.tight_layout()
-
+"""
 
 
 plt.show()

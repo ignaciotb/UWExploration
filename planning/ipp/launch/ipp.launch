@@ -63,8 +63,9 @@
         <param name="n_beams_mbes"   type= "int"  value="$(arg n_beams_mbes)" />  
     </node>
 
+    
     <node type="VisualizationClass.py" pkg="ipp" name="Visualization_node" output="screen"/>
-
+    
     <!--
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
         <param name="namespace" value="$(arg namespace)"/>  

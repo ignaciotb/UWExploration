@@ -70,20 +70,18 @@ class PlannerBase():
         u = self.bounds[2]
         d = self.bounds[3]
         
-        # Note: Deform rectangle slightly. This helps generating mesh with 
-        # open3d for inducing point generation.
 
         # Append corners
         ul_c = PoseStamped()
-        ul_c.pose.position.x = l #+ 3
-        ul_c.pose.position.y = u #- 4
+        ul_c.pose.position.x = l 
+        ul_c.pose.position.y = u
         ul_c.header = h
         corners.poses.append(ul_c)
         
         ur_c = PoseStamped()
         ur_c.header = h
-        ur_c.pose.position.x = r #-3
-        ur_c.pose.position.y = u #+ 7
+        ur_c.pose.position.x = r
+        ur_c.pose.position.y = u 
         corners.poses.append(ur_c)
 
         # NOTE: switches order of dr_c and dl_c being appended to make
@@ -97,10 +95,12 @@ class PlannerBase():
         
         dl_c = PoseStamped()
         dl_c.header = h
-        dl_c.pose.position.x = l #+ 4
-        dl_c.pose.position.y = d #- 4
+        dl_c.pose.position.x = l
+        dl_c.pose.position.y = d
         corners.poses.append(dl_c)
         
+        # Adding an extra wp closes the pattern, 
+        # no need to deform corners then
         corners.poses.append(ul_c)
         
         return corners
@@ -111,6 +111,40 @@ class SimplePlanner(PlannerBase):
     Args:
         PlannerBase (obj): Basic template of planner class
     """
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius):
+        # Invoke constructor of parent class
+        super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        
+        # Setup class attributes
+        self.state = [0, 0, 0]
+        self.gp = SVGP_map(0, "botorch", self.bounds)
+        
+        # Corner publisher - needed as boundary for generating inducing points
+        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
+        corners = self.generate_ip_corners()
+        self.corner_pub.publish(corners)
+        
+        # Check on wp_status to generate end files
+        rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
+                
+    def begin_gp_train(self):
+        """ Begin training of GP, gives up control of thread """
+        r = rospy.Rate(10)
+        while not rospy.is_shutdown():
+            self.gp.train_iteration()  
+            r.sleep()
+            
+    def get_path_cb(self, msg):
+        """ When called, dumps GP
+
+        Args:
+            msg (bool): dummy boolean, not used currently
+        """
+        
+        # Freeze a copy of current model for planning, to let real model keep training
+        with self.gp.mutex:
+                pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
+        
     
     def generate_path(self, sW, sO, fM = False):
         """ Creates a basic path in lawnmower pattern in a rectangle with given parameters
@@ -288,7 +322,7 @@ class BOPlanner(PlannerBase):
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
         candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
-        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=10)
+        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=25)
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
         
         with self.gp_angle_lock:

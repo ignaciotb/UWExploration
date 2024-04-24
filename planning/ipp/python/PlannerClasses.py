@@ -1,11 +1,6 @@
 # Python functionality
 from abc import abstractmethod
-import copy
 import pickle
-import time
-import os
-import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import filelock
 
 # Math libraries
@@ -23,13 +18,9 @@ import tf
 import tf_conversions
 import geometry_msgs
 
-# BoTorch
-from botorch.models.approximate_gp import SingleTaskVariationalGP
-
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
 from GaussianProcessClass import SVGP_map
-from VisualizationClass import UpdateDist
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
@@ -53,48 +44,84 @@ class PlannerBase():
         assert len(self.bounds) == 4, "Wrong number of boundaries given"
         assert self.turning_radius > 0.1, "Turning radius is too small"
         
+        # Setup class attributes
+        self.state = [0, 0, 0]
+        self.gp = SVGP_map(0, "botorch", self.bounds)
+        self.distance_travelled = 0
+        
+        # Corner publisher - needed as boundary for generating inducing points
+        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
+        corners = self.generate_ip_corners()
+        self.corner_pub.publish(corners)
+        
+        # Subscribers with callback methods
+        rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
+        rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
+        
+    @abstractmethod
+    def get_path_cb():
+        """ Abstract callback method, called when no more waypoints left.
+        """
+        pass
+    
+    def begin_gp_train(self, rate = 10):
+        """ Begin training of GP, gives up control of thread
+
+        Args:
+            rate (int, optional): Training rate in Hz. Defaults to 10.
+        """
+        r = rospy.Rate(rate)
+        while not rospy.is_shutdown():
+            self.gp.train_iteration()  
+            r.sleep()
+            
+    def odom_state_cb(self, msg):
+        """ Gets our current 2D state (x,y,theta) from the odometry topic.
+            Also calculates the total distance travelled.
+
+        Args:
+            msg (_type_): A pose message
+        """
+        explicit_quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
+        _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
+        self.distance_travelled += np.hypot(x-self.state[0], y-self.state[1])
+        self.state = [x, y, yaw]
+        
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
 
         Returns:
-            corners (nav_msgs.msg.Path): four waypoints bounding the area 
+            corners (nav_msgs.msg.Path): four waypoints bounding the area in a rectangle
         """
-        h = std_msgs.msg.Header()
-        h.stamp = rospy.Time.now()
-        h.frame_id = "map"
-        corners = Path()
-        corners.header = h
+        corners = Path(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id="map"))
         
         l = self.bounds[0]
         r = self.bounds[1]
         u = self.bounds[2]
         d = self.bounds[3]
         
-
         # Append corners
         ul_c = PoseStamped()
         ul_c.pose.position.x = l 
         ul_c.pose.position.y = u
-        ul_c.header = h
         corners.poses.append(ul_c)
         
         ur_c = PoseStamped()
-        ur_c.header = h
         ur_c.pose.position.x = r
         ur_c.pose.position.y = u 
         corners.poses.append(ur_c)
 
-        # NOTE: switches order of dr_c and dl_c being appended to make
+        # NOTE: switched order of dr_c and dl_c being appended to make
         #       visualization of borders easier in RVIZ
 
         dr_c = PoseStamped()
-        dr_c.header = h
         dr_c.pose.position.x = r
         dr_c.pose.position.y = d
         corners.poses.append(dr_c)
         
         dl_c = PoseStamped()
-        dl_c.header = h
         dl_c.pose.position.x = l
         dl_c.pose.position.y = d
         corners.poses.append(dl_c)
@@ -114,25 +141,6 @@ class SimplePlanner(PlannerBase):
     def __init__(self, corner_topic, path_topic, bounds, turning_radius):
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
-        
-        # Setup class attributes
-        self.state = [0, 0, 0]
-        self.gp = SVGP_map(0, "botorch", self.bounds)
-        
-        # Corner publisher - needed as boundary for generating inducing points
-        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
-        corners = self.generate_ip_corners()
-        self.corner_pub.publish(corners)
-        
-        # Check on wp_status to generate end files
-        rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
-                
-    def begin_gp_train(self):
-        """ Begin training of GP, gives up control of thread """
-        r = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            self.gp.train_iteration()  
-            r.sleep()
             
     def get_path_cb(self, msg):
         """ When called, dumps GP
@@ -141,9 +149,12 @@ class SimplePlanner(PlannerBase):
             msg (bool): dummy boolean, not used currently
         """
         
-        # Freeze a copy of current model for planning, to let real model keep training
+        # Freeze a copy of current model for plotting, to let real model keep training
         with self.gp.mutex:
                 pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
+        
+        # Notify of current distance travelled
+        print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         
     
     def generate_path(self, sW, sO, fM = False):
@@ -241,25 +252,12 @@ class BOPlanner(PlannerBase):
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
         
-        # Setup class attributes
-        self.state = [0, 0, 0]
-        self.gp = SVGP_map(0, "botorch", self.bounds)
-        
-        # Corner publisher - needed as boundary for generating inducing points
-        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
-        corners = self.generate_ip_corners()
-        self.corner_pub.publish(corners)
-        
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
         
         # Publish an initial path
-        initial_path = self.initial_sampling_path(n_samples=1)
+        initial_path     = self.initial_sampling_path(n_samples=1)
         self.path_pub.publish(initial_path) 
-        
-        # Subscribers with callback methods
-        rospy.Subscriber("/navigation/hugin_0/wp_status", std_msgs.msg.Bool, self.get_path_cb)
-        rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
         
         # Filelocks for file mutexes
         self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
@@ -269,10 +267,7 @@ class BOPlanner(PlannerBase):
         # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
         # On laptop, training takes ~0.05 seconds, which means 30 hz is too fast.
         # Don't know yet about jetson.
-        r = rospy.Rate(10)
-        while not rospy.is_shutdown():
-            self.gp.train_iteration()  
-            r.sleep()
+        self.begin_gp_train()
         
     def initial_sampling_path(self, n_samples):
         """ Generates a set of waypoints for initial sampling of BO
@@ -312,24 +307,22 @@ class BOPlanner(PlannerBase):
             model = pickle.load(open("GP_env.pickle","rb"))
             
         # Get a new candidate trajectory with Bayesian optimization
-        horizon_distance = 40
-        low_x            = max(self.bounds[0], min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        high_x           = min(self.bounds[1], max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        low_y            = max(self.bounds[3], min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
-        high_y           = min(self.bounds[2], max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
+        horizon_distance = 100
+        border_margin    = 10
+        low_x            = max(self.bounds[0] + border_margin, min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
+        high_x           = min(self.bounds[1] - border_margin, max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
+        low_y            = max(self.bounds[3] + border_margin, min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
+        high_y           = min(self.bounds[2] - border_margin, max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=10.0, current_pose=self.state)
+        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=20.0, current_pose=self.state)
         candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
-        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=25)
+        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
         
         with self.gp_angle_lock:
                 pickle.dump(angle_gp, open("GP_angle.pickle" , "wb"))
-        
-        #with open(self.fp + "_iteration_" + self.it + "_GP_path.pickle" , "wb") as f:
-        #            pickle.dump(path_gp, f)
         
         # Signature out: Candidate (xy theta)
         print(candidate)
@@ -344,7 +337,7 @@ class BOPlanner(PlannerBase):
         location = candidate.numpy()
         path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], 8)
         wp_poses, _ = path.sample_many(5)
-        for pose in wp_poses[3:]:       #removing first few as hack to ensure AUV doesnt get stuck
+        for pose in wp_poses[2:]:       #removing first few as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
             wp.header = h
             wp.pose.position.x = pose[0] 
@@ -352,17 +345,5 @@ class BOPlanner(PlannerBase):
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
         self.path_pub.publish(sampling_path)
-
-
-    def odom_state_cb(self, msg):
-        """ Gets our current 2D state (x,y,theta) from the odometry topic
-
-        Args:
-            msg (_type_): A pose message
-        """
-        explicit_quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
-        _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        self.state = [x, y, yaw]
+        print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

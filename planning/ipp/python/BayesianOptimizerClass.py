@@ -4,7 +4,6 @@ from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models import SingleTaskGP
 from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound
-from botorch.models.transforms.outcome import Standardize
 from botorch.optim import optimize_acqf
 
 # Custom module
@@ -35,13 +34,7 @@ class BayesianOptimizer():
         #self.bounds_list            = [[bounds[0], bounds[3], -np.pi], [bounds[1], bounds[2], np.pi]]
         self.XY_acqf                = qUCB_xy(gp_terrain, self.beta)
         self.path_reward            = UCB_path(gp_terrain, self.beta, current_pose)
-        
-        # Setup second layer of GP, train it
-        #self.train_X, self.train_Y  = self._sample_paths(nbr_samples=nbr_initial_samples)
-        #self.gp_path                = SingleTaskGP(self.train_X, self.train_Y, outcome_transform=Standardize(m=1))
-        #self.mll                    = ExactMarginalLogLikelihood(self.gp_path.likelihood, self.gp_path)
-        #fit_gpytorch_mll(self.mll)
-        #self.gp_path_acqf           = UpperConfidenceBound(self.gp_path, self.beta)
+
     
     def _sample_paths(self, nbr_samples, X=None):
         """ Sample the reward of swaths along dubins path with environment GP.
@@ -67,29 +60,51 @@ class BayesianOptimizer():
         return train_X, train_Y        
         
     def optimize_XY_with_grad(self, max_iter=5, nbr_samples=200):
-        candidates, values = optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=max_iter, raw_samples=nbr_samples)
+        """ Finds the optimal sampling location in 2D from the environment GP
+
+        Args:
+            max_iter (int, optional): max number of restarts for gradient optimization. Defaults to 5.
+            nbr_samples (int, optional): raw samples used in gradient optimization. Defaults to 200.
+
+        Returns:
+            Tensor: best candidate(s) found from optimization
+        """
+        candidates, _ = optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=max_iter, raw_samples=nbr_samples)
         return candidates
     
-    def optimize_theta_with_grad(self, XY, max_iter, nbr_samples=10):
-        
-        
+    def optimize_theta_with_grad(self, XY, max_iter=5, nbr_samples=10):
+        """ Finds the optimal heading to connect current position with the
+            best sampling location, using a 1D GP that learns rewards by
+            sampling paths (representing different headings) in the environment GP.
+
+        Args:
+            XY (Tensor): `[X, Y]` 2D position of sampling location to connect to
+            max_iter (int, optional): number of loops in BO where new paths are sampled. Defaults to 5.
+            nbr_samples (int, optional): number of initial sampled paths from environment GP. Defaults to 10.
+
+        Returns:
+            Tensor: best candidate found from optimization
+        """
+
+        # Generate random initial sample angles
         random_thetas = (torch.from_numpy(np.random.uniform(low=-np.pi, 
                     high=np.pi, size=[nbr_samples, 1]))).type(torch.FloatTensor)
         XY_repeated = XY.repeat(nbr_samples, 1)
         samples = torch.cat([XY_repeated, random_thetas], 1)
-        
         train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
         train_X = train_X[:, 2].unsqueeze(1)
         
-        self.gp_theta               = SingleTaskGP(train_X, train_Y, outcome_transform=Standardize(m=1))
+        # Train a new 1D Gaussian process for rewards of different headings
+        self.gp_theta               = SingleTaskGP(train_X, train_Y)
         self.mll                    = ExactMarginalLogLikelihood(self.gp_theta.likelihood, self.gp_theta)
         fit_gpytorch_mll(self.mll)
         self.theta_acqf             = UpperConfidenceBound(self.gp_theta, self.beta)
         
+        # Run BO to iteratively sample new paths, to improve our chances of optimal heading
         iteration = 0
         best_value = 0
         while iteration < max_iter:
-            candidate, value = optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=50)
+            candidate, value = optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=20)
             
             sample = torch.cat([XY, candidate], 1).squeeze(0)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=sample)
@@ -102,6 +117,10 @@ class BayesianOptimizer():
                 best_value = value
                 best_candidate = candidate
             iteration += 1
+        
+        # Run a single optimization with no regard for variance, only caring for highest mean
+        self.best_theta_acqf       = UpperConfidenceBound(self.gp_theta, 0)
+        best_candidate, value = optimize_acqf(self.best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
             
         return best_candidate, self.gp_theta
     
@@ -109,15 +128,16 @@ class BayesianOptimizer():
     
     
     
-######################################################
+###############################################################
 #
-#  OLD SHIT BELOW, not used anymore since decoupling
+#  DEPRECATED BELOW - not used anymore since decoupling GP layers
 #
-######################################################
+###############################################################
 
 
-    def optimize_with_grad(self, max_iter=5):
-        """ Returns the most optimal candidate to move towards in a dubins path,
+    def _optimize_with_grad(self, max_iter=5):
+        """ NOTE: DEPRECATED
+        Returns the most optimal candidate to move towards in a dubins path,
         to gather information. Uses first order (gradient) based optimization, which is
         enabled by having a second layer of GP that learns the rewards of the paths.
 
@@ -152,8 +172,9 @@ class BayesianOptimizer():
             
         return best_candidate, self.gp_path
     
-    def optimize_no_grad(self):
-        """ Zeroth-order optimization, using CMA-ES. This directly optimizes on the environment
+    def _optimize_no_grad(self):
+        """ NOTE: DEPRECATED
+            Zeroth-order optimization, using CMA-ES. This directly optimizes on the environment
             GP, by using the full path acquisition function.
 
         Returns:

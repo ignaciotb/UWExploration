@@ -11,6 +11,7 @@ import torch
 from gpytorch.likelihoods import GaussianLikelihood
 import time
 from botorch.acquisition import UpperConfidenceBound
+from AcquisitionFunctionClass import UCB_xy
 
 
 class UpdateDist(object):
@@ -74,7 +75,7 @@ class UpdateDist(object):
         inputst = [_.flatten() for _ in inputst]
         inputst = np.vstack(inputst).transpose()
         
-        ucb_fun = UpperConfidenceBound(model1, 10)
+        ucb_fun = UCB_xy(model1, 20)
 
         
         # Outputs for GP 1

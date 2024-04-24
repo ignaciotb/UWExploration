@@ -25,7 +25,7 @@ if __name__ == "__main__":
         #choice="lawnmower"
         if choice == "lawnmower":
             rospy.loginfo("Initializing planner node! Using Lawnmower pattern.")  
-            planner = SimplePlanner('/hugin_0/corners', '/hugin_0/waypoints', [-270, -40, 130, -100], 8)
+            planner = SimplePlanner('/hugin_0/corners', '/hugin_0/waypoints', [-260, -40, 100, -70], 8)
             corners = planner.generate_ip_corners()
             path = planner.generate_path(18, 0.2)
             corner_pub  = rospy.Publisher('/hugin_0/corners', Path, queue_size=1)
@@ -35,6 +35,7 @@ if __name__ == "__main__":
             rospy.sleep(1)
             path_pub.publish(path) 
             rospy.loginfo("Published!")  
+            planner.begin_gp_train()
         
         # Run bayesian planner 
         else:

@@ -308,7 +308,7 @@ class BOPlanner(PlannerBase):
             
         # Get a new candidate trajectory with Bayesian optimization
         horizon_distance = 100
-        border_margin    = 10
+        border_margin    = 20
         low_x            = max(self.bounds[0] + border_margin, min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
         high_x           = min(self.bounds[1] - border_margin, max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
         low_y            = max(self.bounds[3] + border_margin, min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
@@ -316,7 +316,7 @@ class BOPlanner(PlannerBase):
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=20.0, current_pose=self.state)
+        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=30.0, current_pose=self.state)
         candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)

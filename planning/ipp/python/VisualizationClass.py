@@ -45,6 +45,7 @@ class UpdateDist(object):
         
         # Clear axis
         plt.cla()
+        #plt.clf()
         
         # Calculate time (during testing)
         t1 = time.time()
@@ -75,7 +76,7 @@ class UpdateDist(object):
         inputst = [_.flatten() for _ in inputst]
         inputst = np.vstack(inputst).transpose()
         
-        ucb_fun = UCB_xy(model1, 20)
+        ucb_fun = UCB_xy(model1, beta=30)
 
         
         # Outputs for GP 1
@@ -89,7 +90,8 @@ class UpdateDist(object):
                 inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
                 outputs = model1(inputst_temp)
                 mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
-                ucb = mean_r + ucb_fun.beta.sqrt() * sigma_r
+                #ucb = ucb_fun.forward(inputst_temp.unsqueeze(-2))
+                ucb = abs(mean_r - model1.model.mean_module.constant) + ucb_fun.beta.sqrt() * sigma_r
                 outputs = likelihood1(outputs)
                 mean_list.append(outputs.mean.cpu().numpy())
                 var_list.append(outputs.variance.cpu().numpy())
@@ -98,6 +100,7 @@ class UpdateDist(object):
         mean = np.vstack(mean_list).reshape(s)
         variance = np.vstack(var_list).reshape(s)
         ucb = np.vstack(ucb_list).reshape(s)
+        points = model1.model.variational_strategy.inducing_points.detach().numpy()
         
         
         # Load second model
@@ -132,6 +135,7 @@ class UpdateDist(object):
         # [1, 1]: Second GP, mean and variance
         cm = self.ax[0, 0].contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
         cv = self.ax[0, 1].contourf(*inputsg, variance, levels=n_contours)
+        self.ax[0, 1].scatter(points[:, 0], points[:, 1])
         ca = self.ax[1, 0].contourf(*inputsg, ucb, levels=n_contours)
         cg = self.ax[1, 1].plot(samples1D, mean2)
         self.ax[1, 1].fill_between(samples1D, mean2+variance2, mean2-variance2, facecolor='blue', alpha=0.5)

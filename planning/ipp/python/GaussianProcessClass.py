@@ -156,7 +156,7 @@ class SVGP_map():
             #inducing_points = inducing_tensor, #self.s,
             learn_inducing_points=True,
             # TODO: the normal prior is a temporary fix
-            mean_module = ConstantMean(constant_prior=NormalPrior(-15, 1), constant_constraint=Interval(-16, -14)),
+            mean_module = ConstantMean(constant_prior=NormalPrior(-16.5, 1), constant_constraint=Interval(-17, -16)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
         self.likelihood = GaussianLikelihood()
         

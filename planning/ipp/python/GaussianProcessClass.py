@@ -144,20 +144,20 @@ class SVGP_map():
 
         # hardware allocation
         self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
-        samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
-        inducing_tensor = torch.tensor(samples).to(torch.float)
+        #samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
+        #inducing_tensor = torch.tensor(samples).to(torch.float)
         initial_x = torch.randn(self.s,2)
         var_dist = CholeskyVariationalDistribution(self.s)
         self.model = SingleTaskVariationalGP(
             train_X=initial_x,
             num_outputs=1,
             variational_distribution=var_dist,
-            inducing_points = inducing_tensor, #self.s,
+            likelihood=GaussianLikelihood(),
+            #inducing_points = inducing_tensor, #self.s,
             learn_inducing_points=True,
             # TODO: the normal prior is a temporary fix
             mean_module = ConstantMean(constant_prior=NormalPrior(-15, 1), constant_constraint=Interval(-16, -14)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
-        self.model.variational_strategy = VariationalStrategy(self.model, torch.randn((num_inducing, 2)), var_dist, learn_inducing_locations=True)
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -341,7 +341,7 @@ class SVGP_map():
             pcl = mesh.sample_points_poisson_disk(
                 number_of_points=int(self.s))
 
-            self.model.variational_strategy.inducing_points.data = torch.from_numpy(
+            self.model.model.variational_strategy.inducing_points.data = torch.from_numpy(
                 np.asarray(pcl.points)[:, 0:2]).to(self.device).float()
 
             self.inducing_points_received = True

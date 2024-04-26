@@ -129,7 +129,7 @@ class UCB_xy(UpperConfidenceBound):
             given design points `X`.
         """
         mean, sigma = self._mean_and_sigma(X)
-        return abs(mean - self.model.model.mean_module.constant) * sigma
+        return abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma
 
 
 
@@ -187,18 +187,18 @@ class UCB_path(UpperConfidenceBound):
             cost = length_arr[-1] + wp_resolution
             
             # Get sample swath points orthogonally to path at regular intervals
-            points = self._get_orthogonal_samples(wp_poses[::self.waypoint_sample_interval])
+            points = self._get_orthogonal_samples(wp_poses[::self.waypoint_sample_interval], nbr_samples=12, swath_width=15.0)
             
             # Calculate UCB/cost reward of travelling to candidate
             mean, sigma = self._mean_and_sigma(points)
             mean = mean.sum()
             sigma = sigma.sum()
-            ucb = abs(mean - self.model.model.mean_module.constant) * sigma #relative to gp mean
+            ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards
     
-    def _get_orthogonal_samples(self, poses, nbr_samples=6, swath_width=5):
+    def _get_orthogonal_samples(self, poses, nbr_samples=6, swath_width=5.0):
         """ Generates points on lines orthogonal to a vector. Will generate
             `nbr_samples` for each given vector, along a line of given swath width.
         
@@ -206,7 +206,7 @@ class UCB_path(UpperConfidenceBound):
         Args:
             poses (list[float]): [x y theta]
             nbr_samples (int, optional): number of samples generated for each vector. Defaults to 6.
-            swath_width (int, optional): width of line sampled from, for each vector. Defaults to 5.
+            swath_width (float, optional): width of line sampled from, for each vector. Defaults to 5.0.
 
         Returns:
             torch.Tensor: concatenated xy points of samples

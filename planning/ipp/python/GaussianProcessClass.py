@@ -73,32 +73,6 @@ import copy
 from collections import OrderedDict
 from threading import Lock
 
-# GPYTORCH VERSION
-class SVGP(VariationalGP):
-    def __init__(self, num_inducing):
-        # variational distribution and strategy
-        # NOTE: we put random normal dumby inducing points
-        # here, which we'll change in self.fit
-        vardist = CholeskyVariationalDistribution(num_inducing)
-        varstra = VariationalStrategy(
-            self,
-            torch.randn((num_inducing, 2)),
-            vardist,
-            learn_inducing_locations=True
-        )
-        VariationalGP.__init__(self, varstra)
-
-        # kernel — implemented in self.forward
-        self.mean = ConstantMean()
-        self.cov = MaternKernel(ard_num_dims=2)
-        # self.cov = GaussianSymmetrizedKLKernel()
-        self.cov = ScaleKernel(self.cov, ard_num_dims=2)
-
-    def forward(self, input):
-        m = self.mean(input)
-        v = self.cov(input)
-        return MultivariateNormal(m, v)
-
 
 class SVGP_map():
     """ Class which encapsulates the optimization tools for the SVGP map.
@@ -106,13 +80,10 @@ class SVGP_map():
         and an action server for accessing posterior.
     """
 
-    def __init__(self, particle_id, version="", corners = None):
+    def __init__(self, particle_id, corners = None):
 
         # Mutex to share with planner
         self.mutex = Lock()
-        
-        # Keep MBES for testing
-        self.MBES_arr = []
         
         ## ROS INTERFACE
         self.particle_id = particle_id
@@ -172,24 +143,21 @@ class SVGP_map():
         self.s = int(num_inducing)
 
         # hardware allocation
-        if version == "botorch":
-            self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
-            samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
-            inducing_tensor = torch.tensor(samples).to(torch.float)
-            initial_x = torch.randn(self.s,2)
-            var_dist = CholeskyVariationalDistribution(self.s)
-            self.model = SingleTaskVariationalGP(
-                train_X=initial_x,
-                num_outputs=1,
-                variational_distribution=var_dist,
-                inducing_points = inducing_tensor, #self.s,
-                learn_inducing_points=True,
-                # TODO: the normal prior is a temporary fix
-                mean_module = ConstantMean(constant_prior=NormalPrior(-15, 1), constant_constraint=Interval(-16, -14)),
-                covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
-            self.model.variational_strategy = VariationalStrategy(self.model, torch.randn((num_inducing, 2)), var_dist, learn_inducing_locations=True)
-        else:
-            self.model = SVGP(num_inducing)
+        self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
+        samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
+        inducing_tensor = torch.tensor(samples).to(torch.float)
+        initial_x = torch.randn(self.s,2)
+        var_dist = CholeskyVariationalDistribution(self.s)
+        self.model = SingleTaskVariationalGP(
+            train_X=initial_x,
+            num_outputs=1,
+            variational_distribution=var_dist,
+            inducing_points = inducing_tensor, #self.s,
+            learn_inducing_points=True,
+            # TODO: the normal prior is a temporary fix
+            mean_module = ConstantMean(constant_prior=NormalPrior(-15, 1), constant_constraint=Interval(-16, -14)),
+            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
+        self.model.variational_strategy = VariationalStrategy(self.model, torch.randn((num_inducing, 2)), var_dist, learn_inducing_locations=True)
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

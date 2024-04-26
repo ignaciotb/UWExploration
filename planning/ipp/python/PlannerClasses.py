@@ -46,7 +46,7 @@ class PlannerBase():
         
         # Setup class attributes
         self.state = [0, 0, 0]
-        self.gp = SVGP_map(0, "botorch", self.bounds)
+        self.gp = SVGP_map(particle_id=0, corners=self.bounds)
         self.distance_travelled = 0
         
         # Corner publisher - needed as boundary for generating inducing points

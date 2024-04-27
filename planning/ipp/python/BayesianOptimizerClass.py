@@ -3,7 +3,7 @@ import torch
 from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models import SingleTaskGP
-from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound
+from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound, PosteriorMean
 from botorch.optim import optimize_acqf
 
 # Custom module
@@ -118,7 +118,7 @@ class BayesianOptimizer():
             iteration += 1
         
         # Run a single optimization with no regard for variance, only caring for highest mean
-        self.best_theta_acqf       = UpperConfidenceBound(self.gp_theta, 0)
+        self.best_theta_acqf  = PosteriorMean(self.gp_theta)
         best_candidate, value = optimize_acqf(self.best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
             
         return best_candidate, self.gp_theta

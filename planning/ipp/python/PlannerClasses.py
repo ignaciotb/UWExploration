@@ -308,7 +308,7 @@ class BOPlanner(PlannerBase):
             
         # Get a new candidate trajectory with Bayesian optimization
         horizon_distance = 100
-        border_margin    = 20
+        border_margin    = 10
         low_x            = max(self.bounds[0] + border_margin, min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
         high_x           = min(self.bounds[1] - border_margin, max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
         low_y            = max(self.bounds[3] + border_margin, min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))

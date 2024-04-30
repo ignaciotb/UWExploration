@@ -38,7 +38,7 @@ def plot_consistency_matrix(consistency_matrix: np.ndarray):
 
     consistency_matrix[consistency_matrix == 0] = np.nan
 
-    plt.imshow(consistency_matrix)
+    plt.contourf(consistency_matrix, cmap='jet', levels=50)
 
     plt.title('Consistency matrix')
 
@@ -96,13 +96,13 @@ def compute_consistency_metrics(src_points, ref_points,
 
     # Get range of x and y
 
-    max_x = max(np.max(src_points[:, 0]), np.max(ref_points[:, 0]))
+    max_x = min(np.max(src_points[:, 0]), np.max(ref_points[:, 0]))
 
-    min_x = min(np.min(src_points[:, 0]), np.min(ref_points[:, 0]))
+    min_x = max(np.min(src_points[:, 0]), np.min(ref_points[:, 0]))
 
-    max_y = max(np.max(src_points[:, 1]), np.max(ref_points[:, 1]))
+    max_y = min(np.max(src_points[:, 1]), np.max(ref_points[:, 1]))
 
-    min_y = min(np.min(src_points[:, 1]), np.min(ref_points[:, 1]))
+    min_y = max(np.min(src_points[:, 1]), np.min(ref_points[:, 1]))
 
 
 

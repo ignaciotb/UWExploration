@@ -49,7 +49,26 @@ from botorch.models.transforms.outcome import Standardize
 from matplotlib.animation import FuncAnimation
 import filelock
 
-print(np.hypot(3-1, 3-2))
+
+
+
+a = torch.from_numpy(np.random.uniform(low=-np.pi, 
+                    high=np.pi, size=[5, 1])).type(torch.FloatTensor)
+
+b = torch.from_numpy(np.random.uniform(low=10, 
+                    high=20, size=[5, 2])).type(torch.FloatTensor)
+
+
+print(a)
+print(a.size())
+print(b)
+print(b.size())
+
+
+c = torch.cat((a,b), dim=1)
+print(c.size())
+
+# print(np.hypot(3-1, 3-2))
 
 
 

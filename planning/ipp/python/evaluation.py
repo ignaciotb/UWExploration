@@ -2,6 +2,11 @@ import numpy as np
 import scipy
 from scipy.spatial.distance import cdist
 import open3d as o3d
+import pickle
+import torch
+import gpytorch
+import matplotlib.pyplot as plt
+from consistency_plot import *
 
 # STEP 1: Get the underlying mesh used
 
@@ -9,55 +14,108 @@ import open3d as o3d
 
 # STEP 3: 
 
+gp = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_lm.pickle","rb"))
+gp.model.eval()
+gp.likelihood.eval()
+likelihood1 = gpytorch.likelihoods.GaussianLikelihood()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+likelihood1.to(device).float()
+gp.to(device).float()
+torch.cuda.empty_cache()
 
-pcl = np.load(r"/home/alex/catkin_ws/src/UWExploration/utils/uw_tests/datasets/lost_targets/mesh.npz")
+resolution = 0.5
 
-print(pcl.files)
+gp2 = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_871m.pickle","rb"))
+gp2.model.eval()
+gp2.likelihood.eval()
+likelihood2 = gpytorch.likelihoods.GaussianLikelihood()
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+likelihood2.to(device).float()
+gp2.to(device).float()
+torch.cuda.empty_cache()
 
-print(pcl['V'])
-print(pcl['F'])
-print(pcl['bounds'])
 
-#pcd = o3d.geometry.PointCloud()
-#pcd.points = o3d.utility.Vector3dVector(pcl)
+bounds = [-260.0, -40.0, 100.0, -70.0]
 
-#print(pcd)
-#pcd.estimate_normals()
+# posterior sampling locations for first GP
+inputsg = [
+    np.arange(bounds[0], bounds[1], resolution),
+    np.arange(bounds[3], bounds[2], resolution)
+]
+inputst = np.meshgrid(*inputsg)
+s = inputst[0].shape
+inputst = [_.flatten() for _ in inputst]
+inputst = np.vstack(inputst).transpose()
 
-"""
-with o3d.utility.VerbosityContextManager(
-        o3d.utility.VerbosityLevel.Debug) as cm:
-    mesh, densities = o3d.geometry.TriangleMesh.create_from_point_cloud_poisson(
-        pcd, depth=9)
-    
-mesh.vertex_colors = o3d.utility.Vector3dVector(pcd.colors)
-print(mesh)
-o3d.visualization.draw_geometries([mesh])
+mean_list = []
+divs = 10
+with torch.no_grad():
+    # sample
+    inputst_temp = torch.from_numpy(inputst).to(device).float()
+    outputs = gp(inputst_temp)
+    outputs = likelihood1(outputs)
+    mean_list.append(outputs.mean.cpu().numpy())
 
-o3d.visualization.draw_geometries([pcd])
+mean2_list = []
+with torch.no_grad():
+    # sample
+    inputst_temp = torch.from_numpy(inputst).to(device).float()
+    outputs = gp2(inputst_temp)
+    outputs = likelihood2(outputs)
+    mean2_list.append(outputs.mean.cpu().numpy())
 
-"""
+mean2 = np.squeeze(np.array(mean2_list), 0)
+mean2 = np.expand_dims(mean2, 1)
 
-def _construct_query_tree(min_x: float, min_y: float, num_rows: float, num_cols: float, resolution: float):
-    """_summary_
+mean = np.squeeze(np.array(mean_list), 0)
+mean = np.expand_dims(mean, 1)
 
-    Args:
-        min_x (float): _description_
-        min_y (float): _description_
-        num_rows (float): _description_
-        num_cols (float): _description_
-        resolution (float): _description_
+a = np.concatenate((inputst, mean), 1)
+b = np.concatenate((inputst, mean2), 1)
 
-    Returns:
-        _type_: _description_
-    """
 
-    x = np.linspace(min_x + (0.5 * resolution), min_x + (num_rows - 1 + 0.5) * resolution, num_rows)
-    y = np.linspace(min_y + (0.5 * resolution), min_y + (num_cols - 1 + 0.5) * resolution, num_cols)
 
-    xv, yv = np.meshgrid(x, y)
-    queries = np.stack((xv.flatten(), yv.flatten()), axis=-1)
-    queries_tree = scipy.spatial.KDTree(queries)
+#plt.contourf(*inputsg, mean, cmap='jet', levels=50)
+#print(mean)
+#plt.show()
+#mean = np.expand_dims(mean, 0)
+#b = np.meshgrid(*inputsg)
+#print(np.shape(mean))
+#print(np.shape(b))
 
-    return queries, queries_tree
+#c = np.concatenate((b, mean), axis=0)
+#print(np.shape(c))
+#print(c)
+#d = np.reshape(c, (170*220, 3))
+#
+#print(np.shape(d))
+
+#print(d)
+
+#print(c)
+
+
+pcd = o3d.geometry.PointCloud()
+pcd.points = o3d.utility.Vector3dVector(a)
+
+pcd2 = o3d.geometry.PointCloud()
+pcd2.points = o3d.utility.Vector3dVector(b)
+
+pcl3 = np.load(r"/home/alex/catkin_ws/src/UWExploration/utils/uw_tests/datasets/lost_targets/pcl.npy")
+pcd3 = o3d.geometry.PointCloud()
+pcd3.points = o3d.utility.Vector3dVector(pcl3)
+
+pcd3 = pcd3.voxel_down_sample(voxel_size=1)
+
+pcd3, _ = pcd3.remove_statistical_outlier(100, 0.5)
+
+#o3d.visualization.draw_geometries([pcd])
+o3d.visualization.draw_geometries([pcd3])
+#o3d.visualization.draw_geometries([pcd, pcd3])
+
+source = np.asarray(pcd2.points)
+ref = np.asarray(pcd.points)
+
+k = compute_consistency_metrics(source, ref, 2, True, True)
+
 

@@ -5,42 +5,41 @@ import sys
 
 # ROS imports
 import rospy
-from nav_msgs.msg import Path
 
 # Custom libraries
 from PlannerClasses import SimplePlanner, BOPlanner
-from GaussianProcessClass import SVGP_map
-from BayesianOptimizerClass import BayesianOptimizer
 
 
 if __name__ == "__main__":
     
     rospy.init_node("AUV_path_planner_node")
-    try:
-        choice = sys.argv[1]
-        corner_pub  = rospy.Publisher('/hugin_0/corners', Path, queue_size=1)
-        path_pub    = rospy.Publisher('/hugin_0/waypoints', Path, queue_size=10)
-        #auv_ui_online()
+    
+    choice          = rospy.get_param("~planner_type")
+    tr              = rospy.get_param("~turning_radius")
+    corner_topic    = rospy.get_param("~corner_topic")
+    path_topic      = rospy.get_param("~path_topic")
+    swath_width     = rospy.get_param("~swath_width")
+    swath_overlap   = rospy.get_param("~swath_overlap")
+    bound_left      = rospy.get_param("~bound_left")
+    bound_right     = rospy.get_param("~bound_right")
+    bound_up        = rospy.get_param("~bound_up")
+    bound_down      = rospy.get_param("~bound_down")
+    
+    bounds = [bound_left, bound_right, bound_up, bound_down]
+    
+    try:        
         # Run lawnmower pattern
-        #choice="lawnmower"
         if choice == "lawnmower":
             rospy.loginfo("Initializing planner node! Using Lawnmower pattern.")  
-            planner = SimplePlanner('/hugin_0/corners', '/hugin_0/waypoints', [-260, -40, 100, -70], 8)
-            corners = planner.generate_ip_corners()
-            path = planner.generate_path(18, 0.2)
-            corner_pub  = rospy.Publisher('/hugin_0/corners', Path, queue_size=1)
-            path_pub    = rospy.Publisher('/hugin_0/waypoints', Path, queue_size=10)
-            rospy.sleep(2)
-            corner_pub.publish(corners)
-            rospy.sleep(1)
-            path_pub.publish(path) 
-            rospy.loginfo("Published!")  
-            planner.begin_gp_train()
+            planner = SimplePlanner(corner_topic=corner_topic, path_topic=path_topic, bounds=bounds, 
+                                    turning_radius=tr, sw=swath_width, so=swath_overlap)
         
         # Run bayesian planner 
         else:
             rospy.loginfo("Initializing planner node! Using Bayesian Optimization.")  
-            planner = BOPlanner('/hugin_0/corners', '/hugin_0/waypoints', [-260, -40, 100, -70], 8)
+            planner = BOPlanner(corner_topic=corner_topic, path_topic=path_topic, bounds=bounds, 
+                                turning_radius=tr)
+            
     except rospy.ROSInterruptException:
         rospy.logerr('Could not launch AUV path planner node')
         

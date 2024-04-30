@@ -41,8 +41,8 @@ class PlannerBase():
         self.turning_radius = turning_radius
         
         # Logic checks
-        assert len(self.bounds) == 4, "Wrong number of boundaries given"
-        assert self.turning_radius > 0.1, "Turning radius is too small"
+        assert len(self.bounds) == 4, "Wrong number of boundaries given to planner, need specifically 4"
+        assert self.turning_radius > 3.0, "Turning radius is way too small"
         
         # Setup class attributes
         self.state = [0, 0, 0]
@@ -51,6 +51,7 @@ class PlannerBase():
         
         # Corner publisher - needed as boundary for generating inducing points
         self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
+        rospy.sleep(1) # Give time for topic to be registered
         corners = self.generate_ip_corners()
         self.corner_pub.publish(corners)
         
@@ -138,9 +139,14 @@ class SimplePlanner(PlannerBase):
     Args:
         PlannerBase (obj): Basic template of planner class
     """
-    def __init__(self, corner_topic, path_topic, bounds, turning_radius):
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius, sw, so):
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        self.path_pub    = rospy.Publisher(path_topic, Path, queue_size=100)
+        rospy.sleep(1)
+        path = self.generate_path(sw, so)
+        self.path_pub.publish(path) 
+        self.begin_gp_train()
             
     def get_path_cb(self, msg):
         """ When called, dumps GP
@@ -254,6 +260,7 @@ class BOPlanner(PlannerBase):
         
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
+        rospy.sleep(1)  # Give time for topic to be registered
         
         # Publish an initial path
         initial_path     = self.initial_sampling_path(n_samples=1)

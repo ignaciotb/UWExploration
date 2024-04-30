@@ -129,23 +129,21 @@ class SVGP_map():
         self.pcloud_pub = rospy.Publisher(mbes_pc_top, PointCloud2, queue_size=10)
 
         ## SVGP SETUP
-        self.mb_size = rospy.get_param("~svgp_minibatch_size", 1000)
-        self.lr = rospy.get_param("~svgp_learning_rate", 1e-1)
-        self.rtol = rospy.get_param("~svgp_rtol", 1e-4)
-        self.n_window = rospy.get_param("~svgp_n_window", 100)
-        self.auto = rospy.get_param("~svgp_auto_stop", False)
-        self.verbose = rospy.get_param("~svgp_verbose", True)
+        self.mb_size = rospy.get_param("~svgp_minibatch_size")
+        self.lr = rospy.get_param("~svgp_learning_rate")
+        self.rtol = rospy.get_param("~svgp_rtol")
+        self.n_window = rospy.get_param("~svgp_n_window")
+        self.auto = rospy.get_param("~svgp_auto_stop")
+        self.verbose = rospy.get_param("~svgp_verbose")
         #n_beams_mbes = rospy.get_param("~n_beams_mbes", 1000)
 
         # Number of inducing points
-        num_inducing = 400  #rospy.get_param("~svgp_num_ind_points", 100)
+        num_inducing = rospy.get_param("~svgp_num_ind_points")
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
 
         # hardware allocation
         self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
-        #samples = np.random.uniform(low=[corners[0], corners[3]], high=[corners[1], corners[2]], size=[self.s, 2])
-        #inducing_tensor = torch.tensor(samples).to(torch.float)
         initial_x = torch.randn(self.s,2)
         var_dist = CholeskyVariationalDistribution(self.s)
         self.model = SingleTaskVariationalGP(
@@ -153,9 +151,7 @@ class SVGP_map():
             num_outputs=1,
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
-            #inducing_points = inducing_tensor, #self.s,
             learn_inducing_points=True,
-            # TODO: the normal prior is a temporary fix
             mean_module = ConstantMean(constant_prior=NormalPrior(-16.5, 1), constant_constraint=Interval(-17, -16)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
         self.likelihood = GaussianLikelihood()
@@ -169,7 +165,6 @@ class SVGP_map():
             {'params': self.model.parameters()},
             {'params': self.likelihood.parameters()},
         ], lr=float(self.lr))
-        # opt = torch.optim.SGD(self.parameters(),lr=learning_rate)
 
         # Convergence criterion
         self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
@@ -298,8 +293,9 @@ class SVGP_map():
                         self.loss.append(loss_np)
 
                         if self.particle_id == 0:
-                            print("Particle ", self.particle_id,
-                                "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
+                            if self.verbose == True:
+                                print("Particle ", self.particle_id,
+                                    "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
                         # print("Training time ", time.time() - time_start)
 
                 else:

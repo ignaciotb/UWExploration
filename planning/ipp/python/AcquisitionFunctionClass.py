@@ -1,4 +1,4 @@
-from botorch.acquisition import UpperConfidenceBound, MCAcquisitionFunction
+from botorch.acquisition import UpperConfidenceBound, MCAcquisitionFunction, AnalyticAcquisitionFunction
 from botorch.utils.transforms import t_batch_mode_transform
 from torch import Tensor, cat
 import torch
@@ -133,11 +133,17 @@ class UCB_xy(UpperConfidenceBound):
         return (abs(mean - self.model.model.mean_module.constant) + 1) * sigma
 
 
-class UCB_path(UpperConfidenceBound):
-    def __init__(self, model, beta, current_pose, waypoint_sample_interval = 6, posterior_transform = None, maximize = True, **kwargs):
-        super(UCB_path, self).__init__(model, beta, posterior_transform = None, maximize = False, **kwargs)
+class UCB_path(AnalyticAcquisitionFunction):
+    def __init__(self, model, current_pose, wp_resolution, turning_radius, swath_width, path_nbr_samples, 
+                 voxel_size = 3, wp_sample_interval = 6, posterior_transform = None, **kwargs):
+        super().__init__(model=model, posterior_transform=posterior_transform, **kwargs)
         self.current_state = current_pose
-        self.waypoint_sample_interval = int(waypoint_sample_interval)
+        self.wp_resolution = wp_resolution
+        self.wp_sample_interval = int(wp_sample_interval)
+        self.turning_radius = turning_radius
+        self.swath_width = swath_width
+        self.nbr_samples = path_nbr_samples
+        self.voxel_size = voxel_size
             
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X: Tensor) -> Tensor:
@@ -175,18 +181,16 @@ class UCB_path(UpperConfidenceBound):
         """
         destinations = (xy.squeeze(-2).squeeze(-1))
         angles = (theta.squeeze(-1))
-        #print(destinations)
-        wp_resolution = 0.5
-        turning_radius = 9
         rewards = Tensor()
+        
         for idx, place in enumerate(destinations):
             # Calculate dubins path to candidate, and travel cost
-            path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], turning_radius)
-            wp_poses, length_arr = path.sample_many(wp_resolution)
-            cost = length_arr[-1] + wp_resolution
+            path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], self.turning_radius)
+            wp_poses, length_arr = path.sample_many(self.wp_resolution)
+            cost = length_arr[-1] + self.wp_resolution
             
             # Get sample swath points orthogonally to path at regular intervals
-            points = self._get_orthogonal_samples(wp_poses[::self.waypoint_sample_interval], nbr_samples=20, swath_width=18.0)
+            points = self._get_orthogonal_samples(wp_poses[::self.wp_sample_interval], self.nbr_samples, self.swath_width)
             
             # Voxelize in 2D to get even spread
             pcl = np.array(points)
@@ -195,7 +199,7 @@ class UCB_path(UpperConfidenceBound):
             pcd3 = o3d.geometry.PointCloud()
             pcd3.points = o3d.utility.Vector3dVector(b)
 
-            pcd3 = pcd3.voxel_down_sample(voxel_size=3)
+            pcd3 = pcd3.voxel_down_sample(self.voxel_size)
 
             #o3d.visualization.draw_geometries([pcd3])
             xyz = np.asarray(pcd3.points)

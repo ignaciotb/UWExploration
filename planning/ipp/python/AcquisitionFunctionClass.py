@@ -4,6 +4,7 @@ from torch import Tensor, cat
 import torch
 import dubins
 from typing import Dict, Optional, Tuple, Union
+import open3d as o3d
 import numpy as np
 import math
 from typing import Any, Optional, Union
@@ -129,13 +130,11 @@ class UCB_xy(UpperConfidenceBound):
             given design points `X`.
         """
         mean, sigma = self._mean_and_sigma(X)
-        return abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma
-
-
+        return (abs(mean - self.model.model.mean_module.constant) + 1) * sigma
 
 
 class UCB_path(UpperConfidenceBound):
-    def __init__(self, model, beta, current_pose, waypoint_sample_interval = 2, posterior_transform = None, maximize = True, **kwargs):
+    def __init__(self, model, beta, current_pose, waypoint_sample_interval = 6, posterior_transform = None, maximize = True, **kwargs):
         super(UCB_path, self).__init__(model, beta, posterior_transform = None, maximize = False, **kwargs)
         self.current_state = current_pose
         self.waypoint_sample_interval = int(waypoint_sample_interval)
@@ -177,8 +176,8 @@ class UCB_path(UpperConfidenceBound):
         destinations = (xy.squeeze(-2).squeeze(-1))
         angles = (theta.squeeze(-1))
         #print(destinations)
-        wp_resolution = 2
-        turning_radius = 8
+        wp_resolution = 0.5
+        turning_radius = 9
         rewards = Tensor()
         for idx, place in enumerate(destinations):
             # Calculate dubins path to candidate, and travel cost
@@ -187,13 +186,28 @@ class UCB_path(UpperConfidenceBound):
             cost = length_arr[-1] + wp_resolution
             
             # Get sample swath points orthogonally to path at regular intervals
-            points = self._get_orthogonal_samples(wp_poses[::self.waypoint_sample_interval], nbr_samples=12, swath_width=15.0)
+            points = self._get_orthogonal_samples(wp_poses[::self.waypoint_sample_interval], nbr_samples=20, swath_width=18.0)
+            
+            # Voxelize in 2D to get even spread
+            pcl = np.array(points)
+            b = np.zeros((pcl.shape[0], pcl.shape[1] + 1))
+            b[:,:-1] = pcl
+            pcd3 = o3d.geometry.PointCloud()
+            pcd3.points = o3d.utility.Vector3dVector(b)
+
+            pcd3 = pcd3.voxel_down_sample(voxel_size=3)
+
+            #o3d.visualization.draw_geometries([pcd3])
+            xyz = np.asarray(pcd3.points)
+
+            xy = torch.from_numpy(xyz[:, :2]).type(torch.FloatTensor)
             
             # Calculate UCB/cost reward of travelling to candidate
-            mean, sigma = self._mean_and_sigma(points)
-            mean = mean.sum()
+            _, sigma = self._mean_and_sigma(xy)
+            #mean = mean.sum()
             sigma = sigma.sum()
-            ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
+            #ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
+            ucb = sigma
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards

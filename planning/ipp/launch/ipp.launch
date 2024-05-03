@@ -41,20 +41,20 @@
 
     <!-- Planner parameters -->
     <arg name="planner_type"                    default="optimizer"/>
-    <arg name="turning_radius"                  default="8"/>
+    <arg name="turning_radius"                  default="9"/>
     <arg name="corner_topic"                    default="/$(arg namespace)/corners"/>
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
-    <arg name="swath_width"                     default="18"/>
+    <arg name="swath_width"                     default="18"/> <!-- TODO: integrate swath width & overlap into program flow -->
     <arg name="swath_overlap"                   default="0.2"/>
 
     <!-- Planner boundaries -->
     <arg name="bound_left"                      default="-260"/>
     <arg name="bound_right"                     default="-40"/>
     <arg name="bound_up"                        default="100"/>
-    <arg name="bound_down"                      default="-40"/>
+    <arg name="bound_down"                      default="-70"/>
 
     <!-- If plotting decision support material should be enabled-->
-    <arg name="visualize"                       default="0"/>
+    <arg name="visualize"                       default="1"/>
 
     <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
         <param name="gp_ip_topic"               value="/$(arg namespace)/gp/inducing_points"/>
@@ -126,7 +126,12 @@
     </include>
 
     <group if="$(eval arg('visualize') == 1)">
-        <node type="VisualizationClass.py" pkg="ipp" name="Visualization_node" output="screen"/>    
+        <node type="VisualizationClass.py" pkg="ipp" name="Visualization_node" output="screen">
+            <param name="bound_left"                value="$(arg bound_left)" />
+            <param name="bound_right"               value="$(arg bound_right)" />
+            <param name="bound_up"                  value="$(arg bound_up)" />
+            <param name="bound_down"                value="$(arg bound_down)" />    
+        </node>
     </group>
 
 </launch>

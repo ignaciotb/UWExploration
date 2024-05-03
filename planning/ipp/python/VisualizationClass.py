@@ -30,7 +30,12 @@ class UpdateDist(object):
         self.lock_heading_gp     = filelock.FileLock("GP_angle.pickle.lock")
 
         # Set up 
-        self.bounds = [-260, -40, 100, -70]
+        bound_left      = rospy.get_param("~bound_left")
+        bound_right     = rospy.get_param("~bound_right")
+        bound_up        = rospy.get_param("~bound_up")
+        bound_down      = rospy.get_param("~bound_down")
+        
+        self.bounds = [bound_left, bound_right, bound_up, bound_down]
         self.ax = ax
         
     def __call__(self, j):
@@ -91,7 +96,7 @@ class UpdateDist(object):
                 outputs = model1(inputst_temp)
                 mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
                 #ucb = ucb_fun.forward(inputst_temp.unsqueeze(-2))
-                ucb = abs(mean_r - model1.model.mean_module.constant) + ucb_fun.beta.sqrt() * sigma_r
+                ucb = (abs(mean_r - model1.model.mean_module.constant) + 1) * sigma_r
                 outputs = likelihood1(outputs)
                 mean_list.append(outputs.mean.cpu().numpy())
                 var_list.append(outputs.variance.cpu().numpy())
@@ -186,7 +191,7 @@ class UpdateDist(object):
         graph_list = [item for sublist in graph_list for item in sublist]
         
         # time taken
-        print(time.time() - t1) 
+        print("Plotting time taken: " + str(round(time.time() - t1, 3)) + " seconds.") 
 
         return graph_list
     

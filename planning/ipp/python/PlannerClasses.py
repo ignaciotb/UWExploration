@@ -26,7 +26,7 @@ class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
         all planners. Advanced planners inherit from this class.
     """
-    def __init__(self, corner_topic, path_topic, bounds, turning_radius):
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius, training_rate):
         """ Constructor method
 
         Args:
@@ -39,6 +39,7 @@ class PlannerBase():
         self.path_topic     = path_topic
         self.bounds         = bounds
         self.turning_radius = turning_radius
+        self.training_rate  = training_rate
         
         # Logic checks
         assert len(self.bounds) == 4, "Wrong number of boundaries given to planner, need specifically 4"
@@ -139,9 +140,9 @@ class SimplePlanner(PlannerBase):
     Args:
         PlannerBase (obj): Basic template of planner class
     """
-    def __init__(self, corner_topic, path_topic, bounds, turning_radius, sw, so):
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius, training_rate, sw, so):
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        super().__init__(corner_topic, path_topic, bounds, turning_radius, training_rate) 
         self.path_pub    = rospy.Publisher(path_topic, Path, queue_size=100)
         rospy.sleep(1)
         path = self.generate_path(sw, so)
@@ -246,7 +247,8 @@ class BOPlanner(PlannerBase):
     Args:
         PlannerBase (obj): Basic template of planner class
     """
-    def __init__(self, corner_topic, path_topic, bounds, turning_radius):
+    def __init__(self, corner_topic, path_topic, bounds, turning_radius, training_rate, wp_resolution, 
+                 swath_width, path_nbr_samples, voxel_size, wp_sample_interval, horizon_distance, border_margin):
         """ Constructor method
 
         Args:
@@ -256,7 +258,7 @@ class BOPlanner(PlannerBase):
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, bounds, turning_radius) 
+        super().__init__(corner_topic, path_topic, bounds, turning_radius, training_rate) 
         
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
@@ -270,11 +272,20 @@ class BOPlanner(PlannerBase):
         self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
         self.gp_angle_lock  = filelock.FileLock("GP_angle.pickle.lock")
         
+        # Parameters for optimizer
+        self.wp_resolution      = wp_resolution
+        self.swath_width        = swath_width
+        self.path_nbr_samples   = path_nbr_samples
+        self.voxel_size         = voxel_size
+        self.wp_sample_interval = wp_sample_interval
+        self.horizon_distance   = horizon_distance
+        self.border_margin      = border_margin
+        
         # Initiate training of GP
         # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
         # On laptop, training takes ~0.05 seconds, which means 30 hz is too fast.
         # Don't know yet about jetson.
-        self.begin_gp_train()
+        self.begin_gp_train(rate=self.training_rate)
         
     def initial_sampling_path(self, n_samples):
         """ Generates a set of waypoints for initial sampling of BO
@@ -314,16 +325,16 @@ class BOPlanner(PlannerBase):
             model = pickle.load(open("GP_env.pickle","rb"))
             
         # Get a new candidate trajectory with Bayesian optimization
-        horizon_distance = 60
-        border_margin    = 10
-        low_x            = max(self.bounds[0] + border_margin, min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        high_x           = min(self.bounds[1] - border_margin, max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
-        low_y            = max(self.bounds[3] + border_margin, min(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
-        high_y           = min(self.bounds[2] - border_margin, max(self.state[1] - horizon_distance, self.state[1] + horizon_distance))
+        low_x            = max(self.bounds[0] + self.border_margin, min(self.state[0] - self.horizon_distance, self.state[0] + self.horizon_distance))
+        high_x           = min(self.bounds[1] - self.border_margin, max(self.state[0] - self.horizon_distance, self.state[0] + self.horizon_distance))
+        low_y            = max(self.bounds[3] + self.border_margin, min(self.state[1] - self.horizon_distance, self.state[1] + self.horizon_distance))
+        high_y           = min(self.bounds[2] - self.border_margin, max(self.state[1] - self.horizon_distance, self.state[1] + self.horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=30.0, current_pose=self.state)
+        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=30.0, current_pose=self.state, 
+                                                        wp_resolution=1, turning_radius=1, swath_width=1, path_nbr_samples=1,
+                                                        voxel_size=1, wp_sample_interval=1)
         candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)

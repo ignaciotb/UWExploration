@@ -16,23 +16,32 @@ import cma
 class BayesianOptimizer():
     """ Defines methods for BO optimization
     """
-    def __init__(self, gp_terrain, bounds, beta, current_pose):
+    def __init__(self, gp_terrain, bounds, beta, current_pose, wp_resolution, turning_radius,
+                 swath_width, path_nbr_samples, voxel_size, wp_sample_interval):
         """ Constructor method
 
         Args:
-            nbr_initial_samples (int):                  Initial samples to populate second GP with
-            gp_terrain (gpytorch.models.VariationalGP): Gaussian process model for environment
-            bounds (array[double]):                     Boundaries of suggested candidates
-            beta (double):                              UCB parameter
-            current_pose (list[float]):                 2D pose of current position of vehicle
+            gp_terrain (SingleTaskVariationalGP): SVGP that learns environment model from MBES input.
+            bounds (array[double]):               Boundaries of where vehicle should travel
+            beta (double):                        Constant for exploration vs exploitation, DEPRECATED
+            current_pose (list[double]):          2D pose from where to start searches for new paths
+            wp_resolution (double):               Resolution for calculating path waypoints
+            turning_radius (double):              Turning radius of vehicle
+            swath_width (float):                  Width of MBES sensor swath
+            path_nbr_samples (int):               Number of orthogonal samples that emulate an MBES swath
+            voxel_size (double):                  Size of grids that to reduce number of overlapping samples
+            wp_sample_interval (int):             Interval of sampling waypoint swaths orthogonally along path
         """
+
         # Set up bounds, and environment acq_fun
         self.beta                   = beta
         self.current_pose           = current_pose
         self.bounds_XY_torch        = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
         self.bounds_theta_torch     = torch.tensor([[-np.pi],  [np.pi]]).to(torch.float)
         self.XY_acqf                = UCB_xy(model=gp_terrain, beta=self.beta)
-        self.path_reward            = UCB_path(model=gp_terrain, beta=self.beta, current_pose=current_pose)
+        self.path_reward            = UCB_path(model=gp_terrain, beta=self.beta, current_pose=current_pose, wp_resolution=wp_resolution,
+                                               turning_radius=turning_radius, swath_width=swath_width, path_nbr_samples=path_nbr_samples,
+                                               voxel_size=voxel_size, wp_sample_interval=wp_sample_interval)
 
     
     def _sample_paths(self, nbr_samples, X=None):
@@ -85,7 +94,7 @@ class BayesianOptimizer():
             Tensor: best candidate found from optimization
         """
 
-        # Generate random initial sample angles
+        # Generate initial sample angles
         random_thetas = torch.linspace(self.bounds_theta_torch[0,0].item(), self.bounds_theta_torch[1,0].item(), nbr_samples).unsqueeze(1)
         XY_repeated = XY.repeat(nbr_samples, 1)
         samples = torch.cat([XY_repeated, random_thetas], 1)

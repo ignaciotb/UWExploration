@@ -50,27 +50,98 @@ from matplotlib.animation import FuncAnimation
 import filelock
 
 
+current_pose = [0, 0, 0]
+
+bounds_theta_torch = torch.tensor([[(current_pose[2]-np.pi/2)%(2*np.pi)],  [(current_pose[2] + np.pi/2)%(2*np.pi)]]).to(torch.float)
 
 
-a = torch.from_numpy(np.random.uniform(low=-np.pi, 
-                    high=np.pi, size=[5, 1])).type(torch.FloatTensor)
 
-b = torch.from_numpy(np.random.uniform(low=10, 
-                    high=20, size=[5, 2])).type(torch.FloatTensor)
+suggested_pose = [50, 0, np.pi]
+t1 = time.time()
+path = dubins.shortest_path(current_pose, suggested_pose, 9)
+wp, length_arr = path.sample_many(1) 
+cost = length_arr[-1] + 1
+
+def get_orthogonal_samples(poses, nbr_samples=6, swath_width=18.0):
+        """ Generates points on lines orthogonal to a vector. Will generate
+            `nbr_samples` for each given vector, along a line of given swath width.
+        
+
+        Args:
+            poses (list[float]): [x y theta]
+            nbr_samples (int, optional): number of samples generated for each vector. Defaults to 6.
+            swath_width (float, optional): width of line sampled from, for each vector. Defaults to 5.0.
+
+        Returns:
+            torch.Tensor: concatenated xy points of samples
+        """
+        radius = 0.5*swath_width
+        samples = []
+        for pose in poses:
+            x = pose[0]
+            y = pose[1]
+            yaw = pose[2]
+
+            dx = radius*np.sin(yaw) # shifted by 90 degree for orthogonality
+            dy = radius*np.cos(yaw) 
+
+            for i in np.linspace(-1, 1, 10):
+                dx_s = dx * i
+                dy_s = dy * i
+                n1 = [x + dx_s, y - dy_s]
+                n2 = [x - dx_s, y + dy_s]
+                #all_samples.append(np.array([n1, n2]))
+                samples.append(n1)
+                samples.append(n2) 
+
+        return samples
+    
+    
+
+samples = get_orthogonal_samples(wp)
+print(time.time()- t1)
+print(len(samples)/cost)
 
 
-print(a)
-print(a.size())
-print(b)
-print(b.size())
+for points in wp:
+    x = points[0]
+    y = points[1]
+
+    plt.scatter(x, y, color=[0, 0, 1])
+
+for points in samples:
+    x = points[0]
+    y = points[1]
+    plt.scatter(x, y, color=[1, 0, 0])
+
+plt.show()
+    
+t1 = time.time()
+pcl = np.array(samples)
+
+b = np.zeros((pcl.shape[0], pcl.shape[1] + 1))
+
+b[:,:-1] = pcl
 
 
-c = torch.cat((a,b), dim=1)
-print(c.size())
+pcd3 = o3d.geometry.PointCloud()
+pcd3.points = o3d.utility.Vector3dVector(b)
 
-# print(np.hypot(3-1, 3-2))
+pcd3 = pcd3.voxel_down_sample(voxel_size=3)
 
+#o3d.visualization.draw_geometries([pcd3])
+xyz = np.asarray(pcd3.points)
 
+xy = xyz[:, :2]
+
+print(time.time()- t1)
+
+print(len(xy)/cost)
+
+ax = plt.gca()
+plt.scatter(xy[:,0], xy[:,1])
+ax.set_aspect('equal')
+plt.show()
 
 
 """

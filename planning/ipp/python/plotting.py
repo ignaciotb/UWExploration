@@ -11,14 +11,14 @@ import numpy as np
 #print(MBES.shape)
 
 # Load first model
-model1 = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_995m.pickle","rb"))
+model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
 model1.model.eval()
 model1.likelihood.eval()
 likelihood1 = GaussianLikelihood()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 likelihood1.to(device).float()
 model1.to(device).float()
-ind_points = model1.variational_strategy.inducing_points.detach().numpy()
+ind_points = model1.model.variational_strategy.inducing_points.detach().numpy()
 torch.cuda.empty_cache()
 
 # Load second model
@@ -107,9 +107,9 @@ print("Donezo")
 fig, ax = plt.subplots(sharex=True, sharey=True)
 #cr = ax[0].scatter(MBES[:, 0], MBES[:, 1], c = MBES[:, 2],
 #                    cmap='jet', s=0.4, edgecolors='none')
-cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
+#cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
 # cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
-#cv = ax[2].contourf(*inputsg, variance, levels=n_contours)
+cv = ax.contourf(*inputsg, variance, levels=n_contours)
 #indpts = model1.variational_strategy.inducing_points.data.cpu().numpy()
 #ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
 #ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
@@ -121,13 +121,13 @@ cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized ac
 
 # colorbars
 #fig.colorbar(cr, ax=ax[0])
-fig.colorbar(cm, ax=ax)
-#fig.colorbar(cv, ax=ax[2])
+#fig.colorbar(cm, ax=ax)
+fig.colorbar(cv, ax=ax)
 #fig.colorbar(ca, ax=ax[3])
 
 # # formatting
 ax.set_aspect('equal')
-ax.set_title('Raw data')
+ax.set_title('Variance')
 ax.set_ylabel('$y~[m]$')
 ax.set_xlabel('$x~[m]$')
 

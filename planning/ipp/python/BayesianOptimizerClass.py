@@ -3,16 +3,15 @@ import torch
 from botorch.fit import fit_gpytorch_mll
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from botorch.models import SingleTaskGP
-from botorch.acquisition import UpperConfidenceBound, qUpperConfidenceBound, PosteriorMean
+from botorch.acquisition import UpperConfidenceBound, PosteriorMean
 from botorch.optim import optimize_acqf
 
 # Custom module
-from AcquisitionFunctionClass import UCB_path, UCB_xy, qUCB_xy
+from AcquisitionFunctionClass import UCB_path, UCB_xy
 
 # Numpy and python imports
 import numpy as np
 import cma                      
-import time
 
 class BayesianOptimizer():
     """ Defines methods for BO optimization

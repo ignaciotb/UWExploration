@@ -314,7 +314,7 @@ class BOPlanner(PlannerBase):
             model = pickle.load(open("GP_env.pickle","rb"))
             
         # Get a new candidate trajectory with Bayesian optimization
-        horizon_distance = 100
+        horizon_distance = 60
         border_margin    = 10
         low_x            = max(self.bounds[0] + border_margin, min(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
         high_x           = min(self.bounds[1] - border_margin, max(self.state[0] - horizon_distance, self.state[0] + horizon_distance))
@@ -342,15 +342,23 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()
-        path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], 8)
+        path = dubins.shortest_path(self.state, [location[0], location[1], location[2]], self.turning_radius)
         wp_poses, _ = path.sample_many(5)
-        for pose in wp_poses[2:]:       #removing first few as hack to ensure AUV doesnt get stuck
+        for pose in wp_poses[2:]:       #removing first as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
             wp.header = h
             wp.pose.position.x = pose[0] 
             wp.pose.position.y = pose[1]  
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
+        if len(sampling_path.poses) == 0:
+            wp = PoseStamped()
+            wp.header = h
+            wp.pose.position.x = self.state[0] + 5*np.cos(self.state[2]) 
+            wp.pose.position.y = self.state[1] + 5*np.cos(self.state[2]) 
+            wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, self.state[2]))
+            sampling_path.poses.append(wp)
+            
         self.path_pub.publish(sampling_path)
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

@@ -152,8 +152,8 @@ class SVGP_map():
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
             learn_inducing_points=True,
-            mean_module = ConstantMean(constant_prior=NormalPrior(-16.5, 1), constant_constraint=Interval(-17, -16)),
-            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel()))
+            #mean_module = ConstantMean(constant_prior=NormalPrior(-16.5, 1), constant_constraint=Interval(-17, -16)),
+            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

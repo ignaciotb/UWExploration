@@ -29,6 +29,7 @@ class BayesianOptimizer():
         """
         # Set up bounds, and environment acq_fun
         self.beta                   = beta
+        self.current_pose           = current_pose
         self.bounds_XY_torch        = torch.tensor([[bounds[0], bounds[3]], [bounds[1], bounds[2]]]).to(torch.float)
         self.bounds_theta_torch     = torch.tensor([[-np.pi],  [np.pi]]).to(torch.float)
         self.XY_acqf                = UCB_xy(model=gp_terrain, beta=self.beta)
@@ -86,8 +87,7 @@ class BayesianOptimizer():
         """
 
         # Generate random initial sample angles
-        random_thetas = (torch.from_numpy(np.random.uniform(low=-np.pi, 
-                    high=np.pi, size=[nbr_samples, 1]))).type(torch.FloatTensor)
+        random_thetas = torch.linspace(self.bounds_theta_torch[0,0].item(), self.bounds_theta_torch[1,0].item(), nbr_samples).unsqueeze(1)
         XY_repeated = XY.repeat(nbr_samples, 1)
         samples = torch.cat([XY_repeated, random_thetas], 1)
         train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
@@ -101,7 +101,6 @@ class BayesianOptimizer():
         
         # Run BO to iteratively sample new paths, to improve our chances of optimal heading
         iteration = 0
-        best_value = 0
         while iteration < max_iter:
             candidate, value = optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=20)
             
@@ -112,9 +111,6 @@ class BayesianOptimizer():
             self.gp_theta = self.gp_theta.get_fantasy_model(train_X, train_Y)
 
             self.theta_acqf.model = self.gp_theta
-            if value > best_value:
-                best_value = value
-                best_candidate = candidate
             iteration += 1
         
         # Run a single optimization with no regard for variance, only caring for highest mean

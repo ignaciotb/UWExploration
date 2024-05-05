@@ -95,11 +95,17 @@ class BayesianOptimizer():
         """
 
         # Generate initial sample angles
+                
+        # TODO: For optimizng radius - generate theta and radius
         random_thetas = torch.linspace(self.bounds_theta_torch[0,0].item(), self.bounds_theta_torch[1,0].item(), nbr_samples).unsqueeze(1)
         XY_repeated = XY.repeat(nbr_samples, 1)
         samples = torch.cat([XY_repeated, random_thetas], 1)
+        
+        
+        # TODO: For optimizng radius - pass radius to get training data
         train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
         train_X = train_X[:, 2].unsqueeze(1)
+        
         
         # Train a new 1D Gaussian process for rewards of different headings
         self.gp_theta               = SingleTaskGP(train_X, train_Y)
@@ -107,11 +113,13 @@ class BayesianOptimizer():
         fit_gpytorch_mll(self.mll)
         self.theta_acqf             = UpperConfidenceBound(self.gp_theta, self.beta)
         
+        
         # Run BO to iteratively sample new paths, to improve our chances of optimal heading
         iteration = 0
         while iteration < max_iter:
             candidate, value = optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=20)
             
+            # TODO: For optimizng radius - pass radius to get training data
             sample = torch.cat([XY, candidate], 1).squeeze(0)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=sample)
             train_X = train_X[2].unsqueeze(0)
@@ -121,10 +129,14 @@ class BayesianOptimizer():
             self.theta_acqf.model = self.gp_theta
             iteration += 1
         
+        
         # Run a single optimization with no regard for variance, only caring for highest mean
+        
+        # TODO: For optimizng radius - pass radius to get training data
         self.best_theta_acqf  = PosteriorMean(self.gp_theta)
         best_candidate, value = optimize_acqf(self.best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
-            
+                
+        # TODO: For optimizng radius - ensure we return both a best theta, and radius
         return best_candidate, self.gp_theta
     
     

@@ -21,6 +21,7 @@
 					<param name="wp_topic"  value="/navigation/lc_wp" />
 					<param name="relocalize_topic"  value="/$(arg namespace)/pause_planner"/>
 			        <param name="synch_topic" value="/$(arg app)/synch" />
+					<param name="planner_req_topic" value="/$(arg namespace)/planner_req" />
 				</node>
 
 				<node type="w2w_planner.py" pkg="basic_navigation" name="path_planner" output="screen">

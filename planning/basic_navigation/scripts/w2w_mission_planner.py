@@ -28,10 +28,12 @@ class W2WMissionPlanner(object):
         self.wp_topic = rospy.get_param('~wp_topic')
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.relocalize_topic = rospy.get_param('~relocalize_topic')
+        self.planner_req_topic = rospy.get_param('~planner_req_topic')
 
         # The waypoints as a path
         rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
         self.latest_path = Path()
+        self.first_recieved = False
 
         # LC waypoints, individually
         rospy.Subscriber(self.wp_topic, PoseStamped, self.wp_cb, queue_size=1)
@@ -42,7 +44,7 @@ class W2WMissionPlanner(object):
         self.relocalizing = False
         
         self.started = False
-        self.finished_pub = rospy.Publisher("wp_status", Bool)
+        self.planner_req_pub = rospy.Publisher(self.planner_req_topic, Bool)
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -55,6 +57,7 @@ class W2WMissionPlanner(object):
         synch_top = rospy.get_param("~synch_topic", '/pf_synch')
         rospy.wait_for_service(synch_top)
         rospy.loginfo("Synch service started")
+                
 
         while not rospy.is_shutdown():
             
@@ -71,12 +74,23 @@ class W2WMissionPlanner(object):
                 self.ac.wait_for_result()
                 rospy.loginfo("WP reached, moving on to next one")
                 self.started = True
-
-            elif not self.latest_path.poses:
-                rospy.loginfo_once("Mission finished")
-                if self.started == True:
-                    self.finished_pub.publish(True)
-                    self.started = False
+                
+                if len(self.latest_path.poses) == 5:
+                    self.planner_req_pub.publish(True)
+                
+                if len(self.latest_path.poses) == 0:
+                    self.planner_req_pub.publish(True)
+                        
+            #elif not self.latest_path.poses:
+            #    rospy.loginfo_once("Mission finished")
+            #    if self.needs_plan:
+            #        self.planner_req_pub.publish(True)
+            #        self.needs_plan = False
+            #        self.started = False
+                    
+                #if self.started == True:
+                    #self.planner_req_pub.publish(True)
+                    #self.started = False
                 
             
 
@@ -84,9 +98,15 @@ class W2WMissionPlanner(object):
         self.relocalizing = bool_msg.data
 
     def path_cb(self, path_msg):
-        self.latest_path = path_msg
-        rospy.loginfo("Path received with number of wp: %d",
-                      len(self.latest_path.poses))
+        if not self.first_recieved:
+            self.latest_path = path_msg
+            rospy.loginfo("Adding new path with number of wp: %d",
+                      len(path_msg.poses))
+            self.first_recieved = True
+        else:
+            self.latest_path.poses.extend(path_msg.poses)
+            rospy.loginfo("Appending new path with number of wp: %d",
+                      len(path_msg.poses))
 
     def wp_cb(self, wp_msg):
         # Waypoints for LC from the backseat driver

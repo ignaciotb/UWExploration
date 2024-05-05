@@ -44,20 +44,22 @@
     <arg name="turning_radius"                  default="9"/>
     <arg name="corner_topic"                    default="/$(arg namespace)/corners"/>
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
+    <arg name="planner_req_topic"               default="/$(arg namespace)/planner_req"/>
     <arg name="swath_width"                     default="18"/>
     <arg name="swath_overlap"                   default="0.2"/>
     <arg name="training_rate"                   default="10"/>
     <arg name="wp_resolution"                   default="2"/>
-    <arg name="path_nbr_samples"                default="8" />
+    <arg name="path_nbr_samples"                default="5" />
     <arg name="voxel_size"                      default="3" />
-    <arg name="wp_sample_interval"              default="6" />
+    <arg name="wp_sample_interval"              default="2" />
+    <arg name="beta"                            default="9" />
 
     <!-- Planner boundaries -->
     <arg name="bound_left"                      default="-260"/>
     <arg name="bound_right"                     default="-40"/>
     <arg name="bound_up"                        default="100"/>
     <arg name="bound_down"                      default="-70"/>
-    <arg name="horizon_distance"                default="50"/>
+    <arg name="horizon_distance"                default="100"/>
     <arg name="border_margin"                   default="10"/>
 
     <!-- If plotting decision support material should be enabled-->
@@ -87,6 +89,9 @@
         <param name="turning_radius"            value="$(arg turning_radius)" />
         <param name="corner_topic"              value="$(arg corner_topic)" />
         <param name="path_topic"                value="$(arg path_topic)" />
+        <param name="planner_req_topic"         value="$(arg planner_req_topic)" />
+        <param name="odom_topic"                value="$(arg odometry_topic)" />
+        <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
         <param name="swath_overlap"             value="$(arg swath_overlap)" />
         <param name="bound_left"                value="$(arg bound_left)" />
@@ -97,6 +102,7 @@
         <param name="horizon_distance"          value="$(arg horizon_distance)" />
         <param name="wp_sample_interval"        value="$(arg wp_sample_interval)" />
         <param name="wp_resolution"             value="$(arg wp_resolution)" />
+        <param name="voxel_size"                value="$(arg voxel_size)" />
         <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
         <param name="train_rate"    type="int"  value="$(arg training_rate)" />
         <param name="svgp_n_window" type="int"  value="400"/>     
@@ -150,6 +156,7 @@
             <param name="bound_right"               value="$(arg bound_right)" />
             <param name="bound_up"                  value="$(arg bound_up)" />
             <param name="bound_down"                value="$(arg bound_down)" />    
+            <param name="beta"                      value="$(arg beta)" />
         </node>
     </group>
 

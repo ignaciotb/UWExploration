@@ -14,7 +14,7 @@ from consistency_plot import *
 
 # STEP 3: 
 
-gp = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_lm.pickle","rb"))
+gp = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_1232m(good).pickle","rb"))
 gp.model.eval()
 gp.likelihood.eval()
 likelihood1 = gpytorch.likelihoods.GaussianLikelihood()
@@ -25,7 +25,7 @@ torch.cuda.empty_cache()
 
 resolution = 0.5
 
-gp2 = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_871m.pickle","rb"))
+gp2 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
 gp2.model.eval()
 gp2.likelihood.eval()
 likelihood2 = gpytorch.likelihoods.GaussianLikelihood()
@@ -114,7 +114,7 @@ o3d.visualization.draw_geometries([pcd3])
 #o3d.visualization.draw_geometries([pcd, pcd3])
 
 source = np.asarray(pcd2.points)
-ref = np.asarray(pcd.points)
+ref = np.asarray(pcd3.points)
 
 k = compute_consistency_metrics(source, ref, 2, True, True)
 

@@ -130,13 +130,15 @@ class UCB_xy(UpperConfidenceBound):
             given design points `X`.
         """
         mean, sigma = self._mean_and_sigma(X)
-        return (abs(mean - self.model.model.mean_module.constant) + 1) * sigma
+        return (abs(mean - self.model.model.mean_module.constant)) + self.beta * sigma
 
 
 class UCB_path(AnalyticAcquisitionFunction):
-    def __init__(self, model, current_pose, wp_resolution, turning_radius, swath_width, path_nbr_samples, 
+    def __init__(self, model, beta, current_pose, wp_resolution, turning_radius, swath_width, path_nbr_samples, 
                  voxel_size = 3, wp_sample_interval = 6, posterior_transform = None, **kwargs):
+        
         super().__init__(model=model, posterior_transform=posterior_transform, **kwargs)
+        
         self.current_state = current_pose
         self.wp_resolution = wp_resolution
         self.wp_sample_interval = int(wp_sample_interval)
@@ -160,6 +162,7 @@ class UCB_path(AnalyticAcquisitionFunction):
         # Split suggested planar coordinates and headings
         xy = X[:,:,:2]
         theta = X[:,:,2]
+        
 
         # Get the reward along path associated with travelling to candidates
         rewards = self._dubins_swath(xy, theta)
@@ -188,10 +191,8 @@ class UCB_path(AnalyticAcquisitionFunction):
             path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], self.turning_radius)
             wp_poses, length_arr = path.sample_many(self.wp_resolution)
             cost = length_arr[-1] + self.wp_resolution
-            
             # Get sample swath points orthogonally to path at regular intervals
             points = self._get_orthogonal_samples(wp_poses[::self.wp_sample_interval], self.nbr_samples, self.swath_width)
-            
             # Voxelize in 2D to get even spread
             pcl = np.array(points)
             b = np.zeros((pcl.shape[0], pcl.shape[1] + 1))
@@ -200,7 +201,6 @@ class UCB_path(AnalyticAcquisitionFunction):
             pcd3.points = o3d.utility.Vector3dVector(b)
 
             pcd3 = pcd3.voxel_down_sample(self.voxel_size)
-
             #o3d.visualization.draw_geometries([pcd3])
             xyz = np.asarray(pcd3.points)
 

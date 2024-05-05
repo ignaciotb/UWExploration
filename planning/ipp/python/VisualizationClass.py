@@ -34,6 +34,7 @@ class UpdateDist(object):
         bound_right     = rospy.get_param("~bound_right")
         bound_up        = rospy.get_param("~bound_up")
         bound_down      = rospy.get_param("~bound_down")
+        self.beta       = rospy.get_param("~beta")
         
         self.bounds = [bound_left, bound_right, bound_up, bound_down]
         self.ax = ax
@@ -96,7 +97,7 @@ class UpdateDist(object):
                 outputs = model1(inputst_temp)
                 mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
                 #ucb = ucb_fun.forward(inputst_temp.unsqueeze(-2))
-                ucb = (abs(mean_r - model1.model.mean_module.constant) + 1) * sigma_r
+                ucb = (abs(mean_r - model1.model.mean_module.constant)) + self.beta * sigma_r
                 outputs = likelihood1(outputs)
                 mean_list.append(outputs.mean.cpu().numpy())
                 var_list.append(outputs.variance.cpu().numpy())

@@ -17,7 +17,7 @@ from scipy.ndimage import gaussian_filter1d
 
 # For sim mbes action client
 import actionlib
-from auv_2_ros.msg import MbesSimAction, MbesSimResult
+from auv_model.msg import MbesSimAction, MbesSimResult
 
 # Auvlib
 from auvlib.bathy_maps import base_draper

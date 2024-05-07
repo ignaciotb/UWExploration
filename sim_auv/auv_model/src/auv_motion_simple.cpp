@@ -28,7 +28,7 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     start_replay_ = false;
 
 
-    ac_ = new actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>(mbes_sim_as, true);
+    ac_ = new actionlib::SimpleActionClient<auv_model::MbesSimAction>(mbes_sim_as, true);
 
     tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
 }
@@ -195,7 +195,7 @@ void AUVMotionModel::updateMeas(const ros::TimerEvent&){
     geometry_msgs::Transform transform_msg;
     tf::transformTFToMsg(tf_map_mbes, transform_msg);
 
-    auv_2_ros::MbesSimGoal mbes_goal;
+    auv_model::MbesSimGoal mbes_goal;
     mbes_goal.mbes_pose.header.frame_id = map_frame_;
     mbes_goal.mbes_pose.child_frame_id = mbes_frame_;
     mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
@@ -207,7 +207,7 @@ void AUVMotionModel::updateMeas(const ros::TimerEvent&){
     actionlib::SimpleClientGoalState state = ac_->getState();
     if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
         sensor_msgs::PointCloud2 mbes_msg;
-        auv_2_ros::MbesSimResult mbes_res = *ac_->getResult();
+        auv_model::MbesSimResult mbes_res = *ac_->getResult();
         mbes_msg = mbes_res.sim_mbes;
         sim_ping_pub_.publish(mbes_msg);
     }

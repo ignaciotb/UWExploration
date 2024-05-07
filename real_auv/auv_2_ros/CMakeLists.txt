@@ -18,6 +18,7 @@ find_package(catkin REQUIRED COMPONENTS
   actionlib_msgs
   geometry_msgs
   std_msgs
+  auv_model
 )
 
 # find_package(Ceres REQUIRED)

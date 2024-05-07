@@ -14,7 +14,7 @@
 
 #include "auv_2_ros/cxxopts.hpp"
 #include "auv_2_ros/submaps.hpp"
-#include <auv_2_ros/MbesSimAction.h>
+#include <auv_model/MbesSimAction.h>
 
 #include <ros/ros.h>
 #include <pcl_ros/point_cloud.h>
@@ -68,7 +68,7 @@ private:
     ros::Publisher enable_pub_;
     ros::Subscriber pf_synch_sub_;
 
-    actionlib::SimpleActionClient<auv_2_ros::MbesSimAction>* ac_;
+    actionlib::SimpleActionClient<auv_model::MbesSimAction>* ac_;
 
     tf::TransformListener tflistener_;
     tf2_ros::StaticTransformBroadcaster static_broadcaster_;

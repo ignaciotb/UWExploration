@@ -30,6 +30,7 @@
   <depend>actionlib</depend>
   <depend>actionlib_msgs</depend>
   <depend>std_msgs</depend>
+  <depend>auv_model</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

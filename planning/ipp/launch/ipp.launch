@@ -6,7 +6,7 @@
     <arg name="mode"                            default="sim"/>
     <arg name="namespace"                       default="hugin_0"/>
     <arg name="debug"                           default="0"/>
-    <arg name="dataset"                         default="lost_targets"/>
+    <arg name="dataset"                         default="asko"/>
     <arg name="app"                             default="ipp"/>
 
     <!-- MBES sensor -->
@@ -14,12 +14,12 @@
 	<arg name="mbes_open_angle"                 value="2.250" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x"                               default="0"/>
-    <arg name="y"                               default="0"/>
+    <arg name="x"                               default="800"/>
+    <arg name="y"                               default="-200"/>
     <arg name="z"                               default="0.0"/>
     <arg name="roll"                            default="0.0"/>
     <arg name="pitch"                           default="0.0"/>
-    <arg name="yaw"                             default="0.0"/>
+    <arg name="yaw"                             default="-1.57"/>
 
     <arg name="map_frame"                       default="map"/>
     <arg name="odom_frame"                      default="$(arg namespace)/odom"/>
@@ -41,29 +41,31 @@
 
     <!-- Planner parameters -->
     <arg name="planner_type"                    default="opt"/>
-    <arg name="turning_radius"                  default="9"/>
+    <arg name="turning_radius"                  default="20"/>
     <arg name="corner_topic"                    default="/$(arg namespace)/corners"/>
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
     <arg name="planner_req_topic"               default="/$(arg namespace)/planner_req"/>
     <arg name="swath_width"                     default="18"/>
     <arg name="swath_overlap"                   default="0.2"/>
     <arg name="training_rate"                   default="10"/>
-    <arg name="wp_resolution"                   default="2"/>
+    <arg name="wp_resolution"                   default="20"/>
     <arg name="path_nbr_samples"                default="5" />
     <arg name="voxel_size"                      default="3" />
     <arg name="wp_sample_interval"              default="2" />
     <arg name="beta"                            default="9" />
 
-    <!-- Planner boundaries -->
-    <arg name="bound_left"                      default="-260"/>
-    <arg name="bound_right"                     default="-40"/>
-    <arg name="bound_up"                        default="100"/>
-    <arg name="bound_down"                      default="-70"/>
+    <!-- Planner constraints -->
+    <arg name="bound_left"                      default="592"/>
+    <arg name="bound_right"                     default="821"/>
+    <arg name="bound_up"                        default="-179"/>
+    <arg name="bound_down"                      default="-457"/>
     <arg name="horizon_distance"                default="100"/>
     <arg name="border_margin"                   default="10"/>
+    <arg name="max_mission_time"                default="3600"/>
+    <arg name="vehicle_velocity"                default="0.8"/>
 
     <!-- If plotting decision support material should be enabled-->
-    <arg name="visualize"                       default="1"/>
+    <arg name="visualize"                       default="0"/>
 
     <!-- Run IPP node -->
     <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
@@ -94,6 +96,12 @@
         <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
         <param name="swath_overlap"             value="$(arg swath_overlap)" />
+        <param name="x"                         value="$(arg x)"/>
+        <param name="y"                         value="$(arg y)"/>
+        <param name="z"                         value="$(arg z)"/>
+        <param name="roll"                      value="$(arg roll)"/>
+        <param name="pitch"                     value="$(arg pitch)"/>
+        <param name="yaw"                       value="$(arg yaw)"/>
         <param name="bound_left"                value="$(arg bound_left)" />
         <param name="bound_right"               value="$(arg bound_right)" />
         <param name="bound_up"                  value="$(arg bound_up)" />
@@ -104,12 +112,15 @@
         <param name="wp_resolution"             value="$(arg wp_resolution)" />
         <param name="voxel_size"                value="$(arg voxel_size)" />
         <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
+        <param name="max_mission_time"          value="$(arg max_mission_time)"/>
+        <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
         <param name="train_rate"    type="int"  value="$(arg training_rate)" />
         <param name="svgp_n_window" type="int"  value="400"/>     
         <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />  
     </node>
 
     <!-- Run uncertainty management node -->
+    <!--
     <node type="auv_ui_online.py" pkg="uncert_management" name="auv_ui_online" output="screen">
         <param name="map_frame"                 value="$(arg map_frame)" />
         <param name="odom_frame"                value="$(arg odom_frame)" />
@@ -128,25 +139,30 @@
         <param name="manipulate_gp_server"      value="$(arg manipulate_gp_server)" />
         <param name="synch_topic"               value="/$(arg app)/synch" />
     </node>
+    -->
 
     <!-- Run waypoint handler / navigation control -->
     <include file="$(find basic_navigation)/launch/basic_mission.launch" >
         <arg name="manual_control"              default="False"/>
-        <arg name="namespace"                   default="hugin_0"/>
+        <arg name="namespace"                   default="$(arg namespace)"/>
     </include>
 
     <!-- Run simulation environment -->
     <include file="$(find auv_model)/launch/auv_environment.launch" >
-        <arg name="mode"                        default="sim"/>
-        <arg name="namespace"                   default="hugin_0"/>
-        <arg name="dataset"                     default="lost_targets"/>
-        <arg name="x"                           default="0"/>
-        <arg name="y"                           default="0"/>
+        <arg name="mode"                        default="$(arg mode)"/>
+        <arg name="namespace"                   default="$(arg namespace)"/>
+        <arg name="dataset"                     default="$(arg dataset)"/>
+        <arg name="x"                           default="$(arg x)"/>
+        <arg name="y"                           default="$(arg y)"/>
+        <arg name="z"                           default="$(arg z)"/>
+        <arg name="roll"                        default="$(arg roll)"/>
+        <arg name="pitch"                       default="$(arg pitch)"/>
+        <arg name="yaw"                         default="$(arg yaw)"/>
     </include>
 
     <!-- datafile-->
     <include file="$(find auv_model)/launch/auv_env_aux.launch" >
-        <arg name="dataset"                     default="lost_targets"/>
+        <arg name="dataset"                     default="$(arg dataset)"/>
     </include>
 
     <!-- If we are visualizing, plot decision material -->

@@ -49,9 +49,9 @@
     <arg name="swath_overlap"                   default="0.2"/>
     <arg name="training_rate"                   default="10"/>
     <arg name="wp_resolution"                   default="20"/>
-    <arg name="path_nbr_samples"                default="5" />
+    <arg name="path_nbr_samples"                default="7" />
     <arg name="voxel_size"                      default="3" />
-    <arg name="wp_sample_interval"              default="2" />
+    <arg name="wp_sample_interval"              default="1" />
     <arg name="beta"                            default="9" />
 
     <!-- Planner constraints -->
@@ -65,7 +65,7 @@
     <arg name="vehicle_velocity"                default="0.8"/>
 
     <!-- If plotting decision support material should be enabled-->
-    <arg name="visualize"                       default="0"/>
+    <arg name="visualize"                       default="1"/>
 
     <!-- Run IPP node -->
     <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
@@ -120,7 +120,6 @@
     </node>
 
     <!-- Run uncertainty management node -->
-    <!--
     <node type="auv_ui_online.py" pkg="uncert_management" name="auv_ui_online" output="screen">
         <param name="map_frame"                 value="$(arg map_frame)" />
         <param name="odom_frame"                value="$(arg odom_frame)" />
@@ -139,7 +138,6 @@
         <param name="manipulate_gp_server"      value="$(arg manipulate_gp_server)" />
         <param name="synch_topic"               value="/$(arg app)/synch" />
     </node>
-    -->
 
     <!-- Run waypoint handler / navigation control -->
     <include file="$(find basic_navigation)/launch/basic_mission.launch" >

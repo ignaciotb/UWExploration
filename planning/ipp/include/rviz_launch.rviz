@@ -165,8 +165,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.251291275024414
-        Min Value: -16.35343360900879
+        Max Value: -16.08899688720703
+        Min Value: -16.238561630249023
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -193,8 +193,8 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: -16.251291275024414
-        Min Value: -16.35343360900879
+        Max Value: -15.982954025268555
+        Min Value: -16.50843048095703
         Value: true
       Axis: Z
       Channel Name: intensity
@@ -298,7 +298,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: -1.584999680519104
+      Angle: -6.280008792877197
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
@@ -308,10 +308,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Scale: 4.472085952758789
+      Scale: 3.9354355335235596
       Target Frame: hugin_0/odom
-      X: -87.16109466552734
-      Y: -111.98369598388672
+      X: -84.45294189453125
+      Y: -119.80147552490234
     Saved: ~
 Window Geometry:
   Displays:

@@ -2,6 +2,7 @@
 from abc import abstractmethod
 import pickle
 import filelock
+import copy
 
 # Math libraries
 import dubins
@@ -51,7 +52,9 @@ class PlannerBase():
         assert self.turning_radius > 3.0, "Turning radius is way too small"
         
         # Setup class attributes
-        self.state = start_pose
+        self.start_pose = start_pose
+        self.state = copy.deepcopy(self.start_pose)
+        self.prev_odom  = [0, 0, 0]
         self.gp = SVGP_map(particle_id=0, corners=self.bounds)
         self.distance_travelled = 0
         
@@ -93,8 +96,12 @@ class PlannerBase():
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
-        self.distance_travelled += np.hypot(x-self.state[0], y-self.state[1])
-        self.state = [self.state[0] + x, self.state[1] + y, self.state[2] + yaw]
+        odom_diff = [x-self.prev_odom[0], y-self.prev_odom[1], yaw-self.prev_odom[2]]
+        self.prev_odom = [x, y, yaw]
+        self.distance_travelled += np.hypot(odom_diff[0], odom_diff[1])
+        c = np.cos(-self.start_pose[2])
+        s = np.sin(-self.start_pose[2])
+        self.state = [self.start_pose[0] + x * c + s * y, self.start_pose[1] - x * s + y * c, self.start_pose[2] + yaw]
         
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
@@ -312,7 +319,7 @@ class BOPlanner(PlannerBase):
         self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
         self.gp_angle_lock  = filelock.FileLock("GP_angle.pickle.lock")
         
-        self.start_pose = self.state
+        self.planner_initial_pose = self.state
         
         # Parameters for optimizer
         self.wp_resolution      = wp_resolution
@@ -325,13 +332,13 @@ class BOPlanner(PlannerBase):
         self.beta               = beta
         
         # Publish an initial path
-        initial_path     = self.initial_sampling_path(n_samples=1)
+        initial_path     = self.initial_sampling_path()
         self.path_pub.publish(initial_path) 
         
         # Initiate training of GP
         self.begin_gp_train(rate=self.training_rate)
         
-    def initial_sampling_path(self, n_samples):
+    def initial_sampling_path(self):
         """ Generates a set of waypoints for initial sampling of BO
 
         Args:
@@ -340,29 +347,30 @@ class BOPlanner(PlannerBase):
         Returns:
             nav_msgs.msg.Path: Waypoint list, in form of poses
         """
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        high_x           = min(self.bounds[1] - self.border_margin, max(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[3] + self.border_margin, min(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
-        high_y           = min(self.bounds[2] - self.border_margin, max(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
+        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
+        high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
-        samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[n_samples, 3])
+        samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
         h.frame_id = "map"
         h.stamp = rospy.Time.now()
         sampling_path = Path()
         sampling_path.header = h
         for sample in samples:
-            path = dubins.shortest_path(self.start_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
+            path = dubins.shortest_path(self.planner_initial_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
             wp_poses, _ = path.sample_many(self.wp_resolution)
-            for pose in wp_poses[2:]:
+            for pose in wp_poses:
                 wp = PoseStamped()
                 wp.header = h
                 wp.pose.position.x = pose[0]
                 wp.pose.position.y = pose[1]
                 wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
                 sampling_path.poses.append(wp)
-                self.start_pose = [pose[0], pose[1], pose[2]]
         return sampling_path
+    
+    
             
     def get_path_cb(self, msg):
         """ When called, calls optimization to find the best new path to take.
@@ -379,15 +387,15 @@ class BOPlanner(PlannerBase):
             model = pickle.load(open("GP_env.pickle","rb"))
             
         # Get a new candidate trajectory with Bayesian optimization
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        high_x           = min(self.bounds[1] - self.border_margin, max(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[3] + self.border_margin, min(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
-        high_y           = min(self.bounds[2] - self.border_margin, max(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
+        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
+        high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
-                                                        current_pose=self.start_pose, wp_resolution=self.wp_resolution, 
+                                                        current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
                                                         turning_radius=self.turning_radius, swath_width=self.swath_width, 
                                                         path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
                                                         wp_sample_interval=self.wp_sample_interval)
@@ -412,7 +420,7 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()
-        path = dubins.shortest_path(self.start_pose, [location[0], location[1], location[2]], self.turning_radius)
+        path = dubins.shortest_path(self.planner_initial_pose, [location[0], location[1], location[2]], self.turning_radius)
         wp_poses, _ = path.sample_many(self.wp_resolution)
         for pose in wp_poses:       #removing first as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
@@ -421,16 +429,7 @@ class BOPlanner(PlannerBase):
             wp.pose.position.y = pose[1]  
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
-        """
-        if len(sampling_path.poses) == 0:
-            wp = PoseStamped()
-            wp.header = h
-            wp.pose.position.x = self.start_pose[0] + self.wp_resolution*np.cos(self.start_pose[2]) 
-            wp.pose.position.y = self.start_pose[1] + 5*np.cos(self.start_pose[2]) 
-            wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, self.start_pose[2]))
-            sampling_path.poses.append(wp)
-        """
-        self.start_pose = wp_poses[-1]
+        self.planner_initial_pose = wp_poses[-1]
         self.path_pub.publish(sampling_path)
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

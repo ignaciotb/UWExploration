@@ -83,7 +83,9 @@ class auv_ui_online(object):
 
         
         self.path_img = rospy.get_param('~background_img_path', 'default_real_mean_depth.png')
-        self.img = plt.imread(self.path_img)
+        
+        #NOTE: commented this out, the asko dataset doesnt have this
+        #self.img = plt.imread(self.path_img)
 
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         odom_frame = rospy.get_param('~odom_frame', 'odom')

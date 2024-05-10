@@ -97,7 +97,8 @@ class UpdateDist(object):
                 outputs = model1(inputst_temp)
                 mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
                 #ucb = ucb_fun.forward(inputst_temp.unsqueeze(-2))
-                ucb = (abs(mean_r - model1.model.mean_module.constant)) + self.beta * sigma_r
+                ucb = mean_r + self.beta * sigma_r
+                #ucb = (abs(mean_r - model1.model.mean_module.constant)) + self.beta * sigma_r
                 outputs = likelihood1(outputs)
                 mean_list.append(outputs.mean.cpu().numpy())
                 var_list.append(outputs.variance.cpu().numpy())

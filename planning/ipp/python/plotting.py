@@ -107,11 +107,11 @@ print("Donezo")
 fig, ax = plt.subplots(sharex=True, sharey=True)
 #cr = ax[0].scatter(MBES[:, 0], MBES[:, 1], c = MBES[:, 2],
 #                    cmap='jet', s=0.4, edgecolors='none')
-cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
+#cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
 # cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
-#cv = ax.contourf(*inputsg, variance, levels=n_contours)
-#indpts = model1.variational_strategy.inducing_points.data.cpu().numpy()
-#ax[2].plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
+cv = ax.contourf(*inputsg, variance, levels=n_contours)
+indpts = model1.model.variational_strategy.inducing_points.data.cpu().numpy()
+ax.plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
 #ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
 
 
@@ -121,8 +121,8 @@ cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized ac
 
 # colorbars
 #fig.colorbar(cr, ax=ax[0])
-fig.colorbar(cm, ax=ax)
-#fig.colorbar(cv, ax=ax)
+#fig.colorbar(cm, ax=ax)
+fig.colorbar(cv, ax=ax)
 #fig.colorbar(ca, ax=ax[3])
 
 # # formatting

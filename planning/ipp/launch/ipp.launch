@@ -11,7 +11,7 @@
 
     <!-- MBES sensor -->
 	<arg name="n_beams_mbes"                    default="100"/>	
-	<arg name="mbes_open_angle"                 value="1.8" />
+	<arg name="mbes_open_angle"                 value="2.9" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
     <arg name="x"                               default="800"/>
@@ -38,6 +38,8 @@
     <arg name="gp_resample_top"                 default="/$(arg namespace)/gp/resample_top"/>
     <arg name="results_path"                    default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>   
     <arg name="num_particles_per_handler"       default="1"/>      
+    <arg name="mean_interval_low"               default="-20" />
+    <arg name="mean_interval_high"              default="-16" />
 
     <!-- Planner parameters -->
     <arg name="planner_type"                    default="opt"/> <!-- lawnmower or opt -->
@@ -46,12 +48,12 @@
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
     <arg name="planner_req_topic"               default="/$(arg namespace)/planner_req"/>
     <arg name="swath_width"                     default="40"/>
-    <arg name="training_rate"                   default="10"/>
+    <arg name="training_rate"                   default="30"/>
     <arg name="wp_resolution"                   default="20"/>
     <arg name="path_nbr_samples"                default="7" />
     <arg name="voxel_size"                      default="3" />
     <arg name="wp_sample_interval"              default="1" />
-    <arg name="beta"                            default="20" />
+    <arg name="beta"                            default="4" />
     <arg name="MCTS_begin_time"                 default="45" />
     <arg name="MCTS_interrupt_time"             default="15" />
     <arg name="MCTS_max_depth"                  default="3" />
@@ -82,7 +84,7 @@
         <param name="results_path"              value="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>
         <param name="sample_gp_server"          value="/$(arg namespace)/gp/sample_server"/>
         <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>     
-        <param name="svgp_num_ind_points"       value="400"/>     
+        <param name="svgp_num_ind_points"       value="250"/>     
         <param name="svgp_minibatch_size"       value="1000"/>     
         <param name="svgp_learning_rate"        value="1e-1"/>     
         <param name="svgp_rtol"                 value="1e-3"/>  
@@ -99,6 +101,8 @@
         <param name="odom_topic"                value="$(arg odometry_topic)" />
         <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
+        <param name="mean_interval_low"         value="$(arg mean_interval_low)" />
+        <param name="mean_interval_high"        value="$(arg mean_interval_high)" />
         <param name="x"                         value="$(arg x)"/>
         <param name="y"                         value="$(arg y)"/>
         <param name="z"                         value="$(arg z)"/>

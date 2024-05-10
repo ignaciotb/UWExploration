@@ -150,8 +150,8 @@ class SVGP_map():
             num_outputs=1,
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
-            learn_inducing_points=True,
-            #mean_module = ConstantMean(constant_prior=NormalPrior(-16.5, 1), constant_constraint=Interval(-17, -16)),
+            learn_inducing_points=False,
+            mean_module = ConstantMean(constant_constraint=Interval(-20, -16)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.likelihood = GaussianLikelihood()
         

@@ -192,6 +192,7 @@ class SimplePlanner(PlannerBase):
         # Freeze a copy of current model for plotting, to let real model keep training
         with self.gp.mutex:
                 pickle.dump(self.gp.model, open("GP_env_lawnmower.pickle" , "wb"))
+                print("pickled")
         
         # Notify of current distance travelled
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
@@ -232,7 +233,7 @@ class SimplePlanner(PlannerBase):
         # Calculate how many passes, floor to be safe and get int
         height = abs(u - d)
         width = abs(r - l)
-        nbr_passes = math.floor(width/max(swath_width, self.turning_radius))
+        nbr_passes = math.ceil(width/max(swath_width, self.turning_radius))
         
         # Reduce nbr passes until distance contraint is satisfied.
         max_distance = max_time * vehicle_speed
@@ -244,7 +245,7 @@ class SimplePlanner(PlannerBase):
             
             
         # Calculate changes at each pass. Use Y as long end.
-        dx = max(swath_width, self.turning_radius) * direction_x
+        dx = max(swath_width, 2*self.turning_radius) * direction_x
         dy = abs(height-2*self.turning_radius) * direction_y
         
         # Get stamp
@@ -257,7 +258,7 @@ class SimplePlanner(PlannerBase):
         h.stamp = rospy.Time.now()
         wp1 = PoseStamped(header=h)
         wp1.pose.position.x = start_x + direction_x * swath_width / 2
-        wp1.pose.position.y = start_y 
+        wp1.pose.position.y = start_y + direction_x * self.turning_radius
         lm_path.poses.append(wp1)
         start_x = start_x - direction_x * swath_width / 2
         start_y = start_y + direction_y * self.turning_radius
@@ -305,7 +306,8 @@ class BOPlanner(PlannerBase):
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, 
                  training_rate, wp_resolution, swath_width, path_nbr_samples, voxel_size, 
                  wp_sample_interval, horizon_distance, border_margin, beta, start_pose,
-                 max_time, vehicle_velocity):
+                 max_time, vehicle_velocity, MCTS_begin_time, MCTS_interrupt_time,
+                 MCTS_max_depth, MCTS_sample_decay_factor, MCTS_UCT_C):
         """ Constructor method
 
         Args:
@@ -333,14 +335,19 @@ class BOPlanner(PlannerBase):
         
         
         # Parameters for optimizer
-        self.wp_resolution      = wp_resolution
-        self.swath_width        = swath_width
-        self.path_nbr_samples   = path_nbr_samples
-        self.voxel_size         = voxel_size
-        self.wp_sample_interval = wp_sample_interval
-        self.horizon_distance   = horizon_distance
-        self.border_margin      = border_margin
-        self.beta               = beta
+        self.wp_resolution              = wp_resolution
+        self.swath_width                = swath_width
+        self.path_nbr_samples           = path_nbr_samples
+        self.voxel_size                 = voxel_size
+        self.wp_sample_interval         = wp_sample_interval
+        self.horizon_distance           = horizon_distance
+        self.border_margin              = border_margin
+        self.beta                       = beta
+        self.MCTS_begin_time            = MCTS_begin_time
+        self.MCTS_interrupt_time        = MCTS_interrupt_time
+        self.MCTS_max_depth             = MCTS_max_depth
+        self.MCTS_sample_decay_factor   = MCTS_sample_decay_factor
+        self.MCTS_UCT_C                 = MCTS_UCT_C
         
         # Publish an initial path
         initial_path     = self.initial_sampling_path()
@@ -415,12 +422,12 @@ class BOPlanner(PlannerBase):
     def periodic_call(self, msg):
         time2target = self.calculate_time2target()
         print("Time to target: " + str(time2target))
-        if time2target < 45 and self.currently_planning == False:
+        if time2target < self.MCTS_begin_time and self.currently_planning == False:
             self.currently_planning = True
             self.execute_planner_pub.publish(True)
             print("Beginning planning...")
         
-        if time2target < 15 and self.finish_imminent == False:
+        if time2target < self.MCTS_interrupt_time and self.finish_imminent == False:
             self.finish_imminent = True
             print("Stopping planning...")
             
@@ -445,35 +452,29 @@ class BOPlanner(PlannerBase):
         
         MCTS = MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin, 
-                              max_depth=3)
-        # NOTE: working on setting this to iterate until we are out of time. Then it has to yield
-        # a best solution (just implemented get best)
-        # also have to change so that the returned candidate is a tensor, and we have enough time 
-        # to run theta optimization
-        
-        BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
-                                                        current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
-                                                        turning_radius=self.turning_radius, swath_width=self.swath_width, 
-                                                        path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
-                                                        wp_sample_interval=self.wp_sample_interval)
-        
-        candidates_XY1               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
+                              max_depth=self.MCTS_max_depth, MCTS_UCT_C=self.MCTS_UCT_C, 
+                              MCTS_sample_decay_factor=self.MCTS_sample_decay_factor)
+
+        BO  = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
+                current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
+                turning_radius=self.turning_radius, swath_width=self.swath_width, 
+                path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
+                wp_sample_interval=self.wp_sample_interval)
         
         while self.finish_imminent == False:
             MCTS.iterate()
-        candidates_XY = MCTS.get_best_solution().position
         
-        candidates_XY = (torch.from_numpy(np.array([candidates_XY]))).type(torch.FloatTensor)
+        try:
+            candidates_XY = MCTS.get_best_solution().position
+            candidates_XY = (torch.from_numpy(np.array([candidates_XY]))).type(torch.FloatTensor)
         
-        print(candidates_XY1)
-        print(candidates_XY)
+        except:
+            rospy.loginfo("MCTS failed to get candidate, fallback used.")
+            candidates_XY = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
         
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
-        
-        with self.gp_angle_lock:
-                pickle.dump(angle_gp, open("GP_angle.pickle" , "wb"))
         
         # Signature out: Candidate (xy theta)
         print(candidate)
@@ -503,5 +504,7 @@ class BOPlanner(PlannerBase):
         self.path_pub.publish(sampling_path)
         self.currently_planning = False
         self.finish_imminent = False
+        with self.gp_angle_lock:
+                pickle.dump(angle_gp, open("GP_angle.pickle" , "wb"))
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

@@ -14,7 +14,7 @@ from consistency_plot import *
 
 # STEP 3: 
 
-gp = pickle.load(open(r"/home/alex/.ros/save_data/GP_env_1232m(good).pickle","rb"))
+gp = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
 gp.model.eval()
 gp.likelihood.eval()
 likelihood1 = gpytorch.likelihoods.GaussianLikelihood()
@@ -25,7 +25,7 @@ torch.cuda.empty_cache()
 
 resolution = 0.5
 
-gp2 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
+gp2 = pickle.load(open(r"/home/alex/.ros/GP_env_lawnmower.pickle","rb"))
 gp2.model.eval()
 gp2.likelihood.eval()
 likelihood2 = gpytorch.likelihoods.GaussianLikelihood()
@@ -34,8 +34,7 @@ likelihood2.to(device).float()
 gp2.to(device).float()
 torch.cuda.empty_cache()
 
-
-bounds = [-260.0, -40.0, 100.0, -70.0]
+bounds = [592, 821, -179, -457]
 
 # posterior sampling locations for first GP
 inputsg = [
@@ -101,7 +100,7 @@ pcd.points = o3d.utility.Vector3dVector(a)
 pcd2 = o3d.geometry.PointCloud()
 pcd2.points = o3d.utility.Vector3dVector(b)
 
-pcl3 = np.load(r"/home/alex/catkin_ws/src/UWExploration/utils/uw_tests/datasets/lost_targets/pcl.npy")
+pcl3 = np.load(r"/home/alex/catkin_ws/src/UWExploration/utils/uw_tests/datasets/asko/pcl.npy")
 pcd3 = o3d.geometry.PointCloud()
 pcd3.points = o3d.utility.Vector3dVector(pcl3)
 
@@ -113,7 +112,7 @@ pcd3, _ = pcd3.remove_statistical_outlier(100, 0.5)
 o3d.visualization.draw_geometries([pcd3])
 #o3d.visualization.draw_geometries([pcd, pcd3])
 
-source = np.asarray(pcd2.points)
+source = np.asarray(pcd.points)
 ref = np.asarray(pcd3.points)
 
 k = compute_consistency_metrics(source, ref, 2, True, True)

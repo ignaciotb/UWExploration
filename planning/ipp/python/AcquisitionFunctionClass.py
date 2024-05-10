@@ -130,7 +130,8 @@ class UCB_xy(UpperConfidenceBound):
             given design points `X`.
         """
         mean, sigma = self._mean_and_sigma(X)
-        return (abs(mean - self.model.model.mean_module.constant)) + self.beta * sigma
+        return mean + self.beta * sigma
+        #return (abs(mean - self.model.model.mean_module.constant)) + self.beta * sigma
 
 
 class UCB_path(AnalyticAcquisitionFunction):
@@ -146,6 +147,7 @@ class UCB_path(AnalyticAcquisitionFunction):
         self.swath_width = swath_width
         self.nbr_samples = path_nbr_samples
         self.voxel_size = voxel_size
+        self.beta = beta
             
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X: Tensor) -> Tensor:
@@ -207,11 +209,11 @@ class UCB_path(AnalyticAcquisitionFunction):
             xy = torch.from_numpy(xyz[:, :2]).type(torch.FloatTensor)
             
             # Calculate UCB/cost reward of travelling to candidate
-            _, sigma = self._mean_and_sigma(xy)
-            #mean = mean.sum()
+            mean, sigma = self._mean_and_sigma(xy)
+            mean = mean.sum()
             sigma = sigma.sum()
             #ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
-            ucb = sigma
+            ucb = mean + self.beta * sigma
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards

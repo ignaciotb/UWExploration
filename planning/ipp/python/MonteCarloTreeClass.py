@@ -21,16 +21,18 @@ class Node(object):
     
 class MonteCarloTree(object):
     
-    def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds, max_depth) -> None:
-        self.root               = Node(position=start_position, depth=0)
-        self.gp                 = gp
-        self.beta               = beta
-        self.horizon_distance   = horizon_distance
-        self.border_margin      = border_margin
-        self.global_bounds      = bounds
-        self.C                  = 2.0
-        self.max_depth          = max_depth
-        self.iteration          = 0
+    def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds, max_depth,
+                 MCTS_UCT_C, MCTS_sample_decay_factor) -> None:
+        self.root                       = Node(position=start_position, depth=0)
+        self.gp                         = gp
+        self.beta                       = beta
+        self.horizon_distance           = horizon_distance
+        self.border_margin              = border_margin
+        self.global_bounds              = bounds
+        self.C                          = MCTS_UCT_C
+        self.max_depth                  = max_depth
+        self.iteration                  = 0
+        self.MCTS_sample_decay_factor   = MCTS_sample_decay_factor
         
     def iterate(self):
         # run iteration
@@ -95,7 +97,7 @@ class MonteCarloTree(object):
         
         bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
         
-        decayed_samples = max(5, 50-self.iteration*10)
+        decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
         
         candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
         

@@ -82,7 +82,7 @@ class UpdateDist(object):
         inputst = [_.flatten() for _ in inputst]
         inputst = np.vstack(inputst).transpose()
         
-        ucb_fun = UCB_xy(model1, beta=30)
+        ucb_fun = UCB_xy(model1, beta=self.beta)
 
         
         # Outputs for GP 1

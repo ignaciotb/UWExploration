@@ -242,6 +242,7 @@ class SVGP_map():
             rospy.loginfo_once("GP finished %s", self.particle_id)
             return
 
+
         # Get beams for minibatch training as pcl
         goal = MinibatchTrainingGoal()
         goal.particle_id = self.particle_id

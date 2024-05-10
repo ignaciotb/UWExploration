@@ -2,11 +2,13 @@
 from abc import abstractmethod
 import pickle
 import filelock
+import copy
 
 # Math libraries
 import dubins
 import numpy as np
 import torch
+import math
 
 # ROS imports
 import rospy
@@ -26,7 +28,7 @@ class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
         all planners. Advanced planners inherit from this class.
     """
-    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate):
+    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose):
         """ Constructor method
 
         Args:
@@ -50,7 +52,9 @@ class PlannerBase():
         assert self.turning_radius > 3.0, "Turning radius is way too small"
         
         # Setup class attributes
-        self.state = [0, 0, 0]
+        self.start_pose = start_pose
+        self.state = copy.deepcopy(self.start_pose)
+        self.prev_odom  = [0, 0, 0]
         self.gp = SVGP_map(particle_id=0, corners=self.bounds)
         self.distance_travelled = 0
         
@@ -92,8 +96,12 @@ class PlannerBase():
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
-        self.distance_travelled += np.hypot(x-self.state[0], y-self.state[1])
-        self.state = [x, y, yaw]
+        odom_diff = [x-self.prev_odom[0], y-self.prev_odom[1], yaw-self.prev_odom[2]]
+        self.prev_odom = [x, y, yaw]
+        self.distance_travelled += np.hypot(odom_diff[0], odom_diff[1])
+        c = np.cos(-self.start_pose[2])
+        s = np.sin(-self.start_pose[2])
+        self.state = [self.start_pose[0] + x * c + s * y, self.start_pose[1] - x * s + y * c, self.start_pose[2] + yaw]
         
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
@@ -132,7 +140,7 @@ class PlannerBase():
         dl_c.pose.position.y = d
         corners.poses.append(dl_c)
         
-        # Adding an extra wp closes the pattern, 
+        # NOTE: Adding an extra wp closes the pattern, 
         # no need to deform corners then
         corners.poses.append(ul_c)
         
@@ -145,13 +153,27 @@ class SimplePlanner(PlannerBase):
         PlannerBase (obj): Basic template of planner class
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, 
-                 bounds, turning_radius, training_rate, sw, so):
+                 bounds, turning_radius, training_rate, sw, max_time, vehicle_velocity, start_pose):
+        """ Constructor
+
+        Args:
+            corner_topic (string): _description_
+            path_topic (string): _description_
+            planner_req_topic (string): _description_
+            odom_topic (string): _description_
+            bounds (list(float)): _description_
+            turning_radius (double): _description_
+            training_rate (int): _description_
+            sw (double): _description_
+        """
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, 
-                         bounds, turning_radius, training_rate) 
-        self.path_pub    = rospy.Publisher(path_topic, Path, queue_size=100)
+                         bounds, turning_radius, training_rate, start_pose) 
+        
+        # Publish path, then train GP
+        self.path_pub = rospy.Publisher(path_topic, Path, queue_size=100)
         rospy.sleep(1)
-        path = self.generate_path(sw, so)
+        path = self.generate_path(sw, max_time, vehicle_velocity)
         self.path_pub.publish(path) 
         self.begin_gp_train()
             
@@ -164,20 +186,20 @@ class SimplePlanner(PlannerBase):
         
         # Freeze a copy of current model for plotting, to let real model keep training
         with self.gp.mutex:
-                pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
+                pickle.dump(self.gp.model, open("GP_env_lawnmower.pickle" , "wb"))
         
         # Notify of current distance travelled
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         
     
-    def generate_path(self, sW, sO, fM = False):
+    def generate_path(self, swath_width, max_time, vehicle_speed):
         """ Creates a basic path in lawnmower pattern in a rectangle with given parameters
 
         Args:
-            sW          (double): Swath width. 
-            sO          (double): Swath overlap. 0.0 <= fO < 1.0
-            fM  (bool, optional): Strict full coverage of entire rectangle. Defaults to False.
-
+            swath_width     (double): Swath width of MBES sensor
+            max_time        (double): Time the trajectory is allowed to take (seconds)
+            vehicle_speed   (double): speed of vehicle (m/s)
+            
         Returns:
             nav_msgs.msg.Path: Waypoint list, in form of poses
         """
@@ -187,59 +209,81 @@ class SimplePlanner(PlannerBase):
         u = self.bounds[2]
         d = self.bounds[3]
         
-        tR = self.turning_radius
-        
-        H = u - d
-        W = r - l
-        alpha = max((1-sO)*sW, 1.1*tR)
-        if fM:
-            beta = 0
+        # Check which corner to start on, based on which is closest
+        if abs(self.state[0] - l) < abs(self.state[0] - r):
+            start_x = l
+            direction_x = 1
         else:
-            beta = tR
+            start_x = r
+            direction_x = -1
+            
+        if abs(self.state[1] - d) < abs(self.state[1] - u):
+            start_y = d
+            direction_y = 1
+        else:
+            start_y = u
+            direction_y = -1
+            
+        # Calculate how many passes, floor to be safe and get int
+        height = abs(u - d)
+        width = abs(r - l)
+        nbr_passes = math.floor(width/max(swath_width, self.turning_radius))
         
-        n = round(H/alpha)
+        # Reduce nbr passes until distance contraint is satisfied.
+        max_distance = max_time * vehicle_speed
+        distance = nbr_passes*height + (nbr_passes-1)*self.turning_radius*np.pi/2
+        while distance > max_distance:
+            swath_width += 2.0
+            nbr_passes = math.floor(width/max(swath_width, self.turning_radius))
+            distance = nbr_passes*height + (nbr_passes-1)*self.turning_radius*np.pi/2
+            
+            
+        # Calculate changes at each pass. Use Y as long end.
+        dx = max(swath_width, self.turning_radius) * direction_x
+        dy = abs(height-2*self.turning_radius) * direction_y
         
+        # Get stamp
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()
-        lm_path = Path()
-        lm_path.header = h
+        h.frame_id = "map"
+        lm_path = Path(header=h)
         
-        
-        x = l + beta
-        y = u + alpha
+        # Calculate starting position
+        h.stamp = rospy.Time.now()
+        wp1 = PoseStamped(header=h)
+        wp1.pose.position.x = start_x + direction_x * swath_width / 2
+        wp1.pose.position.y = start_y 
+        lm_path.poses.append(wp1)
+        start_x = start_x - direction_x * swath_width / 2
+        start_y = start_y + direction_y * self.turning_radius
+        x = start_x 
+        y = start_y
 
-        for i in range(n):
+        # Iterate to append waypoints to path
+        for i in range(nbr_passes):
             if i % 2 == 0:
-                h_1 = std_msgs.msg.Header()
-                h_1.stamp = rospy.Time.now()
-                wp1 = PoseStamped()
-                wp1.header = h_1
+                h.stamp = rospy.Time.now()
+                wp1 = PoseStamped(header=h)
+                x = x + dx
                 wp1.pose.position.x = x
-                y = y - alpha
                 wp1.pose.position.y = y
                 lm_path.poses.append(wp1)
-                h_2 = std_msgs.msg.Header()
-                h_2.stamp = rospy.Time.now()
-                wp2 = PoseStamped()
-                wp2.header = h_2
-                x = x + W - 2*beta
+                h.stamp = rospy.Time.now()
+                wp2 = PoseStamped(header=h)
+                y = y + dy
                 wp2.pose.position.x = x
                 wp2.pose.position.y = y
                 lm_path.poses.append(wp2)
             else:
-                h_1 = std_msgs.msg.Header()
-                h_1.stamp = rospy.Time.now()
-                wp1 = PoseStamped()
-                wp1.header = h_1
+                h.stamp = rospy.Time.now()
+                wp1 = PoseStamped(header=h)
+                x = x + dx
                 wp1.pose.position.x = x
-                y = y - alpha
                 wp1.pose.position.y = y
                 lm_path.poses.append(wp1)
-                h_2 = std_msgs.msg.Header()
-                h_2.stamp = rospy.Time.now()
-                wp2 = PoseStamped()
-                wp2.header = h_2
-                x = x - W + 2*beta
+                h.stamp = rospy.Time.now()
+                wp2 = PoseStamped(header=h)
+                y = y - dy
                 wp2.pose.position.x = x
                 wp2.pose.position.y = y
                 lm_path.poses.append(wp2)
@@ -255,7 +299,7 @@ class BOPlanner(PlannerBase):
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, 
                  training_rate, wp_resolution, swath_width, path_nbr_samples, voxel_size, 
-                 wp_sample_interval, horizon_distance, border_margin, beta):
+                 wp_sample_interval, horizon_distance, border_margin, beta, start_pose):
         """ Constructor method
 
         Args:
@@ -265,7 +309,7 @@ class BOPlanner(PlannerBase):
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate) 
+        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose) 
         
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
@@ -275,7 +319,7 @@ class BOPlanner(PlannerBase):
         self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
         self.gp_angle_lock  = filelock.FileLock("GP_angle.pickle.lock")
         
-        self.start_pose = self.state
+        self.planner_initial_pose = self.state
         
         # Parameters for optimizer
         self.wp_resolution      = wp_resolution
@@ -288,16 +332,13 @@ class BOPlanner(PlannerBase):
         self.beta               = beta
         
         # Publish an initial path
-        initial_path     = self.initial_sampling_path(n_samples=1)
+        initial_path     = self.initial_sampling_path()
         self.path_pub.publish(initial_path) 
         
         # Initiate training of GP
-        # TODO: why set the training rate at 30 hz? Instead set it to 10 Hz
-        # On laptop, training takes ~0.05 seconds, which means 30 hz is too fast.
-        # Don't know yet about jetson.
         self.begin_gp_train(rate=self.training_rate)
         
-    def initial_sampling_path(self, n_samples):
+    def initial_sampling_path(self):
         """ Generates a set of waypoints for initial sampling of BO
 
         Args:
@@ -306,29 +347,30 @@ class BOPlanner(PlannerBase):
         Returns:
             nav_msgs.msg.Path: Waypoint list, in form of poses
         """
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        high_x           = min(self.bounds[1] - self.border_margin, max(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[3] + self.border_margin, min(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
-        high_y           = min(self.bounds[2] - self.border_margin, max(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
+        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
+        high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
-        samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[n_samples, 3])
+        samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
         h.frame_id = "map"
         h.stamp = rospy.Time.now()
         sampling_path = Path()
         sampling_path.header = h
         for sample in samples:
-            path = dubins.shortest_path(self.start_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
-            wp_poses, _ = path.sample_many(5)
-            for pose in wp_poses[2:]:
+            path = dubins.shortest_path(self.planner_initial_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
+            wp_poses, _ = path.sample_many(self.wp_resolution)
+            for pose in wp_poses:
                 wp = PoseStamped()
                 wp.header = h
                 wp.pose.position.x = pose[0]
                 wp.pose.position.y = pose[1]
                 wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
                 sampling_path.poses.append(wp)
-                self.start_pose = [pose[0], pose[1], pose[2]]
         return sampling_path
+    
+    
             
     def get_path_cb(self, msg):
         """ When called, calls optimization to find the best new path to take.
@@ -345,15 +387,15 @@ class BOPlanner(PlannerBase):
             model = pickle.load(open("GP_env.pickle","rb"))
             
         # Get a new candidate trajectory with Bayesian optimization
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        high_x           = min(self.bounds[1] - self.border_margin, max(self.start_pose[0] - self.horizon_distance, self.start_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[3] + self.border_margin, min(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
-        high_y           = min(self.bounds[2] - self.border_margin, max(self.start_pose[1] - self.horizon_distance, self.start_pose[1] + self.horizon_distance))
+        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
+        low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
+        high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
-                                                        current_pose=self.start_pose, wp_resolution=self.wp_resolution, 
+                                                        current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
                                                         turning_radius=self.turning_radius, swath_width=self.swath_width, 
                                                         path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
                                                         wp_sample_interval=self.wp_sample_interval)
@@ -378,23 +420,16 @@ class BOPlanner(PlannerBase):
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()
-        path = dubins.shortest_path(self.start_pose, [location[0], location[1], location[2]], self.turning_radius)
-        wp_poses, _ = path.sample_many(5)
-        for pose in wp_poses[2:]:       #removing first as hack to ensure AUV doesnt get stuck
+        path = dubins.shortest_path(self.planner_initial_pose, [location[0], location[1], location[2]], self.turning_radius)
+        wp_poses, _ = path.sample_many(self.wp_resolution)
+        for pose in wp_poses:       #removing first as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
             wp.header = h
             wp.pose.position.x = pose[0] 
             wp.pose.position.y = pose[1]  
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
-        if len(sampling_path.poses) == 0:
-            wp = PoseStamped()
-            wp.header = h
-            wp.pose.position.x = self.start_pose[0] + 5*np.cos(self.start_pose[2]) 
-            wp.pose.position.y = self.start_pose[1] + 5*np.cos(self.start_pose[2]) 
-            wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, self.start_pose[2]))
-            sampling_path.poses.append(wp)
-        self.start_pose = wp_poses[-1]
+        self.planner_initial_pose = wp_poses[-1]
         self.path_pub.publish(sampling_path)
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

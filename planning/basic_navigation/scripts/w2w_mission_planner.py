@@ -75,7 +75,7 @@ class W2WMissionPlanner(object):
                 rospy.loginfo("WP reached, moving on to next one")
                 self.started = True
                 
-                if len(self.latest_path.poses) == 5:
+                if len(self.latest_path.poses) == 1:
                     self.planner_req_pub.publish(True)
                 
                 if len(self.latest_path.poses) == 0:

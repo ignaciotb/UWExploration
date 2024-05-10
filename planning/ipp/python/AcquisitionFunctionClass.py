@@ -189,8 +189,8 @@ class UCB_path(AnalyticAcquisitionFunction):
         for idx, place in enumerate(destinations):
             # Calculate dubins path to candidate, and travel cost
             path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], self.turning_radius)
-            wp_poses, length_arr = path.sample_many(self.wp_resolution)
-            cost = length_arr[-1] + self.wp_resolution
+            wp_poses, length_arr = path.sample_many(4)
+            cost = length_arr[-1] + 1
             # Get sample swath points orthogonally to path at regular intervals
             points = self._get_orthogonal_samples(wp_poses[::self.wp_sample_interval], self.nbr_samples, self.swath_width)
             # Voxelize in 2D to get even spread

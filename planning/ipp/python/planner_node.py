@@ -22,7 +22,6 @@ if __name__ == "__main__":
     planner_req_topic   = rospy.get_param("~planner_req_topic")
     odom_topic          = rospy.get_param("~odom_topic")
     swath_width         = rospy.get_param("~swath_width")
-    swath_overlap       = rospy.get_param("~swath_overlap")
     bound_left          = rospy.get_param("~bound_left")
     bound_right         = rospy.get_param("~bound_right")
     bound_up            = rospy.get_param("~bound_up")
@@ -34,8 +33,13 @@ if __name__ == "__main__":
     wp_sample_interval  = rospy.get_param("~wp_sample_interval")
     horizon_distance    = rospy.get_param("~horizon_distance")
     border_margin       = rospy.get_param("~border_margin")
+    vehicle_velocity    = rospy.get_param("~vehicle_velocity")
+    max_time            = rospy.get_param("~max_mission_time")
+    start_x             = rospy.get_param("~x")
+    start_y             = rospy.get_param("~y")
+    start_yaw           = rospy.get_param("~yaw")
     beta                = rospy.get_param("~beta")
-    
+        
     bounds = [bound_left, bound_right, bound_up, bound_down]
     
     try:        
@@ -44,9 +48,9 @@ if __name__ == "__main__":
             rospy.loginfo("Initializing planner node! Using Lawnmower pattern.")  
             planner = SimplePlanner(corner_topic=corner_topic, path_topic=path_topic, 
                                     planner_req_topic=planner_req_topic, odom_topic=odom_topic,
-                                    bounds=bounds, 
+                                    bounds=bounds, vehicle_velocity=vehicle_velocity, max_time=max_time,
                                     turning_radius=turn_radius, training_rate=train_rate, sw=swath_width, 
-                                    so=swath_overlap)
+                                    start_pose=[start_x, start_y, start_yaw])
         
         # Run bayesian optimization based planner 
         else:
@@ -55,7 +59,7 @@ if __name__ == "__main__":
                                 odom_topic=odom_topic,bounds=bounds, turning_radius=turn_radius, training_rate=train_rate, 
                                 wp_resolution=wp_resolution, swath_width=swath_width, path_nbr_samples=path_nbr_samples, 
                                 voxel_size=voxel_size, wp_sample_interval=wp_sample_interval, horizon_distance=horizon_distance,
-                                border_margin=border_margin, beta=beta)
+                                border_margin=border_margin, beta=beta, start_pose=[start_x, start_y, start_yaw])
             
     except rospy.ROSInterruptException:
         rospy.logerr('Could not launch AUV path planner node')

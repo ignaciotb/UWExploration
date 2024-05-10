@@ -359,8 +359,7 @@ class auv_ui_online(object):
             self.sigma_t = sigma_hat_t
             # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
             #                  for row in self.sigma_t]))
-            
-            print(self.mu_t)
+            # print(self.mu_t)
 
             # For testing
             quat = quaternion_from_euler(self.mu_t[3], self.mu_t[4], self.mu_t[5], "rxyz")

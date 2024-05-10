@@ -170,6 +170,7 @@
     <!-- datafile-->
     <include file="$(find auv_model)/launch/auv_env_aux.launch" >
         <arg name="dataset"                     default="asko"/>
+        <arg name="namespace"                     default="$(arg namespace)"/>
     </include>
 
     <!-- If we are visualizing, plot decision material -->

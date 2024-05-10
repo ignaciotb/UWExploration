@@ -12,6 +12,8 @@ import tf
 from geometry_msgs.msg import PointStamped, Quaternion, TransformStamped
 from geodesy import utm
 import tf2_ros
+import message_filters
+from sensor_msgs.msg import Imu
 
 from scipy.spatial.transform import Rotation
 
@@ -20,6 +22,7 @@ class Ins2Dr():
     def __init__(self):
 
         ins_top = rospy.get_param("~lolo_ins", "/lolo/core/ins")
+        imu_top = rospy.get_param("~lolo_imu", "/lolo/core/imu")
         odom_top = rospy.get_param("~lolo_odom", "/lolo/ipp/odom")
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.map_frame = rospy.get_param("~map_frame", "map")
@@ -35,9 +38,17 @@ class Ins2Dr():
         self.listener = tf.TransformListener()
         self.static_tf_bc = tf2_ros.StaticTransformBroadcaster()
 
-        rospy.Subscriber(ins_top, Ins, self.ins_cb, queue_size=100)
+        # rospy.Subscriber(ins_top, Ins, self.ins_cb, queue_size=100)
 
-    def ins_cb(self, ins_msg):
+        self.ins_sub = message_filters.Subscriber(ins_top, Ins)
+        self.imu_sub = message_filters.Subscriber(imu_top, Imu)
+        self.ts = message_filters.ApproximateTimeSynchronizer(
+            [self.ins_sub, self.imu_sub], 20, slop=20.0, allow_headerless=False
+        )
+        self.ts.registerCallback(self.ts_cb)
+
+
+    def ts_cb(self, ins_msg, imu_msg):
 
         # Broadcast utm --> odom where vehicle 
         if self.prev_heading == None:
@@ -73,17 +84,17 @@ class Ins2Dr():
         odom_msg.twist.twist.linear.z = 0. # Surface
 
         # Compute angular velocities from orientations
-        dt = (self.t_now - self.t_prev).to_sec()
+        # dt = (self.t_now - self.t_prev).to_sec()
 
-        self.now_heading = ins_msg.heading
-        d_heading = self.now_heading - self.prev_heading
-        v_ang_heading = (d_heading * 2 * math.pi / 360.) / dt
-        
-        odom_msg.twist.twist.angular.z = -v_ang_heading
+        # self.now_heading = ins_msg.heading
+        # d_heading = self.now_heading - self.prev_heading
+        # v_ang_heading = (d_heading * 2 * math.pi / 360.) / dt
+        # self.t_prev = self.t_now
+        # self.prev_heading = self.now_heading
         # print('heading vel ', v_ang_heading)
-        
-        self.t_prev = self.t_now
-        self.prev_heading = self.now_heading
+
+        # odom_msg.twist.twist.angular.z = -v_ang_heading
+        odom_msg.twist.twist.angular.z = imu_msg.angular_velocity.z
         
         # # The heading in our framework is the DR yaw relative to the map
         # heading_t = ins_msg.heading - self.init_heading

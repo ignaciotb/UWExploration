@@ -11,7 +11,7 @@ import matplotlib.cm as cm
 class Node(object):
     
     def __init__(self, position, depth, parent = None) -> None:
-        self.position           = position
+        self.position       = position
         self.depth          = depth
         self.parent         = parent
         self.children       = []
@@ -30,31 +30,26 @@ class MonteCarloTree(object):
         self.global_bounds      = bounds
         self.C                  = 2.0
         self.max_depth          = max_depth
+        self.iteration          = 0
         
     def iterate(self):
         # run iteration
         # 1. select a node
-        print("hi1")
         node = self.select_node()
-        print("hi2")
         # If node has not been visited, rollout to get reward
         if node.visit_count == 0 and node != self.root:
             value = self.rollout_node(node)
-            print("hi3")
         # If node has been visited and there is reward, then expand children
         else:
             # If max depth not hit, expand
-            print("hi4")
             if node.depth < self.max_depth:
                 self.expand_node(node)
                 node = node.children[0]
-                print("hi5")
                 
             value = self.rollout_node(node)
-        print("hi6")    
         # backpropagate
         self.backpropagate(node, value)
-        print("hi7")
+        self.iteration += 1
     
     def get_best_solution(self):
         values = []
@@ -100,7 +95,9 @@ class MonteCarloTree(object):
         
         bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
         
-        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=50)
+        decayed_samples = max(5, 50-self.iteration*10)
+        
+        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
         
         
         for i in range(nbr_children):
@@ -119,15 +116,12 @@ class MonteCarloTree(object):
         high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
         
         # Adjust for if the area is smaller due to bounds, this should be penalized
-        expected_size = self.horizon_distance ** 2
-        real_size = abs(high_x - low_x) * abs(high_y - low_y)
-        adjusted_samples = round(real_size/expected_size*50)
-        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[adjusted_samples, 2])
+        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[40, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
         acq_fun = UCB_xy(model=self.gp, beta=self.beta)
         ucb = acq_fun.forward(samples_torch)
-        reward = ucb.sum().item()
+        reward = ucb.mean().item()
         return reward
     
     def backpropagate(self, node, value):

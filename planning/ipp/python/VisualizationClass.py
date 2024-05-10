@@ -11,7 +11,7 @@ import torch
 from gpytorch.likelihoods import GaussianLikelihood
 import time
 from botorch.acquisition import UpperConfidenceBound
-from AcquisitionFunctionClass import UCB_xy
+from AcquisitionFunctionClass import UCB_xy, qUCB_xy
 
 
 class UpdateDist(object):
@@ -95,6 +95,14 @@ class UpdateDist(object):
                 # sample
                 inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
                 outputs = model1(inputst_temp)
+                #posterior = ucb_fun.model.posterior(
+                #    X=inputst_temp, posterior_transform=ucb_fun.posterior_transform
+                #)
+                #samples = ucb_fun.get_posterior_samples(posterior)
+                #obj = ucb_fun.objective(samples, X=inputst_temp)
+                #mean = obj.mean(dim=0)
+                #ucb =  mean + ucb_fun.beta_prime * (obj - mean).abs()
+                #ucb = ucb_samples.max(dim=-1)[0].mean(dim=0)
                 mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
                 #ucb = ucb_fun.forward(inputst_temp.unsqueeze(-2))
                 ucb = mean_r + self.beta * sigma_r

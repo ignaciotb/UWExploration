@@ -24,6 +24,7 @@ import actionlib
 from slam_msgs.msg import ManipulatePosteriorAction, ManipulatePosteriorGoal
 from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
 from sensor_msgs.msg import PointCloud2, PointField
 from std_msgs.msg import Header
@@ -34,12 +35,14 @@ import torch
 
 from std_srvs.srv import Empty
 from nav_msgs.msg import Path
+from scipy.spatial.transform import Rotation
 import time 
 
 def pcloud2ranges_full(point_cloud):
     ranges = []
     for p in pc2.read_points(point_cloud, 
                              field_names = ("x", "y", "z"), skip_nans=True):
+        
         ranges.append(p)
 
     return np.asarray(ranges)
@@ -86,7 +89,7 @@ class auv_ui_online(object):
         self.img = plt.imread(self.path_img)
 
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
-        odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self.odom_frame = rospy.get_param('~odom_frame', 'odom')
         self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         self.base_frame = rospy.get_param('~base_link', 'base_link')
         self.survey_name = rospy.get_param('~dataset', 'survey')
@@ -121,7 +124,7 @@ class auv_ui_online(object):
                                                 rospy.Time(0), rospy.Duration(35))
             self.T_base_mbes = matrix_from_tf(mbes_tf)
 
-            m2o_tf = tfBuffer.lookup_transform(self.map_frame, odom_frame,
+            m2o_tf = tfBuffer.lookup_transform(self.map_frame, self.odom_frame,
                                                rospy.Time(0), rospy.Duration(35))
             self.T_map_odom = matrix_from_tf(m2o_tf)
             rospy.loginfo("Transforms locked - auv_ui_online node")
@@ -187,9 +190,11 @@ class auv_ui_online(object):
         ip_top = rospy.get_param("~inducing_points_top")
         self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=10)
 
+        self.test_odom = rospy.Publisher("/lolo/ipp_test/odom", Odometry, queue_size=10)
+
         # Subscription to path to distribute inducing points
-        wp_top = rospy.get_param("~path_topic", "/waypoints")
-        rospy.Subscriber("/hugin_0/corners", Path, self.path_cb, queue_size=1)
+        wp_top = rospy.get_param("~corners_topic", "/corners")
+        rospy.Subscriber(wp_top, Path, self.path_cb, queue_size=1)
 
         # Subscribe when ready
         odom_top = rospy.get_param("~odometry_topic", 'odom')
@@ -325,21 +330,22 @@ class auv_ui_online(object):
                 mu_hat_t[i] = (mu_hat_t[i] + np.pi) % (2 * np.pi) - np.pi
             
             ## GT for testing
+            # Nacho: comment out for Lolo experiments
             # print("-----")
-            quaternion = (odom_msg.pose.pose.orientation.x,
-                            odom_msg.pose.pose.orientation.y,
-                            odom_msg.pose.pose.orientation.z,
-                            odom_msg.pose.pose.orientation.w)
-            euler = tf.transformations.euler_from_quaternion(quaternion)
+            # quaternion = (odom_msg.pose.pose.orientation.x,
+            #                 odom_msg.pose.pose.orientation.y,
+            #                 odom_msg.pose.pose.orientation.z,
+            #                 odom_msg.pose.pose.orientation.w)
+            # euler = tf.transformations.euler_from_quaternion(quaternion)
             
-            self.pose_t = np.array([odom_msg.pose.pose.position.x,
-                            odom_msg.pose.pose.position.y,
-                            odom_msg.pose.pose.position.z,
-                            euler[0],
-                            euler[1],
-                            euler[2]])
-            for i in range(3,6): # Wrap angles
-                self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
+            # self.pose_t = np.array([odom_msg.pose.pose.position.x,
+            #                 odom_msg.pose.pose.position.y,
+            #                 odom_msg.pose.pose.position.z,
+            #                 euler[0],
+            #                 euler[1],
+            #                 euler[2]])
+            # for i in range(3,6): # Wrap angles
+            #     self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
             # print(self.pose_t - mu_hat_t)
             
             Gt = np.concatenate(np.array(self.G(self.mu_t, vt, dt_real)).astype(np.float64), 
@@ -351,6 +357,24 @@ class auv_ui_online(object):
             self.sigma_t = sigma_hat_t
             # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
             #                  for row in self.sigma_t]))
+            
+            print(self.mu_t)
+
+            # For testing
+            quat = quaternion_from_euler(self.mu_t[3], self.mu_t[4], self.mu_t[5], "rxyz")
+            odom_msg = Odometry()
+            odom_msg.header.stamp = odom_msg.header.stamp
+            odom_msg.header.frame_id = self.odom_frame
+            odom_msg.child_frame_id = "lolo/base_link_test"
+            odom_msg.pose.covariance = [0.] * 36
+            odom_msg.pose.pose.position.x = self.mu_t[0]
+            odom_msg.pose.pose.position.y = self.mu_t[1]
+            odom_msg.pose.pose.position.z = self.mu_t[2]
+            odom_msg.pose.pose.orientation.x = quat[0]
+            odom_msg.pose.pose.orientation.y = quat[1]
+            odom_msg.pose.pose.orientation.z = quat[2]
+            odom_msg.pose.pose.orientation.w = quat[3]
+            self.test_odom.publish(odom_msg)
 
             self.old_time = self.time
 
@@ -371,6 +395,8 @@ class auv_ui_online(object):
 
             # Ping as array in homogeneous coordinates
             beams_mbes = pcloud2ranges_full(mbes_ping)
+            # print("-----------------")
+            # print(beams_mbes)
             beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
             # Use only N beams

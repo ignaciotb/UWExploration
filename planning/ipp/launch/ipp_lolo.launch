@@ -4,7 +4,7 @@
 	<!-- If mode = sim: Simulated AUV with MBES and control in loaded bathymetric map 
 	If mode = gt: reproduce Hugin survey and construct map of real bathymetry --> 
     <arg name="mode"                            default="sim"/>
-    <arg name="namespace"                       default="hugin_0"/>
+    <arg name="namespace"                       default="lolo"/>
     <arg name="debug"                           default="0"/>
     <arg name="dataset"                         default="lost_targets"/>
     <arg name="app"                             default="ipp"/>
@@ -23,8 +23,9 @@
 
     <arg name="map_frame"                       default="map"/>
     <arg name="odom_frame"                      default="$(arg namespace)/odom"/>
-    <arg name="odometry_topic"                  default="/$(arg mode)/$(arg namespace)/odom"/>
-    <arg name="mbes_pings_topic"                default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
+    <arg name="utm_frame"                      default="utm"/>
+    <arg name="odometry_topic"                  default="/lolo/ipp/odom"/>
+    <arg name="mbes_pings_topic"                default="/lolo/sensors/mbes/pc2_bathymetry"/>
 
     <!-- RBPF params  -->
     <arg name="particle_count"                  default="1"/>
@@ -36,7 +37,7 @@
     <arg name="gp_mb_server"                    default="/$(arg namespace)/gp/minibatch_server"/>
     <arg name="manipulate_gp_server"            default="/particle_0/$(arg namespace)/gp/manipulate_server"/>
     <arg name="gp_resample_top"                 default="/$(arg namespace)/gp/resample_top"/>
-    <arg name="results_path"                    default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>   
+    <arg name="results_path"                    default="/home/sam/ipp_ws/src/UWExploration/planning/ipp/data/"/>   
     <arg name="num_particles_per_handler"       default="1"/>      
     <arg name="svgp_minibatch_size"   default="1000" />
 
@@ -120,6 +121,12 @@
         <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
     </node>
 
+    <node type="ins_2_dr.py" pkg="lolo_ipp_interface" name="ins_2_dr" output="screen">
+        <param name="map_frame"                 value="$(arg map_frame)" />
+        <param name="odom_frame"                 value="$(arg odom_frame)" />
+        <param name="utm_frame"                 value="$(arg utm_frame)" />
+    </node>
+    
     <!-- Run uncertainty management node -->
     <node type="auv_ui_online.py" pkg="uncert_management" name="auv_ui_online" output="screen">
         <param name="map_frame"                 value="$(arg map_frame)" />
@@ -134,34 +141,39 @@
         <param name="survey_finished_top"       value="$(arg survey_finished_top)" />
         <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>    
         <param name="inducing_points_top"       value="$(arg gp_ip_topic)"/>     
-        <param name="path_topic"                value="/$(arg namespace)/waypoints" />
+        <param name="corners_topic"                value="/$(arg namespace)/corners" />
         <param name="gp_resampling_top"         value="$(arg gp_resample_top)" />
         <param name="manipulate_gp_server"      value="$(arg manipulate_gp_server)" />
         <param name="synch_topic"               value="/$(arg app)/synch" />
     </node>
 
-    <!-- Run waypoint handler / navigation control -->
-    <include file="$(find basic_navigation)/launch/basic_mission.launch" >
-        <arg name="manual_control"              default="True"/>
-        <arg name="namespace"                   default="hugin_0"/>
-    </include>
+
+    <node type="w2w_client.py" pkg="lolo_ipp_interface" name="w2w_client" output="screen">
+        <param name="path_planner_as"  value="/$(arg namespace)/ctrl/goto_waypoint" />
+        <param name="path_topic"  value="$(arg path_topic)" />
+        <param name="map_frame"  value="map" />
+        <param name="wp_topic"  value="/navigation/lc_wp" />
+        <!-- <param name="relocalize_topic"  value="/$(arg namespace)/pause_planner"/> -->
+        <param name="synch_topic" value="/$(arg app)/synch" />
+        <param name="planner_req_topic" value="/$(arg namespace)/planner_req" />
+    </node>
 
     <!-- Run simulation environment -->
-    <include file="$(find auv_model)/launch/auv_environment.launch" >
+    <!-- <include file="$(find auv_model)/launch/auv_environment.launch" >
         <arg name="mode"                        default="sim"/>
         <arg name="namespace"                   default="hugin_0"/>
         <arg name="dataset"                     default="lost_targets"/>
         <arg name="x"                           default="0"/>
         <arg name="y"                           default="0"/>
-    </include>
+    </include> -->
 
     <!-- datafile-->
     <include file="$(find auv_model)/launch/auv_env_aux.launch" >
-        <arg name="dataset"                     default="lost_targets"/>
+        <arg name="dataset"                     default="asko"/>
     </include>
 
     <!-- If we are visualizing, plot decision material -->
-    <group if="$(eval arg('visualize') == 1)">
+    <!-- <group if="$(eval arg('visualize') == 1)">
         <node type="VisualizationClass.py" pkg="ipp" name="Visualization_node" output="screen">
             <param name="bound_left"                value="$(arg bound_left)" />
             <param name="bound_right"               value="$(arg bound_right)" />
@@ -169,7 +181,7 @@
             <param name="bound_down"                value="$(arg bound_down)" />    
             <param name="beta"                      value="$(arg beta)" />
         </node>
-    </group>
+    </group> -->
 
 </launch>
 

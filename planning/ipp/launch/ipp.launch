@@ -60,12 +60,12 @@
     <arg name="bound_up"                        default="-179"/>
     <arg name="bound_down"                      default="-457"/>
     <arg name="horizon_distance"                default="100"/>
-    <arg name="border_margin"                   default="10"/>
+    <arg name="border_margin"                   default="25"/>
     <arg name="max_mission_time"                default="3600"/>
     <arg name="vehicle_velocity"                default="0.8"/>
 
     <!-- If plotting decision support material should be enabled-->
-    <arg name="visualize"                       default="1"/>
+    <arg name="visualize"                       default="0"/>
 
     <!-- Run IPP node -->
     <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 

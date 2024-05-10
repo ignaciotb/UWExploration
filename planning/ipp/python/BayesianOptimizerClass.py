@@ -10,8 +10,7 @@ from botorch.optim import optimize_acqf
 from AcquisitionFunctionClass import UCB_path, UCB_xy
 
 # Numpy and python imports
-import numpy as np
-import cma                      
+import numpy as np                   
 
 class BayesianOptimizer():
     """ Defines methods for BO optimization
@@ -138,83 +137,3 @@ class BayesianOptimizer():
                 
         # TODO: For optimizng radius - ensure we return both a best theta, and radius
         return best_candidate, self.gp_theta
-    
-    
-    
-    
-    
-###############################################################
-#
-#  DEPRECATED BELOW - not used anymore since decoupling GP layers
-#
-###############################################################
-
-
-    def _optimize_with_grad(self, max_iter=5):
-        """ NOTE: DEPRECATED
-        Returns the most optimal candidate to move towards in a dubins path,
-        to gather information. Uses first order (gradient) based optimization, which is
-        enabled by having a second layer of GP that learns the rewards of the paths.
-
-        Args:
-            max_iter (int, optional): Number of iterations of BO to use as budget. Defaults to 10.
-
-        Returns:
-            (list[double, double, double]): Candidate pose in 2D [x, y, yaw]
-            botorch.models.SingleTaskGP: The trained second layer GP, if needed for debugging
-        """
-        iteration = 0
-        best_value = 0
-        
-        # Each iteration, optimize acq fun. of path GP to generate a candidate (x,y,yaw).
-        # Then evaluate path connecting to that candidate, in environment GP. Add this data,
-        # and train the path GP on this, then loop. Return best candidate.
-        
-        # TODO: Training this exact GP is slow. Fixes: train batch (q candidates) or other (fantasy) model? 
-        while iteration < max_iter:
-            candidate, value = optimize_acqf(self.gp_path_acqf, bounds=self.bounds_torch, q=1, num_restarts=3, raw_samples=50)
-            train_X, train_Y  = self._sample_paths(nbr_samples=1, X=candidate)
-            
-            # TODO: need to check if fantasy model works as expected
-            self.gp_path = self.gp_path.get_fantasy_model(train_X, train_Y)
-            #self.train_X = torch.cat((self.train_X,train_X),0)
-            self.gp_path_acqf.model = self.gp_path
-            if value > best_value:
-                print("changed best value!")
-                best_value = value
-                best_candidate = candidate
-            iteration += 1
-            
-        return best_candidate, self.gp_path
-    
-    def _optimize_no_grad(self):
-        """ NOTE: DEPRECATED
-            Zeroth-order optimization, using CMA-ES. This directly optimizes on the environment
-            GP, by using the full path acquisition function.
-
-        Returns:
-            (list[float, float, float], float): tuple with candidate 2D pose, and value of candidate
-        """
-        x0 = np.random.uniform(low=self.bounds_list[0], 
-                               high=self.bounds_list[1], size=3)
-        es = cma.CMAEvolutionStrategy(x0=x0, sigma0=20, inopts={"bounds": self.bounds_list, "popsize": 200, "maxiter": 10})
-        with torch.no_grad():
-
-            # Run the optimization loop using the ask/tell interface -- this uses
-            # PyCMA's default settings, see the PyCMA documentation for how to modify these
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            while not es.stop():
-                xs = es.ask()  # as for new points to evaluate
-                # convert to Tensor for evaluating the acquisition function
-                X = torch.tensor(xs, device=device, dtype=torch.float)
-                # evaluate the acquisition function (optimizer assumes we're minimizing)
-                Y = -self.aq_func(X.unsqueeze(-2))  # acquisition functions require an explicit q-batch dimension
-                y = Y.view(-1).double().numpy()  # convert result to numpy array
-                es.tell(xs, y)  # return the result to the optimizer
-                print("iteration")
-
-        # convert result back to a torch tensor
-        best_x = torch.from_numpy(es.best.x).to(X)
-        best_y = es.best.f
-
-        return best_x, best_y

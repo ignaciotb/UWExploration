@@ -2,7 +2,6 @@
 
 # Standard tools
 import numpy as np
-import tqdm
 import matplotlib.pyplot as plt
 import open3d as o3d
 import torch

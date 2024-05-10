@@ -23,7 +23,7 @@ class Ins2Dr():
 
         ins_top = rospy.get_param("~lolo_ins", "/lolo/core/ins")
         imu_top = rospy.get_param("~lolo_imu", "/lolo/core/imu")
-        odom_top = rospy.get_param("~lolo_odom", "/lolo/ipp/odom")
+        odom_top = rospy.get_param("~lolo_odom", "/lolo/core/odom")
         self.odom_frame = rospy.get_param("~odom_frame", "odom")
         self.map_frame = rospy.get_param("~map_frame", "map")
         self.utm_frame = rospy.get_param("~utm_frame", "utm")

@@ -71,7 +71,7 @@ class PlannerBase():
         
         # Subscribers with callback methods
         rospy.Subscriber(self.planner_req_topic, std_msgs.msg.Bool, self.get_path_cb)
-        rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
+        rospy.Subscriber(self.odom_topic, Odometry, self.odom_state_cb)
         
     @abstractmethod
     def get_path_cb():

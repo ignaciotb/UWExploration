@@ -42,33 +42,36 @@
     <arg name="svgp_minibatch_size"   default="1000" />
 
     <!-- Planner parameters -->
+    <!-- Planner parameters -->
     <arg name="planner_type"                    default="opt"/>
-    <arg name="turning_radius"                  default="9"/>
+    <arg name="turning_radius"                  default="20"/>
     <arg name="corner_topic"                    default="/$(arg namespace)/corners"/>
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
     <arg name="planner_req_topic"               default="/$(arg namespace)/planner_req"/>
     <arg name="swath_width"                     default="18"/>
     <arg name="swath_overlap"                   default="0.2"/>
     <arg name="training_rate"                   default="10"/>
-    <arg name="wp_resolution"                   default="2"/>
-    <arg name="path_nbr_samples"                default="5" />
+    <arg name="wp_resolution"                   default="20"/>
+    <arg name="path_nbr_samples"                default="7" />
     <arg name="voxel_size"                      default="3" />
-    <arg name="wp_sample_interval"              default="2" />
+    <arg name="wp_sample_interval"              default="1" />
     <arg name="beta"                            default="9" />
 
-    <!-- Planner boundaries -->
-    <arg name="bound_left"                      default="-260"/>
-    <arg name="bound_right"                     default="-40"/>
-    <arg name="bound_up"                        default="100"/>
-    <arg name="bound_down"                      default="-70"/>
+    <!-- Planner constraints -->
+    <arg name="bound_left"                      default="592"/>
+    <arg name="bound_right"                     default="821"/>
+    <arg name="bound_up"                        default="-179"/>
+    <arg name="bound_down"                      default="-457"/>
     <arg name="horizon_distance"                default="100"/>
-    <arg name="border_margin"                   default="10"/>
+    <arg name="border_margin"                   default="25"/>
+    <arg name="max_mission_time"                default="3600"/>
+    <arg name="vehicle_velocity"                default="0.8"/>
 
     <!-- If plotting decision support material should be enabled-->
     <arg name="visualize"                       default="1"/>
 
     <!-- Run IPP node -->
-    <!-- <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
+    <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
         <param name="gp_ip_topic"               value="/$(arg namespace)/gp/inducing_points"/>
         <param name="inducing_points_top"       value="$(arg gp_ip_topic)"/>   
         <param name="gp_mb_server"              value="/$(arg namespace)/gp/minibatch_server"/>
@@ -96,6 +99,12 @@
         <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
         <param name="swath_overlap"             value="$(arg swath_overlap)" />
+        <param name="x"                         value="$(arg x)"/>
+        <param name="y"                         value="$(arg y)"/>
+        <param name="z"                         value="$(arg z)"/>
+        <param name="roll"                      value="$(arg roll)"/>
+        <param name="pitch"                     value="$(arg pitch)"/>
+        <param name="yaw"                       value="$(arg yaw)"/>
         <param name="bound_left"                value="$(arg bound_left)" />
         <param name="bound_right"               value="$(arg bound_right)" />
         <param name="bound_up"                  value="$(arg bound_up)" />
@@ -106,12 +115,14 @@
         <param name="wp_resolution"             value="$(arg wp_resolution)" />
         <param name="voxel_size"                value="$(arg voxel_size)" />
         <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
+        <param name="max_mission_time"          value="$(arg max_mission_time)"/>
+        <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
         <param name="train_rate"    type="int"  value="$(arg training_rate)" />
         <param name="svgp_n_window" type="int"  value="400"/>     
-        <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />  
-    </node> -->
+        <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />    
+    </node>
 
-    <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
+    <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">
         <param name="namespace" value="$(arg namespace)"/>  
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)"/>  
         <param name="results_path" value="$(arg results_path)" />
@@ -119,7 +130,7 @@
         <param name="num_particle_handlers" value="$(arg num_particle_handlers)"/>     
         <param name="num_particles_per_handler" value="$(eval arg('particle_count') / arg('num_particle_handlers'))"/>     
         <param name="particle_launch_file" value="$(find rbpf_slam)/launch/particle.launch"/>     
-    </node>
+    </node> -->
 
     <node type="ins_2_dr.py" pkg="lolo_ipp_interface" name="ins_2_dr" output="screen">
         <param name="map_frame"                 value="$(arg map_frame)" />
@@ -133,7 +144,7 @@
         <param name="odom_frame"                value="$(arg odom_frame)" />
         <param name="base_link"                 value="$(arg namespace)/base_link" />
         <param name="mbes_link"                 value="$(arg namespace)/mbes_link" />
-        <param name="odometry_topic"            value="$(arg odometry_topic)" />
+        <param name="odometry_topic"            value="/lolo/core/odom" />
         <param name="mbes_pings_topic"          value="$(arg mbes_pings_topic)" />
         <param name="background_img_path"       value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
         <param name="dataset"                   value="$(arg dataset)" />       

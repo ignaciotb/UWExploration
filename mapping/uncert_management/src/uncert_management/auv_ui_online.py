@@ -192,7 +192,7 @@ class auv_ui_online(object):
         ip_top = rospy.get_param("~inducing_points_top")
         self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=10)
 
-        self.test_odom = rospy.Publisher("/lolo/ipp_test/odom", Odometry, queue_size=10)
+        self.test_odom = rospy.Publisher("/lolo/ipp/odom", Odometry, queue_size=10)
 
         # Subscription to path to distribute inducing points
         wp_top = rospy.get_param("~corners_topic", "/corners")
@@ -366,7 +366,7 @@ class auv_ui_online(object):
             odom_msg = Odometry()
             odom_msg.header.stamp = odom_msg.header.stamp
             odom_msg.header.frame_id = self.odom_frame
-            odom_msg.child_frame_id = "lolo/base_link_test"
+            odom_msg.child_frame_id = "lolo/base_link_ipp"
             odom_msg.pose.covariance = [0.] * 36
             odom_msg.pose.pose.position.x = self.mu_t[0]
             odom_msg.pose.pose.position.y = self.mu_t[1]

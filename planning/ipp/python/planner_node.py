@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
 
-# Python functionality
-import sys
-
 # ROS imports
 import rospy
 
@@ -59,7 +56,8 @@ if __name__ == "__main__":
                                 odom_topic=odom_topic,bounds=bounds, turning_radius=turn_radius, training_rate=train_rate, 
                                 wp_resolution=wp_resolution, swath_width=swath_width, path_nbr_samples=path_nbr_samples, 
                                 voxel_size=voxel_size, wp_sample_interval=wp_sample_interval, horizon_distance=horizon_distance,
-                                border_margin=border_margin, beta=beta, start_pose=[start_x, start_y, start_yaw])
+                                border_margin=border_margin, beta=beta, start_pose=[start_x, start_y, start_yaw], 
+                                vehicle_velocity=vehicle_velocity, max_time=max_time)
             
     except rospy.ROSInterruptException:
         rospy.logerr('Could not launch AUV path planner node')

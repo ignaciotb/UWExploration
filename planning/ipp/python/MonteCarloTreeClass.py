@@ -11,7 +11,7 @@ import matplotlib.cm as cm
 class Node(object):
     
     def __init__(self, position, depth, parent = None) -> None:
-        self.position           = position
+        self.position       = position
         self.depth          = depth
         self.parent         = parent
         self.children       = []
@@ -30,33 +30,28 @@ class MonteCarloTree(object):
         self.global_bounds      = bounds
         self.C                  = 2.0
         self.max_depth          = max_depth
+        self.iteration          = 0
         
-    def iterate(self, max_iterations = 25):
-        
-        iterations = 0
-        while iterations <= max_iterations:
-            # run iteration
-            # 1. select a node
-            node = self.select_node()
-            
-            # If node has not been visited, rollout to get reward
-            if node.visit_count == 0 and node != self.root:
-                value = self.rollout_node(node)
+    def iterate(self):
+        # run iteration
+        # 1. select a node
+        node = self.select_node()
+        # If node has not been visited, rollout to get reward
+        if node.visit_count == 0 and node != self.root:
+            value = self.rollout_node(node)
+        # If node has been visited and there is reward, then expand children
+        else:
+            # If max depth not hit, expand
+            if node.depth < self.max_depth:
+                self.expand_node(node)
+                node = node.children[0]
                 
-            # If node has been visited and there is reward, then expand children
-            else:
-                # If max depth not hit, expand
-                if node.depth < self.max_depth:
-                    self.expand_node(node)
-                    node = node.children[0]
-                    
-                value = self.rollout_node(node)
-                
-            # backpropagate
-            self.backpropagate(node, value)
-            iterations += 1
-        
-        # Return the best next move
+            value = self.rollout_node(node)
+        # backpropagate
+        self.backpropagate(node, value)
+        self.iteration += 1
+    
+    def get_best_solution(self):
         values = []
         for child in self.root.children:
             values.append(child.reward)
@@ -100,7 +95,10 @@ class MonteCarloTree(object):
         
         bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
         
-        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=8, raw_samples=50)
+        decayed_samples = max(5, 50-self.iteration*10)
+        
+        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
+        
         
         for i in range(nbr_children):
             n = Node(list(candidates[i,:].cpu().detach().numpy()), node.depth + 1, node)
@@ -116,7 +114,9 @@ class MonteCarloTree(object):
         high_x  = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
         low_y   = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
         high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[50, 2])
+        
+        # Adjust for if the area is smaller due to bounds, this should be penalized
+        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[40, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
         acq_fun = UCB_xy(model=self.gp, beta=self.beta)
@@ -200,32 +200,34 @@ class MonteCarloTree(object):
         plt.show()
             
 
+if __name__== "__main__":
+    model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
 
-model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
+    bounds = [592, 821, -179, -457]
 
-bounds = [-260, 40, 100, -70]
+    tree = MonteCarloTree(start_position=[750, -250], gp=model1, beta=9, border_margin=30, horizon_distance=100, bounds=bounds, max_depth=3)
 
-tree = MonteCarloTree(start_position=[-100, 0], gp=model1, beta=9, border_margin=10, horizon_distance=50, bounds=bounds, max_depth=3)
-
-
-node = tree.iterate()
-tree.show_tree()
-
-
+    t1 = time.time()
+    node = tree.iterate()
+    t2 = time.time()
+    print(t2-t1)
+    tree.show_tree()
 
 
 
-"""
-t1 = time.time()
-s = tree.select_node()
-t2 = time.time()
-tree.expand_node(s)
-t3 = time.time()
-tree.rollout_node(s)
-t4 = time.time()
-print(t2-t1)
-print(t3-t2)
-print(t4-t3)
-"""
 
-        
+
+    """
+    t1 = time.time()
+    s = tree.select_node()
+    t2 = time.time()
+    tree.expand_node(s)
+    t3 = time.time()
+    tree.rollout_node(s)
+    t4 = time.time()
+    print(t2-t1)
+    print(t3-t2)
+    print(t4-t3)
+    """
+
+            

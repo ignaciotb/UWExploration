@@ -44,7 +44,7 @@ class W2WMissionPlanner(object):
         self.relocalizing = False
         
         self.started = False
-        self.planner_req_pub = rospy.Publisher(self.planner_req_topic, Bool)
+        self.planner_req_pub = rospy.Publisher(self.planner_req_topic, Bool, queue_size=10)
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -74,23 +74,10 @@ class W2WMissionPlanner(object):
                 self.ac.wait_for_result()
                 rospy.loginfo("WP reached, moving on to next one")
                 self.started = True
-                
-                if len(self.latest_path.poses) == 1:
-                    self.planner_req_pub.publish(True)
-                
-                if len(self.latest_path.poses) == 0:
-                    self.planner_req_pub.publish(True)
+                self.planner_req_pub.publish(True)
                         
-            #elif not self.latest_path.poses:
-            #    rospy.loginfo_once("Mission finished")
-            #    if self.needs_plan:
-            #        self.planner_req_pub.publish(True)
-            #        self.needs_plan = False
-            #        self.started = False
-                    
-                #if self.started == True:
-                    #self.planner_req_pub.publish(True)
-                    #self.started = False
+            elif not self.latest_path.poses:
+                rospy.loginfo_once("Mission finished")
                 
             
 

@@ -15,6 +15,7 @@ import rospy
 from nav_msgs.msg import Path, Odometry
 from geometry_msgs.msg import PoseStamped
 import std_msgs.msg
+
 import tf.transformations
 import tf
 import tf_conversions
@@ -23,12 +24,14 @@ import geometry_msgs
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
 from GaussianProcessClass import SVGP_map
+from MonteCarloTreeClass import MonteCarloTree
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
         all planners. Advanced planners inherit from this class.
     """
-    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose):
+    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose,
+                 max_time, vehicle_velocity):
         """ Constructor method
 
         Args:
@@ -46,6 +49,8 @@ class PlannerBase():
         self.bounds             = bounds
         self.turning_radius     = turning_radius
         self.training_rate      = training_rate
+        self.max_time           = max_time
+        self.vehicle_velocity   = vehicle_velocity
         
         # Logic checks
         assert len(self.bounds) == 4, "Wrong number of boundaries given to planner, need specifically 4"
@@ -168,12 +173,12 @@ class SimplePlanner(PlannerBase):
         """
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, 
-                         bounds, turning_radius, training_rate, start_pose) 
+                         bounds, turning_radius, training_rate, start_pose, max_time, vehicle_velocity) 
         
         # Publish path, then train GP
         self.path_pub = rospy.Publisher(path_topic, Path, queue_size=100)
         rospy.sleep(1)
-        path = self.generate_path(sw, max_time, vehicle_velocity)
+        path = self.generate_path(sw, self.max_time, self.vehicle_velocity)
         self.path_pub.publish(path) 
         self.begin_gp_train()
             
@@ -299,7 +304,8 @@ class BOPlanner(PlannerBase):
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, 
                  training_rate, wp_resolution, swath_width, path_nbr_samples, voxel_size, 
-                 wp_sample_interval, horizon_distance, border_margin, beta, start_pose):
+                 wp_sample_interval, horizon_distance, border_margin, beta, start_pose,
+                 max_time, vehicle_velocity):
         """ Constructor method
 
         Args:
@@ -309,7 +315,13 @@ class BOPlanner(PlannerBase):
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose) 
+        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose,
+                         max_time, vehicle_velocity) 
+        
+        # Planner variables
+        self.planner_initial_pose = self.state
+        self.wp_list              = []
+        self.currently_planning   = False
         
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
@@ -319,7 +331,6 @@ class BOPlanner(PlannerBase):
         self.gp_env_lock    = filelock.FileLock("GP_env.pickle.lock")
         self.gp_angle_lock  = filelock.FileLock("GP_angle.pickle.lock")
         
-        self.planner_initial_pose = self.state
         
         # Parameters for optimizer
         self.wp_resolution      = wp_resolution
@@ -334,6 +345,12 @@ class BOPlanner(PlannerBase):
         # Publish an initial path
         initial_path     = self.initial_sampling_path()
         self.path_pub.publish(initial_path) 
+        
+        # Setup timers for callbacks
+        self.finish_imminent = False
+        rospy.Timer(rospy.Duration(2), self.periodic_call)
+        self.execute_planner_pub = rospy.Publisher("execute_planning_topic_handle", std_msgs.msg.Bool, queue_size=1)
+        self.execute_planner_sub = rospy.Subscriber("execute_planning_topic_handle", std_msgs.msg.Bool, self.execute_planning)
         
         # Initiate training of GP
         self.begin_gp_train(rate=self.training_rate)
@@ -361,23 +378,54 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             path = dubins.shortest_path(self.planner_initial_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
             wp_poses, _ = path.sample_many(self.wp_resolution)
-            for pose in wp_poses:
+            skip = 1
+            if len(wp_poses) == 1:
+                skip = 0
+            self.wp_list.extend(wp_poses[skip:])
+            for pose in wp_poses[skip:]:
                 wp = PoseStamped()
                 wp.header = h
                 wp.pose.position.x = pose[0]
                 wp.pose.position.y = pose[1]
                 wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
                 sampling_path.poses.append(wp)
+            self.planner_initial_pose = wp_poses[-1]
         return sampling_path
     
     
             
     def get_path_cb(self, msg):
-        """ When called, calls optimization to find the best new path to take.
+        """ When called, reduces number of wp 
 
         Args:
-            msg (_type_): _description_
+            msg (bool): flag for if mission is complete, 0 = Complete
         """
+        self.wp_list.pop(0)
+            
+    def calculate_time2target(self):
+        speed = self.vehicle_velocity
+        distance = 0
+        current = copy.deepcopy(self.state)
+        for pose in self.wp_list:
+            distance += np.hypot(current[0] - pose[0], current[1] - pose[1])
+            current = pose
+        return distance/speed
+            
+    
+    def periodic_call(self, msg):
+        time2target = self.calculate_time2target()
+        print("Time to target: " + str(time2target))
+        if time2target < 45 and self.currently_planning == False:
+            self.currently_planning = True
+            self.execute_planner_pub.publish(True)
+            print("Beginning planning...")
+        
+        if time2target < 15 and self.finish_imminent == False:
+            self.finish_imminent = True
+            print("Stopping planning...")
+            
+            
+    def execute_planning(self, msg):
         
         # Freeze a copy of current model for planning, to let real model keep training
         with self.gp.mutex:
@@ -394,13 +442,31 @@ class BOPlanner(PlannerBase):
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
+        
+        MCTS = MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
+                              horizon_distance=self.horizon_distance, border_margin=self.border_margin, 
+                              max_depth=3)
+        # NOTE: working on setting this to iterate until we are out of time. Then it has to yield
+        # a best solution (just implemented get best)
+        # also have to change so that the returned candidate is a tensor, and we have enough time 
+        # to run theta optimization
+        
         BO                          = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
                                                         current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
                                                         turning_radius=self.turning_radius, swath_width=self.swath_width, 
                                                         path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
                                                         wp_sample_interval=self.wp_sample_interval)
         
-        candidates_XY               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
+        candidates_XY1               = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
+        
+        while self.finish_imminent == False:
+            MCTS.iterate()
+        candidates_XY = MCTS.get_best_solution().position
+        
+        candidates_XY = (torch.from_numpy(np.array([candidates_XY]))).type(torch.FloatTensor)
+        
+        print(candidates_XY1)
+        print(candidates_XY)
         
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         
@@ -422,7 +488,11 @@ class BOPlanner(PlannerBase):
         location = candidate.numpy()
         path = dubins.shortest_path(self.planner_initial_pose, [location[0], location[1], location[2]], self.turning_radius)
         wp_poses, _ = path.sample_many(self.wp_resolution)
-        for pose in wp_poses:       #removing first as hack to ensure AUV doesnt get stuck
+        skip = 1
+        if len(wp_poses) == 1:
+            skip = 0
+        self.wp_list.extend(wp_poses[skip:])
+        for pose in wp_poses[skip:]:       #removing first as hack to ensure AUV doesnt get stuck
             wp = PoseStamped()
             wp.header = h
             wp.pose.position.x = pose[0] 
@@ -431,5 +501,7 @@ class BOPlanner(PlannerBase):
             sampling_path.poses.append(wp)
         self.planner_initial_pose = wp_poses[-1]
         self.path_pub.publish(sampling_path)
+        self.currently_planning = False
+        self.finish_imminent = False
         print("Current distance travelled: " + str(self.distance_travelled) + " m.")
         

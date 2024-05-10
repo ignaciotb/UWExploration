@@ -350,7 +350,7 @@ class BOPlanner(PlannerBase):
         self.MCTS_UCT_C                 = MCTS_UCT_C
         
         # Publish an initial path
-        initial_path     = self.initial_sampling_path()
+        initial_path     = self.initial_deterministic_path()
         self.path_pub.publish(initial_path) 
         
         # Setup timers for callbacks
@@ -361,7 +361,34 @@ class BOPlanner(PlannerBase):
         
         # Initiate training of GP
         self.begin_gp_train(rate=self.training_rate)
+    
+    def initial_deterministic_path(self):
+        x_pos = self.bounds[0] + (self.bounds[1] - self.bounds[0])/2
+        y_pos = self.bounds[3] + (self.bounds[2] - self.bounds[3])/2
+        samples = np.random.uniform(low=[x_pos - 1, y_pos - 1, -np.pi], high=[x_pos + 1, y_pos + 1, np.pi], size=[1, 3])
+        h = std_msgs.msg.Header()
+        h.frame_id = "map"
+        h.stamp = rospy.Time.now()
+        sampling_path = Path()
+        sampling_path.header = h
+        for sample in samples:
+            path = dubins.shortest_path(self.planner_initial_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
+            wp_poses, _ = path.sample_many(self.wp_resolution)
+            skip = 1
+            if len(wp_poses) == 1:
+                skip = 0
+            self.wp_list.extend(wp_poses[skip:])
+            for pose in wp_poses[skip:]:
+                wp = PoseStamped()
+                wp.header = h
+                wp.pose.position.x = pose[0]
+                wp.pose.position.y = pose[1]
+                wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
+                sampling_path.poses.append(wp)
+            self.planner_initial_pose = wp_poses[-1]
+        return sampling_path
         
+      
     def initial_sampling_path(self):
         """ Generates a set of waypoints for initial sampling of BO
 

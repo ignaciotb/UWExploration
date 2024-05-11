@@ -32,16 +32,10 @@ if __name__ == "__main__":
     border_margin       = rospy.get_param("~border_margin")
     vehicle_velocity    = rospy.get_param("~vehicle_velocity")
     max_time            = rospy.get_param("~max_mission_time")
-    start_x             = rospy.get_param("~x")
-    start_y             = rospy.get_param("~y")
-    start_yaw           = rospy.get_param("~yaw")
     beta                = rospy.get_param("~beta")
     
     MCTS_begin_time             = rospy.get_param("~MCTS_begin_time")
     MCTS_interrupt_time         = rospy.get_param("~MCTS_interrupt_time")
-    MCTS_max_depth              = rospy.get_param("~MCTS_max_depth")
-    MCTS_sample_decay_factor    = rospy.get_param("~MCTS_sample_decay_factor")
-    MCTS_UCT_C                  = rospy.get_param("~MCTS_UCT_C")
         
     bounds = [bound_left, bound_right, bound_up, bound_down]
     
@@ -52,8 +46,7 @@ if __name__ == "__main__":
             planner = SimplePlanner(corner_topic=corner_topic, path_topic=path_topic, 
                                     planner_req_topic=planner_req_topic, odom_topic=odom_topic,
                                     bounds=bounds, vehicle_velocity=vehicle_velocity, max_time=max_time,
-                                    turning_radius=turn_radius, training_rate=train_rate, sw=swath_width, 
-                                    start_pose=[start_x, start_y, start_yaw])
+                                    turning_radius=turn_radius, training_rate=train_rate, sw=swath_width)
         
         # Run bayesian optimization based planner 
         else:
@@ -62,10 +55,9 @@ if __name__ == "__main__":
                                 odom_topic=odom_topic,bounds=bounds, turning_radius=turn_radius, training_rate=train_rate, 
                                 wp_resolution=wp_resolution, swath_width=swath_width, path_nbr_samples=path_nbr_samples, 
                                 voxel_size=voxel_size, wp_sample_interval=wp_sample_interval, horizon_distance=horizon_distance,
-                                border_margin=border_margin, beta=beta, start_pose=[start_x, start_y, start_yaw], 
-                                vehicle_velocity=vehicle_velocity, max_time=max_time, MCTS_begin_time=MCTS_begin_time, 
-                                MCTS_interrupt_time=MCTS_interrupt_time, MCTS_max_depth= MCTS_max_depth, 
-                                MCTS_sample_decay_factor=MCTS_sample_decay_factor, MCTS_UCT_C=MCTS_UCT_C)
+                                border_margin=border_margin, beta=beta, 
+                                vehicle_velocity=vehicle_velocity, max_time=max_time, MCTS_begin_time=MCTS_begin_time,
+                                MCTS_interrupt_time=MCTS_interrupt_time)
             
     except rospy.ROSInterruptException:
         rospy.logerr('Could not launch AUV path planner node')

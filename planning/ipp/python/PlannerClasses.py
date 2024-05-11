@@ -30,7 +30,7 @@ class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
         all planners. Advanced planners inherit from this class.
     """
-    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose,
+    def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate,
                  max_time, vehicle_velocity):
         """ Constructor method
 
@@ -52,14 +52,19 @@ class PlannerBase():
         self.max_time           = max_time
         self.vehicle_velocity   = vehicle_velocity
         
+        # Frame transforms
+        self.map_frame          = rospy.get_param("~map_frame")
+        self.odom_frame         = rospy.get_param("~odom_frame")
+        self.tf_listener = tf.TransformListener()
+        #rospy.Timer(rospy.Duration(0.2), self.odom_update_cb)
+        
         # Logic checks
         assert len(self.bounds) == 4, "Wrong number of boundaries given to planner, need specifically 4"
         assert self.turning_radius > 3.0, "Turning radius is way too small"
         
         # Setup class attributes
-        self.start_pose = start_pose
-        self.state = copy.deepcopy(self.start_pose)
-        self.prev_odom  = [0, 0, 0]
+        self.state = []
+        
         self.gp = SVGP_map(particle_id=0, corners=self.bounds)
         self.distance_travelled = 0
         
@@ -71,7 +76,8 @@ class PlannerBase():
         
         # Subscribers with callback methods
         rospy.Subscriber(self.planner_req_topic, std_msgs.msg.Bool, self.get_path_cb)
-        rospy.Subscriber("/sim/hugin_0/odom", Odometry, self.odom_state_cb)
+        rospy.Subscriber(self.odom_topic, Odometry, self.odom_update_cb)
+        rospy.sleep(3)
         
     @abstractmethod
     def get_path_cb():
@@ -90,23 +96,22 @@ class PlannerBase():
             self.gp.train_iteration()  
             r.sleep()
             
-    def odom_state_cb(self, msg):
-        """ Gets our current 2D state (x,y,theta) from the odometry topic.
+    def odom_update_cb(self, msg):
+        """ Gets our current 2D state (x,y,theta) from the tf frames.
             Also calculates the total distance travelled.
 
         Args:
             msg (_type_): A pose message
         """
-        explicit_quat = [msg.pose.pose.orientation.x, msg.pose.pose.orientation.y, msg.pose.pose.orientation.z, msg.pose.pose.orientation.w]
+
+        p = PoseStamped(header=msg.header, pose=msg.pose.pose)
+        p.header.stamp -= rospy.rostime.Duration(0.01)
+        p_in_map = self.tf_listener.transformPose(self.map_frame, p)
+        explicit_quat = [p_in_map.pose.orientation.x, p_in_map.pose.orientation.y, p_in_map.pose.orientation.z, p_in_map.pose.orientation.w]
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        odom_diff = [x-self.prev_odom[0], y-self.prev_odom[1], yaw-self.prev_odom[2]]
-        self.prev_odom = [x, y, yaw]
-        self.distance_travelled += np.hypot(odom_diff[0], odom_diff[1])
-        c = np.cos(-self.start_pose[2])
-        s = np.sin(-self.start_pose[2])
-        self.state = [self.start_pose[0] + x * c + s * y, self.start_pose[1] - x * s + y * c, self.start_pose[2] + yaw]
+        if len(self.state) > 0:
+            self.distance_travelled += np.hypot(p_in_map.pose.position.x - self.state[0], p_in_map.pose.position.y - self.state[1])
+        self.state = [p_in_map.pose.position.x, p_in_map.pose.position.y, yaw]
         
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
@@ -114,7 +119,7 @@ class PlannerBase():
         Returns:
             corners (nav_msgs.msg.Path): four waypoints bounding the area in a rectangle
         """
-        corners = Path(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id="map"))
+        corners = Path(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id=self.map_frame))
         
         l = self.bounds[0]
         r = self.bounds[1]
@@ -122,12 +127,12 @@ class PlannerBase():
         d = self.bounds[3]
         
         # Append corners
-        ul_c = PoseStamped()
+        ul_c = PoseStamped(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id=self.map_frame))
         ul_c.pose.position.x = l 
         ul_c.pose.position.y = u
         corners.poses.append(ul_c)
         
-        ur_c = PoseStamped()
+        ur_c = PoseStamped(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id=self.map_frame))
         ur_c.pose.position.x = r
         ur_c.pose.position.y = u 
         corners.poses.append(ur_c)
@@ -135,12 +140,12 @@ class PlannerBase():
         # NOTE: switched order of dr_c and dl_c being appended to make
         #       visualization of borders easier in RVIZ
 
-        dr_c = PoseStamped()
+        dr_c = PoseStamped(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id=self.map_frame))
         dr_c.pose.position.x = r
         dr_c.pose.position.y = d
         corners.poses.append(dr_c)
         
-        dl_c = PoseStamped()
+        dl_c = PoseStamped(header=std_msgs.msg.Header(stamp=rospy.Time.now(), frame_id=self.map_frame))
         dl_c.pose.position.x = l
         dl_c.pose.position.y = d
         corners.poses.append(dl_c)
@@ -158,7 +163,7 @@ class SimplePlanner(PlannerBase):
         PlannerBase (obj): Basic template of planner class
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, 
-                 bounds, turning_radius, training_rate, sw, max_time, vehicle_velocity, start_pose):
+                 bounds, turning_radius, training_rate, sw, max_time, vehicle_velocity):
         """ Constructor
 
         Args:
@@ -173,7 +178,7 @@ class SimplePlanner(PlannerBase):
         """
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, 
-                         bounds, turning_radius, training_rate, start_pose, max_time, vehicle_velocity) 
+                         bounds, turning_radius, training_rate, max_time, vehicle_velocity) 
         
         # Publish path, then train GP
         self.path_pub = rospy.Publisher(path_topic, Path, queue_size=100)
@@ -251,7 +256,7 @@ class SimplePlanner(PlannerBase):
         # Get stamp
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()
-        h.frame_id = "map"
+        h.frame_id = self.map_frame
         lm_path = Path(header=h)
         
         # Calculate starting position
@@ -305,9 +310,8 @@ class BOPlanner(PlannerBase):
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, 
                  training_rate, wp_resolution, swath_width, path_nbr_samples, voxel_size, 
-                 wp_sample_interval, horizon_distance, border_margin, beta, start_pose,
-                 max_time, vehicle_velocity, MCTS_begin_time, MCTS_interrupt_time,
-                 MCTS_max_depth, MCTS_sample_decay_factor, MCTS_UCT_C):
+                 wp_sample_interval, horizon_distance, border_margin, beta,
+                 max_time, vehicle_velocity, MCTS_begin_time, MCTS_interrupt_time):
         """ Constructor method
 
         Args:
@@ -317,11 +321,11 @@ class BOPlanner(PlannerBase):
             turning_radius  (double): the radius on which the vehicle can turn on yaw axis
         """
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate, start_pose,
+        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate,
                          max_time, vehicle_velocity) 
         
         # Planner variables
-        self.planner_initial_pose = self.state
+        self.planner_initial_pose = copy.deepcopy(self.state)
         self.wp_list              = []
         self.currently_planning   = False
         
@@ -345,9 +349,6 @@ class BOPlanner(PlannerBase):
         self.beta                       = beta
         self.MCTS_begin_time            = MCTS_begin_time
         self.MCTS_interrupt_time        = MCTS_interrupt_time
-        self.MCTS_max_depth             = MCTS_max_depth
-        self.MCTS_sample_decay_factor   = MCTS_sample_decay_factor
-        self.MCTS_UCT_C                 = MCTS_UCT_C
         
         # Publish an initial path
         initial_path     = self.initial_deterministic_path()
@@ -367,7 +368,7 @@ class BOPlanner(PlannerBase):
         y_pos = self.bounds[3] + (self.bounds[2] - self.bounds[3])/2
         samples = np.random.uniform(low=[x_pos - 1, y_pos - 1, -np.pi], high=[x_pos + 1, y_pos + 1, np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
-        h.frame_id = "map"
+        h.frame_id = self.map_frame
         h.stamp = rospy.Time.now()
         sampling_path = Path()
         sampling_path.header = h
@@ -405,7 +406,7 @@ class BOPlanner(PlannerBase):
         dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
         samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
-        h.frame_id = "map"
+        h.frame_id = self.map_frame
         h.stamp = rospy.Time.now()
         sampling_path = Path()
         sampling_path.header = h
@@ -478,9 +479,7 @@ class BOPlanner(PlannerBase):
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         
         MCTS = MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
-                              horizon_distance=self.horizon_distance, border_margin=self.border_margin, 
-                              max_depth=self.MCTS_max_depth, MCTS_UCT_C=self.MCTS_UCT_C, 
-                              MCTS_sample_decay_factor=self.MCTS_sample_decay_factor)
+                              horizon_distance=self.horizon_distance, border_margin=self.border_margin)
 
         BO  = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
                 current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
@@ -510,7 +509,7 @@ class BOPlanner(PlannerBase):
         # Publish this trajectory as a set of waypoints
         h = std_msgs.msg.Header()
         h.stamp = rospy.Time.now()
-        h.frame_id = "map"
+        h.frame_id = self.map_frame
         sampling_path = Path()
         sampling_path.header = h
         location = candidate.numpy()

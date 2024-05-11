@@ -3,6 +3,7 @@ from abc import abstractmethod
 import pickle
 import filelock
 import copy
+import time
 
 # Math libraries
 import dubins
@@ -56,7 +57,9 @@ class PlannerBase():
         self.map_frame          = rospy.get_param("~map_frame")
         self.odom_frame         = rospy.get_param("~odom_frame")
         self.tf_listener = tf.TransformListener()
-        #rospy.Timer(rospy.Duration(0.2), self.odom_update_cb)
+        
+        # Storage handle
+        self.store_path = "Results_" + time.ctime()
         
         # Logic checks
         assert len(self.bounds) == 4, "Wrong number of boundaries given to planner, need specifically 4"
@@ -196,11 +199,11 @@ class SimplePlanner(PlannerBase):
         
         # Freeze a copy of current model for plotting, to let real model keep training
         with self.gp.mutex:
-                pickle.dump(self.gp.model, open("GP_env_lawnmower.pickle" , "wb"))
+                pickle.dump(self.gp.model, open(self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env_lawnmower.pickle" , "wb"))
                 print("pickled")
         
         # Notify of current distance travelled
-        print("Current distance travelled: " + str(self.distance_travelled) + " m.")
+        print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         
     
     def generate_path(self, swath_width, max_time, vehicle_speed):
@@ -264,7 +267,7 @@ class SimplePlanner(PlannerBase):
         wp1 = PoseStamped(header=h)
         wp1.pose.position.x = start_x + direction_x * swath_width / 2
         wp1.pose.position.y = start_y + direction_x * self.turning_radius
-        lm_path.poses.append(wp1)
+        #lm_path.poses.append(wp1)
         start_x = start_x - direction_x * swath_width / 2
         start_y = start_y + direction_y * self.turning_radius
         x = start_x 
@@ -531,6 +534,8 @@ class BOPlanner(PlannerBase):
         self.currently_planning = False
         self.finish_imminent = False
         with self.gp_angle_lock:
-                pickle.dump(angle_gp, open("GP_angle.pickle" , "wb"))
-        print("Current distance travelled: " + str(self.distance_travelled) + " m.")
+                pickle.dump(angle_gp, open(self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle" , "wb"))
+                pickle.dump(model, open(self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle" , "wb"))
+                pickle.dump(MCTS, open(self.store_path + "_MCTS_" + str(round(self.distance_travelled)) + ".pickle" , "wb"))
+        print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         

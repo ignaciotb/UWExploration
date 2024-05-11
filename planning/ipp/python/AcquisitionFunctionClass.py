@@ -191,8 +191,8 @@ class UCB_path(AnalyticAcquisitionFunction):
         for idx, place in enumerate(destinations):
             # Calculate dubins path to candidate, and travel cost
             path = dubins.shortest_path(self.current_state, [place[0], place[1], angles[idx]], self.turning_radius)
-            wp_poses, length_arr = path.sample_many(4)
-            cost = length_arr[-1] + 1
+            wp_poses, length_arr = path.sample_many(2)
+            cost = (length_arr[-1] + 2) ** 1.5
             # Get sample swath points orthogonally to path at regular intervals
             points = self._get_orthogonal_samples(wp_poses[::self.wp_sample_interval], self.nbr_samples, self.swath_width)
             # Voxelize in 2D to get even spread
@@ -209,11 +209,11 @@ class UCB_path(AnalyticAcquisitionFunction):
             xy = torch.from_numpy(xyz[:, :2]).type(torch.FloatTensor)
             
             # Calculate UCB/cost reward of travelling to candidate
-            mean, sigma = self._mean_and_sigma(xy)
-            mean = mean.sum()
-            sigma = sigma.sum()
+            _, sigma = self._mean_and_sigma(xy)
+            #mean = mean.sum()
+            sigma = sigma.sum() * 1000
             #ucb = abs(mean - self.model.model.mean_module.constant) + self.beta.sqrt() * sigma #relative to gp mean
-            ucb = mean + self.beta * sigma
+            ucb = sigma
             reward = torch.div(ucb, cost)
             rewards = cat((rewards,reward.reshape(1)),0)
         return rewards

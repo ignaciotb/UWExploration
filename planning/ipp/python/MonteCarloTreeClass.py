@@ -1,5 +1,6 @@
 import numpy as np
 from AcquisitionFunctionClass import qUCB_xy, UCB_xy
+from botorch.acquisition import qSimpleRegret
 import torch
 from botorch.optim import optimize_acqf
 import pickle
@@ -7,6 +8,7 @@ import time
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
+import rospy
 
 class Node(object):
     
@@ -15,25 +17,25 @@ class Node(object):
         self.depth          = depth
         self.parent         = parent
         self.children       = []
-        self.reward         = 0
+        self.reward         = -np.inf
         self.visit_count    = 0
     
     
 class MonteCarloTree(object):
     
-    def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds, max_depth,
-                 MCTS_UCT_C, MCTS_sample_decay_factor) -> None:
+    def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds) -> None:
         self.root                       = Node(position=start_position, depth=0)
         self.gp                         = gp
         self.beta                       = beta
         self.horizon_distance           = horizon_distance
         self.border_margin              = border_margin
         self.global_bounds              = bounds
-        self.C                          = MCTS_UCT_C
-        self.max_depth                  = max_depth
         self.iteration                  = 0
-        self.MCTS_sample_decay_factor   = MCTS_sample_decay_factor
-        
+        self.C                          = rospy.get_param("~MCTS_UCT_C")
+        self.max_depth                  = rospy.get_param("~MCTS_max_depth")
+        self.MCTS_sample_decay_factor   = rospy.get_param("~MCTS_sample_decay_factor")
+        self.rollout_reward_distance    = rospy.get_param("~swath_width")/2.0
+                
     def iterate(self):
         # run iteration
         # 1. select a node
@@ -87,6 +89,7 @@ class MonteCarloTree(object):
         
         #print("expanding, parent at node depth: " + str(node.depth))
         
+        #XY_acqf         = qSimpleRegret(model=self.gp)
         XY_acqf         = qUCB_xy(model=self.gp, beta=self.beta)
         
         low_x           = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
@@ -112,18 +115,18 @@ class MonteCarloTree(object):
         
         # Randomly sample from node to terminal state to get expected value
         # we dont want to have to go to terminal state, instead 
-        low_x   = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        high_x  = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        low_y   = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
+        low_x   = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
+        high_x  = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
+        low_y   = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
+        high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
         
         # Adjust for if the area is smaller due to bounds, this should be penalized
-        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[40, 2])
+        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[20, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
         acq_fun = UCB_xy(model=self.gp, beta=self.beta)
         ucb = acq_fun.forward(samples_torch)
-        reward = ucb.mean().item()
+        reward = ucb.mean().item() - node.depth
         return reward
     
     def backpropagate(self, node, value):
@@ -146,7 +149,7 @@ class MonteCarloTree(object):
         m = cm.ScalarMappable(norm=norm, cmap=cmap)
         while len(nodes) > 0:
             current = nodes.pop(0)
-            print("N, d=" + str(current.depth) + str(current.depth*4*x) + str(current.reward))
+            print("N, d=" + str(current.depth) + " " + str(current.depth*4*x) + str(round(current.reward, 4)) + ", visited " +str(current.visit_count))
             plt.scatter(current.position[0], current.position[1], s=200-40*current.depth, c=np.array([m.to_rgba(current.depth)[:3]]))
             for i, child in enumerate(current.children):
                 plt.plot([current.position[0], child.position[0]], [current.position[1], child.position[1]], linewidth=3-0.5*current.depth, color=m.to_rgba(child.depth))
@@ -154,12 +157,15 @@ class MonteCarloTree(object):
         current = self.root
         while current.depth < self.max_depth:
             max_id = 0
-            max_val = 0
+            max_val = -np.inf
             for i, child in enumerate(current.children):
                 if child.reward > max_val:
                     max_id = i
                     max_val = child.reward
-            plt.plot([current.position[0], current.children[max_id].position[0]], [current.position[1], current.children[max_id].position[1]], linewidth=3, color="red")
+            if len(current.children) > 0:
+                plt.plot([current.position[0], current.children[max_id].position[0]], [current.position[1], current.children[max_id].position[1]], linewidth=3, color="red")
+            print(current.depth)
+            print(self.max_depth)
             current = current.children[max_id]
         
         # Plotting params
@@ -196,6 +202,7 @@ class MonteCarloTree(object):
         ucb = np.vstack(ucb_list).reshape(s)
         
         ax = plt.gca()
+        ax.set_aspect('equal')
         fig = plt.gcf()
         ca = ax.contourf(*inputsg, ucb, levels=n_contours)
         fig.colorbar(ca, ax=ax)
@@ -207,29 +214,14 @@ if __name__== "__main__":
 
     bounds = [592, 821, -179, -457]
 
-    tree = MonteCarloTree(start_position=[750, -250], gp=model1, beta=9, border_margin=30, horizon_distance=100, bounds=bounds, max_depth=3)
+    tree = MonteCarloTree(start_position=[639, -204], gp=model1, beta=5.5, 
+                          border_margin=30, horizon_distance=100, bounds=bounds)
 
     t1 = time.time()
-    node = tree.iterate()
+    while time.time() - t1 < 10:
+        node = tree.iterate()
     t2 = time.time()
     print(t2-t1)
     tree.show_tree()
-
-
-
-
-
-    """
-    t1 = time.time()
-    s = tree.select_node()
-    t2 = time.time()
-    tree.expand_node(s)
-    t3 = time.time()
-    tree.rollout_node(s)
-    t4 = time.time()
-    print(t2-t1)
-    print(t3-t2)
-    print(t4-t3)
-    """
 
             

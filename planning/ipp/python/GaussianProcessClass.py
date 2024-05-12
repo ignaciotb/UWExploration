@@ -140,6 +140,9 @@ class SVGP_map():
         num_inducing = rospy.get_param("~svgp_num_ind_points")
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
+        
+        interval_low = rospy.get_param("~mean_interval_low")
+        interval_high = rospy.get_param("~mean_interval_high")
 
         # hardware allocation
         self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
@@ -150,8 +153,8 @@ class SVGP_map():
             num_outputs=1,
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
-            learn_inducing_points=False,
-            mean_module = ConstantMean(constant_constraint=Interval(-10, -0)),
+            learn_inducing_points=True,
+            mean_module = ConstantMean(constant_constraint=Interval(interval_low, interval_high)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.likelihood = GaussianLikelihood()
         

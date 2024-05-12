@@ -76,56 +76,56 @@
 
     <!-- Run IPP node -->
     <!-- <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
-        <param name="gp_ip_topic"               value="/$(arg namespace)/gp/inducing_points"/>
-        <param name="inducing_points_top"       value="$(arg gp_ip_topic)"/>   
-        <param name="gp_mb_server"              value="/$(arg namespace)/gp/minibatch_server"/>
-        <param name="manipulate_gp_server"      value="/particle_0/$(arg namespace)/gp/manipulate_server"/>
-        <param name="gp_resample_top"           value="/$(arg namespace)/gp/resample_top"/>
-        <param name="gp_resampling_top"         value="/$(arg namespace)/gp/resample_top"/>
-        <param name="results_path"              value="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>
-        <param name="sample_gp_server"          value="/$(arg namespace)/gp/sample_server"/>
-        <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>     
-        <param name="svgp_num_ind_points"       value="250"/>     
-        <param name="svgp_minibatch_size"       value="1000"/>     
-        <param name="svgp_learning_rate"        value="1e-1"/>     
-        <param name="svgp_rtol"                 value="1e-3"/>  
-        <param name="svgp_verbose"              value="False"/>    
-        <param name="svgp_auto_stop"            value="False"/>     
-        <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
-        <param name="results_path"              value="$(arg results_path)"/> 
-        <param name="particle_enable_lc"        value="/$(arg namespace)/enable_lc"/> 
-        <param name="planner_type"              value="$(arg planner_type)" />
-        <param name="turning_radius"            value="$(arg turning_radius)" />
-        <param name="corner_topic"              value="$(arg corner_topic)" />
-        <param name="path_topic"                value="$(arg path_topic)" />
-        <param name="planner_req_topic"         value="$(arg planner_req_topic)" />
-        <param name="odom_topic"                value="$(arg odometry_topic)" />
-        <param name="beta"                      value="$(arg beta)" />
-        <param name="swath_width"               value="$(arg swath_width)" />
-        <param name="mean_interval_low"         value="$(arg mean_interval_low)" />
-        <param name="mean_interval_high"        value="$(arg mean_interval_high)" />
-        <param name="bound_left"                value="$(arg bound_left)" />
-        <param name="bound_right"               value="$(arg bound_right)" />
-        <param name="bound_up"                  value="$(arg bound_up)" />
-        <param name="bound_down"                value="$(arg bound_down)" />
-        <param name="border_margin"             value="$(arg border_margin)" />
-        <param name="horizon_distance"          value="$(arg horizon_distance)" />
-        <param name="wp_sample_interval"        value="$(arg wp_sample_interval)" />
-        <param name="wp_resolution"             value="$(arg wp_resolution)" />
-        <param name="voxel_size"                value="$(arg voxel_size)" />
-        <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
-        <param name="max_mission_time"          value="$(arg max_mission_time)"/>
-        <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
-        <param name="MCTS_begin_time"           value="$(arg MCTS_begin_time)" />
-        <param name="MCTS_interrupt_time"       value="$(arg MCTS_interrupt_time)" />
-        <param name="MCTS_max_depth"            value="$(arg MCTS_max_depth)" />
-        <param name="MCTS_sample_decay_factor"  value="$(arg MCTS_sample_decay_factor)" />
-        <param name="MCTS_UCT_C"                value="$(arg MCTS_UCT_C)" />
-        <param name="map_frame"                 value="$(arg map_frame)"/>
-        <param name="odom_frame"                value="$(arg odom_frame)"/>
-        <param name="train_rate"    type="int"  value="$(arg training_rate)" />
-        <param name="svgp_n_window" type="int"  value="400"/>     
-        <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />  
+            <param name="gp_ip_topic"               value="/$(arg namespace)/gp/inducing_points"/>
+            <param name="inducing_points_top"       value="$(arg gp_ip_topic)"/>   
+            <param name="gp_mb_server"              value="/$(arg namespace)/gp/minibatch_server"/>
+            <param name="manipulate_gp_server"      value="/particle_0/$(arg namespace)/gp/manipulate_server"/>
+            <param name="gp_resample_top"           value="/$(arg namespace)/gp/resample_top"/>
+            <param name="gp_resampling_top"         value="/$(arg namespace)/gp/resample_top"/>
+            <param name="results_path"              value="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>
+            <param name="sample_gp_server"          value="/$(arg namespace)/gp/sample_server"/>
+            <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>     
+            <param name="svgp_num_ind_points"       value="250"/>     
+            <param name="svgp_minibatch_size"       value="1000"/>     
+            <param name="svgp_learning_rate"        value="1e-1"/>     
+            <param name="svgp_rtol"                 value="1e-3"/>  
+            <param name="svgp_verbose"              value="False"/>    
+            <param name="svgp_auto_stop"            value="False"/>     
+            <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
+            <param name="results_path"              value="$(arg results_path)"/> 
+            <param name="particle_enable_lc"        value="/$(arg namespace)/enable_lc"/> 
+            <param name="planner_type"              value="$(arg planner_type)" />
+            <param name="turning_radius"            value="$(arg turning_radius)" />
+            <param name="corner_topic"              value="$(arg corner_topic)" />
+            <param name="path_topic"                value="$(arg path_topic)" />
+            <param name="planner_req_topic"         value="$(arg planner_req_topic)" />
+            <param name="odom_topic"                value="$(arg odometry_topic)" />
+            <param name="beta"                      value="$(arg beta)" />
+            <param name="swath_width"               value="$(arg swath_width)" />
+            <param name="mean_interval_low"         value="$(arg mean_interval_low)" />
+            <param name="mean_interval_high"        value="$(arg mean_interval_high)" />
+            <param name="bound_left"                value="$(arg bound_left)" />
+            <param name="bound_right"               value="$(arg bound_right)" />
+            <param name="bound_up"                  value="$(arg bound_up)" />
+            <param name="bound_down"                value="$(arg bound_down)" />
+            <param name="border_margin"             value="$(arg border_margin)" />
+            <param name="horizon_distance"          value="$(arg horizon_distance)" />
+            <param name="wp_sample_interval"        value="$(arg wp_sample_interval)" />
+            <param name="wp_resolution"             value="$(arg wp_resolution)" />
+            <param name="voxel_size"                value="$(arg voxel_size)" />
+            <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
+            <param name="max_mission_time"          value="$(arg max_mission_time)"/>
+            <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
+            <param name="MCTS_begin_time"           value="$(arg MCTS_begin_time)" />
+            <param name="MCTS_interrupt_time"       value="$(arg MCTS_interrupt_time)" />
+            <param name="MCTS_max_depth"            value="$(arg MCTS_max_depth)" />
+            <param name="MCTS_sample_decay_factor"  value="$(arg MCTS_sample_decay_factor)" />
+            <param name="MCTS_UCT_C"                value="$(arg MCTS_UCT_C)" />
+            <param name="map_frame"                 value="$(arg map_frame)"/>
+            <param name="odom_frame"                value="$(arg odom_frame)"/>
+            <param name="train_rate"    type="int"  value="$(arg training_rate)" />
+            <param name="svgp_n_window" type="int"  value="400"/>     
+            <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />  
     </node> -->
 
     <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">

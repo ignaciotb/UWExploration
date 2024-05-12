@@ -66,10 +66,11 @@ class W2WClientLolo(object):
 
                 # TODO: normalize quaternions here according to rviz warning?
                 goal = GotoWaypointGoal()
-                goal.target_pose.header.frame_id = self.map_frame
+                # goal.target_pose.header.frame_id = self.map_frame
                 
                 goal.waypoint.pose.pose.position.x = wp.pose.position.x
                 goal.waypoint.pose.pose.position.y = wp.pose.position.y
+                goal.waypoint.pose.header.frame_id = self.map_frame
                 goal.waypoint.travel_depth = 0.
                 goal.waypoint.travel_rpm = 250
                 goal.waypoint.goal_tolerance = 10

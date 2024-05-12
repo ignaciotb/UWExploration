@@ -78,9 +78,10 @@ class PlannerBase():
         self.corner_pub.publish(corners)
         
         # Subscribers with callback methods
+        self.odom_init = False
         rospy.Subscriber(self.planner_req_topic, std_msgs.msg.Bool, self.get_path_cb)
         rospy.Subscriber(self.odom_topic, Odometry, self.odom_update_cb)
-        rospy.sleep(3)
+        rospy.sleep(6)
         
     @abstractmethod
     def get_path_cb():
@@ -108,13 +109,15 @@ class PlannerBase():
         """
 
         p = PoseStamped(header=msg.header, pose=msg.pose.pose)
-        p.header.stamp -= rospy.rostime.Duration(0.01)
+        # p.header.stamp -= rospy.rostime.Duration(0.01)
+        p.header.stamp = msg.header.stamp
         p_in_map = self.tf_listener.transformPose(self.map_frame, p)
         explicit_quat = [p_in_map.pose.orientation.x, p_in_map.pose.orientation.y, p_in_map.pose.orientation.z, p_in_map.pose.orientation.w]
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
         if len(self.state) > 0:
             self.distance_travelled += np.hypot(p_in_map.pose.position.x - self.state[0], p_in_map.pose.position.y - self.state[1])
         self.state = [p_in_map.pose.position.x, p_in_map.pose.position.y, yaw]
+        self.odom_init = True
         
     def generate_ip_corners(self):
         """ Generates corners of the bounding area for inducing point generation
@@ -367,6 +370,11 @@ class BOPlanner(PlannerBase):
         self.begin_gp_train(rate=self.training_rate)
     
     def initial_deterministic_path(self):
+
+        while not self.odom_init and not rospy.is_shutdown():
+            print("waiting for odom")
+            rospy.sleep(1.)
+
         x_pos = self.bounds[0] + (self.bounds[1] - self.bounds[0])/2
         y_pos = self.bounds[3] + (self.bounds[2] - self.bounds[3])/2
         samples = np.random.uniform(low=[x_pos - 1, y_pos - 1, -np.pi], high=[x_pos + 1, y_pos + 1, np.pi], size=[1, 3])
@@ -378,6 +386,9 @@ class BOPlanner(PlannerBase):
         for sample in samples:
             path = dubins.shortest_path(self.planner_initial_pose, [sample[0], sample[1], sample[2]], self.turning_radius)
             wp_poses, _ = path.sample_many(self.wp_resolution)
+            #print("start pose:", self.planner_initial_pose)
+            #print("end pose:", sample[0], sample[1], sample[2])
+
             skip = 1
             if len(wp_poses) == 1:
                 skip = 0

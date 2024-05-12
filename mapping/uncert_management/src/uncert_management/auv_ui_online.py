@@ -92,8 +92,10 @@ class auv_ui_online(object):
 
         self.map_frame = rospy.get_param('~map_frame', 'map') # map frame_id
         self.odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self.odom_ipp_top = rospy.get_param('~odom_ipp_top', 'odom')
         self.mbes_frame = rospy.get_param('~mbes_link', 'mbes_link') # mbes frame_id
         self.base_frame = rospy.get_param('~base_link', 'base_link')
+        self.base_frame_ipp = rospy.get_param('~base_link_ipp', 'base_link')
         self.survey_name = rospy.get_param('~dataset', 'survey')
         
         # Transforms from auv_2_ros
@@ -192,7 +194,7 @@ class auv_ui_online(object):
         ip_top = rospy.get_param("~inducing_points_top")
         self.ip_pub = rospy.Publisher(ip_top, PointCloud2, queue_size=10)
 
-        self.test_odom = rospy.Publisher("/lolo/ipp/odom", Odometry, queue_size=10)
+        self.test_odom = rospy.Publisher(self.odom_ipp_top, Odometry, queue_size=10)
 
         # Subscription to path to distribute inducing points
         wp_top = rospy.get_param("~corners_topic", "/corners")

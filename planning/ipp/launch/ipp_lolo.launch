@@ -14,12 +14,12 @@
 	<arg name="mbes_open_angle"                 value="2.250" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x"                               default="0"/>
+    <!-- <arg name="x"                               default="0"/>
     <arg name="y"                               default="0"/>
     <arg name="z"                               default="0.0"/>
     <arg name="roll"                            default="0.0"/>
     <arg name="pitch"                           default="0.0"/>
-    <arg name="yaw"                             default="0.0"/>
+    <arg name="yaw"                             default="0.0"/> -->
 
     <arg name="map_frame"                       default="map"/>
     <arg name="odom_frame"                      default="$(arg namespace)/odom"/>
@@ -28,9 +28,9 @@
     <arg name="mbes_pings_topic"                default="/lolo/sensors/mbes/pc2_bathymetry"/>
 
     <!-- RBPF params  -->
-    <arg name="particle_count"                  default="1"/>
+    <!-- <arg name="particle_count"                  default="1"/>
     <arg name="num_particle_handlers"           default="1"/> 
-    <arg name="survey_finished_top"             default="/$(arg mode)/survey_finished"/>
+    <arg name="survey_finished_top"             default="/$(arg mode)/survey_finished"/> -->
 
     <!-- API for SVGP particles -->
     <arg name="gp_ip_topic"                     default="/$(arg namespace)/gp/inducing_points"/>
@@ -42,20 +42,23 @@
     <arg name="svgp_minibatch_size"   default="1000" />
 
     <!-- Planner parameters -->
-    <!-- Planner parameters -->
-    <arg name="planner_type"                    default="opt"/>
+    <arg name="planner_type"                    default="opt"/> <!-- lawnmower or opt -->
     <arg name="turning_radius"                  default="20"/>
     <arg name="corner_topic"                    default="/$(arg namespace)/corners"/>
     <arg name="path_topic"                      default="/$(arg namespace)/waypoints"/>
     <arg name="planner_req_topic"               default="/$(arg namespace)/planner_req"/>
-    <arg name="swath_width"                     default="18"/>
-    <arg name="swath_overlap"                   default="0.2"/>
+    <arg name="swath_width"                     default="40"/>
     <arg name="training_rate"                   default="10"/>
     <arg name="wp_resolution"                   default="20"/>
     <arg name="path_nbr_samples"                default="7" />
     <arg name="voxel_size"                      default="3" />
     <arg name="wp_sample_interval"              default="1" />
-    <arg name="beta"                            default="9" />
+    <arg name="beta"                            default="20" />
+    <arg name="MCTS_begin_time"                 default="45" />
+    <arg name="MCTS_interrupt_time"             default="15" />
+    <arg name="MCTS_max_depth"                  default="3" />
+    <arg name="MCTS_sample_decay_factor"        default="10" />
+    <arg name="MCTS_UCT_C"                      default="2.0" />
 
     <!-- Planner constraints -->
     <arg name="bound_left"                      default="592"/>
@@ -68,7 +71,7 @@
     <arg name="vehicle_velocity"                default="0.8"/>
 
     <!-- If plotting decision support material should be enabled-->
-    <arg name="visualize"                       default="1"/>
+    <arg name="visualize"                       default="0"/>
 
     <!-- Run IPP node -->
     <node type="planner_node.py" pkg="ipp" name="AUV_path_planning_node" output="screen"> 
@@ -98,7 +101,6 @@
         <param name="odom_topic"                value="$(arg odometry_topic)" />
         <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
-        <param name="swath_overlap"             value="$(arg swath_overlap)" />
         <param name="x"                         value="$(arg x)"/>
         <param name="y"                         value="$(arg y)"/>
         <param name="z"                         value="$(arg z)"/>
@@ -117,9 +119,14 @@
         <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
         <param name="max_mission_time"          value="$(arg max_mission_time)"/>
         <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
+        <param name="MCTS_begin_time"           value="$(arg MCTS_begin_time)" />
+        <param name="MCTS_interrupt_time"       value="$(arg MCTS_interrupt_time)" />
+        <param name="MCTS_max_depth"            value="$(arg MCTS_max_depth)" />
+        <param name="MCTS_sample_decay_factor"  value="$(arg MCTS_sample_decay_factor)" />
+        <param name="MCTS_UCT_C"                value="$(arg MCTS_UCT_C)" />
         <param name="train_rate"    type="int"  value="$(arg training_rate)" />
         <param name="svgp_n_window" type="int"  value="400"/>     
-        <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />    
+        <param name="n_beams_mbes"  type="int"  value="$(arg n_beams_mbes)" />  
     </node>
 
     <!-- <node type="particles_launcher.py" pkg="rbpf_slam" name="particle_launcher" output="screen">

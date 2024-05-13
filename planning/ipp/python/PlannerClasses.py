@@ -24,8 +24,8 @@ import geometry_msgs
 
 # Custom libraries
 from BayesianOptimizerClass import BayesianOptimizer
-from GaussianProcessClass import SVGP_map
-from MonteCarloTreeClass import MonteCarloTree
+import GaussianProcessClass as SVGP_class
+import MonteCarloTreeClass as MCTS_class
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
@@ -68,7 +68,7 @@ class PlannerBase():
         # Setup class attributes
         self.state = []
         
-        self.gp = SVGP_map(particle_id=0, corners=self.bounds)
+        self.gp = SVGP_class.SVGP_map(particle_id=0, corners=self.bounds)
         self.distance_travelled = 0
         
         # Corner publisher - needed as boundary for generating inducing points
@@ -334,7 +334,9 @@ class BOPlanner(PlannerBase):
         self.planner_initial_pose = copy.deepcopy(self.state)
         self.wp_list              = []
         self.currently_planning   = False
-        
+        self.nbr_wp = 0
+
+
         # Path publisher - publishes waypoints for AUV to follow
         self.path_pub    = rospy.Publisher(self.path_topic, Path, queue_size=100)
         rospy.sleep(1)  # Give time for topic to be registered
@@ -400,6 +402,7 @@ class BOPlanner(PlannerBase):
                 wp.pose.position.y = pose[1]
                 wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
                 sampling_path.poses.append(wp)
+                self.nbr_wp += 1
             self.planner_initial_pose = wp_poses[-1]
         return sampling_path
         
@@ -450,6 +453,7 @@ class BOPlanner(PlannerBase):
             msg (bool): flag for if mission is complete, 0 = Complete
         """
         self.wp_list.pop(0)
+        self.nbr_wp -= 1
             
     def calculate_time2target(self):
         speed = self.vehicle_velocity
@@ -463,13 +467,14 @@ class BOPlanner(PlannerBase):
     
     def periodic_call(self, msg):
         time2target = self.calculate_time2target()
-        print("Time to target: " + str(time2target))
-        if time2target < self.MCTS_begin_time and self.currently_planning == False:
+        print("wp left: ", self.nbr_wp)
+        #print("Time to target: " + str(time2target))
+        if self.nbr_wp < 2 and self.currently_planning == False:
             self.currently_planning = True
             self.execute_planner_pub.publish(True)
             print("Beginning planning...")
         
-        if time2target < self.MCTS_interrupt_time and self.finish_imminent == False:
+        if self.nbr_wp < 1 and self.finish_imminent == False:
             self.finish_imminent = True
             print("Stopping planning...")
             
@@ -492,7 +497,7 @@ class BOPlanner(PlannerBase):
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         
-        MCTS = MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
+        MCTS = MCTS_class.MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
 
         BO  = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
@@ -540,6 +545,7 @@ class BOPlanner(PlannerBase):
             wp.pose.position.y = pose[1]  
             wp.pose.orientation = geometry_msgs.msg.Quaternion(*tf_conversions.transformations.quaternion_from_euler(0, 0, pose[2]))
             sampling_path.poses.append(wp)
+            self.nbr_wp += 1
         self.planner_initial_pose = wp_poses[-1]
         self.path_pub.publish(sampling_path)
         self.currently_planning = False

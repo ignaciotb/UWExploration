@@ -109,9 +109,9 @@ class Ins2Dr():
 
         # Downsample publication
         # self.n += 1
-        # if self.n % 10 == 0:
+        #if self.n % 5 == 0:
         self.odom_pub.publish(odom_msg)
-            # self.n = 0
+        #    self.n = 0
 
 if __name__ == "__main__":
     

@@ -67,6 +67,7 @@ class W2WClientLolo(object):
                 # TODO: normalize quaternions here according to rviz warning?
                 goal = GotoWaypointGoal()
                 # goal.target_pose.header.frame_id = self.map_frame
+                print("Next WP: ", wp.pose.position.x, wp.pose.position.y)
                 
                 goal.waypoint.pose.pose.position.x = wp.pose.position.x
                 goal.waypoint.pose.pose.position.y = wp.pose.position.y
@@ -84,11 +85,9 @@ class W2WClientLolo(object):
                 rospy.loginfo("WP reached, moving on to next one")
                 self.started = True
                 
-                if len(self.latest_path.poses) == 5:
-                    self.planner_req_pub.publish(True)
+                #if len(self.latest_path.poses) == 5:
+                self.planner_req_pub.publish(True)
                 
-                if len(self.latest_path.poses) == 0:
-                    self.planner_req_pub.publish(True)
                         
             elif not self.latest_path.poses:
                rospy.loginfo_once("Mission finished")

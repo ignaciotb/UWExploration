@@ -57,7 +57,7 @@ from tf.transformations import quaternion_matrix
 from gp_mapping.convergence import ExpMAStoppingCriterion
 from slam_msgs.msg import PlotPosteriorResult, PlotPosteriorAction
 from slam_msgs.msg import ManipulatePosteriorAction, ManipulatePosteriorResult
-from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
+from slam_msgs.msg import SamplePosteriorAction, SamplePosteriorResult
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
 from slam_msgs.srv import Resample, ResampleResponse
 

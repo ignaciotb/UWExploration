@@ -22,7 +22,7 @@ import os
 import actionlib
 
 from slam_msgs.msg import ManipulatePosteriorAction, ManipulatePosteriorGoal
-from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
+#from slam_msgs.msg import SamplePosteriorResult, SamplePosteriorAction
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
 from tf.transformations import euler_from_quaternion, quaternion_from_euler
 
@@ -202,7 +202,7 @@ class auv_ui_online(object):
 
         # Subscribe when ready
         odom_top = rospy.get_param("~odometry_topic", 'odom')
-        rospy.Subscriber(odom_top, Odometry, self.odom_cb, queue_size=1)
+        rospy.Subscriber(odom_top, Odometry, self.odom_cb, queue_size=100)
         
         mbes_pings_top = rospy.get_param("~mbes_pings_topic", 'mbes_pings')
         rospy.Subscriber(mbes_pings_top, PointCloud2, self.mbes_cb, queue_size=1)
@@ -403,12 +403,13 @@ class auv_ui_online(object):
             beams_mbes = np.hstack((beams_mbes, np.ones((len(beams_mbes), 1))))
 
             # Use only N beams
-            N = 50
-            idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
-            beams_mbes_filt = beams_mbes[idx]
+            #N = 50
+            #idx = np.round(np.linspace(0, len(beams_mbes)-1, N)).astype(int)
+            #beams_mbes_filt = beams_mbes[idx]
             #print("UI ping ", self.pings_num, " with: ", len(beams_mbes_filt), " beams")
             
-            for n, beam in enumerate(beams_mbes_filt):
+            for n, beam in enumerate(beams_mbes):
+            #for n, beam in enumerate(beams_mbes_filt):
             # for n in range(len(beams_mbes)):
                 # Create landmark as expected patch of seabed to be hit (in map frame)
                 beam_map = np.matmul(Tm2mbes, beam)

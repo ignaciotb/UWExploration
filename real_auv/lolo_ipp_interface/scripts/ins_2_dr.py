@@ -90,6 +90,7 @@ class Ins2Dr():
             odom_msg = Odometry()
             self.t_now = ins_msg.header.stamp
             odom_msg.header.frame_id = self.odom_frame
+            odom_msg.child_frame_id = "lolo/base_link"
             odom_msg.header.stamp = self.t_now
             odom_msg.pose.pose.position.x = base_pose.point.x
             odom_msg.pose.pose.position.y = base_pose.point.y
@@ -100,6 +101,7 @@ class Ins2Dr():
             odom_msg.twist.twist.angular.z = imu_msg.angular_velocity.z
             
             self.odom_pub.publish(odom_msg)
+            print("Sending odom")
 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             print("Heading controller: Could not transform WP to base_link")

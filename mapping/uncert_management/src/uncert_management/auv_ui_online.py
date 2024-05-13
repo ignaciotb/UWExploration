@@ -336,18 +336,18 @@ class auv_ui_online(object):
             ## GT for testing
             # Nacho: comment out for Lolo experiments
             # print("-----")
-            # quaternion = (odom_msg.pose.pose.orientation.x,
-            #                 odom_msg.pose.pose.orientation.y,
-            #                 odom_msg.pose.pose.orientation.z,
-            #                 odom_msg.pose.pose.orientation.w)
-            # euler = tf.transformations.euler_from_quaternion(quaternion)
+            quaternion = (odom_msg.pose.pose.orientation.x,
+                            odom_msg.pose.pose.orientation.y,
+                            odom_msg.pose.pose.orientation.z,
+                            odom_msg.pose.pose.orientation.w)
+            euler = tf.transformations.euler_from_quaternion(quaternion)
             
-            # self.pose_t = np.array([odom_msg.pose.pose.position.x,
-            #                 odom_msg.pose.pose.position.y,
-            #                 odom_msg.pose.pose.position.z,
-            #                 euler[0],
-            #                 euler[1],
-            #                 euler[2]])
+            self.pose_t = np.array([odom_msg.pose.pose.position.x,
+                            odom_msg.pose.pose.position.y,
+                            odom_msg.pose.pose.position.z,
+                            euler[0],
+                            euler[1],
+                            euler[2]])
             # for i in range(3,6): # Wrap angles
             #     self.pose_t[i] = (self.pose_t[i] + np.pi) % (2 * np.pi) - np.pi
             # print(self.pose_t - mu_hat_t)
@@ -357,7 +357,8 @@ class auv_ui_online(object):
             sigma_hat_t = Gt @ self.sigma_t @ Gt.T + self.R
 
             ## Update
-            self.mu_t = mu_hat_t
+            # self.mu_t = mu_hat_t
+            self.mu_t = self.pose_t # Reading odom directly from Lolo
             self.sigma_t = sigma_hat_t
             # print('\n'.join([''.join(['{:4}'.format(item) for item in row])
             #                  for row in self.sigma_t]))

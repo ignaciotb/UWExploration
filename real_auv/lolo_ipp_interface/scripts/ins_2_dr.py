@@ -51,19 +51,20 @@ class Ins2Dr():
     def ts_cb(self, ins_msg, imu_msg):
 
         # Broadcast utm --> odom where vehicle 
+        utm_lolo = utm.fromLatLong(ins_msg.latitude, ins_msg.longitude)
+        
         if self.prev_heading == None:
 
             self.prev_heading = ins_msg.heading
             print("Init_heading: {}".format(self.prev_heading))
             
-            utm_odom = utm.fromLatLong(ins_msg.latitude, ins_msg.longitude)
             rot = Rotation.from_euler('xyz', [0.,
                                               0.,
                                               90. - ins_msg.heading], degrees=True)
             
             transformStamped = TransformStamped()
-            transformStamped.transform.translation.x = utm_odom.easting
-            transformStamped.transform.translation.y = utm_odom.northing
+            transformStamped.transform.translation.x = utm_lolo.easting
+            transformStamped.transform.translation.y = utm_lolo.northing
             transformStamped.transform.translation.z = ins_msg.altitude
             transformStamped.transform.rotation = Quaternion(*rot.as_quat())
             transformStamped.header.frame_id = self.utm_frame
@@ -73,45 +74,36 @@ class Ins2Dr():
 
             self.t_prev = ins_msg.header.stamp
             return
-
-        # TODO Nacho: parse lat lon and orientation to odom for GT comparison
-        odom_msg = Odometry()
-        self.t_now = ins_msg.header.stamp
-        odom_msg.header.frame_id = self.map_frame
-        odom_msg.header.stamp = self.t_now
-        odom_msg.twist.twist.linear.x = ins_msg.speed_vessel_frame.x
-        odom_msg.twist.twist.linear.y = ins_msg.speed_vessel_frame.y
-        odom_msg.twist.twist.linear.z = 0. # Surface
-
-        # Compute angular velocities from orientations
-        # dt = (self.t_now - self.t_prev).to_sec()
-
-        # self.now_heading = ins_msg.heading
-        # d_heading = self.now_heading - self.prev_heading
-        # v_ang_heading = (d_heading * 2 * math.pi / 360.) / dt
-        # self.t_prev = self.t_now
-        # self.prev_heading = self.now_heading
-        # print('heading vel ', v_ang_heading)
-
-        # odom_msg.twist.twist.angular.z = -v_ang_heading
-        odom_msg.twist.twist.angular.z = imu_msg.angular_velocity.z
         
-        # # The heading in our framework is the DR yaw relative to the map
-        # heading_t = ins_msg.heading - self.init_heading
-        # rot = Rotation.from_euler('xyz', [ins_msg.roll,
-        #                                   ins_msg.pitch,
-        #                                   heading_t], degrees=True)
+        # Check if the goal has been reached
+        goal_point = PointStamped()
+        goal_point.header.frame_id = self.utm_frame
+        goal_point.header.stamp = rospy.Time(0)
+        goal_point.point.x = utm_lolo.easting
+        goal_point.point.y = utm_lolo.northing
+        goal_point.point.z = 0.
 
-        # odom_msg.pose.pose.orientation.x = rot.as_quat()[0]
-        # odom_msg.pose.pose.orientation.y = rot.as_quat()[1]
-        # odom_msg.pose.pose.orientation.z = rot.as_quat()[2]
-        # odom_msg.pose.pose.orientation.w = rot.as_quat()[3]
+        try:
+            base_pose = self.listener.transformPoint(
+                self.odom_frame, goal_point)
+            
+            odom_msg = Odometry()
+            self.t_now = ins_msg.header.stamp
+            odom_msg.header.frame_id = self.odom_frame
+            odom_msg.header.stamp = self.t_now
+            odom_msg.pose.pose.position.x = base_pose.point.x
+            odom_msg.pose.pose.position.y = base_pose.point.y
+            odom_msg.pose.pose.position.z = 0
+            odom_msg.twist.twist.linear.x = ins_msg.speed_vessel_frame.x
+            odom_msg.twist.twist.linear.y = ins_msg.speed_vessel_frame.y
+            odom_msg.twist.twist.linear.z = 0. # Surface
+            odom_msg.twist.twist.angular.z = imu_msg.angular_velocity.z
+            
+            self.odom_pub.publish(odom_msg)
 
-        # Downsample publication
-        # self.n += 1
-        # if self.n % 10 == 0:
-        self.odom_pub.publish(odom_msg)
-            # self.n = 0
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            print("Heading controller: Could not transform WP to base_link")
+            pass
 
 if __name__ == "__main__":
     

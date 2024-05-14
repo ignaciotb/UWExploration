@@ -36,8 +36,14 @@ if __name__ == "__main__":
     
     MCTS_begin_time             = rospy.get_param("~MCTS_begin_time")
     MCTS_interrupt_time         = rospy.get_param("~MCTS_interrupt_time")
-        
-    bounds = [bound_left, bound_right, bound_up, bound_down]
+    
+
+    low_x = min(bound_left, bound_right)
+    high_x = max(bound_left, bound_right)
+    low_y = min(bound_down, bound_up)
+    high_y = max(bound_down, bound_up)
+
+    bounds = [low_x, high_x, high_y, low_y]
     
     try:        
         # Run lawnmower pattern

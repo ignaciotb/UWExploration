@@ -23,9 +23,10 @@ import tf_conversions
 import geometry_msgs
 
 # Custom libraries
-from BayesianOptimizerClass import BayesianOptimizer
-import GaussianProcessClass as SVGP_class
-import MonteCarloTreeClass as MCTS_class
+import BayesianOptimizerClass
+from GaussianProcessClass import *
+import GaussianProcessClass
+import MonteCarloTreeClass
 
 class PlannerBase():
     """ Defines basic methods and attributes which are shared amongst
@@ -68,7 +69,18 @@ class PlannerBase():
         # Setup class attributes
         self.state = []
         
-        self.gp = SVGP_class.SVGP_map(particle_id=0, corners=self.bounds)
+        self.gp = GaussianProcessClass.SVGP_map(particle_id=0, corners=self.bounds)
+        self.frozen_gp = botorch.models.SingleTaskVariationalGP(
+            train_X=torch.randn(250,2),
+            num_outputs=1,
+            inducing_points = torch.randn(250,2),
+            variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(250),
+            likelihood=GaussianLikelihood(),
+            learn_inducing_points=True,
+            mean_module = ConstantMean(constant_constraint=Interval(-20, -16)),
+            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+        print("00----------------------_")
+
         self.distance_travelled = 0
         
         # Corner publisher - needed as boundary for generating inducing points
@@ -467,7 +479,7 @@ class BOPlanner(PlannerBase):
     
     def periodic_call(self, msg):
         time2target = self.calculate_time2target()
-        print("wp left: ", self.nbr_wp)
+        #print("wp left: ", self.nbr_wp)
         #print("Time to target: " + str(time2target))
         if self.nbr_wp < 2 and self.currently_planning == False:
             self.currently_planning = True
@@ -483,24 +495,26 @@ class BOPlanner(PlannerBase):
         
         # Freeze a copy of current model for planning, to let real model keep training
         with self.gp.mutex:
-                pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
+                #pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
+                torch.save({'model' : self.gp.model.state_dict()}, "GP_env.pickle")
                 
         with self.gp_env_lock:
-            model = pickle.load(open("GP_env.pickle","rb"))
+            cp = torch.load("GP_env.pickle")
+            self.frozen_gp.load_state_dict(cp['model'])
             
         # Get a new candidate trajectory with Bayesian optimization
         low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
         high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
         low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
         high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
-        dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
+        dynamic_bounds   = [low_x, high_x, low_y, high_y] #self.bounds
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
-        
-        MCTS = MCTS_class.MonteCarloTree(self.state[:2], model, beta=self.beta, bounds=self.bounds,
+        print(self.bounds) 
+        MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
 
-        BO  = BayesianOptimizer(gp_terrain=model, bounds=dynamic_bounds, beta=self.beta, 
+        BO  = BayesianOptimizerClass.BayesianOptimizer(gp_terrain=self.frozen_gp, bounds=dynamic_bounds, beta=self.beta, 
                 current_pose=self.planner_initial_pose, wp_resolution=self.wp_resolution, 
                 turning_radius=self.turning_radius, swath_width=self.swath_width, 
                 path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size, 
@@ -517,6 +531,7 @@ class BOPlanner(PlannerBase):
             rospy.loginfo("MCTS failed to get candidate, fallback used.")
             candidates_XY = BO.optimize_XY_with_grad(max_iter=5, nbr_samples=200)
         
+        print("XY cand ", candidates_XY)
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=5, nbr_samples=15)
         
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
@@ -551,8 +566,9 @@ class BOPlanner(PlannerBase):
         self.currently_planning = False
         self.finish_imminent = False
         with self.gp_angle_lock:
-                pickle.dump(angle_gp, open(self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle" , "wb"))
-                pickle.dump(model, open(self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle" , "wb"))
-                pickle.dump(MCTS, open(self.store_path + "_MCTS_" + str(round(self.distance_travelled)) + ".pickle" , "wb"))
+            print("Saving stuff--------------------")
+            torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
+            torch.save({"model": self.frozen_gp.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
+            #torch.save({"MCTS": MCTS}, self.store_path + "_MCTS_" + str(round(self.distance_travelled)) + ".pickle")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         

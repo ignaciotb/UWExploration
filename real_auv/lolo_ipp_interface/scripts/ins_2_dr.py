@@ -34,6 +34,8 @@ class Ins2Dr():
         self.t_prev = 0.
         self.t_now = 0.
         self.n = 0
+        self.rot_init = None
+        self.yaw = 0.
 
         self.listener = tf.TransformListener()
         self.static_tf_bc = tf2_ros.StaticTransformBroadcaster()
@@ -55,12 +57,13 @@ class Ins2Dr():
         
         if self.prev_heading == None:
 
-            self.prev_heading = ins_msg.heading
-            print("Init_heading: {}".format(self.prev_heading))
             
             rot = Rotation.from_euler('xyz', [0.,
                                               0.,
                                               90. - ins_msg.heading], degrees=True)
+            
+            self.prev_heading = 90. - ins_msg.heading
+            print("Init_heading: {}".format(self.prev_heading))
             
             transformStamped = TransformStamped()
             transformStamped.transform.translation.x = utm_lolo.easting
@@ -73,6 +76,10 @@ class Ins2Dr():
             self.static_tf_bc.sendTransform(transformStamped)
 
             self.t_prev = ins_msg.header.stamp
+
+            self.old_time = ins_msg.header.stamp.to_sec()
+            self.prev_heading = self.prev_heading * 2 * 3.1415 / 360.0
+
             return
       
         # Check if the goal has been reached
@@ -86,7 +93,17 @@ class Ins2Dr():
         try:
             base_pose = self.listener.transformPoint(
                 self.odom_frame, goal_point)
+ 
+            self.time = ins_msg.header.stamp.to_sec()
+            dt_real = self.time - self.old_time
+            self.yaw += imu_msg.angular_velocity.z * dt_real
             
+            rot = Rotation.from_euler('xyz', [0.,
+                                              0.,
+                                              self.yaw], degrees=False)
+            
+            self.yaw = (self.yaw + np.pi) % (2 * np.pi) - np.pi
+
             odom_msg = Odometry()
             self.t_now = ins_msg.header.stamp
             odom_msg.header.frame_id = self.odom_frame
@@ -95,13 +112,14 @@ class Ins2Dr():
             odom_msg.pose.pose.position.x = base_pose.point.x
             odom_msg.pose.pose.position.y = base_pose.point.y
             odom_msg.pose.pose.position.z = 0
+            odom_msg.pose.pose.orientation = Quaternion(*rot.as_quat())
             odom_msg.twist.twist.linear.x = ins_msg.speed_vessel_frame.x
             odom_msg.twist.twist.linear.y = ins_msg.speed_vessel_frame.y
             odom_msg.twist.twist.linear.z = 0. # Surface
             odom_msg.twist.twist.angular.z = imu_msg.angular_velocity.z
             
             self.odom_pub.publish(odom_msg)
-            print("Sending odom")
+            self.old_time = self.time
 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
             print("Heading controller: Could not transform WP to base_link")

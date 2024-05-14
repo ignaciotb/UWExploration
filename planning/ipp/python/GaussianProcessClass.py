@@ -10,7 +10,7 @@ import torch
 from gpytorch.priors import NormalPrior
 from gpytorch.constraints import Interval
 from gpytorch.models import VariationalGP, ExactGP
-from gpytorch.variational import CholeskyVariationalDistribution
+import gpytorch.variational
 from gpytorch.means import ConstantMean
 from gpytorch.kernels import MaternKernel, ScaleKernel, GaussianSymmetrizedKLKernel, InducingPointKernel
 from gpytorch.likelihoods import GaussianLikelihood
@@ -21,6 +21,7 @@ import gpytorch.settings
 
 # BOtorch
 from botorch.fit import fit_gpytorch_mll
+import botorch.models
 from botorch.models.approximate_gp import (
     _SingleTaskVariationalGP,
     ApproximateGPyTorchModel,
@@ -66,7 +67,7 @@ import warnings
 import os
 import time
 import tf
-from pathlib import Path
+import pathlib
 import ast
 import copy
 from collections import OrderedDict
@@ -147,8 +148,8 @@ class SVGP_map():
         # hardware allocation
         self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
         initial_x = torch.randn(self.s,2)
-        var_dist = CholeskyVariationalDistribution(self.s)
-        self.model = SingleTaskVariationalGP(
+        var_dist = gpytorch.variational.CholeskyVariationalDistribution(self.s)
+        self.model = botorch.models.SingleTaskVariationalGP(
             train_X=initial_x,
             num_outputs=1,
             variational_distribution=var_dist,
@@ -220,7 +221,7 @@ class SVGP_map():
             ## Loading from disk
             # print("Particle ", self.particle_id,
             #       "loading particle ", req.p_id)
-            my_file = Path("/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf" + "/svgp_" + str(req.p_id) + ".pth")
+            my_file = pathlib.Path("/home/orin/catkin_ws/src/UWExploration/utils/uw_tests/rbpf" + "/svgp_" + str(req.p_id) + ".pth")
             try:
                 if my_file.is_file():
                     self.load(str(my_file.as_posix()))

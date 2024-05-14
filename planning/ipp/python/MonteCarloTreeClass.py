@@ -98,7 +98,9 @@ class MonteCarloTree(object):
         high_y          = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
         local_bounds    = [low_x, high_x, high_y, low_y]
         
-        bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
+        #bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
+        bounds_XY_torch = torch.tensor([[self.global_bounds[0], self.global_bounds[2]], [self.global_bounds[1], self.global_bounds[3]]]).to(torch.float)
+        print(bounds_XY_torch)
         
         decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
         

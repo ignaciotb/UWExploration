@@ -4,7 +4,7 @@
 import rospy
 
 # Custom libraries
-from PlannerClasses import SimplePlanner, BOPlanner
+import BayesianPlannerClass
 
 
 if __name__ == "__main__":
@@ -43,8 +43,8 @@ if __name__ == "__main__":
     low_y = min(bound_down, bound_up)
     high_y = max(bound_down, bound_up)
 
-    bounds = [low_x, high_x, high_y, low_y]
-    
+    bounds = [low_x, low_y, high_x, high_y]
+        
     try:        
         # Run lawnmower pattern
         if choice == "lawnmower":
@@ -57,7 +57,7 @@ if __name__ == "__main__":
         # Run bayesian optimization based planner 
         else:
             rospy.loginfo("Initializing planner node! Using Bayesian Optimization.")  
-            planner = BOPlanner(corner_topic=corner_topic, path_topic=path_topic, planner_req_topic=planner_req_topic, 
+            planner = BayesianPlannerClass.BOPlanner(corner_topic=corner_topic, path_topic=path_topic, planner_req_topic=planner_req_topic, 
                                 odom_topic=odom_topic,bounds=bounds, turning_radius=turn_radius, training_rate=train_rate, 
                                 wp_resolution=wp_resolution, swath_width=swath_width, path_nbr_samples=path_nbr_samples, 
                                 voxel_size=voxel_size, wp_sample_interval=wp_sample_interval, horizon_distance=horizon_distance,

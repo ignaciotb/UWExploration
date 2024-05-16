@@ -74,6 +74,98 @@ from collections import OrderedDict
 from threading import Lock
 
 
+class frozen_SVGP():
+    
+    def __init__(self):
+        self.interval_low = rospy.get_param("~mean_interval_low")
+        self.interval_high = rospy.get_param("~mean_interval_high")
+        self.num_inducing = rospy.get_param("~svgp_num_ind_points")
+        self.mb_size = rospy.get_param("~svgp_minibatch_size")
+        self.lr = rospy.get_param("~svgp_learning_rate")
+        self.rtol = rospy.get_param("~svgp_rtol")
+        self.n_window = rospy.get_param("~svgp_n_window")
+        self.auto = rospy.get_param("~svgp_auto_stop")
+        self.verbose = rospy.get_param("~svgp_verbose")
+        assert isinstance(self.num_inducing, int)
+        self.s = int(self.num_inducing)
+        self.model = botorch.models.SingleTaskVariationalGP(
+                train_X=torch.randn(self.s,2),
+                num_outputs=1,
+                inducing_points = torch.randn(self.s,2),
+                variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(self.s),
+                likelihood=GaussianLikelihood(),
+                learn_inducing_points=True,
+                mean_module = ConstantMean(constant_constraint=Interval(self.interval_low, self.interval_high)),
+                covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
+        self.likelihood.to(self.device).float()
+        self.model.to(self.device).float()
+        self.opt = torch.optim.Adam([
+            {'params': self.model.parameters()},
+            {'params': self.likelihood.parameters()},
+        ], lr=float(self.lr))
+    
+    def train_iteration(self):
+
+        # Get beams for minibatch training as pcl
+        goal = MinibatchTrainingGoal()
+        goal.particle_id = self.particle_id
+        goal.mb_size = self.mb_size
+        self.ac_mb.send_goal(goal)
+        self.ac_mb.wait_for_result()
+        result = self.ac_mb.get_result()
+
+        # If minibatch received from server
+        
+        # Store beams as array of 3D points
+        beams = np.asarray(list(pc2.read_points(result.minibatch, 
+                                field_names = ("x", "y", "z"), skip_nans=True)))
+        beams = np.reshape(beams, (-1,3))
+        
+        self.training = True
+        
+        input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
+        target = torch.from_numpy(beams[:,2]).to(self.device).float()
+
+        # # compute loss, compute gradient, and update
+        self.opt.zero_grad()
+        loss = -self.mll(self.model(input), target)
+        loss.backward()
+        self.opt.step()
+
+        del input
+        del target
+        torch.cuda.empty_cache()
+        self.training = False
+        self.iterations += 1
+
+        # Check for ELBO convergence to signal this SVGP is ready
+        # to start LC prompting
+        loss_np = loss.detach().cpu().numpy()
+        # if not self.ready_for_LC:
+        #     # Delete self.criterion when ready for LCs. It consumes mem af
+        #     if self.criterion.evaluate(torch.from_numpy(loss_np)):
+        #         print("Particle ", self.particle_id, " ready for LCs ")
+        #         self.ready_for_LC = True
+        #         self.enable_lc_pub.publish(self.particle_id)
+        #         del self.criterion
+            
+        # Store loss for postprocessing
+        self.loss.append(loss_np)
+
+        if self.particle_id == 0:
+            if self.verbose == True:
+                print("Particle ", self.particle_id,
+                    "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
+
+                
+                
+                
+                
+                
+                
+                
 class SVGP_map():
     """ Class which encapsulates the optimization tools for the SVGP map.
         Also provides ROS interface for subscription and publishing to topics,
@@ -146,7 +238,6 @@ class SVGP_map():
         interval_high = rospy.get_param("~mean_interval_high")
 
         # hardware allocation
-        self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
         initial_x = torch.randn(self.s,2)
         var_dist = gpytorch.variational.CholeskyVariationalDistribution(self.s)
         self.model = botorch.models.SingleTaskVariationalGP(

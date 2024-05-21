@@ -1,6 +1,5 @@
 import numpy as np
-from AcquisitionFunctionClass import qUCB_xy, UCB_xy
-from botorch.acquisition import qSimpleRegret
+from botorch.acquisition import qSimpleRegret, UpperConfidenceBound
 import torch
 from botorch.optim import optimize_acqf
 import pickle
@@ -9,16 +8,24 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
 import rospy
+import ipp_utils
 
 class Node(object):
     
-    def __init__(self, position, depth, parent = None) -> None:
+    def __init__(self, position, depth, parent = None, gp = None) -> None:
         self.position       = position
         self.depth          = depth
         self.parent         = parent
+        self.gp             = gp
         self.children       = []
         self.reward         = -np.inf
         self.visit_count    = 0
+    
+    def generate_points(self):
+        pass
+    
+    def train_separate_points(self):
+        pass
     
     
 class MonteCarloTree(object):
@@ -90,16 +97,11 @@ class MonteCarloTree(object):
         #print("expanding, parent at node depth: " + str(node.depth))
         
         #XY_acqf         = qSimpleRegret(model=self.gp)
-        XY_acqf         = qUCB_xy(model=self.gp, beta=self.beta)
+        XY_acqf         = UpperConfidenceBound(model=self.gp, beta=self.beta)
         
-        low_x           = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        high_x          = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        low_y           = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        high_y          = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        local_bounds    = [low_x, high_x, high_y, low_y]
+        local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
-        #bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
-        bounds_XY_torch = torch.tensor([[self.global_bounds[0], self.global_bounds[2]], [self.global_bounds[1], self.global_bounds[3]]]).to(torch.float)
+        bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
         print(bounds_XY_torch)
         
         decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
@@ -117,16 +119,14 @@ class MonteCarloTree(object):
         
         # Randomly sample from node to terminal state to get expected value
         # we dont want to have to go to terminal state, instead 
-        low_x   = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
-        high_x  = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
-        low_y   = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
-        high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
+        
+        local_bounds = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.rollout_reward_distance, self.border_margin)
         
         # Adjust for if the area is smaller due to bounds, this should be penalized
-        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[20, 2])
+        samples_np = np.random.uniform(low=[local_bounds[0], local_bounds[1]], high=[local_bounds[2], local_bounds[3]], size=[20, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
-        acq_fun = UCB_xy(model=self.gp, beta=self.beta)
+        acq_fun = UpperConfidenceBound(model=node.gp, beta=self.beta)
         ucb = acq_fun.forward(samples_torch)
         reward = ucb.mean().item() - node.depth
         return reward

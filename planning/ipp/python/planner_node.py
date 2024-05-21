@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 
+# Torch imports
+import torch
+
 # ROS imports
 import rospy
 
 # Custom libraries
 import BayesianPlannerClass
+import LawnmowerPlannerClass
 
 
 if __name__ == "__main__":
@@ -33,9 +37,8 @@ if __name__ == "__main__":
     vehicle_velocity    = rospy.get_param("~vehicle_velocity")
     max_time            = rospy.get_param("~max_mission_time")
     beta                = rospy.get_param("~beta")
-    
-    MCTS_begin_time             = rospy.get_param("~MCTS_begin_time")
-    MCTS_interrupt_time         = rospy.get_param("~MCTS_interrupt_time")
+    MCTS_begin_time     = rospy.get_param("~MCTS_begin_time")
+    MCTS_interrupt_time = rospy.get_param("~MCTS_interrupt_time")
     
 
     low_x = min(bound_left, bound_right)
@@ -44,12 +47,21 @@ if __name__ == "__main__":
     high_y = max(bound_down, bound_up)
 
     bounds = [low_x, low_y, high_x, high_y]
+    
+    assert bounds[0] < bounds[2],       "planner_node: Given global bounds wrong in X dimension"
+    assert bounds[1] < bounds[3],       "planner_node: Given global bounds wrong in Y dimension"
+    assert odom_topic != "",            "planner_node: Odom topic empty"
+    assert path_topic != "",            "planner_node: Path topic empty"
+    assert corner_topic != "",          "planner_node: Corner topic empty"
+    
+    if not torch.cuda.is_available():
+        rospy.logwarn(" ************ CUDA IS NOT AVAILABLE ************")
         
     try:        
         # Run lawnmower pattern
         if choice == "lawnmower":
             rospy.loginfo("Initializing planner node! Using Lawnmower pattern.")  
-            planner = SimplePlanner(corner_topic=corner_topic, path_topic=path_topic, 
+            planner = LawnmowerPlannerClass.LMPlanner(corner_topic=corner_topic, path_topic=path_topic, 
                                     planner_req_topic=planner_req_topic, odom_topic=odom_topic,
                                     bounds=bounds, vehicle_velocity=vehicle_velocity, max_time=max_time,
                                     turning_radius=turn_radius, training_rate=train_rate, sw=swath_width)

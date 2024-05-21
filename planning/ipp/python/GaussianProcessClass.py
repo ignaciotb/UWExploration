@@ -98,6 +98,7 @@ class frozen_SVGP():
                 mean_module = ConstantMean(constant_constraint=Interval(self.interval_low, self.interval_high)),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.likelihood = GaussianLikelihood()
         self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
         self.likelihood.to(self.device).float()
         self.model.to(self.device).float()
@@ -159,13 +160,7 @@ class frozen_SVGP():
                 print("Particle ", self.particle_id,
                     "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
 
-                
-                
-                
-                
-                
-                
-                
+                         
 class SVGP_map():
     """ Class which encapsulates the optimization tools for the SVGP map.
         Also provides ROS interface for subscription and publishing to topics,

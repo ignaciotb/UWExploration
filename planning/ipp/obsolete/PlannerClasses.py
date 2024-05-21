@@ -205,7 +205,7 @@ class SimplePlanner(PlannerBase):
         self.path_pub.publish(path) 
         self.begin_gp_train()
             
-    def get_path_cb(self, msg):
+    def update_wp_cb(self, msg):
         """ When called, dumps GP
 
         Args:

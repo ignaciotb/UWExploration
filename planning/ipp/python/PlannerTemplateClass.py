@@ -1,3 +1,6 @@
+# Torch library
+import torch
+
 # Python functionality
 from abc import abstractmethod
 import time
@@ -19,6 +22,19 @@ import GaussianProcessClass
 class PlannerTemplate(object):
     """ Defines basic methods and attributes which are shared amongst
         all planners. Advanced planners inherit from this class.
+        When instanciated, this class sets up the environment model,
+        and creates an area for inducing points to be spawned in.
+        The class also begins to listen to the odometry topic to
+        keep track of the vehicle state.
+        
+        This class implements the following functions:
+        
+        `begin_gp_train`
+        `odom_update_cb`
+        `generate_ip_corners`
+        `save_model`
+        `load_model`
+        
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, 
                  turning_radius, training_rate, max_time, vehicle_velocity):
@@ -54,14 +70,6 @@ class PlannerTemplate(object):
         
         # Storage handle
         self.store_path         = "Results_" + time.ctime()
-        
-        # Logic checks
-        assert len(self._bounds) == 4, "Planner boundary dimensions wrong, need specifically 4"
-        assert self.odom_topic != "", "Planner topic empty"
-        assert self.path_topic != "", "Planner topic empty"
-        assert self.corner_topic != "", "Planner topic empty"
-        assert self.turning_radius > 2.0, "Planner turning radius too small"
-        assert self.odom_topic is int, "Planner training rate not integer value"
         
         # Setup class attributes
         self.state              = []
@@ -107,7 +115,7 @@ class PlannerTemplate(object):
 
         p = PoseStamped(header=msg.header, pose=msg.pose.pose)
         p.header.stamp = msg.header.stamp
-        self.tf_listener.waitForTransform(self.map_frame, p.header.frame_id, rospy.rostime.Duration(0, 1e8)) # 0.1s
+        self.tf_listener.waitForTransform(self.map_frame, p.header.frame_id, msg.header.stamp, timeout=rospy.rostime.Duration(0, 1e8)) # 0.1s
         p_in_map = self.tf_listener.transformPose(self.map_frame, p)
         explicit_quat = [p_in_map.pose.orientation.x, p_in_map.pose.orientation.y, p_in_map.pose.orientation.z, p_in_map.pose.orientation.w]
         _, _, yaw = tf.transformations.euler_from_quaternion(explicit_quat)
@@ -158,3 +166,22 @@ class PlannerTemplate(object):
         corners.poses.append(ul_c)
         
         return corners
+        
+    def save_model(self, model, filename):
+        """ Saves a torch model
+
+        Args:
+            model (): Given torch model to save
+            filename (string): Location to save model
+        """
+        torch.save({'model' : model.state_dict()}, filename)
+    
+    def load_model(self, model, filename):
+        """ Loads a torch model from state dictionary
+
+        Args:
+            model (): Given model to load state into
+            filename (string): Location of the saved state dictionary
+        """
+        cp = torch.load(filename)
+        model.load_state_dict(cp['model'])

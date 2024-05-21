@@ -27,9 +27,24 @@ import copy
 import PlannerTemplateClass
 import MonteCarloTreeClass
 import BayesianOptimizerClass
+import GaussianProcessClass
 
 class BOPlanner(PlannerTemplateClass.PlannerTemplate):
-    """ Planner which uses Bayesian Optimization and MCTS
+    """ Planner which uses Bayesian Optimization and MCTS.
+        This class will publish an initial path when instanciated,
+        using a deterministic or random path. it will then periodically
+        check the status of waypoints, and when nearing a target, will
+        plan a path. When approach is imminent, this path is published.
+        The object will save the trained models every time it reaches a target.
+    
+        This class implements the following functions:
+        
+        `initial_deterministic_path`
+        `initial_random_path`
+        `update_wp_cb`
+        `calculate_time2target`
+        `periodic_call`
+        `execute_planning`
 
     Args:
         PlannerTemplate (obj): Basic template of planner class
@@ -66,6 +81,11 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate,
                          max_time, vehicle_velocity) 
         
+        # Logic checks
+        assert border_margin > 0,       "Planner safety/border margin must be positive"
+        assert horizon_distance > 0,    "Planner safety horizon must be positive"   
+        assert voxel_size > 0,          "Planner voxel size must be positive" 
+        
         # Planner variables
         self.planner_initial_pose   = copy.deepcopy(self.state)
         self.wp_list                = []
@@ -80,6 +100,9 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.gp_env_lock            = filelock.FileLock("GP_env.pickle.lock")
         self.gp_angle_lock          = filelock.FileLock("GP_angle.pickle.lock")
         
+        # Setup GP for storage
+        self.frozen_gp              = GaussianProcessClass.frozen_SVGP()
+        
         # Parameters for optimizer
         self.wp_resolution          = wp_resolution
         self.swath_width            = swath_width
@@ -93,14 +116,14 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.MCTS_interrupt_time    = MCTS_interrupt_time
         
         # Publish an initial path
-        initial_path     = self.initial_deterministic_path()
+        initial_path                = self.initial_deterministic_path()
         self.path_pub.publish(initial_path) 
         
         # Setup timers for callbacks
-        self.finish_imminent = False
+        self.finish_imminent        = False
         rospy.Timer(rospy.Duration(2), self.periodic_call)
-        self.execute_planner_pub = rospy.Publisher("execute_planning_topic_handle", std_msgs.msg.Bool, queue_size=1)
-        self.execute_planner_sub = rospy.Subscriber("execute_planning_topic_handle", std_msgs.msg.Bool, self.execute_planning)
+        self.execute_planner_pub    = rospy.Publisher("execute_planning_topic_handle", std_msgs.msg.Bool, queue_size=1)
+        self.execute_planner_sub    = rospy.Subscriber("execute_planning_topic_handle", std_msgs.msg.Bool, self.execute_planning)
         
         # Initiate training of GP
         self.begin_gp_train(rate=self.training_rate)
@@ -237,7 +260,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
                 
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
-            self.frozen_gp.load_state_dict(cp['model'])
+            self.frozen_gp.model.load_state_dict(cp['model'])
             
         # Get a new candidate trajectory with Bayesian optimization
         low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))

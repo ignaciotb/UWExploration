@@ -260,11 +260,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
             self.frozen_gp.model.load_state_dict(cp['model'])
-        
-        print(self.gp.model)
-        
-        print(self.frozen_gp.model)    
-        
+                        
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
@@ -290,7 +286,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         print("XY cand ", candidates_XY)
         
         print("Optimizing angle...")
-        BO = BayesianOptimizerClass.BayesianOptimizer(self.state, self.frozen_gp, wp_resolution=self.wp_resolution,
+        BO = BayesianOptimizerClass.BayesianOptimizer(self.state, self.frozen_gp.model, wp_resolution=self.wp_resolution,
                                                       turning_radius=self.turning_radius, swath_width=self.swath_width,
                                                       path_nbr_samples=self.path_nbr_samples, voxel_size=self.voxel_size,
                                                       wp_sample_interval=self.wp_sample_interval)
@@ -332,8 +328,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.currently_planning = False
         self.finish_imminent = False
         with self.gp_angle_lock:
-            print("Saving stuff--------------------")
             torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
-            torch.save({"model": self.frozen_gp.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
+            torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
+            print("Models saved.")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         

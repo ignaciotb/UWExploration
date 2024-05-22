@@ -1,5 +1,5 @@
 import numpy as np
-from botorch.acquisition import qSimpleRegret, UpperConfidenceBound
+from botorch.acquisition import qSimpleRegret, UpperConfidenceBound, qUpperConfidenceBound
 import torch
 from botorch.optim import optimize_acqf
 import pickle
@@ -31,8 +31,7 @@ class Node(object):
 class MonteCarloTree(object):
     
     def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds) -> None:
-        self.root                       = Node(position=start_position, depth=0)
-        self.gp                         = gp
+        self.root                       = Node(position=start_position, depth=0, gp=gp)
         self.beta                       = beta
         self.horizon_distance           = horizon_distance
         self.border_margin              = border_margin
@@ -97,7 +96,7 @@ class MonteCarloTree(object):
         #print("expanding, parent at node depth: " + str(node.depth))
         
         #XY_acqf         = qSimpleRegret(model=self.gp)
-        XY_acqf         = UpperConfidenceBound(model=node.gp.model, beta=self.beta)
+        XY_acqf         = qUpperConfidenceBound(model=node.gp.model, beta=self.beta)
         
         local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
@@ -109,7 +108,7 @@ class MonteCarloTree(object):
         
         
         for i in range(nbr_children):
-            n = Node(list(candidates[i,:].cpu().detach().numpy()), node.depth + 1, node)
+            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), depth=node.depth + 1, parent=node, gp=node.gp)
             node.children.append(n)
     
     def rollout_node(self, node):
@@ -120,12 +119,10 @@ class MonteCarloTree(object):
         # we dont want to have to go to terminal state, instead 
         
         local_bounds = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.rollout_reward_distance, self.border_margin)
-        
-        # Adjust for if the area is smaller due to bounds, this should be penalized
         samples_np = np.random.uniform(low=[local_bounds[0], local_bounds[1]], high=[local_bounds[2], local_bounds[3]], size=[20, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
-        acq_fun = UpperConfidenceBound(model=node.gp, beta=self.beta)
+        acq_fun = UpperConfidenceBound(model=node.gp.model, beta=self.beta)
         ucb = acq_fun.forward(samples_torch)
         reward = ucb.mean().item() - node.depth
         return reward

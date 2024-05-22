@@ -97,12 +97,11 @@ class MonteCarloTree(object):
         #print("expanding, parent at node depth: " + str(node.depth))
         
         #XY_acqf         = qSimpleRegret(model=self.gp)
-        XY_acqf         = UpperConfidenceBound(model=self.gp, beta=self.beta)
+        XY_acqf         = UpperConfidenceBound(model=node.gp.model, beta=self.beta)
         
         local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
         bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
-        print(bounds_XY_torch)
         
         decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
         

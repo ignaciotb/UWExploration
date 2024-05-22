@@ -99,7 +99,6 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         
         # Filelocks for file mutexes
         self.gp_env_lock            = filelock.FileLock("GP_env.pickle.lock")
-        self.gp_angle_lock          = filelock.FileLock("GP_angle.pickle.lock")
         
         # Setup GP for storage
         self.frozen_gp              = GaussianProcessClass.frozen_SVGP()
@@ -327,9 +326,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.path_pub.publish(sampling_path)
         self.currently_planning = False
         self.finish_imminent = False
-        with self.gp_angle_lock:
-            torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
-            torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
-            print("Models saved.")
+        torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
+        torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
+        print("Models saved.")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         

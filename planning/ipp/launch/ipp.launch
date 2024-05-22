@@ -148,6 +148,7 @@
         <param name="mbes_link"                 value="$(arg namespace)/mbes_link" />
         <param name="odometry_topic"            value="$(arg odometry_topic)" />
         <param name="mbes_pings_topic"          value="$(arg mbes_pings_topic)" />
+        <param name="corner_topic"              value="$(arg corner_topic)" />
         <param name="background_img_path"       value="$(find uw_tests)/datasets/$(arg dataset)/default_real_mean_depth.png" />       
         <param name="dataset"                   value="$(arg dataset)" />       
         <param name="visualization_period"      value="0.5" />       

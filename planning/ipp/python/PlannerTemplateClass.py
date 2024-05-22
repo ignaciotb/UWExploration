@@ -32,8 +32,6 @@ class PlannerTemplate(object):
         `begin_gp_train`
         `odom_update_cb`
         `generate_ip_corners`
-        `save_model`
-        `load_model`
         
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, 
@@ -166,22 +164,3 @@ class PlannerTemplate(object):
         corners.poses.append(ul_c)
         
         return corners
-        
-    def save_model(self, model, filename):
-        """ Saves a torch model
-
-        Args:
-            model (): Given torch model to save
-            filename (string): Location to save model
-        """
-        torch.save({'model' : model.state_dict()}, filename)
-    
-    def load_model(self, model, filename):
-        """ Loads a torch model from state dictionary
-
-        Args:
-            model (): Given model to load state into
-            filename (string): Location of the saved state dictionary
-        """
-        cp = torch.load(filename)
-        model.load_state_dict(cp['model'])

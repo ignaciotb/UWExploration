@@ -47,7 +47,6 @@ def get_orthogonal_samples(poses, nbr_samples=10, swath_width=20):
     """ Generates points on lines orthogonal to a vector. Will generate
         `nbr_samples` for each given vector, along a line of given swath width.
     
-
     Args:
         poses (list[float]): [x y theta]
         nbr_samples (int, optional): number of samples generated for each vector. Defaults to 10.
@@ -71,3 +70,23 @@ def get_orthogonal_samples(poses, nbr_samples=10, swath_width=20):
     samples[:,:,0] = dx_s 
     samples[:,:,1] = dy_s
     return torch.from_numpy(samples).type(torch.FloatTensor)
+
+def save_model(model, filename):
+        """ Saves a torch model
+
+        Args:
+            model (): Given torch model to save
+            filename (string): Location to save model
+        """
+        torch.save({'model' : model.state_dict()}, filename)
+    
+def load_model(model, filename):
+    """ Loads a torch model from state dictionary
+
+    Args:
+        model (): Given model to load state into
+        filename (string): Location of the saved state dictionary
+    """
+    cp = torch.load(filename)
+    model.load_state_dict(cp['model'])
+    return model

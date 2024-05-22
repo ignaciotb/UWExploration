@@ -28,6 +28,7 @@ import PlannerTemplateClass
 import MonteCarloTreeClass
 import BayesianOptimizerClass
 import GaussianProcessClass
+import ipp_utils
 
 class BOPlanner(PlannerTemplateClass.PlannerTemplate):
     """ Planner which uses Bayesian Optimization and MCTS.
@@ -176,12 +177,10 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         Returns:
             nav_msgs.msg.Path: ROS message with waypoint poses in list
         """
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[1] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
-        high_x           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
-        high_y           = min(self.bounds[3] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
-        dynamic_bounds   = [low_x, high_x, high_y, low_y] #self.bounds
-        samples = np.random.uniform(low=[dynamic_bounds[0], dynamic_bounds[3], -np.pi], high=[dynamic_bounds[1], dynamic_bounds[2], np.pi], size=[nbr_samples, 3])
+        
+        local_bounds = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, self.horizon_distance, self.border_margin)
+        
+        samples = np.random.uniform(low=[local_bounds[0], local_bounds[1], -np.pi], high=[local_bounds[2], local_bounds[3], np.pi], size=[nbr_samples, 3])
         h = std_msgs.msg.Header()
         h.frame_id = self.map_frame
         h.stamp = rospy.Time.now()
@@ -261,13 +260,10 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
             self.frozen_gp.model.load_state_dict(cp['model'])
-            
-        # Get a new candidate trajectory with Bayesian optimization
-        low_x            = max(self.bounds[0] + self.border_margin, min(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
-        low_y            = max(self.bounds[3] + self.border_margin, min(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
-        high_x           = min(self.bounds[1] - self.border_margin, max(self.planner_initial_pose[0] - self.horizon_distance, self.planner_initial_pose[0] + self.horizon_distance))
-        high_y           = min(self.bounds[2] - self.border_margin, max(self.planner_initial_pose[1] - self.horizon_distance, self.planner_initial_pose[1] + self.horizon_distance))
-        dynamic_bounds   = [low_x, low_y, high_x, high_y] #self.bounds
+        
+        print(self.gp.model)
+        
+        print(self.frozen_gp.model)    
         
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
@@ -283,10 +279,11 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             candidates_XY = (torch.from_numpy(np.array([candidates_XY]))).type(torch.FloatTensor)
         
         except:
-            # If MCTS fails (due to a rush order) then give a myopic quick candidate
+            # If MCTS fails then give a myopic quick candidate and tell angle optimization step to hurry up
             rospy.loginfo("MCTS failed to get candidate, fallback used.")
             rush_order_activated  = True
-            self.bounds_XY_torch  = torch.tensor([[self.bounds[0], self.bounds[1]], [self.bounds[2], self.bounds[3]]]).to(torch.float)
+            local_bounds          = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, self.horizon_distance, self.border_margin)
+            self.bounds_XY_torch  = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
             self.XY_acqf          = botorch.acquisition.UpperConfidenceBound(model=self.frozen_gp, beta=self.beta)
             candidates_XY, _      = botorch.optim.optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=5, raw_samples=50)
         
@@ -300,7 +297,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         
         angle_optim_max_iter = 5
         if rush_order_activated:
-            print("Rush order requested!")
+            print("Not enough time for full angle optimization, rush order requested")
             angle_optim_max_iter = 0
 
         candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=angle_optim_max_iter, nbr_samples=15)

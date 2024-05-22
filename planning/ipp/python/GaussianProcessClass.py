@@ -91,7 +91,7 @@ class frozen_SVGP():
         self.model = botorch.models.SingleTaskVariationalGP(
                 train_X=torch.randn(self.s,2),
                 num_outputs=1,
-                #inducing_points = torch.randn(self.s,2),
+                inducing_points = torch.randn(self.s,2),
                 variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(self.s),
                 likelihood=GaussianLikelihood(),
                 learn_inducing_points=True,

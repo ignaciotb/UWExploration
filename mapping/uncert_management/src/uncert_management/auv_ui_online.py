@@ -223,11 +223,11 @@ class auv_ui_online(object):
 
                 wps = []
                 for pose in path.poses:
-                    print("X: " + str(pose.pose.position.x) + " Y: " + str(pose.pose.position.y))
+                    #print("X: " + str(pose.pose.position.x) + " Y: " + str(pose.pose.position.y))
                     wps.append(np.array([pose.pose.position.x, pose.pose.position.y, 0.]))
 
                 wp_cloud = pack_cloud(self.map_frame, wps)
-                print(wp_cloud)
+                #print(wp_cloud)
                 self.ip_pub.publish(wp_cloud)
 
                 # This service will start the auv simulation or auv_2_ros nodes to start the mission

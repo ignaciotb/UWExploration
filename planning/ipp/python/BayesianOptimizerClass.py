@@ -79,14 +79,9 @@ class BayesianOptimizer():
         """
 
         # Generate initial sample angles
-                
-        # TODO: For optimizng radius - generate theta and radius
         random_thetas = torch.linspace(self.bounds_theta_torch[0,0].item(), self.bounds_theta_torch[1,0].item(), nbr_samples).unsqueeze(1)
         XY_repeated = XY.repeat(nbr_samples, 1)
         samples = torch.cat([XY_repeated, random_thetas], 1)
-        
-        
-        # TODO: For optimizng radius - pass radius to get training data
         train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
         train_X = train_X[:, 2].unsqueeze(1)
         
@@ -104,7 +99,6 @@ class BayesianOptimizer():
         while iteration < max_iter:
             candidate, value = botorch.optim.optimize_acqf(self.theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=20)
             
-            # TODO: For optimizng radius - pass radius to get training data
             sample = torch.cat([XY, candidate], 1).squeeze(0)
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=sample)
             train_X = train_X[2].unsqueeze(0)
@@ -117,16 +111,14 @@ class BayesianOptimizer():
         
         # Run a single optimization with no regard for variance, only caring for highest mean
         
-        # TODO: For optimizng radius - pass radius to get training data
         best_theta_acqf  = botorch.acquisition.PosteriorMean(self.gp_theta)
-        best_candidate, value = botorch.optim.optimize_acqf(self.best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
+        best_candidate, value = botorch.optim.optimize_acqf(best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
                 
-        # TODO: For optimizng radius - ensure we return both a best theta, and radius
         return best_candidate, self.gp_theta
     
 
 class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
-    def __init__(self, model, beta, current_pose, wp_resolution, turning_radius, swath_width, path_nbr_samples, 
+    def __init__(self, model, current_pose, wp_resolution, turning_radius, swath_width, path_nbr_samples, 
                  voxel_size = 3, wp_sample_interval = 6, posterior_transform = None, **kwargs):
         
         super().__init__(model=model, posterior_transform=posterior_transform, **kwargs)
@@ -138,7 +130,6 @@ class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
         self.swath_width = swath_width
         self.nbr_samples = path_nbr_samples
         self.voxel_size = voxel_size
-        self.beta = beta
             
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X: torch.Tensor) -> torch.Tensor:

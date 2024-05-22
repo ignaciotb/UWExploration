@@ -9,17 +9,18 @@ import matplotlib as mpl
 import matplotlib.cm as cm
 import rospy
 import ipp_utils
+import GaussianProcessClass
 
 class Node(object):
     
     def __init__(self, position, depth, parent = None, gp = None) -> None:
-        self.position       = position
-        self.depth          = depth
-        self.parent         = parent
-        self.gp             = gp
-        self.children       = []
-        self.reward         = -np.inf
-        self.visit_count    = 0
+        self.position           = position
+        self.depth              = depth
+        self.parent             = parent
+        self.gp                 = gp
+        self.children           = []
+        self.reward             = -np.inf
+        self.visit_count        = 0
     
     def generate_points(self):
         pass
@@ -106,9 +107,11 @@ class MonteCarloTree(object):
         
         candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
         
-        
+        ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
         for i in range(nbr_children):
-            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), depth=node.depth + 1, parent=node, gp=node.gp)
+            new_gp = GaussianProcessClass.frozen_SVGP()
+            new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
+            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), depth=node.depth + 1, parent=node, gp=new_gp)
             node.children.append(n)
     
     def rollout_node(self, node):
@@ -208,7 +211,7 @@ class MonteCarloTree(object):
             
 
 if __name__== "__main__":
-    model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
+    model1 = ipp_utils.load_model("/home/alex/.ros/GP_env.pickle")
 
     bounds = [592, 821, -179, -457]
 

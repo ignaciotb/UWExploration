@@ -75,7 +75,7 @@ class PlannerTemplate(object):
         self.distance_travelled = 0
         
         # Corner publisher - needed as boundary for generating inducing points
-        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1)
+        self.corner_pub  = rospy.Publisher(self.corner_topic, Path, queue_size=1, latch=True)
         rospy.sleep(1) # Give time for topic to be registered
         corners = self.generate_ip_corners()
         self.corner_pub.publish(corners)

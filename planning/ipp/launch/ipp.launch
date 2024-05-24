@@ -38,7 +38,7 @@
     <arg name="gp_resample_top"                 default="/$(arg namespace)/gp/resample_top"/>
     <arg name="results_path"                    default="/home/alex/catkin_ws/src/UWExploration/planning/ipp/data/"/>   
     <arg name="num_particles_per_handler"       default="1"/>      
-    <arg name="svgp_minibatch_size"   default="1000" />
+    <arg name="svgp_minibatch_size"             default="1024" />
 
     <!-- Planner parameters -->
     <arg name="planner_type"                    default="opt"/> <!-- lawnmower or opt -->
@@ -55,7 +55,7 @@
     <arg name="beta"                            default="5.5" />
     <arg name="MCTS_begin_time"                 default="45" />
     <arg name="MCTS_interrupt_time"             default="15" />
-    <arg name="MCTS_max_depth"                  default="3" />
+    <arg name="MCTS_max_depth"                  default="1" />
     <arg name="MCTS_sample_decay_factor"        default="10" />
     <arg name="MCTS_UCT_C"                      default="10.0" />
 
@@ -86,7 +86,7 @@
             <param name="sample_gp_server"          value="/$(arg namespace)/gp/sample_server"/>
             <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>     
             <param name="svgp_num_ind_points"       value="250"/>     
-            <param name="svgp_minibatch_size"       value="1000"/>     
+            <param name="svgp_minibatch_size"       value="$(arg svgp_minibatch_size)"/>     
             <param name="svgp_learning_rate"        value="1e-1"/>     
             <param name="svgp_rtol"                 value="1e-3"/>  
             <param name="svgp_verbose"              value="False"/>    

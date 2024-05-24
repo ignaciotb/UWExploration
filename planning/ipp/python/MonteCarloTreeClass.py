@@ -2,7 +2,6 @@ import numpy as np
 from botorch.acquisition import qSimpleRegret, UpperConfidenceBound, qUpperConfidenceBound
 import torch
 from botorch.optim import optimize_acqf
-import pickle
 import time
 import matplotlib.pyplot as plt
 import matplotlib as mpl
@@ -10,10 +9,29 @@ import matplotlib.cm as cm
 import rospy
 import ipp_utils
 import GaussianProcessClass
+import actionlib
+from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
+
+""" PLAN FOR IMPLEMENTING MULTIPLE TRAINING GPs
+
+1. When the node object is created, we simulate MBES points and store those
+    - generate_points
+    
+2. We create an action server for the node, which can give these simulated MBES points
+    - action_cb
+    
+3. In the frozen_gp, create a training method that can sample from both the
+simulated as and the real action servers. Split 50/50, remove the gp points when they've been used.
+
+4. Set a while loop that calls the training of the GP until points are exhausted. Until it has finished training,
+do not let the node expand to new children, but instead keep doing rollouts from it (which will iteratively get better).
+
+"""
+
 
 class Node(object):
     
-    def __init__(self, position, depth, parent = None, gp = None) -> None:
+    def __init__(self, position, depth, id_nbr = 0, parent = None, gp = None) -> None:
         self.position           = position
         self.depth              = depth
         self.parent             = parent
@@ -21,12 +39,98 @@ class Node(object):
         self.children           = []
         self.reward             = -np.inf
         self.visit_count        = 0
-    
+        self.id                 = depth * id_nbr
+        self.training           = False
+        self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.map_frame          = rospy.get_param("~map_frame")
+
+        print("Node __init__: Created all attributes")
+        
+        # If not root, we generate and train on simulated points
+        if id_nbr > 0:
+            print("Node __init__: This is not root node, ID " + str(self.id))
+            self.training           = True
+            self.generate_points()
+            print("Node __init__: Generated points")
+            self.simulated_mb_as    = actionlib.SimpleActionServer("simulated_mb_" + str(self.id), 
+                                                                MinibatchTrainingAction, 
+                                                                execute_cb=self.action_cb, 
+                                                                auto_start=False)
+            self.simulated_mb_as.start()            
+            self.gp.attach_simulated_AS("simulated_mb_" + str(self.id))
+            print("Node __init__: Created action server and attached it to GP with AS ID " + "simulated_mb_" + str(self.id))
+            
+            training_iteration = 0
+                
+            while training_iteration < 10:
+                
+                if True:
+                    #train GP. remember to give id nbr for correct action server usage
+                    self.gp.train_simulated_and_real_iteration()
+                    training_iteration += 1
+                    print("Node __init__: Training GP nbr:"+ str(self.id)+ ", at iteration: "+ str(training_iteration))
+            self.training = False
+            
     def generate_points(self):
-        pass
+        
+        # Get XY points from swaths along straight line between poses
+        wp = ipp_utils.upsample_waypoints(self.parent.position, self.position, 0.25)
+        points = ipp_utils.get_orthogonal_samples(wp, 64, 40)
+        
+        # Setup model
+        self.gp.model.to(self.device).float()
+        self.gp.model.likelihood.to(self.device).float()
+        
+        # Sample max likelihood Z values from GP
+        n = np.shape(points)[0]
+        z_array = np.ones((n, 1))
+        divs = 10
+        with torch.no_grad():
+            for i in range(0, divs):
+                
+                # Ensure entire array gets filled, even with mismatches in size from divs
+                if i == divs - 1:
+                    inputst_temp = torch.from_numpy(points[i*int(n/divs)::, :]).to(self.device).float()
+                    outputs = self.gp.model(inputst_temp)
+                    outputs = self.gp.model.likelihood(outputs)
+                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
+                    z_array[i*int(n/divs)::, :] = outputs
+                else:
+                    inputst_temp = torch.from_numpy(points[i*int(n/divs):(i+1)*int(n/divs), :]).to(self.device).float()
+                    outputs = self.gp.model(inputst_temp)
+                    outputs = self.gp.model.likelihood(outputs)
+                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
+                    z_array[i*int(n/divs):(i+1)*int(n/divs), :] = outputs                
+        
+        # Write simulated points to an array, to be used as training data
+        self.simulated_points = np.concatenate((points, z_array), axis=1)
     
-    def train_separate_points(self):
-        pass
+    
+    def action_cb(self, goal):
+        
+        result = MinibatchTrainingResult()
+        
+        print("SimulatedAS_action_cb: Entered function")
+                        
+        if np.shape(self.simulated_points)[0] > goal.mb_size:
+            
+            print("SimulatedAS_action_cb: trying to get points")
+            # Randomly sample minibatch UIs from current dataset       
+            idx = np.random.choice(np.shape(self.simulated_points)[0]-1, goal.mb_size, replace=False)
+            points = self.simulated_points[idx, :]
+            
+            # Pack cloud
+            mbes_pcloud = ipp_utils.pack_cloud(self.map_frame, points)
+            result.minibatch = mbes_pcloud
+            result.success = True
+            self.simulated_mb_as.set_succeeded(result)
+            print("SimulatedAS_action_cb: packed and succeeded")
+                        
+        else:
+            result.success = False
+            self.simulated_mb_as.set_succeeded(result)
+            print("SimulatedAS_action_cb: failed to get points")
+    
     
     
 class MonteCarloTree(object):
@@ -50,13 +154,14 @@ class MonteCarloTree(object):
         # If node has not been visited, rollout to get reward
         if node.visit_count == 0 and node != self.root:
             value = self.rollout_node(node)
+            
         # If node has been visited and there is reward, then expand children
         else:
-            # If max depth not hit, expand
+            # If max depth not hit, and not still training, expand
             if node.depth < self.max_depth:
+                print("Expanding nodes...")
                 self.expand_node(node)
                 node = node.children[0]
-                
             value = self.rollout_node(node)
         # backpropagate
         self.backpropagate(node, value)
@@ -107,12 +212,18 @@ class MonteCarloTree(object):
         
         candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
         
+        print("expand_node: Got candidates")
+        
         ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
+        print("expand_node: Saved parent model")
         for i in range(nbr_children):
             new_gp = GaussianProcessClass.frozen_SVGP()
             new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
-            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), depth=node.depth + 1, parent=node, gp=new_gp)
+            print("expand_node: Loaded model from parent")
+            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
+            print("expand_node: Created new node with new GP")
             node.children.append(n)
+            print("expand_node: Appended child node")
     
     def rollout_node(self, node):
         

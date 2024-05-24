@@ -76,7 +76,9 @@ from threading import Lock
 
 class frozen_SVGP():
     
-    def __init__(self):
+    def __init__(self, action_server = False):
+        mb_gp_name = rospy.get_param("~minibatch_gp_server")
+        self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         self.interval_low = rospy.get_param("~mean_interval_low")
         self.interval_high = rospy.get_param("~mean_interval_high")
         self.num_inducing = rospy.get_param("~svgp_num_ind_points")
@@ -106,59 +108,75 @@ class frozen_SVGP():
             {'params': self.model.parameters()},
             {'params': self.likelihood.parameters()},
         ], lr=float(self.lr))
+        
+    def attach_simulated_AS(self, as_id):
+        print("GP attach_simulated: Attaching AS with name " + str(as_id))
+        self.simulated_ac_mb = actionlib.SimpleActionClient(as_id, MinibatchTrainingAction)
+        while not self.simulated_ac_mb.wait_for_server(timeout=rospy.Duration(1)) and not rospy.is_shutdown():
+                print("GP attach_simulated: Client waiting for Node action server...")
     
-    def train_iteration(self):
+    def train_simulated_and_real_iteration(self):
+        
+        split_mb_size = int(self.mb_size/2)
+
+        print("GP train_simulated: Trying to get batch from first AS...")
 
         # Get beams for minibatch training as pcl
         goal = MinibatchTrainingGoal()
-        goal.particle_id = self.particle_id
-        goal.mb_size = self.mb_size
+        goal.particle_id = 0
+        goal.mb_size = split_mb_size
         self.ac_mb.send_goal(goal)
         self.ac_mb.wait_for_result()
-        result = self.ac_mb.get_result()
-
-        # If minibatch received from server
+        result1 = self.ac_mb.get_result()
         
-        # Store beams as array of 3D points
-        beams = np.asarray(list(pc2.read_points(result.minibatch, 
-                                field_names = ("x", "y", "z"), skip_nans=True)))
-        beams = np.reshape(beams, (-1,3))
+        print("GP train_simulated: Finished first AS, result is: " + str(result1.success))
+        print("GP train_simulated: Trying to get batch from second AS...")    
+           
+        goal = MinibatchTrainingGoal()
+        goal.particle_id = 0
+        goal.mb_size = split_mb_size
+        self.simulated_ac_mb.send_goal(goal)
+        self.simulated_ac_mb.wait_for_result()
+        result2 = self.simulated_ac_mb.get_result()    
         
-        self.training = True
+        print("GP train_simulated: Finished second AS, result is: " + str(result2.success))
         
-        input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
-        target = torch.from_numpy(beams[:,2]).to(self.device).float()
-
-        # # compute loss, compute gradient, and update
-        self.opt.zero_grad()
-        loss = -self.mll(self.model(input), target)
-        loss.backward()
-        self.opt.step()
-
-        del input
-        del target
-        torch.cuda.empty_cache()
-        self.training = False
-        self.iterations += 1
-
-        # Check for ELBO convergence to signal this SVGP is ready
-        # to start LC prompting
-        loss_np = loss.detach().cpu().numpy()
-        # if not self.ready_for_LC:
-        #     # Delete self.criterion when ready for LCs. It consumes mem af
-        #     if self.criterion.evaluate(torch.from_numpy(loss_np)):
-        #         print("Particle ", self.particle_id, " ready for LCs ")
-        #         self.ready_for_LC = True
-        #         self.enable_lc_pub.publish(self.particle_id)
-        #         del self.criterion
+        if result1.success and result2.success:
             
-        # Store loss for postprocessing
-        self.loss.append(loss_np)
+            print("GP train_simulated: converting to beams")
+            # Store beams as array of 3D points
+            beams1 = np.asarray(list(pc2.read_points(result1.minibatch, 
+                                    field_names = ("x", "y", "z"), skip_nans=True)))
+            beams1 = np.reshape(beams1, (-1,3))
+            beams2 = np.asarray(list(pc2.read_points(result2.minibatch, 
+                                    field_names = ("x", "y", "z"), skip_nans=True)))
+            beams2 = np.reshape(beams2, (-1,3))
+            
+            beams = np.concatenate((beams1, beams2), axis=1)
+            
+            self.training = True
+            
+            print("GP train_simulated: converting beams to torch")
+            
+            input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
+            target = torch.from_numpy(beams[:,2]).to(self.device).float()
+            
+            print("GP train_simulated: beginning optimization step")
 
-        if self.particle_id == 0:
-            if self.verbose == True:
-                print("Particle ", self.particle_id,
-                    "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
+            # # compute loss, compute gradient, and update
+            self.opt.zero_grad()
+            loss = -self.mll(self.model(input), target)
+            loss.backward()
+            self.opt.step()
+
+            del input
+            del target
+            print("GP train_simulated: finished optimization step")
+            #torch.cuda.empty_cache()
+        else:
+            rospy.loginfo("Oi this fucking thing just skipped training!")
+            print("First AS returned: " + str(result1.success) + ", second returned: "+ str(result2.success))
+            rospy.sleep(0.1)
 
                          
 class SVGP_map():

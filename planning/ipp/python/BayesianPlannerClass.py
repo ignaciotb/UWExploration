@@ -140,8 +140,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             rospy.sleep(2)
 
         # Generate point in center of bounds
-        x_pos = self.bounds[0] + (self.bounds[2] - self.bounds[0])/2
-        y_pos = self.bounds[1] + (self.bounds[3] - self.bounds[1])/2
+        x_pos = 800#self.bounds[0] + (self.bounds[2] - self.bounds[0])/2
+        y_pos = -250#self.bounds[1] + (self.bounds[3] - self.bounds[1])/2
         samples = np.random.uniform(low=[x_pos - 1, y_pos - 1, -np.pi], high=[x_pos + 1, y_pos + 1, np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
         h.frame_id = self.map_frame
@@ -259,7 +259,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
             self.frozen_gp.model.load_state_dict(cp['model'])
-                        
+                       
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
@@ -279,7 +279,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             rush_order_activated  = True
             local_bounds          = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, self.horizon_distance, self.border_margin)
             self.bounds_XY_torch  = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
-            self.XY_acqf          = botorch.acquisition.UpperConfidenceBound(model=self.frozen_gp, beta=self.beta)
+            self.XY_acqf          = botorch.acquisition.UpperConfidenceBound(model=self.frozen_gp.model, beta=self.beta)
             candidates_XY, _      = botorch.optim.optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=5, raw_samples=50)
         
         print("XY cand ", candidates_XY)

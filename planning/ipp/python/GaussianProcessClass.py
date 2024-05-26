@@ -110,7 +110,6 @@ class frozen_SVGP():
         ], lr=float(self.lr))
         
     def attach_simulated_AS(self, as_id):
-        print("GP attach_simulated: Attaching AS with name " + str(as_id))
         self.simulated_ac_mb = actionlib.SimpleActionClient(as_id, MinibatchTrainingAction)
         while not self.simulated_ac_mb.wait_for_server(timeout=rospy.Duration(1)) and not rospy.is_shutdown():
                 print("GP attach_simulated: Client waiting for Node action server...")
@@ -119,7 +118,6 @@ class frozen_SVGP():
         
         split_mb_size = int(self.mb_size/2)
 
-        print("GP train_simulated: Trying to get batch from first AS...")
 
         # Get beams for minibatch training as pcl
         goal = MinibatchTrainingGoal()
@@ -129,8 +127,6 @@ class frozen_SVGP():
         self.ac_mb.wait_for_result()
         result1 = self.ac_mb.get_result()
         
-        print("GP train_simulated: Finished first AS, result is: " + str(result1.success))
-        print("GP train_simulated: Trying to get batch from second AS...")    
            
         goal = MinibatchTrainingGoal()
         goal.particle_id = 0
@@ -139,11 +135,11 @@ class frozen_SVGP():
         self.simulated_ac_mb.wait_for_result()
         result2 = self.simulated_ac_mb.get_result()    
         
-        print("GP train_simulated: Finished second AS, result is: " + str(result2.success))
+        print("First AS returned: " + str(result1.success) + ", second returned: "+ str(result2.success))
+        
         
         if result1.success and result2.success:
             
-            print("GP train_simulated: converting to beams")
             # Store beams as array of 3D points
             beams1 = np.asarray(list(pc2.read_points(result1.minibatch, 
                                     field_names = ("x", "y", "z"), skip_nans=True)))
@@ -156,12 +152,10 @@ class frozen_SVGP():
             
             self.training = True
             
-            print("GP train_simulated: converting beams to torch")
             
             input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
             target = torch.from_numpy(beams[:,2]).to(self.device).float()
             
-            print("GP train_simulated: beginning optimization step")
 
             # # compute loss, compute gradient, and update
             self.opt.zero_grad()
@@ -171,11 +165,9 @@ class frozen_SVGP():
 
             del input
             del target
-            print("GP train_simulated: finished optimization step")
             #torch.cuda.empty_cache()
         else:
             rospy.loginfo("Oi this fucking thing just skipped training!")
-            print("First AS returned: " + str(result1.success) + ", second returned: "+ str(result2.success))
             rospy.sleep(0.1)
 
                          

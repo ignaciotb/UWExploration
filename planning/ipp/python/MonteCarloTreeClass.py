@@ -109,12 +109,9 @@ class Node(object):
     def action_cb(self, goal):
         
         result = MinibatchTrainingResult()
-        
-        print("SimulatedAS_action_cb: Entered function")
-                        
+                                
         if np.shape(self.simulated_points)[0] > goal.mb_size:
             
-            print("SimulatedAS_action_cb: trying to get points")
             # Randomly sample minibatch UIs from current dataset       
             idx = np.random.choice(np.shape(self.simulated_points)[0]-1, goal.mb_size, replace=False)
             points = self.simulated_points[idx, :]
@@ -124,12 +121,10 @@ class Node(object):
             result.minibatch = mbes_pcloud
             result.success = True
             self.simulated_mb_as.set_succeeded(result)
-            print("SimulatedAS_action_cb: packed and succeeded")
                         
         else:
             result.success = False
             self.simulated_mb_as.set_succeeded(result)
-            print("SimulatedAS_action_cb: failed to get points")
     
     
     
@@ -159,7 +154,6 @@ class MonteCarloTree(object):
         else:
             # If max depth not hit, and not still training, expand
             if node.depth < self.max_depth:
-                print("Expanding nodes...")
                 self.expand_node(node)
                 node = node.children[0]
             value = self.rollout_node(node)
@@ -212,18 +206,15 @@ class MonteCarloTree(object):
         
         candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
         
-        print("expand_node: Got candidates")
         
         ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
-        print("expand_node: Saved parent model")
+        t1 = time.time()
         for i in range(nbr_children):
             new_gp = GaussianProcessClass.frozen_SVGP()
             new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
-            print("expand_node: Loaded model from parent")
             n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
-            print("expand_node: Created new node with new GP")
             node.children.append(n)
-            print("expand_node: Appended child node")
+        print("****** TIME TAKEN TO EXPAND NODES: " + str(time.time() - t1) + " ******")
     
     def rollout_node(self, node):
         

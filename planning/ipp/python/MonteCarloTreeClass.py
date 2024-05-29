@@ -65,7 +65,7 @@ class Node(object):
             training_iteration = 0
             
             points = self.generate_points()
-            self.gp.beams = np.concatenate((points, self.gp.beams), axis=0)
+            self.gp.simulated_beams = np.concatenate((points, self.gp.simulated_beams), axis=0)
             
             with open("node_gp_" + str(self.id) + "0.pickle", "wb") as fp:
                 pickle.dump(self.gp.model, fp)
@@ -86,7 +86,11 @@ class Node(object):
         
         # Get XY points from swaths along straight line between poses
         wp = ipp_utils.upsample_waypoints(self.parent.position, self.position, 1)
-        points = ipp_utils.get_orthogonal_samples(wp, 20, 40)
+        min_samples = 20
+        while np.shape(wp)[0] * min_samples < 520:
+            min_samples += 4
+        points = ipp_utils.get_orthogonal_samples(wp, min_samples, 40)
+        print(np.shape(points))
         
         # Setup model
         self.gp.model.to(self.device).float()
@@ -226,7 +230,8 @@ class MonteCarloTree(object):
         for i in range(nbr_children):
             new_gp = GaussianProcessClass.frozen_SVGP()
             new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
-            new_gp.beams = node.gp.beams
+            new_gp.real_beams = node.gp.real_beams
+            new_gp.simulated_beams = node.gp.simulated_beams
             n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
             node.children.append(n)
         print("****** TIME TAKEN TO EXPAND NODES: " + str(time.time() - t1) + " ******")
@@ -234,7 +239,6 @@ class MonteCarloTree(object):
     
     def rollout_node(self, node):
         
-        #print("rolling out, for node at depth: " + str(node.depth))
         
         # Randomly sample from node to terminal state to get expected value
         # we dont want to have to go to terminal state, instead 

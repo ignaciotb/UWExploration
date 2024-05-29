@@ -258,22 +258,22 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         with self.gp.mutex:
                 #pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
                 torch.save({'model' : self.gp.model.state_dict()}, "GP_env.pickle")
+                print("Froze GP for planning")
                 
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
             self.frozen_gp.model.load_state_dict(cp['model'])
-            nbr_beam_samples = min(self.gp.beams.shape[0]-1, 20000)
-            idx = np.random.choice(self.gp.beams.shape[0]-1, nbr_beam_samples, replace=False)
-            beams = self.gp.beams[idx,:]
-            self.frozen_gp.beams = beams
+            nbr_beam_samples = min(self.gp.real_beams.shape[0]-1, 10000)
+            idx = np.random.choice(self.gp.real_beams.shape[0]-1, nbr_beam_samples, replace=False)
+            beams = self.gp.real_beams[idx,:]
+            self.frozen_gp.real_beams = beams
                        
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
         
         t1 = time.time()
-        #while self.finish_imminent == False:
-        while time.time() - t1 < 50:
+        while self.finish_imminent == False or time.time() - t1 < 30:
             MCTS.iterate()
         
         rush_order_activated = False
@@ -337,6 +337,6 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.finish_imminent = False
         torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
         torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
-        print("Models saved.")
+        print("Decision models saved.")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         

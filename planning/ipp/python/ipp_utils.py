@@ -38,7 +38,7 @@ def upsample_waypoints(pose1, pose2, resolution):
     Returns:
         list[double]: Waypoints [[x y theta],...]
     """
-    n = round(np.hypot(pose1[0]-pose2[0], pose1[1]-pose2[1])/resolution)
+    n = max(2, round(np.hypot(pose1[0]-pose2[0], pose1[1]-pose2[1])/resolution))
     angle = np.arctan2(pose2[1]-pose1[1],pose2[0]-pose1[0])
     poses = []
     dx = resolution*np.cos(angle)

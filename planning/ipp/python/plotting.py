@@ -2,7 +2,7 @@ import pickle
 from gpytorch.likelihoods import GaussianLikelihood
 from matplotlib import pyplot as plt
 from botorch.acquisition import UpperConfidenceBound
-from AcquisitionFunctionClass import UCB_path
+#from AcquisitionFunctionClass import UCB_path
 import torch
 import numpy as np
 
@@ -11,9 +11,7 @@ import numpy as np
 #print(MBES.shape)
 
 # Load first model
-model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
-model1.model.eval()
-model1.likelihood.eval()
+model1 = pickle.load(open(r"/home/alex/.ros/node_gp_41.pickle","rb"))
 likelihood1 = GaussianLikelihood()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 likelihood1.to(device).float()

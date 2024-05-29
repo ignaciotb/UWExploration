@@ -77,6 +77,7 @@ from threading import Lock
 class frozen_SVGP():
     
     def __init__(self, action_server = False):
+        self.beams = np.empty((0, 3))
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         self.interval_low = rospy.get_param("~mean_interval_low")
@@ -96,8 +97,8 @@ class frozen_SVGP():
                 inducing_points = torch.randn(self.s,2),
                 variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(self.s),
                 likelihood=GaussianLikelihood(),
-                learn_inducing_points=True,
-                mean_module = ConstantMean(constant_constraint=Interval(self.interval_low, self.interval_high)),
+                learn_inducing_points=False,
+                #mean_module = ConstantMean(constant_constraint=Interval(self.interval_low, self.interval_high)),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.likelihood = GaussianLikelihood()
@@ -117,17 +118,17 @@ class frozen_SVGP():
     def train_simulated_and_real_iteration(self):
         
         split_mb_size = int(self.mb_size/2)
+        #split_mb_size = self.mb_size
 
 
-        # Get beams for minibatch training as pcl
-        goal = MinibatchTrainingGoal()
-        goal.particle_id = 0
-        goal.mb_size = split_mb_size
-        self.ac_mb.send_goal(goal)
-        self.ac_mb.wait_for_result()
-        result1 = self.ac_mb.get_result()
+        ## Get beams for minibatch training as pcl
+        #goal = MinibatchTrainingGoal()
+        #goal.particle_id = 0
+        #goal.mb_size = split_mb_size
+        #self.ac_mb.send_goal(goal)
+        #self.ac_mb.wait_for_result()
+        #result1 = self.ac_mb.get_result()
         
-           
         goal = MinibatchTrainingGoal()
         goal.particle_id = 0
         goal.mb_size = split_mb_size
@@ -135,28 +136,28 @@ class frozen_SVGP():
         self.simulated_ac_mb.wait_for_result()
         result2 = self.simulated_ac_mb.get_result()    
         
-        print("First AS returned: " + str(result1.success) + ", second returned: "+ str(result2.success))
+        #print("First AS returned: " + str(result1.success) + ", second returned: "+ str(result2.success))
         
         
-        if result1.success and result2.success:
-            
+        #if result1.success and result2.success:
+        if result2.success:    
             # Store beams as array of 3D points
-            beams1 = np.asarray(list(pc2.read_points(result1.minibatch, 
-                                    field_names = ("x", "y", "z"), skip_nans=True)))
-            beams1 = np.reshape(beams1, (-1,3))
+            #beams1 = np.asarray(list(pc2.read_points(result1.minibatch, 
+            #                        field_names = ("x", "y", "z"), skip_nans=True)))
+            #beams1 = np.reshape(beams1, (-1,3))
             beams2 = np.asarray(list(pc2.read_points(result2.minibatch, 
                                     field_names = ("x", "y", "z"), skip_nans=True)))
             beams2 = np.reshape(beams2, (-1,3))
             
-            beams = np.concatenate((beams1, beams2), axis=1)
-            
+            idx = np.random.choice(self.beams.shape[0]-1, split_mb_size, replace=False)
+            beams1 = self.beams[idx,:]
+            beams = np.concatenate((beams1, beams2), axis=0)
             self.training = True
             
             
             input = torch.from_numpy(beams[:, 0:2]).to(self.device).float()
             target = torch.from_numpy(beams[:,2]).to(self.device).float()
             
-
             # # compute loss, compute gradient, and update
             self.opt.zero_grad()
             loss = -self.mll(self.model(input), target)
@@ -212,6 +213,8 @@ class SVGP_map():
         while not self.ac_mb.wait_for_server(timeout=rospy.Duration(5)) and not rospy.is_shutdown():
             print("Waiting for MB AS ", particle_id)
 
+        self.beams = np.empty((0, 3))
+        
          # Subscription to GP inducing points from RBPF
         ip_top = rospy.get_param("~inducing_points_top")
         rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
@@ -250,8 +253,8 @@ class SVGP_map():
             num_outputs=1,
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
-            learn_inducing_points=True,
-            mean_module = ConstantMean(constant_constraint=Interval(interval_low, interval_high)),
+            learn_inducing_points=False,
+            #mean_module = ConstantMean(constant_constraint=Interval(interval_low, interval_high)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.likelihood = GaussianLikelihood()
         
@@ -358,7 +361,11 @@ class SVGP_map():
                 beams = np.asarray(list(pc2.read_points(result.minibatch, 
                                         field_names = ("x", "y", "z"), skip_nans=True)))
                 beams = np.reshape(beams, (-1,3))
-
+                
+                idx = np.random.choice(beams.shape[0]-1, 50, replace=False)
+                self.beams = np.concatenate((self.beams, beams[idx,:]), axis=0)
+                # Sample UIs covariances
+                
                 if not self.plotting and not self.sampling and not self.resampling:
                     with self.mutex:
                         self.training = True

@@ -22,6 +22,8 @@ import filelock
 # Python functionality
 import filelock
 import copy
+import pickle
+import time
 
 # Custom imports
 import PlannerTemplateClass
@@ -102,6 +104,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         
         # Setup GP for storage
         self.frozen_gp              = GaussianProcessClass.frozen_SVGP()
+        self.beams                  = np.empty((0, 3))
         
         # Parameters for optimizer
         self.wp_resolution          = wp_resolution
@@ -140,8 +143,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             rospy.sleep(2)
 
         # Generate point in center of bounds
-        x_pos = 800#self.bounds[0] + (self.bounds[2] - self.bounds[0])/2
-        y_pos = -250#self.bounds[1] + (self.bounds[3] - self.bounds[1])/2
+        x_pos = self.bounds[0] + (self.bounds[2] - self.bounds[0])/2
+        y_pos = self.bounds[1] + (self.bounds[3] - self.bounds[1])/2
         samples = np.random.uniform(low=[x_pos - 1, y_pos - 1, -np.pi], high=[x_pos + 1, y_pos + 1, np.pi], size=[1, 3])
         h = std_msgs.msg.Header()
         h.frame_id = self.map_frame
@@ -259,12 +262,18 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         with self.gp_env_lock:
             cp = torch.load("GP_env.pickle")
             self.frozen_gp.model.load_state_dict(cp['model'])
+            nbr_beam_samples = min(self.gp.beams.shape[0]-1, 20000)
+            idx = np.random.choice(self.gp.beams.shape[0]-1, nbr_beam_samples, replace=False)
+            beams = self.gp.beams[idx,:]
+            self.frozen_gp.beams = beams
                        
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
         
-        while self.finish_imminent == False:
+        t1 = time.time()
+        #while self.finish_imminent == False:
+        while time.time() - t1 < 50:
             MCTS.iterate()
         
         rush_order_activated = False

@@ -11,6 +11,7 @@ import ipp_utils
 import GaussianProcessClass
 import actionlib
 from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
+import pickle
 
 """ PLAN FOR IMPLEMENTING MULTIPLE TRAINING GPs
 
@@ -39,43 +40,53 @@ class Node(object):
         self.children           = []
         self.reward             = -np.inf
         self.visit_count        = 0
-        self.id                 = depth * id_nbr
+        self.id                 = (depth ** 2) * id_nbr
         self.training           = False
         self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.map_frame          = rospy.get_param("~map_frame")
+        self.simulated_points   = np.empty((0,3))
 
-        print("Node __init__: Created all attributes")
+        #print("Node __init__: Created all attributes")
         
         # If not root, we generate and train on simulated points
         if id_nbr > 0:
-            print("Node __init__: This is not root node, ID " + str(self.id))
+            #print("Node __init__: This is not root node, ID " + str(self.id))
             self.training           = True
-            self.generate_points()
-            print("Node __init__: Generated points")
-            self.simulated_mb_as    = actionlib.SimpleActionServer("simulated_mb_" + str(self.id), 
-                                                                MinibatchTrainingAction, 
-                                                                execute_cb=self.action_cb, 
-                                                                auto_start=False)
-            self.simulated_mb_as.start()            
-            self.gp.attach_simulated_AS("simulated_mb_" + str(self.id))
-            print("Node __init__: Created action server and attached it to GP with AS ID " + "simulated_mb_" + str(self.id))
+            #print("Node __init__: Generated points")
+            
+            #self.simulated_mb_as    = actionlib.SimpleActionServer("simulated_mb_" + str(self.id), 
+            #                                                    MinibatchTrainingAction, 
+            #                                                    execute_cb=self.action_cb, 
+            #                                                    auto_start=False)
+            #self.simulated_mb_as.start()            
+            #self.gp.attach_simulated_AS("simulated_mb_" + str(self.id))
+            #print("Node __init__: Created action server and attached it to GP with AS ID " + "simulated_mb_" + str(self.id))
             
             training_iteration = 0
+            
+            points = self.generate_points()
+            self.gp.beams = np.concatenate((points, self.gp.beams), axis=0)
+            
+            with open("node_gp_" + str(self.id) + "0.pickle", "wb") as fp:
+                pickle.dump(self.gp.model, fp)
                 
-            while training_iteration < 10:
+            while training_iteration < 50:
                 
                 if True:
                     #train GP. remember to give id nbr for correct action server usage
                     self.gp.train_simulated_and_real_iteration()
                     training_iteration += 1
-                    print("Node __init__: Training GP nbr:"+ str(self.id)+ ", at iteration: "+ str(training_iteration))
+                    #print("Node __init__: Training GP nbr:"+ str(self.id)+ ", at iteration: "+ str(training_iteration))
             self.training = False
+            with open("node_gp_" + str(self.id) + "1.pickle", "wb") as fp:
+                pickle.dump(self.gp.model, fp)
+            
             
     def generate_points(self):
         
         # Get XY points from swaths along straight line between poses
-        wp = ipp_utils.upsample_waypoints(self.parent.position, self.position, 0.25)
-        points = ipp_utils.get_orthogonal_samples(wp, 64, 40)
+        wp = ipp_utils.upsample_waypoints(self.parent.position, self.position, 1)
+        points = ipp_utils.get_orthogonal_samples(wp, 20, 40)
         
         # Setup model
         self.gp.model.to(self.device).float()
@@ -103,9 +114,10 @@ class Node(object):
                     z_array[i*int(n/divs):(i+1)*int(n/divs), :] = outputs                
         
         # Write simulated points to an array, to be used as training data
-        self.simulated_points = np.concatenate((points, z_array), axis=1)
+        return np.concatenate((points, z_array), axis=1)
     
     
+    """
     def action_cb(self, goal):
         
         result = MinibatchTrainingResult()
@@ -125,6 +137,7 @@ class Node(object):
         else:
             result.success = False
             self.simulated_mb_as.set_succeeded(result)
+    """
     
     
     
@@ -209,12 +222,15 @@ class MonteCarloTree(object):
         
         ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
         t1 = time.time()
+        
         for i in range(nbr_children):
             new_gp = GaussianProcessClass.frozen_SVGP()
             new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
+            new_gp.beams = node.gp.beams
             n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
             node.children.append(n)
         print("****** TIME TAKEN TO EXPAND NODES: " + str(time.time() - t1) + " ******")
+        
     
     def rollout_node(self, node):
         

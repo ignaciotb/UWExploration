@@ -55,7 +55,7 @@
     <arg name="beta"                            default="5.5" />
     <arg name="MCTS_begin_time"                 default="45" />
     <arg name="MCTS_interrupt_time"             default="15" />
-    <arg name="MCTS_max_depth"                  default="1" />
+    <arg name="MCTS_max_depth"                  default="2" />
     <arg name="MCTS_sample_decay_factor"        default="10" />
     <arg name="MCTS_UCT_C"                      default="10.0" />
 

@@ -4,6 +4,7 @@ import botorch
 
 # Math libraries
 import numpy as np
+import math
 
 # ROS imports
 import rospy
@@ -24,6 +25,7 @@ import copy
 
 # Custom imports
 import PlannerTemplateClass
+import ipp_utils
 
 class LMPlanner(PlannerTemplateClass.PlannerTemplate):
     """ Class for lawnmower pattern planner.
@@ -40,7 +42,7 @@ class LMPlanner(PlannerTemplateClass.PlannerTemplate):
         PlannerBase (obj): Basic template of planner class
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, 
-                 bounds, turning_radius, training_rate, sw, max_time, vehicle_velocity):
+                 bounds, turning_radius, training_rate, sw):
         """ Constructor
 
         Args:
@@ -55,12 +57,12 @@ class LMPlanner(PlannerTemplateClass.PlannerTemplate):
         """
         # Invoke constructor of parent class
         super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, 
-                         bounds, turning_radius, training_rate, max_time, vehicle_velocity) 
+                         bounds, turning_radius, training_rate) 
         
         # Publish path, then train GP
         self.path_pub = rospy.Publisher(path_topic, Path, queue_size=100)
         rospy.sleep(1)
-        path = self.generate_path(sw, self.max_time, self.vehicle_velocity)
+        path = self.generate_path(swath_width=sw)
         self.path_pub.publish(path) 
         self.begin_gp_train()
             
@@ -73,14 +75,14 @@ class LMPlanner(PlannerTemplateClass.PlannerTemplate):
         
         # Freeze a copy of current model for plotting, to let real model keep training
         with self.gp.mutex:
-            pickle.dump(self.gp.model, open(self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env_lawnmower.pickle" , "wb"))
-            print("pickled")
+            ipp_utils.save_model(self.gp.model, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env_lawnmower.pickle")
+            print("Saved model")
         
         # Notify of current distance travelled
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")
         
     
-    def generate_path(self, swath_width, max_time, vehicle_speed):
+    def generate_path(self, swath_width):
         """ Creates a basic path in lawnmower pattern in a rectangle with given parameters
 
         Args:
@@ -92,43 +94,43 @@ class LMPlanner(PlannerTemplateClass.PlannerTemplate):
             nav_msgs.msg.Path: Waypoint list, in form of poses
         """
         
-        l = self.bounds[0]
-        r = self.bounds[1]
-        u = self.bounds[2]
-        d = self.bounds[3]
+        while not self.odom_init and not rospy.is_shutdown():
+            print("Lawnmower patternis waiting for odometry before starting.")
+            rospy.sleep(2)
+            
+        swath_width = 30
+        turning_radius = 15
+        
+        low_x   = self.bounds[0]
+        low_y   = self.bounds[1]
+        high_x  = self.bounds[2]
+        high_y  = self.bounds[3]
+        
+        print(self.bounds)
         
         # Check which corner to start on, based on which is closest
-        if abs(self.state[0] - l) < abs(self.state[0] - r):
-            start_x = l
+        if abs(self.state[0] - low_x) < abs(self.state[0] - high_x):
+            start_x = low_x
             direction_x = 1
         else:
-            start_x = r
+            start_x = high_x
             direction_x = -1
             
-        if abs(self.state[1] - d) < abs(self.state[1] - u):
-            start_y = d
+        if abs(self.state[1] - low_y) < abs(self.state[1] - high_y):
+            start_y = low_y
             direction_y = 1
         else:
-            start_y = u
+            start_y = high_y
             direction_y = -1
             
         # Calculate how many passes, floor to be safe and get int
-        height = abs(u - d)
-        width = abs(r - l)
-        nbr_passes = math.ceil(width/max(swath_width, self.turning_radius))
-        
-        # Reduce nbr passes until distance contraint is satisfied.
-        max_distance = max_time * vehicle_speed
-        distance = nbr_passes*height + (nbr_passes-1)*self.turning_radius*np.pi/2
-        while distance > max_distance:
-            swath_width += 2.0
-            nbr_passes = math.floor(width/max(swath_width, self.turning_radius))
-            distance = nbr_passes*height + (nbr_passes-1)*self.turning_radius*np.pi/2
-            
+        height = abs(high_y - low_y)
+        width = abs(high_x - low_x)
+        nbr_passes = math.ceil(width/max(swath_width, turning_radius))      
             
         # Calculate changes at each pass. Use Y as long end.
-        dx = max(swath_width, 2*self.turning_radius) * direction_x
-        dy = abs(height-2*self.turning_radius) * direction_y
+        dx = max(swath_width, 2*turning_radius) * direction_x
+        dy = abs(height-2*turning_radius) * direction_y
         
         # Get stamp
         h = std_msgs.msg.Header()
@@ -140,10 +142,10 @@ class LMPlanner(PlannerTemplateClass.PlannerTemplate):
         h.stamp = rospy.Time.now()
         wp1 = PoseStamped(header=h)
         wp1.pose.position.x = start_x + direction_x * swath_width / 2
-        wp1.pose.position.y = start_y + direction_x * self.turning_radius
+        wp1.pose.position.y = start_y + direction_x * turning_radius
         #lm_path.poses.append(wp1)
         start_x = start_x - direction_x * swath_width / 2
-        start_y = start_y + direction_y * self.turning_radius
+        start_y = start_y + direction_y * turning_radius
         x = start_x 
         y = start_y
 

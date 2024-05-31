@@ -11,7 +11,7 @@ import numpy as np
 #print(MBES.shape)
 
 # Load first model
-model1 = pickle.load(open(r"/home/alex/.ros/node_gp_41.pickle","rb"))
+model1 = pickle.load(open(r"/home/alex/.ros/GP_env_vis.pickle","rb"))
 likelihood1 = GaussianLikelihood()
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 likelihood1.to(device).float()
@@ -55,7 +55,7 @@ inputst2 = [_.flatten() for _ in inputst2]
 inputst2 = np.vstack(inputst2).transpose()
 
 # Define acquisition functions
-ucb_fun = UpperConfidenceBound(model1, 10)
+ucb_fun = UpperConfidenceBound(model1, 20)
 """
 ucb_path = UpperConfidenceBound(model2, 10)
 """
@@ -70,7 +70,7 @@ with torch.no_grad():
         inputst_temp = torch.from_numpy(inputst[i*int(n*n/divs):(i+1)*int(n*n/divs), :]).to(device).float()
         outputs = model1(inputst_temp)
         mean_r, sigma_r = ucb_fun._mean_and_sigma(inputst_temp)
-        ucb = abs(mean_r - model1.model.mean_module.constant) + ucb_fun.beta.sqrt() * sigma_r
+        ucb = mean_r + ucb_fun.beta.sqrt() * sigma_r
         outputs = likelihood1(outputs)
         mean_list.append(outputs.mean.cpu().numpy())
         var_list.append(outputs.variance.cpu().numpy())
@@ -106,11 +106,11 @@ fig, ax = plt.subplots(sharex=True, sharey=True)
 #cr = ax[0].scatter(MBES[:, 0], MBES[:, 1], c = MBES[:, 2],
 #                    cmap='jet', s=0.4, edgecolors='none')
 #cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)  # Normalized across plots
-# cm = ax[1].contourf(*inputsg, mean, cmap='jet', levels=n_contours)
-cv = ax.contourf(*inputsg, variance, levels=n_contours)
+cm = ax.contourf(*inputsg, mean, cmap='jet', levels=n_contours)
+#cv = ax.contourf(*inputsg, variance, levels=n_contours)
 indpts = model1.model.variational_strategy.inducing_points.data.cpu().numpy()
 ax.plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
-#ca = ax[3].contourf(*inputsg, ucb, levels=n_contours)
+#ca = ax.contourf(*inputsg, ucb, levels=n_contours)
 
 
 
@@ -119,9 +119,9 @@ ax.plot(indpts[:, 0], indpts[:, 1], 'ko', markersize=1, alpha=0.5)
 
 # colorbars
 #fig.colorbar(cr, ax=ax[0])
-#fig.colorbar(cm, ax=ax)
-fig.colorbar(cv, ax=ax)
-#fig.colorbar(ca, ax=ax[3])
+fig.colorbar(cm, ax=ax)
+#fig.colorbar(cv, ax=ax)
+#fig.colorbar(ca, ax=ax)
 
 # # formatting
 ax.set_aspect('equal')

@@ -76,6 +76,44 @@ def get_orthogonal_samples(poses, nbr_samples=10, swath_width=20):
     output = np.reshape(samples, (len(poses) * nbr_samples, 2))
     return output #torch.from_numpy(output).type(torch.FloatTensor)
 
+def generate_points(gp, pos1, pos2, min_samples = 20, resolution=1, beam_width=40):
+                
+        # Get XY points from swaths along straight line between poses
+        wp = upsample_waypoints(pos1, pos2, resolution)
+        adjusted_samples = min_samples
+        while np.shape(wp)[0] * adjusted_samples < 520:
+            adjusted_samples += 4
+        points = get_orthogonal_samples(wp, adjusted_samples, beam_width)
+                
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Setup model
+        gp.model.to(device).float()
+        gp.model.likelihood.to(device).float()
+                
+        # Sample max likelihood Z values from GP
+        n = np.shape(points)[0]
+        z_array = np.ones((n, 1))
+        divs = 10
+        with torch.no_grad():
+            for i in range(0, divs):
+                
+                # Ensure entire array gets filled, even with mismatches in size from divs
+                if i == divs - 1:
+                    inputst_temp = torch.from_numpy(points[i*int(n/divs)::, :]).to(device).float()
+                    outputs = gp.model(inputst_temp)
+                    outputs = gp.model.likelihood(outputs)
+                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
+                    z_array[i*int(n/divs)::, :] = outputs
+                else:
+                    inputst_temp = torch.from_numpy(points[i*int(n/divs):(i+1)*int(n/divs), :]).to(device).float()
+                    outputs = gp.model(inputst_temp)
+                    outputs = gp.model.likelihood(outputs)
+                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
+                    z_array[i*int(n/divs):(i+1)*int(n/divs), :] = outputs                
+        # Write simulated points to an array, to be used as training data
+        return np.concatenate((points, z_array), axis=1)
+
 def save_model(model, filename):
         """ Saves a torch model
 

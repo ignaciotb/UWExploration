@@ -35,7 +35,7 @@ class PlannerTemplate(object):
         
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, 
-                 turning_radius, training_rate, max_time, vehicle_velocity):
+                 turning_radius, training_rate):
         
         """ Constructor method
 
@@ -47,8 +47,6 @@ class PlannerTemplate(object):
             bounds        (list[double]): [low_x, low_y, high_x, high_y]
             turning_radius      (double): the radius on which the vehicle can turn on yaw axis
             training_rate          (int): rate at which GP is trained
-            max_time            (double): expected maximum mission time
-            vehicle_velocity    (double): expected average vehicle velocity
         """
         
         self.corner_topic       = corner_topic
@@ -58,8 +56,6 @@ class PlannerTemplate(object):
         self.bounds             = bounds
         self.turning_radius     = turning_radius
         self.training_rate      = training_rate
-        self.max_time           = max_time
-        self.vehicle_velocity   = vehicle_velocity
         
         # Frame transforms
         self.map_frame          = rospy.get_param("~map_frame")

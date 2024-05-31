@@ -1,5 +1,5 @@
 import numpy as np
-from botorch.acquisition import qSimpleRegret, UpperConfidenceBound, qUpperConfidenceBound
+from botorch.acquisition import qSimpleRegret, UpperConfidenceBound, qUpperConfidenceBound, qLowerBoundMaxValueEntropy, qKnowledgeGradient, qNoisyExpectedImprovement
 import torch
 from botorch.optim import optimize_acqf
 import time
@@ -9,8 +9,6 @@ import matplotlib.cm as cm
 import rospy
 import ipp_utils
 import GaussianProcessClass
-import actionlib
-from slam_msgs.msg import MinibatchTrainingAction, MinibatchTrainingResult, MinibatchTrainingGoal
 import pickle
 
 """ PLAN FOR IMPLEMENTING MULTIPLE TRAINING GPs
@@ -45,80 +43,25 @@ class Node(object):
         self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.map_frame          = rospy.get_param("~map_frame")
         self.simulated_points   = np.empty((0,3))
-
-        #print("Node __init__: Created all attributes")
         
         # If not root, we generate and train on simulated points
         if id_nbr > 0:
-            #print("Node __init__: This is not root node, ID " + str(self.id))
-            self.training           = True
-            #print("Node __init__: Generated points")
-            
-            #self.simulated_mb_as    = actionlib.SimpleActionServer("simulated_mb_" + str(self.id), 
-            #                                                    MinibatchTrainingAction, 
-            #                                                    execute_cb=self.action_cb, 
-            #                                                    auto_start=False)
-            #self.simulated_mb_as.start()            
-            #self.gp.attach_simulated_AS("simulated_mb_" + str(self.id))
-            #print("Node __init__: Created action server and attached it to GP with AS ID " + "simulated_mb_" + str(self.id))
-            
-            training_iteration = 0
-            
-            points = self.generate_points()
+            points = ipp_utils.generate_points(self.gp, self.parent.position, self.position)
             self.gp.simulated_beams = np.concatenate((points, self.gp.simulated_beams), axis=0)
+        training_iteration = 0      
+        while training_iteration < 50:
+            self.gp.train_simulated_and_real_iteration()
+            training_iteration += 1
+                    
+        # For debugging, pickle (REMOVE FOR FIELD EXPERIMENTS; pickle causes issues)
+        if id_nbr < 1:
+            parent_id = "noparent"
+        else:
+            parent_id = self.parent.id
+        with open("node_gp_" + str(parent_id) + "_" + str(self.id) + ".pickle", "wb") as fp:
+            pickle.dump(self.gp.model, fp)
+
             
-            with open("node_gp_" + str(self.id) + "0.pickle", "wb") as fp:
-                pickle.dump(self.gp.model, fp)
-                
-            while training_iteration < 50:
-                
-                if True:
-                    #train GP. remember to give id nbr for correct action server usage
-                    self.gp.train_simulated_and_real_iteration()
-                    training_iteration += 1
-                    #print("Node __init__: Training GP nbr:"+ str(self.id)+ ", at iteration: "+ str(training_iteration))
-            self.training = False
-            with open("node_gp_" + str(self.id) + "1.pickle", "wb") as fp:
-                pickle.dump(self.gp.model, fp)
-            
-            
-    def generate_points(self):
-        
-        # Get XY points from swaths along straight line between poses
-        wp = ipp_utils.upsample_waypoints(self.parent.position, self.position, 1)
-        min_samples = 20
-        while np.shape(wp)[0] * min_samples < 520:
-            min_samples += 4
-        points = ipp_utils.get_orthogonal_samples(wp, min_samples, 40)
-        print(np.shape(points))
-        
-        # Setup model
-        self.gp.model.to(self.device).float()
-        self.gp.model.likelihood.to(self.device).float()
-        
-        # Sample max likelihood Z values from GP
-        n = np.shape(points)[0]
-        z_array = np.ones((n, 1))
-        divs = 10
-        with torch.no_grad():
-            for i in range(0, divs):
-                
-                # Ensure entire array gets filled, even with mismatches in size from divs
-                if i == divs - 1:
-                    inputst_temp = torch.from_numpy(points[i*int(n/divs)::, :]).to(self.device).float()
-                    outputs = self.gp.model(inputst_temp)
-                    outputs = self.gp.model.likelihood(outputs)
-                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
-                    z_array[i*int(n/divs)::, :] = outputs
-                else:
-                    inputst_temp = torch.from_numpy(points[i*int(n/divs):(i+1)*int(n/divs), :]).to(self.device).float()
-                    outputs = self.gp.model(inputst_temp)
-                    outputs = self.gp.model.likelihood(outputs)
-                    outputs = np.expand_dims(outputs.mean.cpu().numpy(), 1)
-                    z_array[i*int(n/divs):(i+1)*int(n/divs), :] = outputs                
-        
-        # Write simulated points to an array, to be used as training data
-        return np.concatenate((points, z_array), axis=1)
     
     
     """
@@ -212,16 +155,16 @@ class MonteCarloTree(object):
         
         #print("expanding, parent at node depth: " + str(node.depth))
         
-        #XY_acqf         = qSimpleRegret(model=self.gp)
-        XY_acqf         = qUpperConfidenceBound(model=node.gp.model, beta=self.beta)
+        #XY_acqf         = qSimpleRegret(model=node.gp.model)                                # Just pure exploration (but also gets stuck on maxima)
+        XY_acqf         = qUpperConfidenceBound(model=node.gp.model, beta=self.beta)       # Issues with getting stuck in local maxima
+        #XY_acqf         = qKnowledgeGradient(model=node.gp.model)                          # No, cant fantasize with variational GP
+        
         
         local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
         bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
         
-        decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
-        
-        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
+        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=5, raw_samples=100)
         
         
         ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")

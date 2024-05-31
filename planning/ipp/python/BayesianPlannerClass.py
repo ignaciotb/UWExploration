@@ -22,8 +22,8 @@ import filelock
 # Python functionality
 import filelock
 import copy
-import pickle
 import time
+import pickle
 
 # Custom imports
 import PlannerTemplateClass
@@ -54,8 +54,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
     """
     def __init__(self, corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, 
                  training_rate, wp_resolution, swath_width, path_nbr_samples, voxel_size, 
-                 wp_sample_interval, horizon_distance, border_margin, beta,
-                 max_time, vehicle_velocity, MCTS_begin_time, MCTS_interrupt_time):
+                 wp_sample_interval, horizon_distance, border_margin, beta):
         
         """ Constructor method
 
@@ -75,14 +74,9 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             horizon_distance    (_type_): _description_
             border_margin       (_type_): _description_
             beta                (_type_): _description_
-            max_time            (_type_): _description_
-            vehicle_velocity    (_type_): _description_
-            MCTS_begin_time     (_type_): _description_
-            MCTS_interrupt_time (_type_): _description_
         """
         # Invoke constructor of parent class
-        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate,
-                         max_time, vehicle_velocity) 
+        super().__init__(corner_topic, path_topic, planner_req_topic, odom_topic, bounds, turning_radius, training_rate) 
         
         # Logic checks
         assert border_margin > 0,       "Planner safety/border margin must be positive"
@@ -115,8 +109,6 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.horizon_distance       = horizon_distance
         self.border_margin          = border_margin
         self.beta                   = beta
-        self.MCTS_begin_time        = MCTS_begin_time
-        self.MCTS_interrupt_time    = MCTS_interrupt_time
         
         # Publish an initial path
         initial_path                = self.initial_deterministic_path()
@@ -245,10 +237,10 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         
         if self.nbr_wp < 1 and self.finish_imminent == False:
             self.finish_imminent = True
-            print("Stopping planning...")
+            print("Stopping planning... No more tree nodes will be expanded.")
             
     def execute_planning(self, msg):
-        """_summary_
+        """ 
 
         Args:
             msg (_type_): _description_
@@ -256,8 +248,9 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         
         # Freeze a copy of current model for planning, to let real model keep training
         with self.gp.mutex:
-                #pickle.dump(self.gp.model, open("GP_env.pickle" , "wb"))
                 torch.save({'model' : self.gp.model.state_dict()}, "GP_env.pickle")
+                with open("GP_env_vis.pickle", "wb") as fp:
+                    pickle.dump(self.gp.model, fp)
                 print("Froze GP for planning")
                 
         with self.gp_env_lock:
@@ -267,13 +260,16 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             idx = np.random.choice(self.gp.real_beams.shape[0]-1, nbr_beam_samples, replace=False)
             beams = self.gp.real_beams[idx,:]
             self.frozen_gp.real_beams = beams
-                       
+            if len(self.wp_list) > 0:
+                points = ipp_utils.generate_points(self.frozen_gp, self.state[:2], self.wp_list[-1][:2])
+                self.frozen_gp.simulated_beams = np.concatenate((points, self.frozen_gp.simulated_beams), axis=0)
+        
         # Signature in: Gaussian Process of terrain, xy bounds where we can find solution, current pose
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
         
         t1 = time.time()
-        while self.finish_imminent == False or time.time() - t1 < 30:
+        while self.finish_imminent == False or time.time() - t1 < 75:
             MCTS.iterate()
         
         rush_order_activated = False
@@ -336,6 +332,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.currently_planning = False
         self.finish_imminent = False
         torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
+        with open("GP_angle_vis.pickle", "wb") as fp:
+                    pickle.dump(angle_gp, fp)
         torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
         print("Decision models saved.")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")

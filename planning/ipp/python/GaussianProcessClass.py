@@ -81,8 +81,8 @@ class frozen_SVGP():
         self.simulated_beams    = np.empty((0, 3))
         mb_gp_name = rospy.get_param("~minibatch_gp_server")
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
-        self.interval_low = rospy.get_param("~mean_interval_low")
-        self.interval_high = rospy.get_param("~mean_interval_high")
+        self.prior_mean = rospy.get_param("~prior_mean")
+        self.prior_vari = rospy.get_param("~prior_vari")
         self.num_inducing = rospy.get_param("~svgp_num_ind_points")
         self.mb_size = rospy.get_param("~svgp_minibatch_size")
         self.lr = rospy.get_param("~svgp_learning_rate")
@@ -98,8 +98,8 @@ class frozen_SVGP():
                 inducing_points = torch.randn(self.s,2),
                 variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(self.s),
                 likelihood=GaussianLikelihood(),
-                learn_inducing_points=False,
-                #mean_module = ConstantMean(constant_constraint=Interval(self.interval_low, self.interval_high)),
+                learn_inducing_points=True,
+                mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.likelihood = GaussianLikelihood()
@@ -206,8 +206,8 @@ class SVGP_map():
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
         
-        interval_low = rospy.get_param("~mean_interval_low")
-        interval_high = rospy.get_param("~mean_interval_high")
+        self.prior_mean = rospy.get_param("~prior_mean")
+        self.prior_vari = rospy.get_param("~prior_vari")
 
         # hardware allocation
         initial_x = torch.randn(self.s,2)
@@ -217,9 +217,9 @@ class SVGP_map():
             num_outputs=1,
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
-            learn_inducing_points=False,
-            #mean_module = ConstantMean(constant_constraint=Interval(interval_low, interval_high)),
-            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+            learn_inducing_points=True,
+            mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
+            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, )))
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

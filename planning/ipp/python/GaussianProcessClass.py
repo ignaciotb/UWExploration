@@ -79,8 +79,8 @@ class frozen_SVGP():
     def __init__(self):
         self.real_beams         = np.empty((0, 3))
         self.simulated_beams    = np.empty((0, 3))
-        mb_gp_name = rospy.get_param("~minibatch_gp_server")
-        self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
+        #mb_gp_name = rospy.get_param("~minibatch_gp_server")
+        #self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         self.prior_mean = rospy.get_param("~prior_mean")
         self.prior_vari = rospy.get_param("~prior_vari")
         self.num_inducing = rospy.get_param("~svgp_num_ind_points")
@@ -90,6 +90,7 @@ class frozen_SVGP():
         self.n_window = rospy.get_param("~svgp_n_window")
         self.auto = rospy.get_param("~svgp_auto_stop")
         self.verbose = rospy.get_param("~svgp_verbose")
+        self.inducing_pts_copy = []
         assert isinstance(self.num_inducing, int)
         self.s = int(self.num_inducing)
         self.model = botorch.models.SingleTaskVariationalGP(
@@ -101,6 +102,7 @@ class frozen_SVGP():
                 learn_inducing_points=True,
                 mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
                 covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+        
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.likelihood = GaussianLikelihood()
         self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
@@ -110,6 +112,8 @@ class frozen_SVGP():
             {'params': self.model.parameters()},
             {'params': self.likelihood.parameters()},
         ], lr=float(self.lr))
+        self.model.train()
+        self.likelihood.train()
     
     def train_simulated_and_real_iteration(self):
         
@@ -159,6 +163,7 @@ class SVGP_map():
         # Beam storage
         self.real_beams         = np.empty((0, 3))
         self.simulated_beams    = np.empty((0, 3))
+        self.inducing_pts_copy  = []
 
         # AS for expected meas
         manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
@@ -408,6 +413,8 @@ class SVGP_map():
             pcl = mesh.sample_points_poisson_disk(
                 number_of_points=int(self.s))
 
+            self.inducing_pts_copy = torch.from_numpy(
+                np.asarray(pcl.points)[:, 0:2])
             self.model.model.variational_strategy.inducing_points.data = torch.from_numpy(
                 np.asarray(pcl.points)[:, 0:2]).to(self.device).float()
 

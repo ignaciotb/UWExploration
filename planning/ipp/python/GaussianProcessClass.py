@@ -90,7 +90,6 @@ class frozen_SVGP():
         self.n_window = rospy.get_param("~svgp_n_window")
         self.auto = rospy.get_param("~svgp_auto_stop")
         self.verbose = rospy.get_param("~svgp_verbose")
-        self.inducing_pts_copy = []
         assert isinstance(self.num_inducing, int)
         self.s = int(self.num_inducing)
         self.model = botorch.models.SingleTaskVariationalGP(
@@ -163,7 +162,6 @@ class SVGP_map():
         # Beam storage
         self.real_beams         = np.empty((0, 3))
         self.simulated_beams    = np.empty((0, 3))
-        self.inducing_pts_copy  = []
 
         # AS for expected meas
         manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
@@ -413,8 +411,6 @@ class SVGP_map():
             pcl = mesh.sample_points_poisson_disk(
                 number_of_points=int(self.s))
 
-            self.inducing_pts_copy = torch.from_numpy(
-                np.asarray(pcl.points)[:, 0:2])
             self.model.model.variational_strategy.inducing_points.data = torch.from_numpy(
                 np.asarray(pcl.points)[:, 0:2]).to(self.device).float()
 

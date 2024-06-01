@@ -34,13 +34,14 @@ class Node(object):
         self.position           = position
         self.depth              = depth
         self.parent             = parent
-        self.gp                 = gp
         self.children           = []
         self.reward             = -np.inf
         self.visit_count        = 0
         self.id                 = (depth ** 2) * id_nbr
         self.training           = False
         self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.gp                 = gp
+        #self.gp.model.to(self.device)
         self.map_frame          = rospy.get_param("~map_frame")
         self.simulated_points   = np.empty((0,3))
         
@@ -49,42 +50,9 @@ class Node(object):
             points = ipp_utils.generate_points(self.gp, self.parent.position, self.position)
             self.gp.simulated_beams = np.concatenate((points, self.gp.simulated_beams), axis=0)
         training_iteration = 0      
-        while training_iteration < 50:
+        while training_iteration < 30:
             self.gp.train_simulated_and_real_iteration()
             training_iteration += 1
-                    
-        # For debugging, pickle (REMOVE FOR FIELD EXPERIMENTS; pickle causes issues)
-        if id_nbr < 1:
-            parent_id = "noparent"
-        else:
-            parent_id = self.parent.id
-        with open("node_gp_" + str(parent_id) + "_" + str(self.id) + ".pickle", "wb") as fp:
-            pickle.dump(self.gp.model, fp)
-
-            
-    
-    
-    """
-    def action_cb(self, goal):
-        
-        result = MinibatchTrainingResult()
-                                
-        if np.shape(self.simulated_points)[0] > goal.mb_size:
-            
-            # Randomly sample minibatch UIs from current dataset       
-            idx = np.random.choice(np.shape(self.simulated_points)[0]-1, goal.mb_size, replace=False)
-            points = self.simulated_points[idx, :]
-            
-            # Pack cloud
-            mbes_pcloud = ipp_utils.pack_cloud(self.map_frame, points)
-            result.minibatch = mbes_pcloud
-            result.success = True
-            self.simulated_mb_as.set_succeeded(result)
-                        
-        else:
-            result.success = False
-            self.simulated_mb_as.set_succeeded(result)
-    """
     
     
     
@@ -98,8 +66,7 @@ class MonteCarloTree(object):
         self.global_bounds              = bounds
         self.iteration                  = 0
         self.C                          = rospy.get_param("~MCTS_UCT_C")
-        self.max_depth                  = rospy.get_param("~MCTS_max_depth")
-        self.MCTS_sample_decay_factor   = rospy.get_param("~MCTS_sample_decay_factor")
+        self.max_depth                  = 1 #rospy.get_param("~MCTS_max_depth")
         self.rollout_reward_distance    = rospy.get_param("~swath_width")/2.0
                 
     def iterate(self):
@@ -114,6 +81,7 @@ class MonteCarloTree(object):
         else:
             # If max depth not hit, and not still training, expand
             if node.depth < self.max_depth:
+                #print("Called expand node for node: " + str(node.id))
                 self.expand_node(node)
                 node = node.children[0]
             value = self.rollout_node(node)
@@ -146,7 +114,7 @@ class MonteCarloTree(object):
             return np.inf
         return node.reward / node.visit_count + self.C * np.sqrt(np.log(self.root.visit_count)/node.visit_count)
     
-    def expand_node(self, node, nbr_children = 3):
+    def expand_node(self, node, nbr_children = 12):
         # Get children of node through BO with multiple candidates
         
         # Use tree GP to set up acquisition function (needs to be MC enabled, to return q candidates)
@@ -154,30 +122,77 @@ class MonteCarloTree(object):
         # Optimize the acqfun, return several candidates
         
         #print("expanding, parent at node depth: " + str(node.depth))
+
+        #node.gp.model.model.to(node.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.loc.device)
+        #print(node.gp.model.model.covar_module)
+
+        #print(next(node.gp.model.parameters()).device)
+
+        #node.gp.model = node.gp.model.to(node.device)
+        #node.gp.model.model = node.gp.model.model.to(node.device)
+        #node.gp.model.model.mean_module.mean_prior.loc = node.gp.model.model.mean_module.mean_prior.loc.to(node.device)
+        #node.gp.model.model.variational_strategy = node.gp.model.model.variational_strategy.to(node.device)
+        #node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix = node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.to(node.device)
+        #print(next(node.gp.model.parameters()).device)
+        #print(node.gp.model.model.covar_module)
+        #print(node.gp.model.model.variational_strategy.variational_distribution)
+        #print(node.gp.model.model.variational_strategy.inducing_points.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.loc.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.device)
+        #print(node.gp.model.model.variational_strategy..device)
+
         
+
+        #node.gp.model.to(node.device).float()
+        #node.gp.likelihood.to(node.device)
         #XY_acqf         = qSimpleRegret(model=node.gp.model)                                # Just pure exploration (but also gets stuck on maxima)
         XY_acqf         = qUpperConfidenceBound(model=node.gp.model, beta=self.beta)       # Issues with getting stuck in local maxima
         #XY_acqf         = qKnowledgeGradient(model=node.gp.model)                          # No, cant fantasize with variational GP
+
+        #XY_acqf.to(node.device)
         
+        #node.gp.model.model.variational_strategy.inducing_points.data = node.gp.inducing_pts_copy.to(node.device).float()
+
+        #print(node.gp.model.model.covar_module.
         
         local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
-        bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
+        bounds_XY_torch = (torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)).to(node.device)
+
+
+        #XY_acqf.model.to(node.device)
+        #bounds_XY_torch.to(node.device)
+        #print(node.device)
+        #print(bounds_XY_torch.is_cuda)
         
+
+
+        t1 = time.time()
+
+
+
+
         candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=5, raw_samples=100)
         
-        
+        print("****** TIME TAKEN TO OPTIMIZE ALL CANDIDATES: " + str(time.time() - t1) + " ******")
         ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
-        t1 = time.time()
+        t2 = time.time()
         
         for i in range(nbr_children):
             new_gp = GaussianProcessClass.frozen_SVGP()
-            new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle")
+            #new_gp.model.to(node.device)
+            cp = torch.load("Parent_gp.pickle", map_location=node.device)
+            new_gp.model.load_state_dict(cp['model'])
+            new_gp.model.to(node.device)
+            #new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle", device=node.device)
             new_gp.real_beams = node.gp.real_beams
             new_gp.simulated_beams = node.gp.simulated_beams
+            #new_gp.inducing_pts_copy = node.gp.inducing_pts_copy
             n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
             node.children.append(n)
-        print("****** TIME TAKEN TO EXPAND NODES: " + str(time.time() - t1) + " ******")
+        print("****** TIME TAKEN TO EXPAND ALL NODES: " + str(time.time() - t2) + " ******")
         
     
     def rollout_node(self, node):

@@ -34,13 +34,13 @@ class Node(object):
         self.position           = position
         self.depth              = depth
         self.parent             = parent
-        self.gp                 = gp
         self.children           = []
         self.reward             = -np.inf
         self.visit_count        = 0
         self.id                 = (depth ** 2) * id_nbr
         self.training           = False
         self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.gp                 = gp.to(self.device)
         self.map_frame          = rospy.get_param("~map_frame")
         self.simulated_points   = np.empty((0,3))
         
@@ -99,7 +99,6 @@ class MonteCarloTree(object):
         self.iteration                  = 0
         self.C                          = rospy.get_param("~MCTS_UCT_C")
         self.max_depth                  = rospy.get_param("~MCTS_max_depth")
-        self.MCTS_sample_decay_factor   = rospy.get_param("~MCTS_sample_decay_factor")
         self.rollout_reward_distance    = rospy.get_param("~swath_width")/2.0
                 
     def iterate(self):

@@ -23,7 +23,6 @@ import filelock
 import filelock
 import copy
 import time
-import pickle
 
 # Custom imports
 import PlannerTemplateClass
@@ -230,7 +229,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             msg (bool): not used.
         """
         #time2target = self.calculate_time2target()
-        if self.nbr_wp < 2 and self.currently_planning == False:
+        if self.nbr_wp < 3 and self.currently_planning == False:
             self.currently_planning = True
             self.execute_planner_pub.publish(True)
             print("Beginning planning...")
@@ -249,8 +248,6 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         # Freeze a copy of current model for planning, to let real model keep training
         with self.gp.mutex:
                 torch.save({'model' : self.gp.model.state_dict()}, "GP_env.pickle")
-                with open("GP_env_vis.pickle", "wb") as fp:
-                    pickle.dump(self.gp.model, fp)
                 print("Froze GP for planning")
                 
         with self.gp_env_lock:
@@ -268,8 +265,8 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         MCTS = MonteCarloTreeClass.MonteCarloTree(self.state[:2], self.frozen_gp, beta=self.beta, bounds=self.bounds,
                               horizon_distance=self.horizon_distance, border_margin=self.border_margin)
         
-        t1 = time.time()
-        while self.finish_imminent == False or time.time() - t1 < 75:
+        #t1 = time.time()
+        while self.finish_imminent == False:
             MCTS.iterate()
         
         rush_order_activated = False
@@ -300,7 +297,7 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             print("Not enough time for full angle optimization, rush order requested")
             angle_optim_max_iter = 0
 
-        candidates_theta, angle_gp  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=angle_optim_max_iter, nbr_samples=15)
+        candidates_theta  = BO.optimize_theta_with_grad(XY=candidates_XY, max_iter=angle_optim_max_iter, nbr_samples=15)
         
         candidate                   = torch.cat([candidates_XY, candidates_theta], 1).squeeze(0)
         
@@ -331,9 +328,9 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
         self.path_pub.publish(sampling_path)
         self.currently_planning = False
         self.finish_imminent = False
-        torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
-        with open("GP_angle_vis.pickle", "wb") as fp:
-                    pickle.dump(angle_gp, fp)
+        #torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
+        #with open("GP_angle_vis.pickle", "wb") as fp:
+        #            pickle.dump(angle_gp, fp)
         torch.save({"model": self.frozen_gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
         print("Decision models saved.")
         print("Current distance travelled: " + str(round(self.distance_travelled)) + " m.")

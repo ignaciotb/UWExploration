@@ -34,6 +34,7 @@ class BayesianOptimizer():
         """
 
         # Set up bounds, and environment acq_fun
+        self.device                 = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.current_pose           = current_pose
         self.bounds_theta_torch     = torch.tensor([[-np.pi],  [np.pi]]).to(torch.float)
         self.path_reward            = UCB_path(model=gp_terrain, current_pose=current_pose, wp_resolution=wp_resolution,
@@ -61,7 +62,7 @@ class BayesianOptimizer():
                                     high=self.bounds_list[1], size=[nbr_samples, 3]))).type(torch.FloatTensor)
             else:
                 train_X = X
-            train_Y = (self.path_reward.forward(train_X.unsqueeze(-2))).unsqueeze(1)
+            train_Y = (self.path_reward.forward((train_X.unsqueeze(-2)).to(self.device))).unsqueeze(1)
         return train_X, train_Y        
     
     def optimize_theta_with_grad(self, XY, max_iter=5, nbr_samples=10):
@@ -84,13 +85,25 @@ class BayesianOptimizer():
         samples = torch.cat([XY_repeated, random_thetas], 1)
         train_X, train_Y  = self._sample_paths(nbr_samples=nbr_samples, X=samples)
         train_X = train_X[:, 2].unsqueeze(1)
-        
+
+        #print(train_X)
+        #print(train_Y)
+        x_ind = torch.argmax(train_Y)
+        #print(x_ind)
+        best_candidate = train_X[x_ind].unsqueeze(1)
+        #print(best_candidate)
         # Train a new 1D Gaussian process for rewards of different headings
-        self.gp_theta               = botorch.models.SingleTaskGP(train_X, train_Y)
+
+        """
+        self.gp_theta               = botorch.models.SingleTaskGP(train_X.to("cpu"), train_Y.to("cpu"))
         self.mll                    = gpytorch.mlls.ExactMarginalLogLikelihood(self.gp_theta.likelihood, self.gp_theta)
         botorch.fit.fit_gpytorch_mll(self.mll)
         best_theta_acqf             = botorch.acquisition.PosteriorMean(self.gp_theta)
-        _, value                    = botorch.optim.optimize_acqf(best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=10, raw_samples=20)
+        best_candidate, value       = botorch.optim.optimize_acqf(best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=5, raw_samples=50)
+
+        """
+
+        """
         self.theta_acqf             = botorch.acquisition.ExpectedImprovement(self.gp_theta, value)
         
         
@@ -103,7 +116,7 @@ class BayesianOptimizer():
             train_X, train_Y  = self._sample_paths(nbr_samples=1, X=sample)
             train_X = train_X[2].unsqueeze(0)
             
-            self.gp_theta = self.gp_theta.get_fantasy_model(train_X, train_Y)
+            self.gp_theta = self.gp_theta.get_fantasy_model(train_X.to(self.device), train_Y.to(self.device))
 
             self.theta_acqf.model = self.gp_theta
             iteration += 1
@@ -113,8 +126,10 @@ class BayesianOptimizer():
         
         best_theta_acqf  = botorch.acquisition.PosteriorMean(self.gp_theta)
         best_candidate, value = botorch.optim.optimize_acqf(best_theta_acqf, bounds=self.bounds_theta_torch, q=1, num_restarts=20, raw_samples=20)
+
+        """
                 
-        return best_candidate, self.gp_theta
+        return best_candidate #, self.gp_theta
     
 
 class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
@@ -130,6 +145,7 @@ class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
         self.swath_width = swath_width
         self.nbr_samples = path_nbr_samples
         self.voxel_size = voxel_size
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             
     @t_batch_mode_transform(expected_q=1)
     def forward(self, X: torch.Tensor) -> torch.Tensor:
@@ -168,7 +184,7 @@ class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
         """
         destinations = (xy.squeeze(-2).squeeze(-1))
         angles = (theta.squeeze(-1))
-        rewards = torch.Tensor()
+        rewards = torch.Tensor().to(self.device)
         
         for idx, place in enumerate(destinations):
             # Calculate dubins path to candidate, and travel cost
@@ -188,7 +204,7 @@ class UCB_path(botorch.acquisition.AnalyticAcquisitionFunction):
             #o3d.visualization.draw_geometries([pcd3])
             xyz = np.asarray(pcd3.points)
 
-            xy = torch.from_numpy(xyz[:, :2]).type(torch.FloatTensor)
+            xy = (torch.from_numpy(xyz[:, :2]).type(torch.FloatTensor)).to(self.device)
             
             # Calculate UCB/cost reward of travelling to candidate
             _, sigma = self._mean_and_sigma(xy)

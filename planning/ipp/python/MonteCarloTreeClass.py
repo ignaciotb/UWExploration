@@ -40,6 +40,7 @@ class Node(object):
         self.id                 = (depth ** 2) * id_nbr
         self.training           = False
         self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+<<<<<<< HEAD
         self.gp                 = gp
         #self.gp.model.to(self.device)
         self.map_frame          = rospy.get_param("~map_frame")

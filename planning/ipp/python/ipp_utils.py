@@ -123,14 +123,15 @@ def save_model(model, filename):
         """
         torch.save({'model' : model.state_dict()}, filename)
     
-def load_model(model, filename):
+def load_model(model, filename, device):
     """ Loads a torch model from state dictionary
 
     Args:
         model (): Given model to load state into
         filename (string): Location of the saved state dictionary
     """
-    cp = torch.load(filename)
+    cp = torch.load(filename, map_location=device)
+    model.to(device).float()
     model.load_state_dict(cp['model'])
     return model
 

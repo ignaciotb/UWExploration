@@ -61,7 +61,7 @@
     <arg name="bound_right"                     default="821"/>
     <arg name="bound_up"                        default="-179"/>
     <arg name="bound_down"                      default="-457"/>
-    <arg name="horizon_distance"                default="150"/>
+    <arg name="horizon_distance"                default="110"/>
     <arg name="border_margin"                   default="25"/>
     <arg name="prior_mean"                      default="-18" />
     <arg name="prior_vari"                      default="0.125" />

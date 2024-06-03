@@ -14,8 +14,8 @@
 	<arg name="mbes_open_angle"                 default="1.57" />
   
     <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x"                               default="800"/>
-    <arg name="y"                               default="-200"/>
+    <arg name="x"                               default="1850"/>
+    <arg name="y"                               default="1250"/>
     <arg name="z"                               default="0.0"/>
     <arg name="roll"                            default="0.0"/>
     <arg name="pitch"                           default="0.0"/>

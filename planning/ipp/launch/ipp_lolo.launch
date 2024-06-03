@@ -39,7 +39,7 @@
     <arg name="gp_resample_top"                 default="/$(arg namespace)/gp/resample_top"/>
     <arg name="results_path"                    default="/home/sam/ipp_ws/src/UWExploration/planning/ipp/data/"/>   
     <arg name="num_particles_per_handler"       default="1"/>      
-    <arg name="svgp_minibatch_size"   default="1000" />
+    <arg name="svgp_minibatch_size"   default="1024" />
 
     <!-- Planner parameters -->
     <arg name="planner_type"                    default="opt"/> <!-- lawnmower or opt -->
@@ -53,24 +53,19 @@
     <arg name="path_nbr_samples"                default="7" />
     <arg name="voxel_size"                      default="3" />
     <arg name="wp_sample_interval"              default="1" />
-    <arg name="beta"                            default="5.5" />
-    <arg name="MCTS_begin_time"                 default="45" />
-    <arg name="MCTS_interrupt_time"             default="15" />
-    <arg name="MCTS_max_depth"                  default="3" />
-    <arg name="MCTS_sample_decay_factor"        default="10" />
-    <arg name="MCTS_UCT_C"                      default="10.0" />
+    <arg name="beta"                            default="20" />
+    <arg name="MCTS_max_depth"                  default="2" />
+    <arg name="MCTS_UCT_C"                      default="12.0" />
 
     <!-- Planner constraints -->
     <arg name="bound_left"                      default="1058"/>
     <arg name="bound_right"                     default="1116"/>
     <arg name="bound_up"                        default="-206"/>
     <arg name="bound_down"                      default="-120"/>
-    <arg name="horizon_distance"                default="70"/>
-    <arg name="border_margin"                   default="25"/>
-    <arg name="max_mission_time"                default="3600"/>
-    <arg name="vehicle_velocity"                default="0.8"/>
-    <arg name="mean_interval_low"               default="-20" />
-    <arg name="mean_interval_high"              default="-16" />
+    <arg name="horizon_distance"                default="100"/>
+    <arg name="border_margin"                   default="20"/>
+    <arg name="prior_mean"                      default="-18" />
+    <arg name="prior_vari"                      default="0.125" />
 
     <!-- If plotting decision support material should be enabled-->
     <arg name="visualize"                       default="0"/>
@@ -87,7 +82,7 @@
         <param name="sample_gp_server"          value="/$(arg namespace)/gp/sample_server"/>
         <param name="minibatch_gp_server"       value="$(arg gp_mb_server)"/>     
         <param name="svgp_num_ind_points"       value="250"/>     
-        <param name="svgp_minibatch_size"       value="1000"/>     
+        <param name="svgp_minibatch_size"       value="1024"/>     
         <param name="svgp_learning_rate"        value="1e-1"/>     
         <param name="svgp_rtol"                 value="1e-3"/>  
         <param name="svgp_verbose"              value="False"/>    
@@ -103,8 +98,8 @@
         <param name="odom_topic"                value="/lolo/ipp/odom" />
         <param name="beta"                      value="$(arg beta)" />
         <param name="swath_width"               value="$(arg swath_width)" />
-        <param name="mean_interval_low"         value="$(arg mean_interval_low)" />
-        <param name="mean_interval_high"        value="$(arg mean_interval_high)" />
+        <param name="prior_mean"                value="$(arg prior_mean)" />
+        <param name="prior_vari"                value="$(arg prior_vari)" />
         <param name="bound_left"                value="$(arg bound_left)" />
         <param name="bound_right"               value="$(arg bound_right)" />
         <param name="bound_up"                  value="$(arg bound_up)" />
@@ -115,12 +110,7 @@
         <param name="wp_resolution"             value="$(arg wp_resolution)" />
         <param name="voxel_size"                value="$(arg voxel_size)" />
         <param name="path_nbr_samples"          value="$(arg path_nbr_samples)" />
-        <param name="max_mission_time"          value="$(arg max_mission_time)"/>
-        <param name="vehicle_velocity"          value="$(arg vehicle_velocity)"/>
-        <param name="MCTS_begin_time"           value="$(arg MCTS_begin_time)" />
-        <param name="MCTS_interrupt_time"       value="$(arg MCTS_interrupt_time)" />
         <param name="MCTS_max_depth"            value="$(arg MCTS_max_depth)" />
-        <param name="MCTS_sample_decay_factor"  value="$(arg MCTS_sample_decay_factor)" />
         <param name="MCTS_UCT_C"                value="$(arg MCTS_UCT_C)" />
         <param name="map_frame"                 value="$(arg map_frame)"/>
         <param name="odom_frame"                value="$(arg odom_frame)"/>

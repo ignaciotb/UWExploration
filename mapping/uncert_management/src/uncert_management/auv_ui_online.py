@@ -197,7 +197,7 @@ class auv_ui_online(object):
         self.test_odom = rospy.Publisher(self.odom_ipp_top, Odometry, queue_size=10)
 
         # Subscription to path to distribute inducing points
-        wp_top = rospy.get_param("~corners_topic", "/corners")
+        wp_top = rospy.get_param("~corner_topic")
         rospy.Subscriber(wp_top, Path, self.path_cb, queue_size=1)
 
         # Subscribe when ready
@@ -223,11 +223,11 @@ class auv_ui_online(object):
 
                 wps = []
                 for pose in path.poses:
-                    print("X: " + str(pose.pose.position.x) + " Y: " + str(pose.pose.position.y))
+                    #print("X: " + str(pose.pose.position.x) + " Y: " + str(pose.pose.position.y))
                     wps.append(np.array([pose.pose.position.x, pose.pose.position.y, 0.]))
 
                 wp_cloud = pack_cloud(self.map_frame, wps)
-                print(wp_cloud)
+                #print(wp_cloud)
                 self.ip_pub.publish(wp_cloud)
 
                 # This service will start the auv simulation or auv_2_ros nodes to start the mission

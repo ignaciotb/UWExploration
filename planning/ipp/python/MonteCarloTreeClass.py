@@ -1,39 +1,72 @@
 import numpy as np
-from AcquisitionFunctionClass import qUCB_xy, UCB_xy
-from botorch.acquisition import qSimpleRegret
+from botorch.acquisition import qSimpleRegret, UpperConfidenceBound, qUpperConfidenceBound, qLowerBoundMaxValueEntropy, qKnowledgeGradient, qNoisyExpectedImprovement
 import torch
 from botorch.optim import optimize_acqf
-import pickle
 import time
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.cm as cm
 import rospy
+import ipp_utils
+import GaussianProcessClass
+import pickle
+
+""" PLAN FOR IMPLEMENTING MULTIPLE TRAINING GPs
+
+1. When the node object is created, we simulate MBES points and store those
+    - generate_points
+    
+2. We create an action server for the node, which can give these simulated MBES points
+    - action_cb
+    
+3. In the frozen_gp, create a training method that can sample from both the
+simulated as and the real action servers. Split 50/50, remove the gp points when they've been used.
+
+4. Set a while loop that calls the training of the GP until points are exhausted. Until it has finished training,
+do not let the node expand to new children, but instead keep doing rollouts from it (which will iteratively get better).
+
+"""
+
 
 class Node(object):
     
-    def __init__(self, position, depth, parent = None) -> None:
-        self.position       = position
-        self.depth          = depth
-        self.parent         = parent
-        self.children       = []
-        self.reward         = -np.inf
-        self.visit_count    = 0
+    def __init__(self, position, depth, id_nbr = 0, parent = None, gp = None) -> None:
+        self.position           = position
+        self.depth              = depth
+        self.parent             = parent
+        self.children           = []
+        self.reward             = -np.inf
+        self.visit_count        = 0
+        self.id                 = (depth ** 2) * id_nbr
+        self.training           = False
+        self.device             = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.gp                 = gp
+        #self.gp.model.to(self.device)
+        self.map_frame          = rospy.get_param("~map_frame")
+        self.simulated_points   = np.empty((0,3))
+        
+        # If not root, we generate and train on simulated points
+        if id_nbr > 0:
+            points = ipp_utils.generate_points(self.gp, self.parent.position, self.position)
+            self.gp.simulated_beams = np.concatenate((points, self.gp.simulated_beams), axis=0)
+        training_iteration = 0      
+        while training_iteration < 40:
+            self.gp.train_simulated_and_real_iteration()
+            training_iteration += 1
+    
     
     
 class MonteCarloTree(object):
     
     def __init__(self, start_position, gp, beta, border_margin, horizon_distance, bounds) -> None:
-        self.root                       = Node(position=start_position, depth=0)
-        self.gp                         = gp
+        self.root                       = Node(position=start_position, depth=0, gp=gp)
         self.beta                       = beta
         self.horizon_distance           = horizon_distance
         self.border_margin              = border_margin
         self.global_bounds              = bounds
         self.iteration                  = 0
         self.C                          = rospy.get_param("~MCTS_UCT_C")
-        self.max_depth                  = rospy.get_param("~MCTS_max_depth")
-        self.MCTS_sample_decay_factor   = rospy.get_param("~MCTS_sample_decay_factor")
+        self.max_depth                  = 1 #rospy.get_param("~MCTS_max_depth")
         self.rollout_reward_distance    = rospy.get_param("~swath_width")/2.0
                 
     def iterate(self):
@@ -43,16 +76,18 @@ class MonteCarloTree(object):
         # If node has not been visited, rollout to get reward
         if node.visit_count == 0 and node != self.root:
             value = self.rollout_node(node)
+            self.backpropagate(node, value)
+            
         # If node has been visited and there is reward, then expand children
         else:
-            # If max depth not hit, expand
+            # If max depth not hit, and not still training, expand
             if node.depth < self.max_depth:
+                #print("Called expand node for node: " + str(node.id))
                 self.expand_node(node)
-                node = node.children[0]
-                
-            value = self.rollout_node(node)
+                for child in node.children:
+                    value = self.rollout_node(child)
+                    self.backpropagate(child, value)
         # backpropagate
-        self.backpropagate(node, value)
         self.iteration += 1
     
     def get_best_solution(self):
@@ -60,7 +95,8 @@ class MonteCarloTree(object):
         for child in self.root.children:
             values.append(child.reward)
         max_ind = np.argmax(values)
-        return self.root.children[max_ind]
+        max_int = len(values)
+        return self.root.children[np.random.randint(0, max_int)]
     
     def select_node(self):
         # At each iteration, select a node to expand
@@ -80,7 +116,7 @@ class MonteCarloTree(object):
             return np.inf
         return node.reward / node.visit_count + self.C * np.sqrt(np.log(self.root.visit_count)/node.visit_count)
     
-    def expand_node(self, node, nbr_children = 3):
+    def expand_node(self, node, nbr_children = 12):
         # Get children of node through BO with multiple candidates
         
         # Use tree GP to set up acquisition function (needs to be MC enabled, to return q candidates)
@@ -88,45 +124,90 @@ class MonteCarloTree(object):
         # Optimize the acqfun, return several candidates
         
         #print("expanding, parent at node depth: " + str(node.depth))
+
+        #node.gp.model.model.to(node.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.loc.device)
+        #print(node.gp.model.model.covar_module)
+
+        #print(next(node.gp.model.parameters()).device)
+
+        #node.gp.model = node.gp.model.to(node.device)
+        #node.gp.model.model = node.gp.model.model.to(node.device)
+        #node.gp.model.model.mean_module.mean_prior.loc = node.gp.model.model.mean_module.mean_prior.loc.to(node.device)
+        #node.gp.model.model.variational_strategy = node.gp.model.model.variational_strategy.to(node.device)
+        #node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix = node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.to(node.device)
+        #print(next(node.gp.model.parameters()).device)
+        #print(node.gp.model.model.covar_module)
+        #print(node.gp.model.model.variational_strategy.variational_distribution)
+        #print(node.gp.model.model.variational_strategy.inducing_points.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.loc.device)
+        #print(node.gp.model.model.variational_strategy.variational_distribution.covariance_matrix.device)
+        #print(node.gp.model.model.variational_strategy..device)
+
         
-        #XY_acqf         = qSimpleRegret(model=self.gp)
-        XY_acqf         = qUCB_xy(model=self.gp, beta=self.beta)
+
+        #node.gp.model.to(node.device).float()
+        #node.gp.likelihood.to(node.device)
+        #XY_acqf         = qSimpleRegret(model=node.gp.model)                                # Just pure exploration (but also gets stuck on maxima)
+        XY_acqf         = qUpperConfidenceBound(model=node.gp.model, beta=self.beta)       # Issues with getting stuck in local maxima
+        #XY_acqf         = qKnowledgeGradient(model=node.gp.model)                          # No, cant fantasize with variational GP
+
+        #XY_acqf.to(node.device)
         
-        low_x           = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        high_x          = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.horizon_distance, node.position[0] + self.horizon_distance))
-        low_y           = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        high_y          = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.horizon_distance, node.position[1] + self.horizon_distance))
-        local_bounds    = [low_x, high_x, high_y, low_y]
+        #node.gp.model.model.variational_strategy.inducing_points.data = node.gp.inducing_pts_copy.to(node.device).float()
+
+        #print(node.gp.model.model.covar_module.
         
-        #bounds_XY_torch = torch.tensor([[local_bounds[0], local_bounds[3]], [local_bounds[1], local_bounds[2]]]).to(torch.float)
-        bounds_XY_torch = torch.tensor([[self.global_bounds[0], self.global_bounds[2]], [self.global_bounds[1], self.global_bounds[3]]]).to(torch.float)
-        print(bounds_XY_torch)
+        local_bounds    = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.horizon_distance, self.border_margin)
         
-        decayed_samples = max(10, 50-self.iteration*self.MCTS_sample_decay_factor)
+        bounds_XY_torch = (torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)).to(node.device)
+
+
+        #XY_acqf.model.to(node.device)
+        #bounds_XY_torch.to(node.device)
+        #print(node.device)
+        #print(bounds_XY_torch.is_cuda)
         
-        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=4, raw_samples=decayed_samples)
+
+
+        t1 = time.time()
+
+
+
+
+        candidates, _   = optimize_acqf(acq_function=XY_acqf, bounds=bounds_XY_torch, q=nbr_children, num_restarts=5, raw_samples=100)
         
+        print("****** TIME TAKEN TO OPTIMIZE ALL CANDIDATES: " + str(time.time() - t1) + " ******")
+        ipp_utils.save_model(node.gp.model, "Parent_gp.pickle")
+        t2 = time.time()
         
         for i in range(nbr_children):
-            n = Node(list(candidates[i,:].cpu().detach().numpy()), node.depth + 1, node)
+            new_gp = GaussianProcessClass.frozen_SVGP()
+            #new_gp.model.to(node.device)
+            cp = torch.load("Parent_gp.pickle", map_location=node.device)
+            new_gp.model.load_state_dict(cp['model'])
+            new_gp.model.to(node.device)
+            #new_gp.model = ipp_utils.load_model(new_gp.model, "Parent_gp.pickle", device=node.device)
+            new_gp.real_beams = node.gp.real_beams
+            new_gp.simulated_beams = node.gp.simulated_beams
+            #new_gp.inducing_pts_copy = node.gp.inducing_pts_copy
+            n = Node(position=list(candidates[i,:].cpu().detach().numpy()), id_nbr=i+1,depth=node.depth + 1, parent=node, gp=new_gp)
             node.children.append(n)
+        print("****** TIME TAKEN TO EXPAND ALL NODES: " + str(time.time() - t2) + " ******")
+        
     
     def rollout_node(self, node):
         
-        #print("rolling out, for node at depth: " + str(node.depth))
         
         # Randomly sample from node to terminal state to get expected value
         # we dont want to have to go to terminal state, instead 
-        low_x   = max(self.global_bounds[0] + self.border_margin, min(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
-        high_x  = min(self.global_bounds[1] - self.border_margin, max(node.position[0] - self.rollout_reward_distance, node.position[0] + self.rollout_reward_distance))
-        low_y   = max(self.global_bounds[3] + self.border_margin, min(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
-        high_y  = min(self.global_bounds[2] - self.border_margin, max(node.position[1] - self.rollout_reward_distance, node.position[1] + self.rollout_reward_distance))
         
-        # Adjust for if the area is smaller due to bounds, this should be penalized
-        samples_np = np.random.uniform(low=[low_x, low_y], high=[high_x, high_y], size=[20, 2])
+        local_bounds = ipp_utils.generate_local_bounds(self.global_bounds, node.position, self.rollout_reward_distance, self.border_margin)
+        samples_np = np.random.uniform(low=[local_bounds[0], local_bounds[1]], high=[local_bounds[2], local_bounds[3]], size=[20, 2])
         samples_torch = (torch.from_numpy(samples_np).type(torch.FloatTensor)).unsqueeze(-2)
         
-        acq_fun = UCB_xy(model=self.gp, beta=self.beta)
+        acq_fun = UpperConfidenceBound(model=node.gp.model, beta=self.beta)
         ucb = acq_fun.forward(samples_torch)
         reward = ucb.mean().item() - node.depth
         return reward
@@ -212,7 +293,7 @@ class MonteCarloTree(object):
             
 
 if __name__== "__main__":
-    model1 = pickle.load(open(r"/home/alex/.ros/GP_env.pickle","rb"))
+    model1 = ipp_utils.load_model("/home/alex/.ros/GP_env.pickle")
 
     bounds = [592, 821, -179, -457]
 

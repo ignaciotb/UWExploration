@@ -11,7 +11,6 @@ import torch
 from gpytorch.likelihoods import GaussianLikelihood
 import time
 from botorch.acquisition import UpperConfidenceBound
-from AcquisitionFunctionClass import UCB_xy, qUCB_xy
 
 
 class UpdateDist(object):
@@ -58,7 +57,7 @@ class UpdateDist(object):
         
         # Load first model
         with self.lock_environment_gp:
-            model1 = pickle.load(open("GP_env.pickle","rb"))
+            model1 = pickle.load(open("GP_env_vis.pickle","rb"))
         model1.model.eval()
         model1.likelihood.eval()
         likelihood1 = GaussianLikelihood()
@@ -82,7 +81,7 @@ class UpdateDist(object):
         inputst = [_.flatten() for _ in inputst]
         inputst = np.vstack(inputst).transpose()
         
-        ucb_fun = UCB_xy(model1, beta=self.beta)
+        ucb_fun = UpperConfidenceBound(model1, beta=self.beta)
 
         
         # Outputs for GP 1
@@ -120,7 +119,7 @@ class UpdateDist(object):
         
         # Load second model
         with self.lock_heading_gp:
-            model2 = pickle.load(open("GP_angle.pickle","rb"))
+            model2 = pickle.load(open("GP_angle_vis.pickle","rb"))
         model2.eval()
         model2.likelihood.eval()
         likelihood2 = GaussianLikelihood()

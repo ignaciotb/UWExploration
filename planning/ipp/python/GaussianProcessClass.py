@@ -74,6 +74,69 @@ from collections import OrderedDict
 from threading import Lock
 
 
+class frozen_SVGP():
+    
+    def __init__(self):
+        self.real_beams         = np.empty((0, 3))
+        self.simulated_beams    = np.empty((0, 3))
+        #mb_gp_name = rospy.get_param("~minibatch_gp_server")
+        #self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
+        self.prior_mean = rospy.get_param("~prior_mean")
+        self.prior_vari = rospy.get_param("~prior_vari")
+        self.num_inducing = rospy.get_param("~svgp_num_ind_points")
+        self.mb_size = rospy.get_param("~svgp_minibatch_size")
+        self.lr = rospy.get_param("~svgp_learning_rate")
+        self.rtol = rospy.get_param("~svgp_rtol")
+        self.n_window = rospy.get_param("~svgp_n_window")
+        self.auto = rospy.get_param("~svgp_auto_stop")
+        self.verbose = rospy.get_param("~svgp_verbose")
+        assert isinstance(self.num_inducing, int)
+        self.s = int(self.num_inducing)
+        self.model = botorch.models.SingleTaskVariationalGP(
+                train_X=torch.randn(self.s,2),
+                num_outputs=1,
+                inducing_points = torch.randn(self.s,2),
+                variational_distribution=gpytorch.variational.CholeskyVariationalDistribution(self.s),
+                likelihood=GaussianLikelihood(),
+                learn_inducing_points=True,
+                mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
+                covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+        
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.likelihood = GaussianLikelihood()
+        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
+        self.likelihood.to(self.device).float()
+        self.model.to(self.device).float()
+        self.opt = torch.optim.Adam([
+            {'params': self.model.parameters()},
+            {'params': self.likelihood.parameters()},
+        ], lr=float(self.lr))
+        self.model.train()
+        self.likelihood.train()
+    
+    def train_simulated_and_real_iteration(self):
+        
+        split_mb_size = int(self.mb_size/2)  
+        idx         = np.random.choice(self.simulated_beams.shape[0]-1, split_mb_size, replace=False)
+        beams1      = self.simulated_beams[idx,:]
+        
+        idx         = np.random.choice(self.real_beams.shape[0]-1, split_mb_size, replace=False)
+        beams2      = self.real_beams[idx,:]
+        beams       = np.concatenate((beams1, beams2), axis=0)
+        
+        input       = torch.from_numpy(beams[:,0:2]).to(self.device).float()
+        target      = torch.from_numpy(beams[:,2]).to(self.device).float()
+        
+        # # compute loss, compute gradient, and update
+        self.opt.zero_grad()
+        loss = -self.mll(self.model(input), target)
+        loss.backward()
+        self.opt.step()
+
+        del input
+        del target
+
+                         
 class SVGP_map():
     """ Class which encapsulates the optimization tools for the SVGP map.
         Also provides ROS interface for subscription and publishing to topics,
@@ -95,6 +158,10 @@ class SVGP_map():
         self._as_posterior = actionlib.SimpleActionServer(sample_gp_name, SamplePosteriorAction,
                                                      execute_cb=self.full_posterior_cb, auto_start=False)
         self._as_posterior.start()
+        
+        # Beam storage
+        self.real_beams         = np.empty((0, 3))
+        self.simulated_beams    = np.empty((0, 3))
 
         # AS for expected meas
         manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
@@ -114,7 +181,7 @@ class SVGP_map():
         self.ac_mb = actionlib.SimpleActionClient(mb_gp_name, MinibatchTrainingAction)
         while not self.ac_mb.wait_for_server(timeout=rospy.Duration(5)) and not rospy.is_shutdown():
             print("Waiting for MB AS ", particle_id)
-
+        
          # Subscription to GP inducing points from RBPF
         ip_top = rospy.get_param("~inducing_points_top")
         rospy.Subscriber(ip_top, PointCloud2, self.ip_cb, queue_size=1)
@@ -142,11 +209,10 @@ class SVGP_map():
         assert isinstance(num_inducing, int)
         self.s = int(num_inducing)
         
-        interval_low = rospy.get_param("~mean_interval_low")
-        interval_high = rospy.get_param("~mean_interval_high")
+        self.prior_mean = rospy.get_param("~prior_mean")
+        self.prior_vari = rospy.get_param("~prior_vari")
 
         # hardware allocation
-        self.bounds = torch.tensor([[corners[0], corners[3]], [corners[1], corners[2]]]).to(torch.float)
         initial_x = torch.randn(self.s,2)
         var_dist = gpytorch.variational.CholeskyVariationalDistribution(self.s)
         self.model = botorch.models.SingleTaskVariationalGP(
@@ -155,8 +221,8 @@ class SVGP_map():
             variational_distribution=var_dist,
             likelihood=GaussianLikelihood(),
             learn_inducing_points=True,
-            mean_module = ConstantMean(constant_constraint=Interval(interval_low, interval_high)),
-            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5)))
+            mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
+            covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, )))
         self.likelihood = GaussianLikelihood()
         
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -262,7 +328,11 @@ class SVGP_map():
                 beams = np.asarray(list(pc2.read_points(result.minibatch, 
                                         field_names = ("x", "y", "z"), skip_nans=True)))
                 beams = np.reshape(beams, (-1,3))
-
+                
+                idx = np.random.choice(beams.shape[0]-1, 50, replace=False)
+                self.real_beams = np.concatenate((self.real_beams, beams[idx,:]), axis=0)
+                # Sample UIs covariances
+                
                 if not self.plotting and not self.sampling and not self.resampling:
                     with self.mutex:
                         self.training = True

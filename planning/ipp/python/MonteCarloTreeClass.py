@@ -76,6 +76,7 @@ class MonteCarloTree(object):
         # If node has not been visited, rollout to get reward
         if node.visit_count == 0 and node != self.root:
             value = self.rollout_node(node)
+            self.backpropagate(node, value)
             
         # If node has been visited and there is reward, then expand children
         else:
@@ -87,7 +88,6 @@ class MonteCarloTree(object):
                     value = self.rollout_node(child)
                     self.backpropagate(child, value)
         # backpropagate
-        self.backpropagate(node, value)
         self.iteration += 1
     
     def get_best_solution(self):

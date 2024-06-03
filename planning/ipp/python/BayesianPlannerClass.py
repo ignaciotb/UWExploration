@@ -279,12 +279,18 @@ class BOPlanner(PlannerTemplateClass.PlannerTemplate):
             # If MCTS fails then give a myopic quick candidate and tell angle optimization step to hurry up
             rospy.loginfo("MCTS failed to get candidate, fallback used.")
             rush_order_activated  = True
-            local_bounds          = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, self.horizon_distance, self.border_margin)
-            self.bounds_XY_torch  = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
-            self.XY_acqf          = botorch.acquisition.UpperConfidenceBound(model=self.frozen_gp.model, beta=self.beta)
-            candidates_XY, _      = botorch.optim.optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=5, raw_samples=50)
+            local_bounds          = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, 50, self.border_margin)
+            #self.bounds_XY_torch  = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
+            candidates_XY         = torch.tensor([np.random.uniform(low=[local_bounds[0], local_bounds[1]], high=[local_bounds[2], local_bounds[3]])]).to(torch.float)
+            #self.XY_acqf          = botorch.acquisition.UpperConfidenceBound(model=self.frozen_gp.model, beta=self.beta)
+            #candidates_XY, _      = botorch.optim.optimize_acqf(acq_function=self.XY_acqf, bounds=self.bounds_XY_torch, q=1, num_restarts=5, raw_samples=50)
         
-        print("XY cand ", candidates_XY)
+        local_bounds1          = ipp_utils.generate_local_bounds(self.bounds, self.planner_initial_pose, 50, self.border_margin)
+            #self.bounds_XY_torch  = torch.tensor([[local_bounds[0], local_bounds[1]], [local_bounds[2], local_bounds[3]]]).to(torch.float)
+        candidates_XY_test         = torch.tensor([np.random.uniform(low=[local_bounds1[0], local_bounds1[1]], high=[local_bounds1[2], local_bounds1[3]])]).to(torch.float)
+        print(candidates_XY_test)
+        print("XY cand test", candidates_XY_test)
+        print("expected XY cand", candidates_XY)
         
         print("Optimizing angle...")
         BO = BayesianOptimizerClass.BayesianOptimizer(self.state, self.frozen_gp.model, wp_resolution=self.wp_resolution,

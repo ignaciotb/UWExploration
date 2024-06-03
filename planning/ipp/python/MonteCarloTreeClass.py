@@ -83,8 +83,9 @@ class MonteCarloTree(object):
             if node.depth < self.max_depth:
                 #print("Called expand node for node: " + str(node.id))
                 self.expand_node(node)
-                node = node.children[0]
-            value = self.rollout_node(node)
+                for child in node.children:
+                    value = self.rollout_node(child)
+                    self.backpropagate(child, value)
         # backpropagate
         self.backpropagate(node, value)
         self.iteration += 1

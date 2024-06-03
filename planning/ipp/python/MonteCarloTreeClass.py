@@ -50,7 +50,7 @@ class Node(object):
             points = ipp_utils.generate_points(self.gp, self.parent.position, self.position)
             self.gp.simulated_beams = np.concatenate((points, self.gp.simulated_beams), axis=0)
         training_iteration = 0      
-        while training_iteration < 30:
+        while training_iteration < 40:
             self.gp.train_simulated_and_real_iteration()
             training_iteration += 1
     

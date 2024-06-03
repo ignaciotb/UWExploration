@@ -116,7 +116,7 @@ class MonteCarloTree(object):
             return np.inf
         return node.reward / node.visit_count + self.C * np.sqrt(np.log(self.root.visit_count)/node.visit_count)
     
-    def expand_node(self, node, nbr_children = 5):
+    def expand_node(self, node, nbr_children = 12):
         # Get children of node through BO with multiple candidates
         
         # Use tree GP to set up acquisition function (needs to be MC enabled, to return q candidates)

@@ -95,7 +95,8 @@ class MonteCarloTree(object):
         for child in self.root.children:
             values.append(child.reward)
         max_ind = np.argmax(values)
-        return self.root.children[max_ind]
+        max_int = len(values)
+        return self.root.children[np.random.randint(0, max_int)]
     
     def select_node(self):
         # At each iteration, select a node to expand

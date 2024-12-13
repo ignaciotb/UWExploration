@@ -193,7 +193,7 @@ add_dependencies(auv_2_ros
 target_link_libraries(auv_2_ros 
     # utils_visualization
     # submaps_tools
-    #data_transforms
+    data_transforms
     std_data
     # multibeam_simple
     ${PCL_LIBRARIES}

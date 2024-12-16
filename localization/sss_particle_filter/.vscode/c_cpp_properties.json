@@ -1,0 +1,44 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/torroba/catkin_workspaces/roboarm_course/devel/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/devel/include/**",
+        "/home/torroba/catkin_workspaces/auv_ws/devel/include/**",
+        "/opt/ros/noetic/include/**",
+        "/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/real_auv/auv_2_ros/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_navigation/auv_graph_localization/include/**",
+        "/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/sim_auv/auv_model/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/stim300-driver/include/**",
+        "/home/torroba/catkin_workspaces/roboarm_course/src/kdl_parser/kdl_parser/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_acomms/labust_nanomodem_driver/labust_nanomodem/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/pid/include/**",
+        "/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/slam/rbpf_slam/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_missions/sam_action_servers/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_controllers/sam_basic_controllers/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/sam_webgui/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/sbg_ros_driver/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_acomms/smarc_acomms/smarc_acomms_client/smarc_acomms_client/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/smarc_missions/smarc_vehicle_monitor/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/uavcan_ros_bridge/uavcan_ros_bridge/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/ublox/ublox_gps/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/ublox/ublox_msg_filters/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/ublox/ublox_msgs/include/**",
+        "/home/torroba/catkin_workspaces/smarc_ws/src/ublox/ublox_serialization/include/**",
+        "/home/torroba/catkin_workspaces/roboarm_course/src/yumi/yumi_cameras/include/**",
+        "/home/torroba/catkin_workspaces/roboarm_course/src/yumi/yumi_test_controllers/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

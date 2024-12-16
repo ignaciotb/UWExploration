@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 2.8.3)
 project(sss_particle_filter)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -7,10 +7,29 @@ project(sss_particle_filter)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(catkin REQUIRED COMPONENTS
+  geometry_msgs
+  nav_msgs
+  roscpp
+  rospy
+  std_msgs
+  tf
+  tf2_ros
+  tf_conversions
+  sensor_msgs
+  actionlib_msgs
+  actionlib
+  eigen_conversions
+  pcl_ros
+  message_generation
+  slam_msgs
+)
+
+find_package(Eigen3 REQUIRED)
+find_package(Threads REQUIRED)
 
 ## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -56,17 +75,18 @@ find_package(catkin REQUIRED)
 #   Service2.srv
 # )
 
-## Generate actions in the 'action' folder
+# Generate actions in the 'action' folder
 # add_action_files(
-#   FILES
-#   Action1.action
-#   Action2.action
+#   DIRECTORY action
+#   FILES PlotPosterior.action
 # )
 
-## Generate added messages and services with any dependencies listed here
+# Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
+#   actionlib_msgs
+#   sensor_msgs
+#   std_msgs
 # )
 
 ################################################
@@ -99,9 +119,9 @@ find_package(catkin REQUIRED)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES sss_particle_filter
-#  CATKIN_DEPENDS other_catkin_pkg
+ INCLUDE_DIRS include
+#  LIBRARIES auv_particle_filter
+ CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs slam_msgs
 #  DEPENDS system_lib
 )
 
@@ -112,14 +132,36 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
-# ${catkin_INCLUDE_DIRS}
+  include
+  ${EIGEN_INCLUDE_DIRS} 
+	${PCL_INCLUDE_DIRS}
+  ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/sss_particle_filter.cpp
+add_library(sss_pf_localization
+  src/pf_particle.cpp
+  src/sss_pf_localization.cpp
+)
+
+# add_executable(${PROJECT_NAME}
+#   rbpf_par_slam_node src/rbpf_par_slam_node.cpp
 # )
+
+target_link_libraries(sss_pf_localization 
+  ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES}
+  ${eigen_LIBRARIES}
+)
+
+add_executable(sss_pf_localization_node src/sss_pf_localization_node.cpp
+                src/pf_particle.cpp
+                src/sss_pf_localization.cpp)
+
+add_dependencies(sss_pf_localization_node ${catkin_EXPORTED_TARGETS})
+
+target_link_libraries(sss_pf_localization_node ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(sss_pf_localization_node Threads::Threads)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -129,7 +171,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/sss_particle_filter_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/auv_particle_filter_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -155,7 +197,7 @@ include_directories(
 
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
-# catkin_install_python(PROGRAMS
+# install(PROGRAMS
 #   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
@@ -168,18 +210,18 @@ include_directories(
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
+install(TARGETS sss_pf_localization
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.h"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)
 # install(FILES
@@ -193,7 +235,7 @@ include_directories(
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_sss_particle_filter.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_auv_particle_filter.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

@@ -1,0 +1,17 @@
+{
+    "python.autoComplete.extraPaths": [
+        "/home/torroba/catkin_workspaces/smarc_ws/devel/lib/python3/dist-packages",
+        "/home/torroba/catkin_workspaces/roboarm_course/devel/lib/python3/dist-packages",
+        "/home/torroba/catkin_workspaces/auv_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/torroba/workspaces/auvlib/install/lib"
+    ],
+    "python.analysis.extraPaths": [
+        "/home/torroba/catkin_workspaces/smarc_ws/devel/lib/python3/dist-packages",
+        "/home/torroba/catkin_workspaces/roboarm_course/devel/lib/python3/dist-packages",
+        "/home/torroba/catkin_workspaces/auv_ws/devel/lib/python3/dist-packages",
+        "/opt/ros/noetic/lib/python3/dist-packages",
+        "/home/torroba/workspaces/auvlib/install/lib"
+    ],
+    "ros.distro": "noetic"
+}

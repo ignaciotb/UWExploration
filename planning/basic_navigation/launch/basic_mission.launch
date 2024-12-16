@@ -10,8 +10,8 @@
 
     <arg name="max_throttle" default="2.0"/>
 
-	<group ns="navigation">
-		<group ns="$(arg namespace)">
+	<group ns="$(arg namespace)">
+		<group ns="sim">
 			<group unless="$(arg manual_control)">
 
 				<node type="w2w_mission_planner.py" pkg="basic_navigation" name="mission_planner" output="screen">
@@ -55,9 +55,9 @@
 
 			<group if="$(arg manual_control)">
 				<node pkg="basic_navigation" type="auv_sim_teleop.py" name="auv_sim_teleop" output="screen">
-					<param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
-					<param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
-					<param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
+					<param name="throttle_cmd" value="/$(arg namespace)/sim/throttle_cmd" />
+					<param name="thruster_cmd" value="/$(arg namespace)/sim/thruster_cmd" />
+					<param name="inclination_cmd" value="/$(arg namespace)/sim/inclination_cmd" />
 				</node>
 			</group>
 		</group>

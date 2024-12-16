@@ -31,9 +31,9 @@
 
   <arg name="map_frame"                         default="map"/>
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
-  <arg name="odometry_topic"                    default="/$(arg mode)/$(arg namespace)/odom"/>
+  <arg name="odometry_topic"                    default="/$(arg namespace)/$(arg mode)/odom"/>
   <!-- <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/> -->
-  <arg name="mbes_pings_topic"                  default="/$(arg mode)/$(arg namespace)/mbes_pings"/>
+  <arg name="mbes_pings_topic"                  default="/$(arg namespace)/$(arg mode)/mbes_pings"/>
   <!-- <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/> -->
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
@@ -86,7 +86,7 @@
 				<!-- <param name="svgp_minibatch_size"  value="$(arg svgp_minibatch_size)" /> -->
 				<param name="particle_enable_lc"  value="/$(arg namespace)/enable_lc" />
 				<param name="rbpf_saved_top"  value="/$(arg namespace)/rbpf_saved" />
-				<param name="markers_top"  value="/$(arg namespace)/markers" />
+				<param name="markers_top"  value="/$(arg namespace)/$(arg app)/markers" />
       </node>
     </group>
   </group>

@@ -485,7 +485,6 @@ void pfLocalization::update_rviz(const ros::TimerEvent &)
         array_msg.header.stamp = ros::Time::now();
 
         for (int i=0; i<pc_; i++){
-            std::cout << "i " << i << std::endl;
             geometry_msgs::Pose pose_i;
             pose_i.position.x = particles_.at(i).p_pose_(0);
             pose_i.position.y = particles_.at(i).p_pose_(1);
@@ -533,7 +532,6 @@ void pfLocalization::update_rviz(const ros::TimerEvent &)
         // Update stats
         publish_stats(odom_latest_);
     }
-    std::cout << "Done with rviz" << std::endl;
 }
 
 void pfLocalization::resample(vector<double> weights)

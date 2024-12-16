@@ -42,7 +42,7 @@
 	<group ns="$(arg namespace)">
 
 		<!-- Reproduce real Hugin survey -->
-  		<group unless="$(eval mode == 'sim')">
+  		<group unless="$(eval mode == 'sim')" ns="$(eval mode)">
 			<!-- Hugin model -->
 			<param name="robot_description" command="$(find xacro)/xacro '$(find hugin_description)/robots/hugin_auv_default.urdf.xacro' debug:=$(arg debug) namespace:=$(arg namespace)" />
 			<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen">
@@ -81,7 +81,7 @@
 		</group>
 
 		<!-- Simulate Hugin AUV -->
-		<group if="$(eval mode == 'sim')">
+		<group if="$(eval mode == 'sim')" ns="$(eval mode)">
 			<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" 
 					args="0 0 0 0 0 0 world map 50" />
 				

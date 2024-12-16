@@ -54,7 +54,6 @@ void AUVMotionModel::inclinationCB(const std_msgs::Float64ConstPtr& inclination_
     latest_inclination_ = inclination_msg->data;
 }
 
-
 void AUVMotionModel::init(){
 
     time_now_ = ros::Time::now();

@@ -31,8 +31,8 @@
     </node> -->
 
 	<node type="map_mbes_node" pkg="map_features" name="map_mbes_node" output="screen">
-		<param name="mbes_pings"  value="/$(arg mode)/$(arg namespace)/mbes_pings" />
-		<param name="odom_topic"  value="/$(arg mode)/$(arg namespace)/odom" />
+		<param name="mbes_pings"  value="/$(arg namespace)/$(arg mode)/mbes_pings" />
+		<param name="odom_topic"  value="/$(arg namespace)/$(arg mode)/odom" />
 		<param name="map_frame" value="$(arg map_frame)" />
 		<param name="odom_frame" value="$(arg odom_frame)" />
 		<param name="base_link" value="$(arg namespace)/base_link" />

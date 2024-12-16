@@ -1,0 +1,9 @@
+# Define the goal
+geometry_msgs/TransformStamped sss_pose
+std_msgs/Int32 beams_num
+---
+# Define the result
+auv_model/Sidescan sim_sss
+---
+# Define a feedback message
+bool working

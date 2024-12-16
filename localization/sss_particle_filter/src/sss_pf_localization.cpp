@@ -8,9 +8,9 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
-    nh_->param<int>(("n_beams_mbes"), beams_real_, 512);
+    nh_->param<int>(("n_beams_sss"), sss_bin_num_, 512);
     nh_->param<string>(("map_frame"), map_frame_, "map");
-    nh_->param<string>(("mbes_link"), mbes_frame_, "mbes_link");
+    nh_->param<string>(("sss_link"), sss_frame_, "sss_link");
     nh_->param<string>(("base_link"), base_frame_, "base_link");
     nh_->param<string>(("odom_frame"), odom_frame_, "odom");
 
@@ -59,7 +59,7 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     {
         ROS_DEBUG("Waiting for transforms");
         auto asynch_1 = std::async(std::launch::async, [this]
-                                       { return tf_buffer_.lookupTransform(base_frame_, mbes_frame_,
+                                       { return tf_buffer_.lookupTransform(base_frame_, sss_frame_,
                                                                            ros::Time(0), ros::Duration(60.)); });
 
         auto asynch_2 = std::async(std::launch::async, [this]
@@ -96,8 +96,8 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     old_time_ = ros::Time::now().toSec();
 
     // Timer for the RBPF LC prompting
-    nh_mb_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
-    timer_rbpf_ = nh_mb_->createTimer(ros::Duration(rbpf_period_), &pfLocalization::pf_update, this, false);
+    // nh_mb_->param<float>(("rbpf_period"), rbpf_period_, 0.3);
+    // timer_rbpf_ = nh_mb_->createTimer(ros::Duration(rbpf_period_), &pfLocalization::pf_update, this, false);
 
     // Timer for updating RVIZ
     nh_->param<float>(("rviz_period"), rviz_period_, 0.3);
@@ -122,14 +122,6 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     lc_detected_ = false;
     ancestry_sizes_.push_back(0);
 
-    // Subscription to real mbes pings
-    nh_->param<string>(("mbes_pings_topic"), mbes_pings_top_, "mbes_pings");
-    mbes_sub_ = nh_->subscribe(mbes_pings_top_, 10, &pfLocalization::mbes_real_cb, this);
-
-    // Establish subscription to odometry message (intentionally last)
-    nh_->param<string>(("odometry_topic"), odom_top_, "odom");
-    odom_sub_ = nh_->subscribe(odom_top_, 100, &pfLocalization::odom_callback, this);
-
     // Initialize the particles on top of vehicle 
     tf::StampedTransform o2b_tf;
     tfListener_.waitForTransform(odom_frame_, base_frame_, ros::Time(0), ros::Duration(300.0));
@@ -153,9 +145,13 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     // }
     
     // Create particles
+    std::string particle_sss_top;
+    nh_->param<string>(("particle_sss_top"), particle_sss_top, "/resample_top");
     for (int i=0; i<pc_; i++){
         particles_.emplace_back(pfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
                                             init_cov_, meas_std_, motion_cov_));
+
+        p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(i), 1));
     }
 
     // Dead reckoning particle
@@ -181,9 +177,27 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     nh_->param<string>(("markers_top"), rbpf_markers_top, "/markers");
     vis_pub_ = nh_->advertise<visualization_msgs::MarkerArray>(rbpf_markers_top, 0);
 
+    nh_->param<string>(("expected_sss_as"), sss_sim_as_, "/dr_pose");
+    ac_sss_ = new actionlib::SimpleActionClient<auv_model::SssSimAction>(sss_sim_as_, true);
+
+    while (!ac_sss_->waitForServer(ros::Duration(1.0)) && ros::ok())
+    {
+        ROS_INFO_NAMED("PF ", "SSS waiting for action server");
+    }
+
     // // Subscription to manually triggering LC detection. Just for testing
     // nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
+
     // lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &pfLocalization::manual_lc, this);
+    
+    // Subscription to sss pings
+    sss_full_image_ = cv::Mat::zeros(1, sss_bin_num_, CV_8UC1);
+    nh_->param<string>(("sss_pings_topic"), sss_pings_top_, "sss_pings");
+    sss_sub_ = nh_->subscribe(sss_pings_top_, 10, &pfLocalization::sss_cb, this);
+
+    // Establish subscription to odometry message (intentionally last)
+    nh_->param<string>(("odometry_topic"), odom_top_, "odom");
+    odom_sub_ = nh_->subscribe(odom_top_, 100, &pfLocalization::odom_callback, this);
 
     ROS_INFO("Particle filter instantiated");
 }
@@ -218,24 +232,57 @@ void pfLocalization::save_cb(const std_msgs::Bool::ConstPtr& save_msg)
     ROS_INFO("Aaaand it's saved");
 }
 
-void pfLocalization::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
+void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
 {
     if (mission_finished_ != true)
     {
         // Beams in vehicle mbes frame
         // Store in pings history
         auto t1 = high_resolution_clock::now();
-        mbes_history_.emplace_back(Pointcloud2msgToEigen(*msg, beams_real_));
 
-        // Store latest mbes msg for timing
-        latest_mbes_ = *msg;
+        // TODO: Store it
+        std::cout << "Num of beams in port " << msg->port_channel.size()<< std::endl;
+        cv::Mat port(1, msg->port_channel.size(), CV_8UC1);
+        cv::Mat stbd(1, msg->starboard_channel.size(), CV_8UC1);
+        for (size_t i = 0; i < msg->port_channel.size(); ++i)
+        {
+            port.at<uint8_t>(0, i) = msg->port_channel[i];
+            stbd.at<uint8_t>(0, i) = msg->starboard_channel[i];
+        }
 
-        pings_idx_.push_back(count_pings_);
+        // Flip the port channel and concatenate and store
+        cv::Mat flippedPort;
+        cv::flip(port, flippedPort, 1); // Flip horizontally (axis = 1)
+        cv::Mat meas;
+        cv::hconcat(flippedPort, stbd, meas);
+        sss_full_image_.push_back(meas);
+
+        // For debugging
+        if (sss_full_image_.rows == 50)
+        {
+            std::cout << "Saved image " << std::endl;
+            std::string filename = "./test_sss.png";
+            bool success = cv::imwrite(filename, sss_full_image_);
+
+            if (success)
+            {
+                std::cout << "Image successfully saved to " << filename << std::endl;
+            }
+            else
+            {
+                std::cerr << "Error: Could not save image to " << filename << std::endl;
+            }
+        }
+
+        // pings_idx_.push_back(count_pings_);
         // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
-        count_pings_ += 1;
+        // count_pings_ += 1;
 
         // Store in history particles poses corresponding to the current ping
         this->update_particles_history();
+
+        // Compute expected measurements for every particle in their latest pose
+        this->expected_measurements(odom_latest_);
 
         // auto t2 = high_resolution_clock::now();
         // duration<double, std::milli> ms_double = t2 - t1;
@@ -244,23 +291,6 @@ void pfLocalization::mbes_real_cb(const sensor_msgs::PointCloud2ConstPtr& msg)
         // time_avg_ += ms_double.count();
         // std::cout << (time_avg_ / double(count_mb_cbs_))/1000.0 << std::endl;
         // std::cout << count_mb_cbs_ << std::endl;
-    }
-}
-
-void pfLocalization::pf_update(const ros::TimerEvent&)
-{
-    if(!mission_finished_)
-    {
-        if(latest_mbes_.header.stamp > prev_mbes_.header.stamp)
-        {
-            prev_mbes_ = latest_mbes_;
-            // Conditions to start LC prompting:
-            // 1) Pings collected > 1000: prevents from sampling undertrained GPs
-            // 2) Num of GPs whose ELBO has converged > Num particles/2
-            if(count_pings_ > 1000 && svgp_lc_ready_.size() > std::round(pc_ * 9/10)){
-                // this->update_particles_weights(latest_mbes_, odom_latest_);
-            }
-        }
     }
 }
 
@@ -290,26 +320,13 @@ void pfLocalization::odom_callback(const nav_msgs::OdometryConstPtr& odom_msg)
 }
 
 
-void pfLocalization::update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry &odom)
+void pfLocalization::expected_measurements(nav_msgs::Odometry &odom)
 {
-
-    ROS_INFO("Updating weights");
-    updated_w_ids_.clear();
-
-    auto t1 = high_resolution_clock::now();
-    // Latest ping depths in map frame
-    Eigen::MatrixXf latest_mbes = Pointcloud2msgToEigen(mbes_ping, beams_real_);
-    latest_mbes.rowwise() += Eigen::Vector3f(0, 0, m2o_mat_(2, 3) + odom.pose.pose.position.z).transpose();
-    // Nacho: Hugin and Lolo have a different frame for the MBES
-    // Use this one with Hugin data
-    latest_mbes_z_ = latest_mbes.col(2);
-    // And this one with Lolo
-    // latest_mbes_z_ = -latest_mbes.col(0);
-
     Eigen::Vector3f pos_i;
     Eigen::Matrix3f rot_i;
     slam_msgs::ManipulatePosteriorGoal goal;
-    for(int p=0; p<pc_; p++){
+    for (int p = 0; p < pc_; p++)
+    {
         {
             // Latest particle pose
             std::lock_guard<std::mutex> lock(*particles_.at(p).pc_mutex_);
@@ -317,67 +334,39 @@ void pfLocalization::update_particles_weights(sensor_msgs::PointCloud2 &mbes_pin
             rot_i = particles_.at(p).rot_history_.back()->back();
         }
 
-        // TODO: get rid of loop with colwise operations on mbes_history
-        for (int b = 0; b < mbes_history_.back().rows(); b++)
+        // TODO: this is sequential, change to asynch eventually
+        
+        // Rebuilt particle pose as geometry msg
+        Eigen::Matrix4f pose_i_mat = Eigen::Matrix4f::Identity();
+        pose_i_mat.topLeftCorner(3, 3) = rot_i.matrix();
+        pose_i_mat.block(0, 3, 3, 1) = pos_i.head(3);
+        Eigen::Affine3d sss_pose_eigen;
+        sss_pose_eigen.matrix() = pose_i_mat.cast<double>();
+        geometry_msgs::Transform sss_pose_msg;
+        tf::transformEigenToMsg(sss_pose_eigen, sss_pose_msg);
+
+        auv_model::SssSimGoal sss_goal;
+        sss_goal.sss_pose.header.frame_id = map_frame_;
+        sss_goal.sss_pose.child_frame_id = sss_frame_;
+        sss_goal.sss_pose.header.stamp = odom.header.stamp;
+        sss_goal.sss_pose.transform = sss_pose_msg;
+        sss_goal.beams_num.data = sss_bin_num_;
+        ac_sss_->sendGoal(sss_goal);
+
+        ac_sss_->waitForResult(ros::Duration(1.0));
+        actionlib::SimpleClientGoalState state = ac_sss_->getState();
+
+        // If expected SSS meas received, store in the particle's submap
+        if (state == actionlib::SimpleClientGoalState::SUCCEEDED)
         {
-            ping_mat_.row(b) = (rot_i * mbes_history_.back().row(b).transpose() + pos_i).transpose();
+            auv_model::Sidescan sss_msg;
+            auv_model::SssSimResult sss_res = *ac_sss_->getResult();
+            
+            // Republish for debugging
+            sss_msg = sss_res.sim_sss;
+            p_sss_pubs_.at(p).publish(sss_msg);
         }
-
-        // Parse into pointcloud2
-        sensor_msgs::PointCloud2 mbes_pcloud;
-        eigenToPointcloud2msg(mbes_pcloud, ping_mat_);
-
-        // Asynch goal
-        goal.pings = mbes_pcloud;
-        goal.sample = true;
-        // p_manipulate_acs_.at(p)->sendGoal(goal,
-        //                               boost::bind(&pfLocalization::sampleCB, this, _1, _2));
     }
-
-    // Collect all updated weights and call resample()
-    int w_time_out = 0;
-    while (updated_w_ids_.size() < pc_ && ros::ok() && w_time_out < rbpf_period_ * 100.)
-    {
-        // ROS_DEBUG("Waiting for weights");
-        ros::Duration(0.01).sleep();
-        w_time_out++;
-    }
-
-    // Safety timeout to handle lost goals on sampleCB()
-    if (w_time_out < rbpf_period_ * 100.)
-    {
-        // Call resampling here and empty ids vector
-        updated_w_ids_.clear();
-        std::vector<double> weights;
-        for(int i=0; i<pc_; i++){
-            weights.push_back(particles_.at(i).w_);
-        }
-        this->resample(weights);
-    }
-    else{
-        updated_w_ids_.clear();
-        ROS_WARN("Lost weights on the way, skipping resampling");
-    }
-
-    // auto t2 = high_resolution_clock::now();
-    // duration<double, std::milli> ms_double = t2 - t1;
-    // std::cout << ms_double.count() / 1000.0 << std::endl;
-}
-
-void pfLocalization::sampleCB(const actionlib::SimpleClientGoalState &state,
-                        const slam_msgs::ManipulatePosteriorResultConstPtr &result)
-{
-    std::vector<double> mu = result->mu;
-    std::vector<double> sigma = result->sigma;
-
-    Eigen::VectorXd mu_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(mu.data(), mu.size());
-    Eigen::VectorXd sigma_e = Eigen::Map<Eigen::VectorXd, Eigen::Unaligned>(sigma.data(), sigma.size());
-
-    // TODO: pass sigma_e to particles here
-    particles_.at(result->p_id).gp_covs_ = sigma_e;
-    particles_.at(result->p_id).compute_weight(mu_e, latest_mbes_z_.cast<double>());
-    // Particle p_id has computed its weight
-    updated_w_ids_.push_back(result->p_id);
 }
 
 void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)

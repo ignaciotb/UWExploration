@@ -10,7 +10,7 @@
   <!-- <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/> -->
 
   <!-- Num of beams per MBES pings to store in the log -->
-	<arg name="n_beams_mbes" default="100"/>	
+	<arg name="n_beams_sss" default="2000"/>	
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<!-- <arg name="x" default="-300.0"/>
@@ -33,7 +33,7 @@
   <arg name="odom_frame"                        default="$(arg namespace)/odom"/>
   <arg name="odometry_topic"                    default="/$(arg namespace)/$(arg mode)/odom"/>
   <!-- <arg name="odometry_topic"                    default="/lolo/dr/odom_fixed"/> -->
-  <arg name="mbes_pings_topic"                  default="/$(arg namespace)/$(arg mode)/mbes_pings"/>
+  <arg name="sss_pings_topic"                  default="/$(arg namespace)/$(arg mode)/sss_pings"/>
   <!-- <arg name="mbes_pings_topic"                  default="/rbpf/mbes_pings"/> -->
   <arg name="average_pose_topic"                default="/$(arg namespace)/$(arg app)/avg_pose"/>
   <arg name="particle_poses_topic"              default="/$(arg namespace)/$(arg app)/particle_poses"/>
@@ -61,10 +61,12 @@
         <rosparam param="resampling_noise_covariance">[3.0, 3.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="10." />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
-        <param name="mbes_pings_topic"                        value="$(arg mbes_pings_topic)" />
+        <param name="sss_pings_topic"                        value="$(arg sss_pings_topic)" />
+        <param name="particle_sss_top"                        value="/$(arg namespace)/pf/sss" />
+        <param name="expected_sss_as"                        value="/$(arg namespace)/sim/sss_server" />
         <param name="map_frame"                               value="$(arg map_frame)" />
         <param name="odom_frame"                              value="$(arg odom_frame)" />
-        <param name="mbes_link"                               value="$(arg namespace)/mbes_link" />
+        <param name="sss_link"                               value="$(arg namespace)/sss_link" />
         <param name="base_link"                               value="$(arg namespace)/base_link" />
         <param name="synch_topic"                             value="/$(arg app)/synch" />
         <param name="results_path"                            value="$(arg results_path)" />
@@ -73,7 +75,7 @@
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />
         <param name="particle_poses_topic"                    value="$(arg particle_poses_topic)" />
         <param name="particle_sim_mbes_topic"                 value="$(arg particle_sim_mbes_topic)" />
-        <param name="n_beams_mbes"   type= "int"              value="$(arg n_beams_mbes)" />       
+        <param name="n_beams_sss"   type= "int"              value="$(arg n_beams_sss)" />       
         <param name="survey_finished_top" value="$(arg survey_finished_top)" />       
         <param name="pf_stats_top" value="/stats/data" />  
         <!-- <param name="manipulate_gp_server" value="$(arg manipulate_gp_server)"/>  

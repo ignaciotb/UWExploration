@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   message_generation
   slam_msgs
+  auv_model
 )
 
 find_package(Eigen3 REQUIRED)
@@ -30,6 +31,7 @@ find_package(Threads REQUIRED)
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED)
+find_package(OpenCV REQUIRED)
 
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -135,6 +137,7 @@ include_directories(
   include
   ${EIGEN_INCLUDE_DIRS} 
 	${PCL_INCLUDE_DIRS}
+	${OpenCV_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
 )
 
@@ -152,6 +155,7 @@ target_link_libraries(sss_pf_localization
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES}
   ${eigen_LIBRARIES}
+  ${OpenCV_LIBS}
 )
 
 add_executable(sss_pf_localization_node src/sss_pf_localization_node.cpp
@@ -160,7 +164,7 @@ add_executable(sss_pf_localization_node src/sss_pf_localization_node.cpp
 
 add_dependencies(sss_pf_localization_node ${catkin_EXPORTED_TARGETS})
 
-target_link_libraries(sss_pf_localization_node ${PCL_LIBRARIES} ${catkin_LIBRARIES})
+target_link_libraries(sss_pf_localization_node ${PCL_LIBRARIES} ${catkin_LIBRARIES} ${OpenCV_LIBS})
 target_link_libraries(sss_pf_localization_node Threads::Threads)
 
 ## Add cmake target dependencies of the library

@@ -4,19 +4,23 @@
 AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     node_name_(node_name), nh_(&nh){
 
-    std::string sim_odom_top, sim_pings_top, throttle_top, thruster_top, inclination_top, mbes_sim_as;
+    std::string sim_odom_top, sim_pings_top, sim_sss_top, throttle_top, thruster_top, inclination_top, mbes_sim_as, sss_sim_as;
     nh_->param<std::string>("odom_sim", sim_odom_top, "/sim_auv/odom");
     nh_->param<std::string>("world_frame", world_frame_, "world");
     nh_->param<std::string>("map_frame", map_frame_, "map");
     nh_->param<std::string>("odom_frame", odom_frame_, "odom");
     nh_->param<std::string>("base_link", base_frame_, "base_link");
     nh_->param<std::string>("mbes_link", mbes_frame_, "mbes_link");
+    nh_->param<std::string>("sss_link", sss_frame_, "sss_link");
     nh_->param<std::string>("mbes_pings_topic", sim_pings_top, "/sim/mbes_pings");
+    nh_->param<std::string>("sss_pings_topic", sim_sss_top, "/sim/sss_pings");
     nh_->param<std::string>("throttle_cmd", throttle_top, "/throttle");
     nh_->param<std::string>("thruster_cmd", thruster_top, "/thruster");
     nh_->param<std::string>("inclination_cmd", inclination_top, "/inclination");
     nh_->param<std::string>("mbes_sim_as", mbes_sim_as, "mbes_sim_action");
+    nh_->param<std::string>("sss_sim_as", sss_sim_as, "sss_sim_action");
     nh_->param<int>("n_beams_mbes", beams_num_, 100);
+    nh_->param<int>("n_beams_sss", sss_num_, 100);
     nh_->param<std::string>("synch_topic", synch_name_, "/pf/synch");
 
     odom_pub_ = nh_->advertise<nav_msgs::Odometry>(sim_odom_top, 1);
@@ -24,11 +28,12 @@ AUVMotionModel::AUVMotionModel(std::string node_name, ros::NodeHandle &nh):
     incl_sub_ = nh_->subscribe(inclination_top, 1, &AUVMotionModel::inclinationCB, this);
     throttle_sub_ = nh_->subscribe(throttle_top, 1, &AUVMotionModel::throttleCB, this);
     sim_ping_pub_ = nh_->advertise<sensor_msgs::PointCloud2>(sim_pings_top, 3);
+    sim_sss_pub_ = nh_->advertise<auv_model::Sidescan>(sim_sss_top, 3);
 
     start_replay_ = false;
 
-
-    ac_ = new actionlib::SimpleActionClient<auv_model::MbesSimAction>(mbes_sim_as, true);
+    ac_mbes_ = new actionlib::SimpleActionClient<auv_model::MbesSimAction>(mbes_sim_as, true);
+    ac_sss_ = new actionlib::SimpleActionClient<auv_model::SssSimAction>(sss_sim_as, true);
 
     tfListener_ = new tf2_ros::TransformListener(tfBuffer_);
 }
@@ -67,8 +72,13 @@ void AUVMotionModel::init(){
     prev_odom_.pose.pose.orientation.z = 0;
     prev_odom_.pose.pose.orientation.w = 1;
 
-    while(!ac_->waitForServer(ros::Duration(1.0))  && ros::ok()){
-        ROS_INFO_NAMED(node_name_, "Waiting for action server");
+    while(!ac_mbes_->waitForServer(ros::Duration(1.0))  && ros::ok()){
+        ROS_INFO_NAMED(node_name_, "MBES waiting for action server");
+    }
+
+    while (!ac_sss_->waitForServer(ros::Duration(1.0)) && ros::ok())
+    {
+        ROS_INFO_NAMED(node_name_, "SSS waiting for action server");
     }
 
     try {
@@ -84,9 +94,21 @@ void AUVMotionModel::init(){
     try {
         tflistener_.waitForTransform(base_frame_, mbes_frame_, ros::Time(0), ros::Duration(10.0) );
         tflistener_.lookupTransform(base_frame_, mbes_frame_, ros::Time(0), tf_base_mbes_);
-        ROS_INFO("Locked transform base --> sensor");
+        ROS_INFO("Locked transform base --> mbes sensor");
     }
     catch(tf::TransformException &exception) {
+        ROS_ERROR("%s", exception.what());
+        ros::Duration(1.0).sleep();
+    }
+
+    try
+    {
+        tflistener_.waitForTransform(base_frame_, sss_frame_, ros::Time(0), ros::Duration(10.0));
+        tflistener_.lookupTransform(base_frame_, sss_frame_, ros::Time(0), tf_base_sss_);
+        ROS_INFO("Locked transform base --> sss sensor");
+    }
+    catch (tf::TransformException &exception)
+    {
         ROS_ERROR("%s", exception.what());
         ros::Duration(1.0).sleep();
     }
@@ -179,7 +201,7 @@ void AUVMotionModel::updateMotion(const ros::TimerEvent&){
 //    this->updateMeas();
 }
 
-void AUVMotionModel::updateMeas(const ros::TimerEvent&){
+void AUVMotionModel::updateMbes(const ros::TimerEvent&){
 
 //        clock_t tStart = clock();
     // Don't start survey until PF is up
@@ -201,15 +223,53 @@ void AUVMotionModel::updateMeas(const ros::TimerEvent&){
     mbes_goal.mbes_pose.header.stamp = new_base_link_.header.stamp;
     mbes_goal.mbes_pose.transform = transform_msg;
     mbes_goal.beams_num.data = beams_num_;
-    ac_->sendGoal(mbes_goal);
+    ac_mbes_->sendGoal(mbes_goal);
 
-    ac_->waitForResult(ros::Duration(1.0));
-    actionlib::SimpleClientGoalState state = ac_->getState();
+    ac_mbes_->waitForResult(ros::Duration(1.0));
+    actionlib::SimpleClientGoalState state = ac_mbes_->getState();
     if (state == actionlib::SimpleClientGoalState::SUCCEEDED){
         sensor_msgs::PointCloud2 mbes_msg;
-        auv_model::MbesSimResult mbes_res = *ac_->getResult();
+        auv_model::MbesSimResult mbes_res = *ac_mbes_->getResult();
         mbes_msg = mbes_res.sim_mbes;
         sim_ping_pub_.publish(mbes_msg);
+    }
+    //        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
+}
+
+void AUVMotionModel::updateSss(const ros::TimerEvent &)
+{
+
+    //        clock_t tStart = clock();
+    // Don't start survey until PF is up
+    if (start_replay_ != true)
+    {
+        ROS_INFO_NAMED(node_name_, "AUV Sim model waiting for PF to send synch signal");
+        return;
+    }
+
+    // Transformation map-->mbes
+    tf::Transform tf_odom_base;
+    tf::transformMsgToTF(new_base_link_.transform, tf_odom_base);
+    tf::Transform tf_map_sss = tf_map_odom_ * tf_odom_base * tf_base_sss_;
+    geometry_msgs::Transform transform_msg;
+    tf::transformTFToMsg(tf_map_sss, transform_msg);
+
+    auv_model::SssSimGoal sss_goal;
+    sss_goal.sss_pose.header.frame_id = map_frame_;
+    sss_goal.sss_pose.child_frame_id = sss_frame_;
+    sss_goal.sss_pose.header.stamp = new_base_link_.header.stamp;
+    sss_goal.sss_pose.transform = transform_msg;
+    sss_goal.beams_num.data = sss_num_;
+    ac_sss_->sendGoal(sss_goal);
+
+    ac_sss_->waitForResult(ros::Duration(1.0));
+    actionlib::SimpleClientGoalState state = ac_sss_->getState();
+    if (state == actionlib::SimpleClientGoalState::SUCCEEDED)
+    {
+        auv_model::Sidescan sss_msg;
+        auv_model::SssSimResult sss_res = *ac_sss_->getResult();
+        sss_msg = sss_res.sim_sss;
+        sim_sss_pub_.publish(sss_msg);
     }
     //        printf("AUV Motion time taken: %.4fs\n", (double)(clock() - tStart)/CLOCKS_PER_SEC);
 }

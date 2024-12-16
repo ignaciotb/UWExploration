@@ -11,11 +11,16 @@
 
 	<!-- Rates for simulating missions  -->
     <arg name="odom_rate" default="0.1"/>
-	<arg name="meas_rate" default="0.1"/>
+	<arg name="mbes_rate" default="0.1"/>
+	<arg name="sss_rate" default="0.1"/>
 	
 	<!-- MBES sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
 	<arg name="mbes_open_angle" default="1.0" />
+
+    <!-- SSS sensor -->
+	<arg name="n_beams_sss" default="100"/>	
+	<arg name="sss_open_angle" default="1.0" />
 
     <!-- Real data  -->
     <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
@@ -40,19 +45,24 @@
 
     <node pkg="auv_model" type="auv_motion_model" name="auv_motion_model" output="screen">
         <param name="odom_rate" value="$(arg odom_rate)" />
-        <param name="meas_rate" value="$(arg meas_rate)" />
+        <param name="mbes_rate" value="$(arg mbes_rate)" />
+        <param name="sss_rate" value="$(arg sss_rate)" />
         <param name="odom_sim" value="/$(arg mode)/$(arg namespace)/odom" />
-        <param name="mbes_pings_topic" value="/$(arg mode)/$(arg namespace)/mbes_pings" />
         <param name="world_frame" value="world" />
         <param name="map_frame" value="map" />
         <param name="odom_frame" value="$(arg namespace)/odom" />
         <param name="base_link" value="$(arg namespace)/base_link" />
         <param name="mbes_link" value="$(arg namespace)/mbes_link" />
+        <param name="sss_link" value="$(arg namespace)/sss_link" />
+        <param name="mbes_pings_topic" value="/$(arg mode)/$(arg namespace)/mbes_pings" />
+        <param name="sss_pings_topic" value="/$(arg mode)/$(arg namespace)/sss_pings" />
         <param name="throttle_cmd" value="/$(arg namespace)/throttle_cmd" />
         <param name="thruster_cmd" value="/$(arg namespace)/thruster_cmd" />
         <param name="inclination_cmd" value="/$(arg namespace)/inclination_cmd" />
         <param name="mbes_sim_as" value="/$(arg namespace)/mbes_sim_server" />
+        <param name="sss_sim_as" value="/$(arg namespace)/sss_sim_server" />
         <param name="n_beams_mbes" value="$(arg n_beams_mbes)" />
+        <param name="n_beams_sss" value="$(arg n_beams_sss)" />
         <param name="synch_topic" value="/$(arg app)/synch" />
     </node>
 
@@ -68,13 +78,13 @@
     </node>
 
     <node pkg="auv_model" type="auv_sss_model.py" name="auv_sss_model" output="screen">
-        <!-- <param name="mbes_open_angle" value="$(arg mbes_open_angle)" /> -->
-        <param name="mbes_link" value="$(arg namespace)/sss_link" />
-        <param name="mbes_sim_as" value="/$(arg namespace)/sss_sim_server" /> 
+        <param name="sss_open_angle" value="$(arg sss_open_angle)" />
+        <param name="sss_link" value="$(arg namespace)/sss_link" />
+        <param name="sss_sim_as" value="/$(arg namespace)/sss_sim_server" /> 
         <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
         <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
         <!-- <param name="sound_velocity_prof" value="$(find uw_tests)/datasets/$(arg dataset)/svp.cereal" />        -->
-        <!-- <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />        -->
+        <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
         <param name="mesh_path" value="$(arg path)/mesh.npz" />       
     </node>
 

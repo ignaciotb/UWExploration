@@ -15,9 +15,9 @@ from std_msgs.msg import Header
 from sensor_msgs import point_cloud2
 from scipy.ndimage import gaussian_filter1d
 
-# For sim mbes action client
+# For sim sss action client
 import actionlib
-from auv_model.msg import MbesSimAction, MbesSimResult, SssSimAction, SssSimResult, Sidescan
+from auv_model.msg import SssSimAction, SssSimResult, Sidescan
 
 # Auvlib
 from auvlib.bathy_maps import base_draper
@@ -38,16 +38,7 @@ class sss_model(object):
         isovelocity_sound_speeds[0].vels = np.ones((50))*self.svp # m/s
         self.max_r = 40 # this is the number we've put in the sss driver when running the mission
         self.max_r = self.max_r/1500.0*self.svp # this is the actual max range accounting for the sound speed
-        self.nbr_bins = 1000
-        slant_range = np.arange(self.nbr_bins)*self.max_r/self.nbr_bins
-        theta_port = np.ones_like(slant_range)*np.pi/2
-        theta_stbd = -np.ones_like(slant_range)*np.pi/2
-
-        # for TVG residual (iSSS)
-        ab_poly =  [ 2.24377726e-04, -5.62777122e-03,  5.51645115e-02,  4.02042166e-01]
-        self.TVG_residual_poly = np.polyval(ab_poly, slant_range)
-        self.TVG_residual_poly[self.TVG_residual_poly>4]=4
-
+        
         mesh_path = rospy.get_param('~mesh_path')
         data = np.load(mesh_path)
         V, F, bounds = data['V'], data['F'], data['bounds']
@@ -73,7 +64,7 @@ class sss_model(object):
         print("draper created")
         print("Size of draper: ", sys.getsizeof(self.draper))
 
-        # Action server for MBES pings sim (necessary to be able to use UFO maps as well)
+        # Action server for S pings sim (necessary to be able to use UFO maps as well)
         sim_sss_as = rospy.get_param('~sss_sim_as', '/sss_sim_server')
         server_mode = rospy.get_param("~server_mode", False)
         self.as_ping = actionlib.SimpleActionServer(sim_sss_as, SssSimAction,
@@ -86,33 +77,46 @@ class sss_model(object):
     def sss_as_cb(self, goal):
 
         # Unpack goal
-        p_sss = [goal.mbes_pose.transform.translation.x,
-                  goal.mbes_pose.transform.translation.y,
-                  goal.mbes_pose.transform.translation.z]
-        euler_sss = euler_from_quaternion([goal.mbes_pose.transform.rotation.x,
-                                            goal.mbes_pose.transform.rotation.y,
-                                            goal.mbes_pose.transform.rotation.z,
-                                            goal.mbes_pose.transform.rotation.w])
-        
+        p_sss = [goal.sss_pose.transform.translation.x,
+                  goal.sss_pose.transform.translation.y,
+                  goal.sss_pose.transform.translation.z]
+        euler_sss = euler_from_quaternion([goal.sss_pose.transform.rotation.x,
+                                            goal.sss_pose.transform.rotation.y,
+                                            goal.sss_pose.transform.rotation.z,
+                                            goal.sss_pose.transform.rotation.w])
+
         # Create ping to render SSS
         xtf_ping = xtf_data.xtf_sss_ping()
         xtf_ping.port.time_duration = self.max_r*2/self.svp
         xtf_ping.stbd.time_duration = self.max_r*2/self.svp
         xtf_ping.pos_ = np.array(p_sss)
-        xtf_ping.roll_, xtf_ping.pitch_, xtf_ping.yaw_ = euler_sss
+        xtf_ping.roll_, xtf_ping.pitch_, xtf_ping.heading_ = euler_sss
 
         # Rendering
-        left, right = self.draper.project_ping(xtf_ping, self.nbr_bins) # project
-        # mbes = mbes[::-1]  # Reverse beams for same order as real pings
+        # nbr_bins = goal.beams_num
+        nbr_bins = 1000
+        left, right = self.draper.project_ping(xtf_ping, nbr_bins) # project
+        # sss = sss[::-1]  # Reverse beams for same order as real pings
+
+        port_channel = np.copy(np.array(left.time_bin_model_intensities)*255.)
+        print(port_channel)
+        starboard_channel = np.copy(np.array(right.time_bin_model_intensities)*255.)
+        port_channel[np.isnan(port_channel)] = 0
+        starboard_channel[np.isnan(starboard_channel)] = 0
 
         sss_msg = Sidescan()
+        sss_msg.port_channel = port_channel.astype(int).tolist()
+        sss_msg.starboard_channel = starboard_channel.astype(int).tolist()
 
-        sss_msg.port_channel = np.copy(np.array(left.time_bin_model_intensities)*255.)
-        sss_msg.starboard_channel = np.copy(np.array(right.time_bin_model_intensities)*255.)
-        sss_msg.port_channel[np.isnan(sss_msg.port_channel)] = 0
-        sss_msg.starboard_channel[np.isnan(sss_msg.starboard_channel)] = 0
+        ## If we want to apply TVG residual
+        # slant_range = np.arange(nbr_bins)*self.max_r/nbr_bins
+        # theta_port = np.ones_like(slant_range)*np.pi/2
+        # theta_stbd = -np.ones_like(slant_range)*np.pi/2
 
-        ## if we want to apply TVG residual
+        # # for TVG residual (iSSS)
+        # ab_poly =  [ 2.24377726e-04, -5.62777122e-03,  5.51645115e-02,  4.02042166e-01]
+        # self.TVG_residual_poly = np.polyval(ab_poly, slant_range)
+        # self.TVG_residual_poly[self.TVG_residual_poly>4]=4
         # sss_msg.port_channel = sss_msg.port_channel * self.TVG_residual_poly
         # sss_msg.starboard_channel = sss_msg.starboard_channel * self.TVG_residual_poly
 
@@ -126,6 +130,6 @@ if __name__ == '__main__':
     try:
         sss_model()
     except rospy.ROSInterruptException:
-        rospy.logerr("Couldn't launch mbes_model")
+        rospy.logerr("Couldn't launch sss_model")
         pass
 

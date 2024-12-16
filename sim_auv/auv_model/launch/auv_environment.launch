@@ -11,14 +11,20 @@
 
 	<!-- Rates for simulating missions  -->
     <arg name="odom_rate" default="0.1"/>
-	<arg name="meas_rate" default="0.1"/>
+	<arg name="mbes_rate" default="0.1"/>
+	<arg name="sss_rate" default="0.1"/>
 	<!-- Rate for replaying real missions  -->
     <arg name="replay_rate" default="0.05"/>
     <!-- <arg name="replay_rate" default="1"/> -->
 	
 	<!-- MBES sim sensor -->
 	<arg name="n_beams_mbes" default="100"/>	
-	<arg name="mbes_open_angle" default="1.0" />
+	<arg name="mbes_open_angle" default="2.0" />
+
+	<!-- SSS sensor -->
+	<arg name="n_beams_sss" default="100"/>	
+	<arg name="sss_open_angle" default="2.0" />
+
 
     <!-- Real data  -->
     <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
@@ -86,9 +92,12 @@
 				<arg name="app" value="$(arg app)"/>
 				<arg name="debug" value="$(arg debug)"/>
 				<arg name="odom_rate" value="$(arg odom_rate)"/>
-				<arg name="meas_rate" value="$(arg meas_rate)"/>
+				<arg name="mbes_rate" value="$(arg mbes_rate)"/>
+				<arg name="sss_rate" value="$(arg sss_rate)"/>
 				<arg name="n_beams_mbes" value="$(arg n_beams_mbes)"/>	
+				<arg name="n_beams_sss" value="$(arg n_beams_sss)"/>	
 				<arg name="mbes_open_angle" value="$(arg mbes_open_angle)" />
+				<arg name="sss_open_angle" value="$(arg sss_open_angle)" />
 				<arg name="path" value="$(arg path)" />
 				<arg name="x" value="$(arg x)"/>
 				<arg name="y" value="$(arg y)"/>

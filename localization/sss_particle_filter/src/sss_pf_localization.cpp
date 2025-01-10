@@ -281,6 +281,24 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
         // Compute expected measurements for every particle in their latest pose
         this->expected_measurements(odom_latest_);
 
+        if (ping_cnt_ % submap_size_ == 0)
+        {
+            this->compute_weights(sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
+
+            std::cout << "Saving real patch image " << sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows).rows << std::endl;
+            std::string filename = "./sss_real_patch_"+ std::to_string(ping_cnt_) + ".png";
+            bool success = cv::imwrite(filename, sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
+
+            std::vector<double> weights;
+            for (int i = 0; i < pc_; i++)
+            {
+                std::cout << "Particle " << i << ", weight " << particles_.at(i).w_ << std::endl;
+                weights.push_back(particles_.at(i).w_);
+            }
+            this->resample(weights);
+        }
+        std::cout << "Done with sss cb" << std::endl;
+
         // auto t2 = high_resolution_clock::now();
         // duration<double, std::milli> ms_double = t2 - t1;
         // std::cout << ms_double.count() / 1000.0 << std::endl;
@@ -356,14 +374,58 @@ void pfLocalization::expected_measurements(nav_msgs::Odometry &odom)
         // If expected SSS meas received, store in the particle's submap
         if (state == actionlib::SimpleClientGoalState::SUCCEEDED)
         {
-            auv_model::Sidescan sss_msg;
             auv_model::SssSimResult sss_res = *ac_sss_->getResult();
-            
+
+            cv::Mat port(1, sss_res.sim_sss.port_channel.size(), CV_8UC1);
+            cv::Mat stbd(1, sss_res.sim_sss.starboard_channel.size(), CV_8UC1);
+            for (size_t i = 0; i < sss_res.sim_sss.port_channel.size(); ++i)
+            {
+                port.at<uint8_t>(0, i) = sss_res.sim_sss.port_channel[i];
+                stbd.at<uint8_t>(0, i) = sss_res.sim_sss.starboard_channel[i];
+            }
+
+            // Flip the port channel and concatenate and store
+            cv::Mat flippedPort;
+            cv::flip(port, flippedPort, 1); // Flip horizontally (axis = 1)
+            cv::Mat meas;
+            cv::hconcat(flippedPort, stbd, meas);
+            particles_.at(p).sss_patch_.push_back(meas);
+
             // Republish for debugging
+            auv_model::Sidescan sss_msg;
             sss_msg = sss_res.sim_sss;
             p_sss_pubs_.at(p).publish(sss_msg);
         }
     }
+}
+
+void pfLocalization::compute_weights(const cv::Mat real_sss_patch)
+{
+    auto t1 = high_resolution_clock::now();
+
+    // Sequential version
+    // for (int i = 0; i < pc_; i++)
+    // {
+    //     particles_.at(i).compute_weight_sss(real_sss_patch);
+    // }
+
+    // Multithreading
+    for (int i = 0; i < pc_; i++)
+    {
+        // Passing real_sss_patch by reference yields issues. Create copies instead
+        weights_threads_vec_.emplace_back(std::thread(&pfParticle::compute_weight_sss,
+                                                    &particles_.at(i), real_sss_patch));
+    }
+
+    for (int i = 0; i < pc_; i++)
+    {
+        if (pred_threads_vec_[i].joinable())
+        {
+            pred_threads_vec_[i].join();
+        }
+    }
+    pred_threads_vec_.clear();
+
 }
 
 void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)
@@ -425,6 +487,96 @@ void pfLocalization::update_particles_history()
         }
     }
     upd_threads_vec_.clear();
+}
+
+void pfLocalization::resample(vector<double> weights)
+{
+    N_eff_ = pc_;
+    vector<int> indices;
+    vector<int> lost;
+    vector<int> keep;
+    vector<int> dupes;
+    std::vector<int>::iterator idx;
+
+    // std::cout << "Original weights :" << std::endl;
+    // for(auto weight: weights){
+    //     std::cout << weight << " ";
+    // }
+    // std::cout << std::endl;
+
+    double w_sum = accumulate(weights.begin(), weights.end(), 0.0);
+    if (w_sum == 0.)
+        ROS_WARN("All weights are zero!");
+    else
+    {
+        // Normalize weights
+        transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto &c)
+                  { return c / w_sum; });
+        std::cout << "Normalized weights :" << std::endl;
+        for (auto weight : weights)
+        {
+            std::cout << weight << " ";
+        }
+        std::cout << std::endl;
+
+        // Compute effective number
+        double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
+        N_eff_ = 1 / w_sq_sum;
+    }
+
+    // n_eff_mask_.erase(n_eff_mask_.begin());
+    // n_eff_mask_.push_back(N_eff);
+    // n_eff_filt_ = moving_average(n_eff_mask_, 3);
+
+    std::cout << std::endl;
+    std::cout << "Mask exp " << N_eff_ << " N_thres " << std::round(pc_ / 2) << std::endl;
+
+    if (N_eff_ < std::round(pc_ / 2) || lc_detected_)
+    // if (N_eff < 90 || lc_detected_)
+    {
+        // Resample particles
+        ROS_INFO("Resampling");
+        indices = systematic_resampling(weights);
+
+        // For manual lc testing
+        if (lc_detected_)
+        {
+            indices = vector<int>(pc_, 0);
+        }
+
+        set<int> s(indices.begin(), indices.end());
+        keep.assign(s.begin(), s.end());
+        for (int i = 0; i < pc_; i++)
+        {
+            if (!count(keep.begin(), keep.end(), i))
+                lost.push_back(i);
+        }
+
+        dupes = indices;
+        std::cout << "Keep " << std::endl;
+        for (int i : keep)
+        {
+            std::cout << i << " ";
+            if (count(dupes.begin(), dupes.end(), i))
+            {
+                idx = find(dupes.begin(), dupes.end(), i);
+                dupes.erase(idx);
+            }
+        }
+        std::cout << std::endl;
+
+        // Reasign and ddd noise to particles poses
+        ROS_INFO("Reasigning poses");
+        reassign_poses(lost, dupes);
+        for (int i = 0; i < pc_; i++)
+            particles_[i].add_noise(res_noise_cov_);
+
+        lc_detected_ = false;
+
+        // auto t2 = high_resolution_clock::now();
+        // duration<double, std::milli> ms_double = t2 - t1;
+        // std::cout << ms_double.count() / 1000.0 << std::endl;
+    }
 }
 
 void pfLocalization::pub_markers(const geometry_msgs::PoseArray& array_msg)
@@ -517,120 +669,6 @@ void pfLocalization::update_rviz(const ros::TimerEvent &)
 
         // Update stats
         publish_stats(odom_latest_);
-    }
-}
-
-void pfLocalization::resample(vector<double> weights)
-{
-    N_eff_ = pc_;
-    vector<int> indices;
-    vector<int> lost;
-    vector<int> keep;
-    vector<int> dupes;
-    std::vector<int>::iterator idx;
-
-    // std::cout << "Original weights :" << std::endl;
-    // for(auto weight: weights){
-    //     std::cout << weight << " ";
-    // }
-    // std::cout << std::endl;
-
-    double w_sum = accumulate(weights.begin(), weights.end(), 0.0);
-    if(w_sum == 0.)
-        ROS_WARN("All weights are zero!");
-    else
-    {
-        // Normalize weights
-        transform(weights.begin(), weights.end(), weights.begin(), [&w_sum](auto& c){return c/w_sum;});
-        std::cout << "Normalized weights :" << std::endl;
-        for(auto weight: weights){
-            std::cout << weight << " ";
-        }
-        std::cout << std::endl;
-
-        // Compute effective number
-        double w_sq_sum = inner_product(begin(weights), end(weights), begin(weights), 0.0); // Sum of squared elements of weigsth
-        N_eff_ = 1 / w_sq_sum;
-    }
-
-    // n_eff_mask_.erase(n_eff_mask_.begin());
-    // n_eff_mask_.push_back(N_eff);
-    // n_eff_filt_ = moving_average(n_eff_mask_, 3);
-
-    std::cout << std::endl;
-    std::cout << "Mask exp " << N_eff_ << " N_thres " << std::round(pc_ / 2) << std::endl;
-
-
-    if (N_eff_ < std::round(pc_ / 2) || lc_detected_)
-    // if (N_eff < 90 || lc_detected_)
-    {
-        // Resample particles
-        ROS_INFO("Resampling");
-        indices = systematic_resampling(weights);
-        
-        // For manual lc testing
-        if(lc_detected_){
-            indices = vector<int>(pc_, 0);
-        }
-
-        set<int> s(indices.begin(), indices.end());
-        keep.assign(s.begin(), s.end());
-        for(int i = 0; i < pc_; i++)
-        {
-            if (!count(keep.begin(), keep.end(), i))
-                lost.push_back(i);
-        }
-
-        dupes = indices;
-        std::cout << "Keep " << std::endl;
-        for (int i : keep)
-        {
-            std::cout << i << " ";
-            if (count(dupes.begin(), dupes.end(), i))
-            {
-                idx = find(dupes.begin(), dupes.end(), i);
-                dupes.erase(idx);
-            }
-        }
-        std::cout << std::endl;
-
-        // Reasign and ddd noise to particles poses
-        ROS_INFO("Reasigning poses");
-        reassign_poses(lost, dupes);
-        for(int i = 0; i < pc_; i++)
-            particles_[i].add_noise(res_noise_cov_);
-
-        // Reassign SVGP maps: send winning indexes to SVGP nodes
-        slam_msgs::Resample k_ros;
-        slam_msgs::Resample l_ros;
-        auto t1 = high_resolution_clock::now();
-        if(!dupes.empty())
-        {
-            for(int k : keep)
-            {
-                k_ros.request.p_id = k;
-                p_resampling_srvs_[k].call(k_ros);
-            }
-
-            int j = 0;
-            for (int l : lost)
-            {
-                // Send the ID of the particle to copy to the particle that has not been resampled
-                l_ros.request.p_id = dupes[j];
-                if(p_resampling_srvs_[l].call(l_ros)){
-                    ROS_DEBUG("Dupe sent");
-                }
-                else{
-                    ROS_WARN("Failed to call resample srv");
-                }
-                j++;
-            }
-        }
-        lc_detected_ = false;
-
-        // auto t2 = high_resolution_clock::now();
-        // duration<double, std::milli> ms_double = t2 - t1;
-        // std::cout << ms_double.count() / 1000.0 << std::endl;
     }
 }
 

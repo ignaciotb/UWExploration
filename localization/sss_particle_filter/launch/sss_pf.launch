@@ -9,8 +9,7 @@
 	<arg name="app" default="pf"/>
   <!-- <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/> -->
 
-  <!-- Num of beams per MBES pings to store in the log -->
-	<arg name="n_beams_sss" default="2000"/>	
+	<arg name="n_beams_sss" default="500"/>	<!-- Per SSS head -->
 
   <!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
 	<!-- <arg name="x" default="-300.0"/>
@@ -56,7 +55,7 @@
 
       <node type="sss_pf_localization_node" pkg="sss_particle_filter" name="sss_pf_localization" output="screen">
         <param name="particle_count"          type= "int"     value="$(arg particle_count)" />
-        <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.1]</rosparam>
+        <rosparam param="init_covariance">[1., 1., 0.0, 0.0, 0.0, 0.5]</rosparam>
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.000001]</rosparam>
         <rosparam param="resampling_noise_covariance">[3.0, 3.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="10." />

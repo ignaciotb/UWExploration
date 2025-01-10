@@ -148,21 +148,15 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     std::string particle_sss_top;
     nh_->param<string>(("particle_sss_top"), particle_sss_top, "/resample_top");
     for (int i=0; i<pc_; i++){
-        particles_.emplace_back(pfParticle(beams_real_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                            init_cov_, meas_std_, motion_cov_));
+        particles_.emplace_back(pfParticle(sss_bin_num_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                           init_cov_, meas_std_, motion_cov_));
 
         p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(i), 1));
     }
 
     // Dead reckoning particle
-    dr_particle_.emplace_back(pfParticle(beams_real_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                           std::vector<float>(6, 0.), meas_std_, std::vector<float>(6,0.)));
-
-    // Initialize aux variables
-    ping_mat_ = Eigen::MatrixXf(beams_real_, 3);
-    int mb_size;
-    nh_->param<int>(("svgp_minibatch_size"), mb_size, 100);
-    mb_mat_ = Eigen::MatrixXf(mb_size, 3);
+    dr_particle_.emplace_back(pfParticle(sss_bin_num_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
 
     std::string enable_lc_top;
     nh_->param<string>(("particle_enable_lc"), enable_lc_top, "/enable_lc");
@@ -185,13 +179,17 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
         ROS_INFO_NAMED("PF ", "SSS waiting for action server");
     }
 
-    // // Subscription to manually triggering LC detection. Just for testing
-    // nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
-
-    // lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &pfLocalization::manual_lc, this);
+    // Subscription to manually triggering LC detection. Just for testing
+    nh_->param<string>(("lc_manual_topic"), lc_manual_topic_, "/manual_lc");
+    lc_manual_sub_ = nh_->subscribe(lc_manual_topic_, 1, &pfLocalization::manual_lc, this);
     
+    // Aux variables for submaps
+    ping_cnt_ = 0;
+    submap_size_ = 50;
+    ancestry_sizes_.push_back(0);
+
     // Subscription to sss pings
-    sss_full_image_ = cv::Mat::zeros(1, sss_bin_num_, CV_8UC1);
+    sss_full_image_ = cv::Mat::zeros(1, sss_bin_num_ * 2, CV_8UC1);
     nh_->param<string>(("sss_pings_topic"), sss_pings_top_, "sss_pings");
     sss_sub_ = nh_->subscribe(sss_pings_top_, 10, &pfLocalization::sss_cb, this);
 
@@ -208,7 +206,7 @@ bool pfLocalization::empty_srv(std_srvs::Empty::Request &req, std_srvs::Empty::R
     return true;
 }
 
-// void pfLocalization::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
+void pfLocalization::manual_lc(const std_msgs::Bool::ConstPtr& lc_msg) { lc_detected_ = true; }
 
 // Receive IDs of SVGPs when they are ready to be used for LC prompting 
 void pfLocalization::enable_lc(const std_msgs::Int32::ConstPtr& enable_lc)
@@ -238,10 +236,9 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
     {
         // Beams in vehicle mbes frame
         // Store in pings history
+        std::cout << "Starting sss cb " << ping_cnt_ << std::endl;
         auto t1 = high_resolution_clock::now();
 
-        // TODO: Store it
-        std::cout << "Num of beams in port " << msg->port_channel.size()<< std::endl;
         cv::Mat port(1, msg->port_channel.size(), CV_8UC1);
         cv::Mat stbd(1, msg->starboard_channel.size(), CV_8UC1);
         for (size_t i = 0; i < msg->port_channel.size(); ++i)

@@ -71,9 +71,9 @@ void AUVMotionModel::init(){
     prev_odom_.pose.pose.orientation.z = 0;
     prev_odom_.pose.pose.orientation.w = 1;
 
-    while(!ac_mbes_->waitForServer(ros::Duration(1.0))  && ros::ok()){
-        ROS_INFO_NAMED(node_name_, "MBES waiting for action server");
-    }
+    // while(!ac_mbes_->waitForServer(ros::Duration(1.0))  && ros::ok()){
+    //     ROS_INFO_NAMED(node_name_, "MBES waiting for action server");
+    // }
 
     while (!ac_sss_->waitForServer(ros::Duration(1.0)) && ros::ok())
     {

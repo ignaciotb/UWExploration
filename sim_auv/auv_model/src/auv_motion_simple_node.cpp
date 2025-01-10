@@ -16,7 +16,7 @@ int main(int argc, char** argv){
     AUVMotionModel* auv_mm = new AUVMotionModel(ros::this_node::getName(), nh);
     auv_mm->init();
     ros::Timer timer1 = nh.createTimer(ros::Duration(rate_odom), &AUVMotionModel::updateMotion, auv_mm);
-    ros::Timer timer2 = nh.createTimer(ros::Duration(rate_mbes), &AUVMotionModel::updateMbes, auv_mm);
+    // ros::Timer timer2 = nh.createTimer(ros::Duration(rate_mbes), &AUVMotionModel::updateMbes, auv_mm);
     ros::Timer timer3 = nh.createTimer(ros::Duration(rate_sss), &AUVMotionModel::updateSss, auv_mm);
 
     ros::spin();

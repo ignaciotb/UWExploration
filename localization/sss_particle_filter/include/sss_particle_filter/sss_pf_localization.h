@@ -96,6 +96,7 @@ public:
     // Multithreading
     std::vector<std::thread> pred_threads_vec_;
     std::vector<std::thread> upd_threads_vec_;
+    std::vector<std::thread> weights_threads_vec_;
 
     int pc_;
     int beams_num_;
@@ -110,6 +111,8 @@ public:
     std::vector<pfParticle> dr_particle_;
     std::mt19937 rng_;
     std::mt19937 g_;
+    int ping_cnt_;
+    int submap_size_;
 
     tf::TransformListener tfListener_;
     tf2_ros::Buffer tf_buffer_;
@@ -232,6 +235,8 @@ public:
     void sss_cb(const auv_model::SidescanConstPtr &msg);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
     void expected_measurements(nav_msgs::Odometry &odom);
+    void compute_weights(const cv::Mat real_sss_patch);
+
     // void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);
     // void measCB(const sensor_msgs::PointCloud2ConstPtr &mbes_ping,
     //             const nav_msgs::OdometryConstPtr &odom_msg);

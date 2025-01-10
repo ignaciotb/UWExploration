@@ -30,7 +30,12 @@
 
 #include <random>
 
+#include <opencv2/opencv.hpp>
+#include <opencv2/core/cuda.hpp>
+
 using namespace std;
+using namespace cv;
+
 typedef std::vector<Eigen::Vector3f, Eigen::aligned_allocator<Eigen::Vector3f>> pos_track;
 typedef std::vector<Eigen::Matrix3f, Eigen::aligned_allocator<Eigen::Matrix3f>> rot_track;
 typedef std::shared_ptr<pos_track> pos_track_ptr;
@@ -57,11 +62,16 @@ public:
                                      float depth, float dt, std::mt19937& rng);
     void update_pose_history();
 
+    void compute_weight_sss(const cv::Mat real_sss_patch);
+
+    double getMSSIM(const Mat &i1, const Mat &i2);
+
     Eigen::VectorXf p_pose_;
     std::vector<pos_track_ptr> pos_history_;
     std::vector<rot_track_ptr> rot_history_;
     double w_;
     int index_;
+    int submap_cnt_;
 
     // Noise models
     std::vector<float> init_cov_;
@@ -70,6 +80,7 @@ public:
     double mbes_sigma_;
     std::shared_ptr<std::mutex> pc_mutex_;
     Eigen::VectorXf noise_vec_;
+    cv::Mat sss_patch_;
 
 private:
     // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;

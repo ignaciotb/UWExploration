@@ -5,6 +5,8 @@ import math
 import rospy
 import sys
 import numpy as np
+import time
+
 # from scipy.spatial.transform import Rotation as rot
 
 from tf.transformations import quaternion_matrix, euler_from_quaternion
@@ -24,7 +26,7 @@ from auv_model.msg import SssSimAction, SssSimResult, Sidescan
 from auvlib.bathy_maps import base_draper
 from auvlib.data_tools import csv_data, xtf_data
 
-class mbes_model(object):
+class auv_payload(object):
 
     def __init__(self):
 
@@ -42,6 +44,7 @@ class mbes_model(object):
 
         data = np.load(mesh_path)
         V, F, bounds = data['V'], data['F'], data['bounds']
+        print(bounds)
         print("Mesh loaded")
 
         # - For Dec 2024, Asko 
@@ -55,7 +58,8 @@ class mbes_model(object):
         isovelocity_sound_speeds[0].vels = np.ones((50))*self.svp # m/s
         self.max_r = 40 # this is the number we've put in the sss driver when running the mission
         self.max_r = self.max_r/1500.0*self.svp # this is the actual max range accounting for the sound speed
-        
+        self.avg_time = []
+
         # Create draper
         self.draper = base_draper.BaseDraper(V, F, bounds, isovelocity_sound_speeds)
         # self.draper.set_ray_tracing_enabled(False)
@@ -156,11 +160,17 @@ class mbes_model(object):
         xtf_ping.pos_ = np.array([p_sss[0],p_sss[1],p_sss[2]])
         xtf_ping.roll_, xtf_ping.pitch_, xtf_ping.heading_ = euler_sss
 
+        start_time = time.time()
         # Rendering
-        # nbr_bins = goal.beams_num
-        nbr_bins = 1000
+        nbr_bins = goal.beams_num.data
+        print("Num of beams ", nbr_bins)
         left, right = self.draper.project_ping(xtf_ping, nbr_bins) # project
         # sss = sss[::-1]  # Reverse beams for same order as real pings
+        
+        self.avg_time.append(time.time() - start_time)
+        if len(self.avg_time) == 10:
+            print("Raytracing time ", (np.asarray(self.avg_time).sum()/10.))
+            self.avg_time.pop()
 
         port_channel = np.copy(np.array(left.time_bin_model_intensities)*255.)
         starboard_channel = np.copy(np.array(right.time_bin_model_intensities)*255.)
@@ -192,7 +202,7 @@ if __name__ == '__main__':
 
     rospy.init_node('auv_payload', disable_signals=False)
     try:
-        mbes_model()
+        auv_payload()
     except rospy.ROSInterruptException:
         rospy.logerr("Couldn't launch auv_payload")
         pass

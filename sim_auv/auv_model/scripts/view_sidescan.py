@@ -33,11 +33,11 @@ def callback(img, msg):
 
 rospy.init_node('sidescan_viewer', anonymous=True)
 
-img = np.zeros((1000, 2 * 1000), dtype=np.ubyte)  # dtype=float) #
+img = np.zeros((1000, 1000), dtype=np.ubyte)  # dtype=float) #
 cv2.namedWindow('Sidescan image', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Sidescan image', 2 * 256, 1000)
 
-rospy.Subscriber("/sim/sam/sss_pings", Sidescan, partial(callback, img))
+rospy.Subscriber("/sam/pf/sss/particle_0", Sidescan, partial(callback, img))
 
 # spin() simply keeps python from exiting until this node is stopped
 r = rospy.Rate(5)  # 10hz

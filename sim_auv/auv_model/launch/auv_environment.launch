@@ -22,17 +22,16 @@
 	<arg name="mbes_open_angle" default="2.0" />
 
 	<!-- SSS sensor -->
-	<arg name="n_beams_sss" default="100"/>	
+	<arg name="n_beams_sss" default="500"/>	<!-- Per SSS head -->
 	<arg name="sss_open_angle" default="2.0" />
-
 
     <!-- Real data  -->
     <arg name="path" default="$(find uw_tests)/datasets/$(arg dataset)/"/>
     <arg name="cereal_trajectory" default="$(arg path)/mbes_pings.cereal"/>
 
 	<!-- Coordinates of odom frame wrt the map frame. By default, the AUV start the mission here -->
-    <arg name="x" default="0.0"/>
-	<arg name="y" default="0.0"/>
+    <arg name="x" default="-50.0"/>
+	<arg name="y" default="-50.0"/>
 	<arg name="z" default="0.0"/>
 	<arg name="roll" default="0.0"/>
 	<arg name="pitch" default="0.0"/>

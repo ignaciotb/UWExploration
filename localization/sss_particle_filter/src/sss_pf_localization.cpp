@@ -253,27 +253,24 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
         cv::Mat meas;
         cv::hconcat(flippedPort, stbd, meas);
         sss_full_image_.push_back(meas);
+        ping_cnt_ ++;
 
         // For debugging
-        if (sss_full_image_.rows == 50)
-        {
-            std::cout << "Saved image " << std::endl;
-            std::string filename = "./test_sss.png";
-            bool success = cv::imwrite(filename, sss_full_image_);
+        // if (sss_full_image_.rows == 50)
+        // {
+        //     std::cout << "Saved image " << std::endl;
+        //     std::string filename = "./test_sss.png";
+        //     bool success = cv::imwrite(filename, sss_full_image_);
 
-            if (success)
-            {
-                std::cout << "Image successfully saved to " << filename << std::endl;
-            }
-            else
-            {
-                std::cerr << "Error: Could not save image to " << filename << std::endl;
-            }
-        }
-
-        // pings_idx_.push_back(count_pings_);
-        // std::cout << "Number of pings " << pings_idx_.size() << std::endl;
-        // count_pings_ += 1;
+        //     if (success)
+        //     {
+        //         std::cout << "Image successfully saved to " << filename << std::endl;
+        //     }
+        //     else
+        //     {
+        //         std::cerr << "Error: Could not save image to " << filename << std::endl;
+        //     }
+        // }
 
         // Store in history particles poses corresponding to the current ping
         this->update_particles_history();

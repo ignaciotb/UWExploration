@@ -1,7 +1,15 @@
-cmake_minimum_required(VERSION 2.8.3)
-project(auv_model)
+cmake_minimum_required(VERSION 3.12)
 
-## Compile as C++11, supported in ROS Kinetic and newer
+# Set CMP0048 to NEW to allow project VERSION specification
+if (POLICY CMP0048)
+    cmake_policy(SET CMP0048 NEW)
+endif()
+
+project(auv_model VERSION 1.0.0)
+include(ExternalProject)
+
+
+# # Compile as C++11, supported in ROS Kinetic and newer
 # add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
@@ -18,9 +26,27 @@ find_package(catkin REQUIRED COMPONENTS
     #auv_2_ros
 )
 
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+# AUVLIB stuff
+find_package(LibXTF REQUIRED)
+find_package(LibGSF REQUIRED)
+find_package(EigenCereal REQUIRED)
+find_package(DataTools REQUIRED)
+find_package(SonarTracing REQUIRED)
+find_package(AuvlibGlad REQUIRED)
+find_package(BathyMaps REQUIRED)
+find_package(PCL 1.8 REQUIRED)
+find_package(OpenCV REQUIRED)
 
+# Libigl for raytracing
+set(EMBREE_ISPC_SUPPORT OFF)
+set(EMBREE_TUTORIALS OFF)
+# Install this https://github.com/libigl/libigl-example-project/tree/main
+list(PREPEND CMAKE_MODULE_PATH "/home/torroba/workspaces/libigl-example-project/cmake")
+# Add as a set of headers
+include(libigl) 
+# Add modules here
+igl_include(glfw)
+igl_include(embree)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -30,26 +56,6 @@ find_package(catkin REQUIRED COMPONENTS
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
-
-## To declare and build messages, services or actions from within this
-## package, follow these steps:
-## * Let MSG_DEP_SET be the set of packages whose message types you use in
-##   your messages/services/actions (e.g. std_msgs, actionlib_msgs, ...).
-## * In the file package.xml:
-##   * add a build_depend tag for "message_generation"
-##   * add a build_depend and a exec_depend tag for each package in MSG_DEP_SET
-##   * If MSG_DEP_SET isn't empty the following dependency has been pulled in
-##     but can be declared for certainty nonetheless:
-##     * add a exec_depend tag for "message_runtime"
-## * In this file (CMakeLists.txt):
-##   * add "message_generation" and every package in MSG_DEP_SET to
-##     find_package(catkin REQUIRED COMPONENTS ...)
-##   * add "message_runtime" and every package in MSG_DEP_SET to
-##     catkin_package(CATKIN_DEPENDS ...)
-##   * uncomment the add_*_files sections below as needed
-##     and list every .msg/.srv/.action file to be processed
-##   * uncomment the generate_messages entry below
-##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 # Generate messages in the 'msg' folder
 add_message_files(
@@ -120,36 +126,42 @@ catkin_package(
 ## Build ##
 ###########
 
+# To include lib cnpy
+add_subdirectory(/home/torroba/workspaces/cnpy/ [/home/torroba/workspaces/cnpy/])
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
  include
  ${catkin_INCLUDE_DIRS}
+ ${OpenCV_INCLUDE_DIRS}
+ ${EIGEN3_INCLUDE_DIRS}
+ /home/torroba/workspaces/cnpy/
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/auv_model.cpp
-# )
+# Declare a C++ library
+add_library(sss_payload
+  src/sss_payload.cpp
+)
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_include_directories(sss_payload PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    PRIVATE src)
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
+
 add_executable(auv_motion_model
        src/auv_motion_simple_node.cpp
        src/auv_motion_simple.cpp
 )
 
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
+add_executable(auv_payload_cpp
+  src/auv_payload.cpp
+)
+
+# add_executable(test_ray
+#   src/test_ray.cpp
+# )
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -157,10 +169,37 @@ add_dependencies(auv_motion_model
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS})
 
+add_dependencies(auv_payload_cpp
+  ${${PROJECT_NAME}_EXPORTED_TARGETS}
+  ${catkin_EXPORTED_TARGETS})
+
+# add_dependencies(test_ray
+#   ${${PROJECT_NAME}_EXPORTED_TARGETS})
+
 ## Specify libraries to link a library or executable target against
+target_link_libraries(sss_payload
+    igl::embree 
+    cnpy
+    z    
+    base_draper 
+    xtf_data 
+    std_data
+    mesh_map 
+)
+
 target_link_libraries(auv_motion_model
     ${catkin_LIBRARIES}
 )
+
+target_link_libraries(auv_payload_cpp
+    ${OpenCV_LIBRARIES}
+    ${catkin_LIBRARIES}
+    ${PCL_LIBRARIES}
+    # igl::embree 
+    sss_payload
+)
+
+
 #############
 ## Install ##
 #############
@@ -175,11 +214,17 @@ target_link_libraries(auv_motion_model
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
+install(TARGETS sss_payload EXPORT SssPayloadConfig
+    ARCHIVE  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    LIBRARY  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    RUNTIME  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})  # This is for Windows
+# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-# install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+install(TARGETS auv_payload_cpp
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html

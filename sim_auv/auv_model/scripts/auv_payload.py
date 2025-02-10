@@ -172,6 +172,7 @@ class auv_payload(object):
             print("Raytracing time ", (np.asarray(self.avg_time).sum()/10.))
             self.avg_time.pop()
 
+        # print(np.array(left.time_bin_model_intensities))
         port_channel = np.copy(np.array(left.time_bin_model_intensities)*255.)
         starboard_channel = np.copy(np.array(right.time_bin_model_intensities)*255.)
         port_channel[np.isnan(port_channel)] = 0

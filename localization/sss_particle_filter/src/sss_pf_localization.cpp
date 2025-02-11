@@ -4,7 +4,8 @@ pfLocalization::pfLocalization()
 {
 }
 
-pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh_(&nh), nh_mb_(&nh_mb), rng_((std::random_device())()), g_((std::random_device())())
+pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : 
+        nh_(&nh), nh_mb_(&nh_mb), rng_((std::random_device())()), g_((std::random_device())())
 {
     // Get parameters from launch file
     nh_->param<int>(("particle_count"), pc_, 10);
@@ -147,16 +148,18 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     // Create particles
     std::string particle_sss_top;
     nh_->param<string>(("particle_sss_top"), particle_sss_top, "/resample_top");
+    std::string mesh_resources_path;
+    nh.getParam(("mesh_resources"), mesh_resources_path);
     for (int i=0; i<pc_; i++){
         particles_.emplace_back(pfParticle(sss_bin_num_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                           init_cov_, meas_std_, motion_cov_));
+                                           init_cov_, meas_std_, motion_cov_, mesh_resources_path));
 
         p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(i), 1));
     }
 
     // Dead reckoning particle
-    dr_particle_.emplace_back(pfParticle(sss_bin_num_, pc_, pc_ + 1, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.)));
+    dr_particle_.emplace_back(pfParticle(sss_bin_num_, pc_, pc_, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.), mesh_resources_path));
 
     std::string enable_lc_top;
     nh_->param<string>(("particle_enable_lc"), enable_lc_top, "/enable_lc");
@@ -185,7 +188,7 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) : nh
     
     // Aux variables for submaps
     ping_cnt_ = 0;
-    submap_size_ = 50;
+    submap_size_ = 100;
     ancestry_sizes_.push_back(0);
 
     // Subscription to sss pings
@@ -236,7 +239,7 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
     {
         // Beams in vehicle mbes frame
         // Store in pings history
-        std::cout << "Starting sss cb " << ping_cnt_ << std::endl;
+        // std::cout << "Starting sss cb " << ping_cnt_ << std::endl;
         auto t1 = high_resolution_clock::now();
 
         cv::Mat port(1, msg->port_channel.size(), CV_8UC1);
@@ -255,34 +258,18 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
         sss_full_image_.push_back(meas);
         ping_cnt_ ++;
 
-        // For debugging
-        // if (sss_full_image_.rows == 50)
-        // {
-        //     std::cout << "Saved image " << std::endl;
-        //     std::string filename = "./test_sss.png";
-        //     bool success = cv::imwrite(filename, sss_full_image_);
-
-        //     if (success)
-        //     {
-        //         std::cout << "Image successfully saved to " << filename << std::endl;
-        //     }
-        //     else
-        //     {
-        //         std::cerr << "Error: Could not save image to " << filename << std::endl;
-        //     }
-        // }
-
         // Store in history particles poses corresponding to the current ping
         this->update_particles_history();
 
         // Compute expected measurements for every particle in their latest pose
-        this->expected_measurements(odom_latest_);
+        // this->expected_measurements(odom_latest_);
+        // this->meas_predict_particles();
 
         if (ping_cnt_ % submap_size_ == 0)
         {
+            std::cout << "Saving real patch image " << sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows).rows << std::endl;
             this->compute_weights(sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
 
-            std::cout << "Saving real patch image " << sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows).rows << std::endl;
             std::string filename = "./sss_real_patch_"+ std::to_string(ping_cnt_) + ".png";
             bool success = cv::imwrite(filename, sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
 
@@ -294,8 +281,8 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
             }
             this->resample(weights);
         }
-        std::cout << "Done with sss cb" << std::endl;
 
+        // std::cout << "Done with sss cb" << std::endl;
         // auto t2 = high_resolution_clock::now();
         // duration<double, std::milli> ms_double = t2 - t1;
         // std::cout << ms_double.count() / 1000.0 << std::endl;
@@ -400,30 +387,55 @@ void pfLocalization::compute_weights(const cv::Mat real_sss_patch)
 {
     auto t1 = high_resolution_clock::now();
 
-    // Sequential version
-    // for (int i = 0; i < pc_; i++)
-    // {
-    //     particles_.at(i).compute_weight_sss(real_sss_patch);
-    // }
-
     // Multithreading
     for (int i = 0; i < pc_; i++)
     {
         // Passing real_sss_patch by reference yields issues. Create copies instead
         weights_threads_vec_.emplace_back(std::thread(&pfParticle::compute_weight_sss,
                                                     &particles_.at(i), real_sss_patch));
+        // Sequential version   
+        // particles_.at(i).compute_weight_sss(real_sss_patch);
     }
 
     for (int i = 0; i < pc_; i++)
     {
-        if (pred_threads_vec_[i].joinable())
+        if (weights_threads_vec_[i].joinable())
         {
-            pred_threads_vec_[i].join();
+            weights_threads_vec_[i].join();
         }
     }
-    pred_threads_vec_.clear();
-
+    weights_threads_vec_.clear();
+    // ROS_INFO("Threads weights done");
 }
+
+// void pfLocalization::meas_predict_particles()
+// {
+//     // Multithreading
+//     auto t1 = high_resolution_clock::now();
+//     for (int i = 0; i < pc_; i++)
+//     {
+//         // particles_.at(i).sss_prediction();
+//         meas_threads_vec_.emplace_back(std::thread(&pfParticle::sss_prediction, &particles_.at(i)));
+//     }
+//     // ROS_INFO("Threads meas launched");
+
+//     for (int i = 0; i < pc_; i++)
+//     {
+//         if (meas_threads_vec_[i].joinable())
+//         {
+//             meas_threads_vec_[i].join();
+//         }
+//         // p_sss_pubs_.at(i).publish(particles_.at(i).sss_msg_);
+//     }
+//     meas_threads_vec_.clear();
+
+//     auto t2 = high_resolution_clock::now();
+//     avg_time.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+//     if (avg_time.size() > 10.)
+//         avg_time.erase(avg_time.begin());
+        
+//     std::cout << "Ping projection time (ms) " << std::accumulate(avg_time.begin(), avg_time.end(), 0) / 10. << std::endl;
+// }
 
 void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)
 {
@@ -462,6 +474,7 @@ void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)
 
     // Particle to compute DR without filtering
     dr_particle_.at(0).motion_prediction(vel_rot, vel_p, depth, dt, rng_);
+    // ROS_INFO("Threads motion prediction done");
 
     // auto t2 = high_resolution_clock::now();
     // duration<double, std::milli> ms_double = t2 - t1;
@@ -470,6 +483,8 @@ void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)
 
 void pfLocalization::update_particles_history()
 {
+    auto t1 = high_resolution_clock::now();
+
     for(int i = 0; i < pc_; i++)
     {
         upd_threads_vec_.emplace_back(std::thread(&pfParticle::update_pose_history, 
@@ -482,8 +497,16 @@ void pfLocalization::update_particles_history()
         {
             upd_threads_vec_[i].join();
         }
+        p_sss_pubs_.at(i).publish(particles_.at(i).sss_msg_);
     }
     upd_threads_vec_.clear();
+
+    auto t2 = high_resolution_clock::now();
+    avg_time.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+    if (avg_time.size() > 10.)
+        avg_time.erase(avg_time.begin());
+
+    std::cout << "Ping projection time (ms) " << std::accumulate(avg_time.begin(), avg_time.end(), 0) / 10. << std::endl;
 }
 
 void pfLocalization::resample(vector<double> weights)

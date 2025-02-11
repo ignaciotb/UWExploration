@@ -6,6 +6,7 @@
 #include <cmath>
 #include <chrono>
 #include <mutex>
+#include <random>
 
 #include <Eigen/Dense>
 #include <Eigen/Core>
@@ -13,25 +14,28 @@
 #include <tf_conversions/tf_eigen.h>
 
 #include <std_msgs/Header.h>
-
 #include <sensor_msgs/PointCloud.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <sensor_msgs/PointField.h>
 #include <sensor_msgs/point_cloud2_iterator.h>
 #include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Point32.h>
 
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/transforms.h>
 
-#include <geometry_msgs/Point32.h>
-
-#include <random>
-
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/cuda.hpp>
+
+// #include "data_tools/csv_data.h"
+// #include "data_tools/xtf_data.h"
+// #include <bathy_maps/base_draper.h>
+// #include <bathy_maps/mesh_map.h>
+#include "sss_particle_filter/sss_payload.hpp"
+#include <auv_model/Sidescan.h>
 
 using namespace std;
 using namespace cv;
@@ -48,8 +52,8 @@ class pfParticle
 
 public:
     pfParticle(int beams_num, int pc, int i, Eigen::Matrix4f base2mbes_mat,
-                 Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
-                 std::vector<float> process_cov);
+               Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
+               std::vector<float> process_cov, std::string mesh_resources_path);
     ~pfParticle();
 
     void add_noise(std::vector<float> &noise);
@@ -63,6 +67,8 @@ public:
     void update_pose_history();
 
     void compute_weight_sss(const cv::Mat real_sss_patch);
+
+    void sss_prediction(Eigen::Matrix4f& p_pose_map);
 
     double getMSSIM(const Mat &i1, const Mat &i2);
 
@@ -81,6 +87,8 @@ public:
     std::shared_ptr<std::mutex> pc_mutex_;
     Eigen::VectorXf noise_vec_;
     cv::Mat sss_patch_;
+    std::shared_ptr<DraperWrapper> drap_wrap_;
+    auv_model::Sidescan sss_msg_;
 
 private:
     // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;

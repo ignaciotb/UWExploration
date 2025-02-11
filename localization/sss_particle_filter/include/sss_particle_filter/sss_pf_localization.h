@@ -95,6 +95,7 @@ public:
 
     // Multithreading
     std::vector<std::thread> pred_threads_vec_;
+    std::vector<std::thread> meas_threads_vec_;
     std::vector<std::thread> upd_threads_vec_;
     std::vector<std::thread> weights_threads_vec_;
 
@@ -174,6 +175,8 @@ public:
     string stats_top_;
     string mbes_pc_top_;
 
+    std::vector<double> avg_time;
+    
     // // Minibatch AS
     // actionlib::SimpleActionServer<slam_msgs::MinibatchTrainingAction>* as_mb_;
     // string mb_gp_name_;
@@ -235,6 +238,7 @@ public:
     void sss_cb(const auv_model::SidescanConstPtr &msg);
     void odom_callback(const nav_msgs::Odometry::ConstPtr& odom_msg);
     void expected_measurements(nav_msgs::Odometry &odom);
+    // void meas_predict_particles();
     void compute_weights(const cv::Mat real_sss_patch);
 
     // void sampleCB(const actionlib::SimpleClientGoalState &state, const slam_msgs::ManipulatePosteriorResultConstPtr &result);

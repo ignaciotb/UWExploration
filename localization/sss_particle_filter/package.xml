@@ -61,6 +61,7 @@
   <build_depend>actionlib_msgs</build_depend>
   <build_depend>actionlib</build_depend>
   <build_depend>slam_msgs</build_depend>
+  <build_depend>auv_model</build_depend>
   <!-- <build_depend>message_generation</build_depend> -->
 
   <build_export_depend>geometry_msgs</build_export_depend>
@@ -73,6 +74,7 @@
   <build_export_depend>actionlib_msgs</build_export_depend>
   <build_export_depend>message_runtime</build_export_depend>
   <build_export_depend>slam_msgs</build_export_depend>
+  <build_export_depend>auv_model</build_export_depend>
   <!-- <build_export_depend>message_generation</build_export_depend> -->
 
   <exec_depend>actionlib_msgs</exec_depend>
@@ -85,7 +87,6 @@
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
-
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

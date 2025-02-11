@@ -1,8 +1,8 @@
 #include "sss_particle_filter/pf_particle.h"
 
 pfParticle::pfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes_tf_matrix,
-                           Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
-                           std::vector<float> process_cov)
+                       Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
+                       std::vector<float> process_cov, std::string mesh_resources_path)
 {
     p_num_ = p_num;
     index_ = index;
@@ -26,12 +26,16 @@ pfParticle::pfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes
     sss_patch_ = cv::Mat::zeros(1, beams_num_ * 2, CV_8UC1);
     submap_cnt_ = 0;
 
+    // Create draper
+    drap_wrap_ = std::shared_ptr<DraperWrapper>(new DraperWrapper(mesh_resources_path));
+
     // Init particle history
     pos_history_.emplace_back(std::shared_ptr<pos_track>(new pos_track()));
     rot_history_.emplace_back(std::shared_ptr<rot_track> (new rot_track()));
 
     // The lock
     pc_mutex_ = std::shared_ptr<std::mutex>(new std::mutex());
+    ROS_INFO_STREAM("Particle created " << index_);
 }
 
 pfParticle::~pfParticle()
@@ -80,6 +84,53 @@ void pfParticle::motion_prediction(Eigen::Vector3f &vel_rot, Eigen::Vector3f &ve
     p_pose_.head(3) += step_t;
     // NACHO: read depth directly from DR
     p_pose_(2) = depth;
+    // ROS_INFO_STREAM("Motion Prediction " << index_);
+}
+
+void pfParticle::sss_prediction(Eigen::Matrix4f& p_pose_map)
+{
+    Eigen::Vector3d p_pose = p_pose_map.block(0, 3, 3, 1).cast<double>();
+    // Nacho: this needs to be done in three steps of Eigen complains
+    Eigen::Matrix3f p_rot = p_pose_map.topLeftCorner(3, 3);
+    Eigen::Vector3f p_ang = p_rot.eulerAngles(0, 1, 2);
+    Eigen::Vector3d p_ang_d = p_ang.cast<double>();
+
+    drap_wrap_->xtf_ping_.port.time_duration = drap_wrap_->max_r * 2 / drap_wrap_->svp;
+    drap_wrap_->xtf_ping_.stbd.time_duration = drap_wrap_->max_r * 2 / drap_wrap_->svp;
+    drap_wrap_->xtf_ping_.pos_ = p_pose;
+    drap_wrap_->xtf_ping_.roll_ = p_ang_d(0);
+    drap_wrap_->xtf_ping_.pitch_ = p_ang_d(1);
+    drap_wrap_->xtf_ping_.heading_ = p_ang_d(2);
+
+    size_t nbr_bins = 500; // TODO: this has to be an input variable
+    ping_draping_result left, right;
+    std::tie(left, right) = drap_wrap_->draper->project_ping(drap_wrap_->xtf_ping_, nbr_bins);
+
+    // For publishing as rostopics, for debugging
+    sss_msg_.port_channel.resize(left.time_bin_model_intensities.size());
+    sss_msg_.starboard_channel.resize(right.time_bin_model_intensities.size());
+    
+    cv::Mat port(1, left.time_bin_model_intensities.size(), CV_8UC1);
+    cv::Mat stbd(1, right.time_bin_model_intensities.size(), CV_8UC1);
+    for (size_t i = 0; i < left.time_bin_model_intensities.size(); ++i)
+    {
+        port.at<uint8_t>(0, i) = static_cast<uint8_t>(std::round(left.time_bin_model_intensities(i) * 255.0));
+        stbd.at<uint8_t>(0, i) = static_cast<uint8_t>(std::round(right.time_bin_model_intensities(i) * 255.0));
+        sss_msg_.port_channel.at(i) = static_cast<uint8_t>(std::round(left.time_bin_model_intensities(i) * 255.0));
+        sss_msg_.starboard_channel.at(i) = static_cast<uint8_t>(std::round(right.time_bin_model_intensities(i) * 255.0));
+    }
+
+    cv::Mat meas;
+    // Flip the port channel
+    cv::Mat flippedPort;
+    cv::flip(port, flippedPort, 1); // Flip horizontally (axis = 1)
+    cv::hconcat(flippedPort, stbd, meas);
+    
+    // Concatenate and store
+    // cv::hconcat(port, stbd, meas);
+    sss_patch_.push_back(meas);
+
+    // ROS_INFO_STREAM("SSS Prediction " << index_);
 }
 
 void pfParticle::update_pose_history()
@@ -99,6 +150,8 @@ void pfParticle::update_pose_history()
 
     pos_history_.back()->push_back(p_pose_map.block(0, 3, 3, 1));
     rot_history_.back()->push_back(p_pose_map.topLeftCorner(3, 3));
+
+    this->sss_prediction(p_pose_map);
 }
 
 void pfParticle::compute_weight(Eigen::VectorXd exp_mbes, Eigen::VectorXd real_mbes)

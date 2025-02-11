@@ -65,19 +65,20 @@ private:
 
         Eigen::Vector3d euler_angles = quaternion.toRotationMatrix().eulerAngles(0, 1, 2);
 
-        xtf_data::xtf_sss_ping xtf_ping;
-        xtf_ping.port.time_duration = drap_wrap->max_r * 2 / drap_wrap->svp;
-        xtf_ping.stbd.time_duration = drap_wrap->max_r * 2 / drap_wrap->svp;
-        xtf_ping.pos_ = position;
-        xtf_ping.roll_ = euler_angles[0];
-        xtf_ping.pitch_ = euler_angles[1];
-        xtf_ping.heading_ = euler_angles[2];
+        // xtf_data::xtf_sss_ping xtf_ping;
+        drap_wrap->xtf_ping_.port.time_duration = drap_wrap->max_r * 2 / drap_wrap->svp;
+        drap_wrap->xtf_ping_.stbd.time_duration = drap_wrap->max_r * 2 / drap_wrap->svp;
+        drap_wrap->xtf_ping_.pos_ = position;
+
+        drap_wrap->xtf_ping_.roll_ = euler_angles[0];
+        drap_wrap->xtf_ping_.pitch_ = euler_angles[1];
+        drap_wrap->xtf_ping_.heading_ = euler_angles[2];
 
         auto start_time = std::chrono::steady_clock::now();
         size_t nbr_bins = goal->beams_num.data;
         // Eigen::VectorXd left, right;
         ping_draping_result left, right;
-        std::tie(left, right) = drap_wrap->draper->project_ping(xtf_ping, nbr_bins);
+        std::tie(left, right) = drap_wrap->draper->project_ping(drap_wrap->xtf_ping_, nbr_bins);
 
         auto end_time = std::chrono::steady_clock::now();
         avg_time.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count());

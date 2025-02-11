@@ -6,6 +6,7 @@
 #include <Eigen/Dense>
 
 #include "data_tools/csv_data.h"
+#include "data_tools/xtf_data.h"
 #include <bathy_maps/base_draper.h>
 #include <bathy_maps/mesh_map.h>
 
@@ -52,4 +53,5 @@ public:
     double max_r;
     std::unique_ptr<BaseDraper> draper;
     csv_data::csv_asvp_sound_speed::EntriesT isovelocity_sound_speeds;
+    xtf_data::xtf_sss_ping xtf_ping_;
 };

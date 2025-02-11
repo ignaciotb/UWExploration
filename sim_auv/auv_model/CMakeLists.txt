@@ -116,10 +116,10 @@ add_message_files(
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES auv_model
+ INCLUDE_DIRS include
+ LIBRARIES sss_payload
 #  CATKIN_DEPENDS other_catkin_pkg
-#  DEPENDS system_lib
+ DEPENDS xtf_data
 )
 
 ###########
@@ -159,6 +159,10 @@ add_executable(auv_payload_cpp
   src/auv_payload.cpp
 )
 
+# add_executable(view_sidescan_particles
+#   src/view_sidescan_particles.cpp
+# )
+
 # add_executable(test_ray
 #   src/test_ray.cpp
 # )
@@ -173,10 +177,14 @@ add_dependencies(auv_payload_cpp
   ${${PROJECT_NAME}_EXPORTED_TARGETS}
   ${catkin_EXPORTED_TARGETS})
 
+# add_dependencies(view_sidescan_particles
+#   ${${PROJECT_NAME}_EXPORTED_TARGETS}
+#   ${catkin_EXPORTED_TARGETS})
+
 # add_dependencies(test_ray
 #   ${${PROJECT_NAME}_EXPORTED_TARGETS})
 
-## Specify libraries to link a library or executable target against
+# Specify libraries to link a library or executable target against
 target_link_libraries(sss_payload
     igl::embree 
     cnpy
@@ -190,6 +198,10 @@ target_link_libraries(sss_payload
 target_link_libraries(auv_motion_model
     ${catkin_LIBRARIES}
 )
+
+# target_link_libraries(view_sidescan_particles
+#     ${catkin_LIBRARIES}
+# )
 
 target_link_libraries(auv_payload_cpp
     ${OpenCV_LIBRARIES}
@@ -217,14 +229,22 @@ target_link_libraries(auv_payload_cpp
 install(TARGETS sss_payload EXPORT SssPayloadConfig
     ARCHIVE  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     LIBRARY  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    RUNTIME  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})  # This is for Windows
-# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    RUNTIME  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+set(CMAKE_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
+install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+## Mark cpp header files for installation
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+  FILES_MATCHING PATTERN "*.hpp"
+  PATTERN ".svn" EXCLUDE
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-install(TARGETS auv_payload_cpp
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
+# install(TARGETS auv_payload_cpp
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
 
 ## Mark libraries for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html

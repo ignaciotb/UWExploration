@@ -34,8 +34,39 @@ find_package(DataTools REQUIRED)
 find_package(SonarTracing REQUIRED)
 find_package(AuvlibGlad REQUIRED)
 find_package(BathyMaps REQUIRED)
+
 find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+
+# find_library(xtf_data_LIBRARY NAMES libxtf_data PATHS /usr/local/lib/)
+
+set_target_properties(xtf_data PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libxtf_data.a"
+)
+
+set_target_properties(std_data PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libstd_data.a"
+)
+
+set_target_properties(mesh_map PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libmesh_map.a"
+)
+
+set_target_properties(base_draper PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libbase_draper.a"
+)
+
+
+# if(xtf_data_LIBRARY)
+#     target_link_libraries(libsss_payload ${xtf_data_LIBRARY})
+# else()
+#     message(WARNING "------------------------xtf_data not found; libsss_payload might be missing functionality.")
+# endif()
+
+#if (LIBXTF_FOUND):
+# message("Message=================================: " ${LIBXTF_FOUND})
+	#endif()
 
 # Libigl for raytracing
 set(EMBREE_ISPC_SUPPORT OFF)
@@ -47,6 +78,13 @@ include(libigl)
 # Add modules here
 igl_include(glfw)
 igl_include(embree)
+
+include_directories(${LIBIGL_INCLUDE_DIR})
+include_directories(${EMBREE_INCLUDE_DIRS})
+include_directories(/home/sam/workspaces/auvlib/src/sonar_tracing/include)
+
+# list(PREPEND CMAKE_MODULE_PATH "/home/sam/auv_ws/src/libigl-example-project/cmake")
+
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -129,6 +167,9 @@ catkin_package(
 # To include lib cnpy
 add_subdirectory(/home/sam/auv_ws/src/cnpy/ [/home/sam/auv_ws/src/cnpy/])
 
+# add_subdirectory(/home/sam/workspaces/auvlib/ [/home/sam/workspaces/auvlib/])
+
+
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
@@ -137,6 +178,8 @@ include_directories(
  ${OpenCV_INCLUDE_DIRS}
  ${EIGEN3_INCLUDE_DIRS}
  /home/sam/auv_ws/src/cnpy/
+#  /home/sam/workspaces/auvlib/
+#  /home/sam/auv_ws/src/libigl-example-project/
 )
 
 # Declare a C++ library
@@ -189,19 +232,20 @@ target_link_libraries(sss_payload
     igl::embree 
     cnpy
     z    
-    base_draper 
     xtf_data 
     std_data
     mesh_map 
+    base_draper 
+    bathy_tracer
 )
 
 target_link_libraries(auv_motion_model
     ${catkin_LIBRARIES}
 )
 
-# target_link_libraries(view_sidescan_particles
-#     ${catkin_LIBRARIES}
-# )
+# # target_link_libraries(view_sidescan_particles
+# #     ${catkin_LIBRARIES}
+# # )
 
 target_link_libraries(auv_payload_cpp
     ${OpenCV_LIBRARIES}
@@ -226,19 +270,19 @@ target_link_libraries(auv_payload_cpp
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
-install(TARGETS sss_payload EXPORT SssPayloadConfig
-    ARCHIVE  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    LIBRARY  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-    RUNTIME  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-set(CMAKE_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+# install(TARGETS sss_payload EXPORT SssPayloadConfig
+#     ARCHIVE  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#     LIBRARY  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#     RUNTIME  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+# set(CMAKE_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}/${PROJECT_NAME}")
+# install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-## Mark cpp header files for installation
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.hpp"
-  PATTERN ".svn" EXCLUDE
-)
+# ## Mark cpp header files for installation
+# install(DIRECTORY include/${PROJECT_NAME}/
+#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+#   FILES_MATCHING PATTERN "*.hpp"
+#   PATTERN ".svn" EXCLUDE
+# )
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html

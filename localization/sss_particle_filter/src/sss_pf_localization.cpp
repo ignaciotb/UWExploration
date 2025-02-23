@@ -194,7 +194,7 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) :
     // Subscription to sss pings
     sss_full_image_ = cv::Mat::zeros(1, sss_bin_num_ * 2, CV_8UC1);
     nh_->param<string>(("sss_pings_topic"), sss_pings_top_, "sss_pings");
-    sss_sub_ = nh_->subscribe(sss_pings_top_, 10, &pfLocalization::sss_cb, this);
+    sss_sub_ = nh_mb_->subscribe(sss_pings_top_, 10, &pfLocalization::sss_cb, this);
 
     // Establish subscription to odometry message (intentionally last)
     nh_->param<string>(("odometry_topic"), odom_top_, "odom");

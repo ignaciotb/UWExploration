@@ -16,14 +16,14 @@ int main(int argc, char** argv){
     // pf->setup_svgps();
 
     // Spinner for AUV interface callbacks
-    ros::AsyncSpinner spinner_pf(1000, &pf_queue);
+    ros::AsyncSpinner spinner_pf(1, &pf_queue);
     spinner_pf.start();
     
     // Spinner for SVGPs minibatch callbacks
     int pc;
     nh.param<int>(("particle_count"), pc, 10);
     // Option 1
-    ros::AsyncSpinner spinner_mb(1000, &mb_queue);
+    ros::AsyncSpinner spinner_mb(1, &mb_queue);
     spinner_mb.start();
 
     // Option 2

@@ -2,7 +2,7 @@
 
 import rospy
 import numpy as np
-from smarc_msgs.msg import Sidescan
+from auv_model.msg import Sidescan
 import cv2
 
 class SSSVisualizer:
@@ -18,7 +18,7 @@ class SSSVisualizer:
         
         for i in range(self.num_subscribers):
             topic = f"{self.topic_name}" + "/particle_" + str(i)
-            sub = rospy.Subscriber(topic, Sidescan, self.sss_callback, callback_args=i)
+            sub = rospy.Subscriber(topic, Sidescan, self.sss_callback, callback_args=i, queue_size=100)
             self.subscribers.append(sub)
             rospy.loginfo(f"Subscribed to {topic}")
         

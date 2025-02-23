@@ -36,6 +36,14 @@ find_package(SonarTracing REQUIRED)
 find_package(AuvlibGlad REQUIRED)
 find_package(BathyMaps REQUIRED)
 
+set_target_properties(std_data PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libstd_data.a"
+)
+
+set_target_properties(data_transforms PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libdata_transforms.a"
+)
+
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 

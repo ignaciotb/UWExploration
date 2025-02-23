@@ -66,7 +66,7 @@
     </node>
 
     <!-- Python version -->
-    <!-- <node pkg="auv_model" type="auv_payload.py" name="auv_payload" output="screen">
+    <node pkg="auv_model" type="auv_payload.py" name="auv_payload" output="screen">
         <param name="mbes_open_angle" value="$(arg mbes_open_angle)" />
         <param name="sss_open_angle" value="$(arg sss_open_angle)" />
         <param name="mbes_link" value="$(arg namespace)/mbes_link" />
@@ -77,21 +77,15 @@
         <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
         <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />       
         <param name="mesh_path" value="$(arg path)/mesh.npz" />       
-    </node> -->
+    </node>
 
     <!-- cpp version -->
-    <node pkg="auv_model" type="auv_payload_cpp" name="auv_payload" output="screen">
-        <!-- <param name="mbes_open_angle" value="$(arg mbes_open_angle)" /> -->
-        <!-- <param name="sss_open_angle" value="$(arg sss_open_angle)" /> -->
-        <!-- <param name="mbes_link" value="$(arg namespace)/mbes_link" /> -->
-        <!-- <param name="sss_link" value="$(arg namespace)/sss_link" /> -->
-        <!-- <param name="mbes_sim_as" value="/$(arg namespace)/sim/mbes_server" />  -->
+    <!-- <node pkg="auv_model" type="auv_payload_cpp" name="auv_payload" output="screen">
         <param name="sss_sim_as" value="/$(arg namespace)/sim/sss_server" /> 
         <param name="server_mode" value="True" if="$(eval mode == 'sim')"/>    
         <param name="server_mode" value="False" unless="$(eval mode == 'sim')"/> 
-        <!-- <param name="sound_velocity_prof" value="$(arg path)/svp.cereal" />        -->
         <param name="mesh_resources" value="$(arg path)" />       
-    </node>
+    </node> -->
 
     <group if="$(eval app == 'basic')">
         <node pkg="auv_model" type="auv_multi.py" name="fake_synch_srv" output="screen">

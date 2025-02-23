@@ -33,9 +33,6 @@ find_package(catkin REQUIRED COMPONENTS
   auv_model
 )
 
-find_package(Eigen3 REQUIRED)
-find_package(Threads REQUIRED)
-
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED)
 # find_package(OpenCV REQUIRED)
@@ -48,8 +45,28 @@ find_package(DataTools REQUIRED)
 find_package(SonarTracing REQUIRED)
 find_package(AuvlibGlad REQUIRED)
 find_package(BathyMaps REQUIRED)
+
 find_package(PCL 1.8 REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(Threads REQUIRED)
+
+
+set_target_properties(xtf_data PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libxtf_data.a"
+)
+
+set_target_properties(std_data PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libstd_data.a"
+)
+
+set_target_properties(mesh_map PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libmesh_map.a"
+)
+
+set_target_properties(base_draper PROPERTIES 
+    IMPORTED_LOCATION "/usr/local/lib/libbase_draper.a"
+)
 
 # Libigl for raytracing
 set(EMBREE_ISPC_SUPPORT OFF)
@@ -61,6 +78,9 @@ include(libigl)
 # Add modules here
 igl_include(glfw)
 igl_include(embree)
+
+include_directories(${LIBIGL_INCLUDE_DIR})
+include_directories(${EMBREE_INCLUDE_DIRS})
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -149,7 +169,7 @@ igl_include(embree)
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
+ INCLUDE_DIRS include
 #  LIBRARIES sss_pf_meas
 #  CATKIN_DEPENDS message_runtime actionlib_msgs sensor_msgs std_msgs slam_msgs
 #  DEPENDS xtf_data
@@ -163,7 +183,7 @@ catkin_package(
 ## Your package locations should be listed before other locations
 
 # To include lib cnpy
-add_subdirectory(/home/torroba/workspaces/cnpy/ [/home/torroba/workspaces/cnpy/])
+add_subdirectory(/home/sam/auv_ws/src/cnpy/ [/home/sam/auv_ws/src/cnpy/])
 
 include_directories(
   include
@@ -172,7 +192,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIRS} 
 	# ${PCL_INCLUDE_DIRS}
   # ${DataTools_INCLUDE_DIRS}
-  /home/torroba/workspaces/cnpy/
+  /home/sam/auv_ws/src/cnpy/
 )
 
 # add_library(sss_pf_meas
@@ -203,19 +223,25 @@ add_executable(sss_pf_localization_node src/sss_pf_localization_node.cpp
                 src/sss_payload.cpp
                 src/sss_pf_localization.cpp)
 
-add_dependencies(sss_pf_localization_node 
-  ${catkin_EXPORTED_TARGETS}
-  ${${PROJECT_NAME}_EXPORTED_TARGETS}
-)
+target_include_directories(sss_pf_localization_node PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+    PRIVATE src)
+
+# add_dependencies(sss_pf_localization_node 
+#   ${catkin_EXPORTED_TARGETS}
+#   ${${PROJECT_NAME}_EXPORTED_TARGETS}
+# )
 
 target_link_libraries(sss_pf_localization_node     
     igl::embree 
     cnpy
     z    
-    base_draper 
     xtf_data 
     std_data
     mesh_map  
+    base_draper 
+    bathy_tracer
     ${PCL_LIBRARIES} 
     ${catkin_LIBRARIES} 
     ${OpenCV_LIBS}

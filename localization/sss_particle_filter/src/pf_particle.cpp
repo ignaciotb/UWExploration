@@ -1,8 +1,10 @@
 #include "sss_particle_filter/pf_particle.h"
 
 pfParticle::pfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes_tf_matrix,
-                       Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
-                       std::vector<float> process_cov, std::string mesh_resources_path)
+                       Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, 
+                       std::vector<float> init_cov, float meas_std,
+                       std::vector<float> process_cov, std::string mesh_resources_path,
+                       std::string results_path)
 {
     p_num_ = p_num;
     index_ = index;
@@ -11,6 +13,7 @@ pfParticle::pfParticle(int beams_num, int p_num, int index, Eigen::Matrix4f mbes
     p_pose_ = init_pose;
     mbes_tf_matrix_ = mbes_tf_matrix;
     m2o_matrix_ = m2o_matrix;
+    results_path_ = results_path;
 
     // Noise models init
     init_cov_ = init_cov;
@@ -112,6 +115,7 @@ void pfParticle::sss_prediction(Eigen::Matrix4f& p_pose_map)
     
     cv::Mat port(1, left.time_bin_model_intensities.size(), CV_8UC1);
     cv::Mat stbd(1, right.time_bin_model_intensities.size(), CV_8UC1);
+
     for (size_t i = 0; i < left.time_bin_model_intensities.size(); ++i)
     {
         port.at<uint8_t>(0, i) = static_cast<uint8_t>(std::round(left.time_bin_model_intensities(i) * 255.0));
@@ -129,7 +133,6 @@ void pfParticle::sss_prediction(Eigen::Matrix4f& p_pose_map)
     // Concatenate and store
     // cv::hconcat(port, stbd, meas);
     sss_patch_.push_back(meas);
-
     // ROS_INFO_STREAM("SSS Prediction " << index_);
 }
 
@@ -180,7 +183,7 @@ void pfParticle::compute_weight_sss(const cv::Mat real_sss_patch)
         w_ = this->getMSSIM(real_sss_patch, exp_sss_patch);
         
         // Save to disk for debugging
-        std::string filename = "./sss_particle_" + std::to_string(index_) + "_" + std::to_string(submap_cnt_) + ".png";
+        std::string filename = results_path_ + "sss_particle_" + std::to_string(index_) + "_" + std::to_string(submap_cnt_) + ".png";
         bool success = cv::imwrite(filename, exp_sss_patch);
         submap_cnt_++;
     }

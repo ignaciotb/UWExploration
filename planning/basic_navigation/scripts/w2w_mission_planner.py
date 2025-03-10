@@ -28,6 +28,9 @@ class W2WMissionPlanner(object):
         self.wp_topic = rospy.get_param('~wp_topic')
         self.map_frame = rospy.get_param('~map_frame', 'map')
         self.relocalize_topic = rospy.get_param('~relocalize_topic')
+        mission_finished_top = rospy.get_param('~mission_finished_top')
+
+        self.mission_finished_pub = rospy.Publisher(mission_finished_top, Bool, queue_size=1)
 
         # The waypoints as a path
         rospy.Subscriber(self.path_topic, Path, self.path_cb, queue_size=1)
@@ -38,8 +41,9 @@ class W2WMissionPlanner(object):
 
         # The bs driver can be fairly slow on the simulations, so it's necessary
         # to stop the vehicle until the LC area has been selected
-        rospy.Subscriber(self.relocalize_topic, Bool, self.start_relocalize, queue_size=1)
-        self.relocalizing = False
+        # rospy.Subscriber(self.relocalize_topic, Bool, self.start_relocalize, queue_size=1)
+        # self.relocalizing = False
+        self.mission_on = False
 
         # The client to send each wp to the server
         self.ac = actionlib.SimpleActionClient(self.planner_as_name, MoveBaseAction)
@@ -55,9 +59,12 @@ class W2WMissionPlanner(object):
 
         while not rospy.is_shutdown():
             
-            if self.latest_path.poses and not self.relocalizing:
-                # Get next waypoint in path
+            if self.latest_path.poses: # and not self.relocalizing:
+                
+                self.mission_on = True
                 rospy.loginfo("Sending WP")
+                
+                # Get next waypoint in path
                 wp = self.latest_path.poses[0]
                 del self.latest_path.poses[0]
 
@@ -68,12 +75,14 @@ class W2WMissionPlanner(object):
                 self.ac.wait_for_result()
                 rospy.loginfo("WP reached, moving on to next one")
 
-            elif not self.latest_path.poses:
-                rospy.loginfo_once("Mission finished")
+            elif not self.latest_path.poses and self.mission_on:
+                rospy.loginfo("Mission finished")
+                self.mission_on = False
+                self.mission_finished_pub.publish(True)
             
 
-    def start_relocalize(self, bool_msg):
-        self.relocalizing = bool_msg.data
+    # def start_relocalize(self, bool_msg):
+    #     self.relocalizing = bool_msg.data
 
     def path_cb(self, path_msg):
         self.latest_path = path_msg

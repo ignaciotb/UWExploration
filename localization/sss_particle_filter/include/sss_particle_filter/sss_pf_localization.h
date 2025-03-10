@@ -215,7 +215,9 @@ public:
     string path_topic_;
     string pose_dr_top_;
     string sss_sim_as_;
-
+    string particles_paths_file_;
+    string results_path_;
+    
     // End of mission timer
     bool mission_finished_;
     float time_wo_motion_;
@@ -250,7 +252,7 @@ public:
     // void pf_update(const ros::TimerEvent&);
     void update_rviz(const ros::TimerEvent &);
     // void update_particles_weights(sensor_msgs::PointCloud2 &mbes_ping, nav_msgs::Odometry& odom);
-    // void save_gps(const bool plot);
+    void save_paths(const bool plot);
     void predict(nav_msgs::Odometry odom_t, float dt);
     void update_particles_history();
     void publish_stats(nav_msgs::Odometry gt_odom);

@@ -53,7 +53,7 @@ class pfParticle
 public:
     pfParticle(int beams_num, int pc, int i, Eigen::Matrix4f base2mbes_mat,
                Eigen::Matrix4f m2o_matrix, Eigen::Matrix<float, 6, 1> init_pose, std::vector<float> init_cov, float meas_std,
-               std::vector<float> process_cov, std::string mesh_resources_path);
+               std::vector<float> process_cov, std::string mesh_resources_path, string results_path);
     ~pfParticle();
 
     void add_noise(std::vector<float> &noise);
@@ -89,6 +89,7 @@ public:
     cv::Mat sss_patch_;
     std::shared_ptr<DraperWrapper> drap_wrap_;
     auv_model::Sidescan sss_msg_;
+    string results_path_;
 
 private:
     // vector<tuple<Eigen::ArrayXf, Eigen::ArrayXXf>> pose_history_;

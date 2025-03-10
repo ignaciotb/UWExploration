@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 import rospy
 import cv2
-from smarc_msgs.msg import Sidescan
+# from smarc_msgs.msg import Sidescan
+from auv_model.msg import Sidescan
+
 from functools import partial
 import numpy as np
 from ctypes import cast, pointer, POINTER, c_char, c_int
@@ -37,7 +39,7 @@ img = np.zeros((1000, 1000), dtype=np.ubyte)  # dtype=float) #
 cv2.namedWindow('Sidescan image', cv2.WINDOW_NORMAL)
 cv2.resizeWindow('Sidescan image', 2 * 256, 1000)
 
-rospy.Subscriber("/sam/pf/sss/particle_0", Sidescan, partial(callback, img))
+rospy.Subscriber("/sam/sim/sss_pings", Sidescan, partial(callback, img))
 
 # spin() simply keeps python from exiting until this node is stopped
 r = rospy.Rate(5)  # 10hz

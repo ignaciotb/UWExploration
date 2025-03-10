@@ -14,7 +14,9 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) :
     nh_->param<string>(("sss_link"), sss_frame_, "sss_link");
     nh_->param<string>(("base_link"), base_frame_, "base_link");
     nh_->param<string>(("odom_frame"), odom_frame_, "odom");
-
+    nh_->param<string>(("particles_path_file"), particles_paths_file_, "./paths.txt");
+    nh_->param<string>(("results_path"), results_path_, "path");
+    
     // Read covariance values
     nh_->param<float>(("measurement_std"), meas_std_, 0.01);
     nh_->param("init_covariance", init_cov_, vector<float>());
@@ -150,16 +152,23 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) :
     nh_->param<string>(("particle_sss_top"), particle_sss_top, "/resample_top");
     std::string mesh_resources_path;
     nh.getParam(("mesh_resources"), mesh_resources_path);
-    for (int i=0; i<pc_; i++){
+    
+    // Nacho: first particle is instantiated on top of vehicle, without noise
+    particles_.emplace_back(pfParticle(sss_bin_num_, pc_, 0, base2mbes_mat_, m2o_mat_, init_p_pose_,
+                                        std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.), mesh_resources_path, results_path_));
+    p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(0), 1));
+    
+    for (int i=1; i<pc_; i++){
         particles_.emplace_back(pfParticle(sss_bin_num_, pc_, i, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                           init_cov_, meas_std_, motion_cov_, mesh_resources_path));
-
-        p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(i), 1));
+                                            init_cov_, meas_std_, motion_cov_, mesh_resources_path, results_path_));
+            
+            p_sss_pubs_.push_back(nh_->advertise<auv_model::Sidescan>(particle_sss_top + "/particle_" + std::to_string(i), 1));
     }
 
     // Dead reckoning particle
     dr_particle_.emplace_back(pfParticle(sss_bin_num_, pc_, pc_, base2mbes_mat_, m2o_mat_, init_p_pose_,
-                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.), mesh_resources_path));
+                                         std::vector<float>(6, 0.), meas_std_, std::vector<float>(6, 0.), 
+                                         mesh_resources_path, results_path_));
 
     std::string enable_lc_top;
     nh_->param<string>(("particle_enable_lc"), enable_lc_top, "/enable_lc");
@@ -188,8 +197,8 @@ pfLocalization::pfLocalization(ros::NodeHandle &nh, ros::NodeHandle &nh_mb) :
     
     // Aux variables for submaps
     ping_cnt_ = 0;
-    submap_size_ = 100;
-    ancestry_sizes_.push_back(0);
+    nh_->param<int>(("submap_size"), submap_size_, 1000);
+    // submap_size_ = 100;
 
     // Subscription to sss pings
     sss_full_image_ = cv::Mat::zeros(1, sss_bin_num_ * 2, CV_8UC1);
@@ -221,15 +230,16 @@ void pfLocalization::synch_cb(const std_msgs::Bool::ConstPtr& finished_msg)
 {
     ROS_INFO("RBPF node: Survey finished received");
     mission_finished_ = true;
-    // save_gps(false);
+    save_paths(false);
     ROS_INFO("We done bitches");
 }
 
 
 void pfLocalization::save_cb(const std_msgs::Bool::ConstPtr& save_msg)
 {
-    ROS_INFO("PF node: saving without finishing the mission");
-    // save_gps(save_msg->data);
+    ROS_INFO("PF node: saving and finishing the mission");
+    save_paths(false);
+    mission_finished_ = true;
     ROS_INFO("Aaaand it's saved");
 }
 
@@ -256,21 +266,21 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
         cv::Mat meas;
         cv::hconcat(flippedPort, stbd, meas);
         sss_full_image_.push_back(meas);
-        ping_cnt_ ++;
-
+        
         // Store in history particles poses corresponding to the current ping
         this->update_particles_history();
 
         // Compute expected measurements for every particle in their latest pose
         // this->expected_measurements(odom_latest_);
         // this->meas_predict_particles();
-
+        
+        ping_cnt_ ++;
         if (ping_cnt_ % submap_size_ == 0)
         {
             std::cout << "Saving real patch image " << sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows).rows << std::endl;
             this->compute_weights(sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
 
-            std::string filename = "./sss_real_patch_"+ std::to_string(ping_cnt_) + ".png";
+            std::string filename = results_path_ + "sss_real_patch_"+ std::to_string(ping_cnt_) + ".png";
             bool success = cv::imwrite(filename, sss_full_image_.rowRange(sss_full_image_.rows - submap_size_, sss_full_image_.rows));
 
             std::vector<double> weights;
@@ -281,6 +291,8 @@ void pfLocalization::sss_cb(const auv_model::SidescanConstPtr &msg)
             }
             this->resample(weights);
         }
+
+        // std::cout << "Finishing sss cb " << std::endl;
 
         // std::cout << "Done with sss cb" << std::endl;
         // auto t2 = high_resolution_clock::now();
@@ -408,34 +420,6 @@ void pfLocalization::compute_weights(const cv::Mat real_sss_patch)
     // ROS_INFO("Threads weights done");
 }
 
-// void pfLocalization::meas_predict_particles()
-// {
-//     // Multithreading
-//     auto t1 = high_resolution_clock::now();
-//     for (int i = 0; i < pc_; i++)
-//     {
-//         // particles_.at(i).sss_prediction();
-//         meas_threads_vec_.emplace_back(std::thread(&pfParticle::sss_prediction, &particles_.at(i)));
-//     }
-//     // ROS_INFO("Threads meas launched");
-
-//     for (int i = 0; i < pc_; i++)
-//     {
-//         if (meas_threads_vec_[i].joinable())
-//         {
-//             meas_threads_vec_[i].join();
-//         }
-//         // p_sss_pubs_.at(i).publish(particles_.at(i).sss_msg_);
-//     }
-//     meas_threads_vec_.clear();
-
-//     auto t2 = high_resolution_clock::now();
-//     avg_time.push_back(std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
-//     if (avg_time.size() > 10.)
-//         avg_time.erase(avg_time.begin());
-        
-//     std::cout << "Ping projection time (ms) " << std::accumulate(avg_time.begin(), avg_time.end(), 0) / 10. << std::endl;
-// }
 
 void pfLocalization::predict(nav_msgs::Odometry odom_t, float dt)
 {
@@ -507,6 +491,15 @@ void pfLocalization::update_particles_history()
         avg_time.erase(avg_time.begin());
 
     std::cout << "Ping projection time (ms) " << std::accumulate(avg_time.begin(), avg_time.end(), 0) / 10. << std::endl;
+
+    // Nacho: we put this here because the first iteration of this function seems to be very slow 
+    // when starting the filter. So the filter is in fact up and running when this point is reached
+    if(ping_cnt_ == 0)
+    {
+        // This service will start the auv simulation or auv_2_ros nodes to start the mission
+        nh_->param<string>(("synch_topic"), synch_top_, "/pf_synch");
+        srv_server_ = nh_->advertiseService(synch_top_, &pfLocalization::empty_srv, this);
+    }
 }
 
 void pfLocalization::resample(vector<double> weights)
@@ -839,6 +832,69 @@ void pfLocalization::average_pose(geometry_msgs::PoseArray pose_list)
     }
 
     cov_ /= pc_;
+}
+
+void pfLocalization::save_paths(const bool plot)
+{
+    std::ofstream file(results_path_ + particles_paths_file_);
+    if (file.is_open())
+    {
+        int pings_t = ping_cnt_;
+        Eigen::Vector3f pos_i;
+        Eigen::Matrix3f rot_i;
+        // slam_msgs::ManipulatePosteriorGoal goal;
+        int ping_i;
+        for(int p=0; p<pc_; p++)
+        {
+            file << "Particle " << ' ' <<  p << '\n';
+            for (int ping_i = 0; ping_i < pings_t; ping_i++)
+            {
+                auto ancestry_it = ancestry_sizes_.begin();
+                ancestry_it = std::find_if(ancestry_it, ancestry_sizes_.end(), [&](const int &ancestry_size_i)
+                                        { return ping_i < ancestry_size_i; });
+                int index;
+                if (ancestry_it == ancestry_sizes_.begin())
+                {
+                    index = 0;
+                }
+                else if (ancestry_it == ancestry_sizes_.end())
+                {
+                    if (ancestry_sizes_.size() == 1)
+                    {
+                        index = 0;
+                    }
+                    else
+                    {
+                        index = ancestry_sizes_.size() - 1;
+                    }
+                }
+                else
+                {
+                    index = std::distance(ancestry_sizes_.begin(), ancestry_it) - 1;
+                }
+
+                {
+                    std::lock_guard<std::mutex> lock(*particles_.at(p).pc_mutex_);
+                    int idx_ping = ping_i - ancestry_sizes_.at(index);
+                    if (idx_ping < particles_.at(p).pos_history_.at(index)->size())
+                    {
+                        pos_i = particles_.at(p).pos_history_.at(index)->at(idx_ping);
+                        rot_i = particles_.at(p).rot_history_.at(index)->at(idx_ping);
+                        
+                        // Store particle pose for that ping
+                        file << pos_i.transpose() << ' ' << rot_i.eulerAngles(0,1,2).transpose() << '\n';
+                    }
+                    else
+                    {
+                        // TODO: how to handle this loss of data?
+                        ROS_WARN("MBES and DR histories out of synch when saving GPs");
+                    }
+                }
+            }
+            file << '\n';
+        }
+    }
+    std::cout << "Particles paths saved " << std::endl; 
 }
 
 void pfLocalization::publish_stats(nav_msgs::Odometry gt_odom)

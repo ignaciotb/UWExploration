@@ -24,7 +24,7 @@
   <!-- <arg name="num_particle_handlers"             default="4"/>  -->
   <arg name="survey_finished_top" default="/$(arg mode)/survey_finished"/>
   
-  <arg name="results_path" default=""/>     
+  <!-- <arg name="results_path" default="/home/sam/Ginnie/"/>      -->
   <arg name="pf_period"   default="15." />
   <arg name="rviz_period"   default="0.1" />
 
@@ -57,6 +57,8 @@
         <rosparam param="motion_covariance">[0.0, 0.0, 0.0, 0.0, 0.0, 0.00000]</rosparam>
         <rosparam param="resampling_noise_covariance">[3.0, 3.0, 0.0, 0.0, 0.0, 0.0]</rosparam>
         <param name="measurement_std"                         value="10." />
+        <param name="submap_size"                             value="100" />
+        <param name="particles_path_file"                     value="particles_paths.txt" />
         <param name="odometry_topic"                          value="$(arg odometry_topic)" />
         <param name="sss_pings_topic"                        value="$(arg sss_pings_topic)" />
         <param name="particle_sss_top"                        value="/$(arg namespace)/pf/sss" />
@@ -66,7 +68,7 @@
         <param name="sss_link"                               value="$(arg namespace)/sss_link" />
         <param name="base_link"                               value="$(arg namespace)/base_link" />
         <param name="synch_topic"                             value="/$(arg app)/synch" />
-        <param name="results_path"                            value="$(arg results_path)" />
+        <param name="results_path"                            value="/home/sam/Ginnie/" />
         <param name="average_pose_topic"                      value="$(arg average_pose_topic)" />
         <param name="dr_pose_topic"                           value="/$(arg namespace)/dr/corrupted" />
         <param name="average_mbes_topic"                      value="$(arg average_mbes_topic)" />

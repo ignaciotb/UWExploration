@@ -44,7 +44,7 @@ class auv_payload(object):
 
         data = np.load(mesh_path)
         V, F, bounds = data['V'], data['F'], data['bounds']
-        print(bounds)
+        # print(bounds)
         print("Mesh loaded")
 
         # - For Dec 2024, Asko 
@@ -163,13 +163,12 @@ class auv_payload(object):
         start_time = time.time()
         # Rendering
         nbr_bins = goal.beams_num.data
-        print("Num of beams ", nbr_bins)
+        # print("Num of beams ", nbr_bins)
         left, right = self.draper.project_ping(xtf_ping, nbr_bins) # project
-        # sss = sss[::-1]  # Reverse beams for same order as real pings
-        
+                             
         self.avg_time.append(time.time() - start_time)
         if len(self.avg_time) == 10:
-            print("Raytracing time ", (np.asarray(self.avg_time).sum()/10.))
+            # print("Raytracing time ", (np.asarray(self.avg_time).sum()/10.))
             self.avg_time.pop()
 
         # print(np.array(left.time_bin_model_intensities))

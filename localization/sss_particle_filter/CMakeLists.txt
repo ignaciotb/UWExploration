@@ -53,19 +53,19 @@ find_package(Threads REQUIRED)
 
 
 set_target_properties(xtf_data PROPERTIES 
-    IMPORTED_LOCATION "/usr/local/lib/libxtf_data.a"
+    IMPORTED_LOCATION "/home/sam/workspaces/auvlib/install/lib/libxtf_data.a"
 )
 
 set_target_properties(std_data PROPERTIES 
-    IMPORTED_LOCATION "/usr/local/lib/libstd_data.a"
+    IMPORTED_LOCATION "/home/sam/workspaces/auvlib/install/lib/libstd_data.a"
 )
 
 set_target_properties(mesh_map PROPERTIES 
-    IMPORTED_LOCATION "/usr/local/lib/libmesh_map.a"
+    IMPORTED_LOCATION "/home/sam/workspaces/auvlib/install/lib/libmesh_map.a"
 )
 
 set_target_properties(base_draper PROPERTIES 
-    IMPORTED_LOCATION "/usr/local/lib/libbase_draper.a"
+    IMPORTED_LOCATION "/home/sam/workspaces/auvlib/install/lib/libbase_draper.a"
 )
 
 # Libigl for raytracing

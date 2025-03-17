@@ -44,7 +44,7 @@ If you experience errors with GTSAM libraries not being found, add this line at 
     export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
 
 ## Papers using the frameworks and datasets
-If you find the repo and datasets useful, please cite us.
+If you find the repo and datasets useful, please cite the relevant work.
 ```
 @article{torroba2022fully,
   title={Fully-Probabilistic Terrain Modelling and Localization With Stochastic Variational Gaussian Process Maps},

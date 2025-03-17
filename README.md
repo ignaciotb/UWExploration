@@ -70,6 +70,15 @@ If you find the repo and datasets useful, please cite us.
   year={2023},
   organization={IEEE}
 }
+
+@article{kiessling2024efficient,
+  title={Efficient Non-Myopic Layered Bayesian Optimization For Large-Scale Bathymetric Informative Path Planning},
+  author={Kiessling, Alexander and Torroba, Ignacio and Sidrane, Chelsea Rose and Stenius, Ivan and Tumova, Jana and Folkesson, John},
+  booktitle={2025 IEEE International Conference on Robotics and Automation (ICRA)},
+  year={2025},
+  organization={IEEE}
+}
+
 ```
 
 ## Demos
@@ -188,6 +197,9 @@ The results will look like these (for 3 random particles)
 <img src="utils/media/rbpf.png" height="400" width="800"/>
 
 **Important**: this is a very computationally heavy algorithm, tune it with care or your PC will run out of resources quickly. The params "particle_count" and "num_particle_handlers" will have a direct impact on the memory and GPU usage, so careful when instantiating them. The same applies to the SVGP parameters "svgp_num_ind_points" and "svgp_minibatch_size" and how often the filter prompts a loop closure detection "rbpf_period".
+
+### Non-myopic, layered BO for informative path planning
+Demo code coming soon!
 
 ### Submap graph SLAM
 Currently porting [Bathymetric SLAM](https://github.com/ignaciotb/bathymetric_slam) into this framework.

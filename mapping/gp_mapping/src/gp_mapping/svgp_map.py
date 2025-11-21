@@ -164,15 +164,9 @@ class SVGP_map():
             learn_inducing_points=False,
             mean_module = ConstantMean(constant_prior=NormalPrior(self.prior_mean, self.prior_vari)),
             covar_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.MaternKernel(nu=2.5, )))
+
         self.likelihood = GaussianLikelihood()
-        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
-        self.likelihood.to(self.device).float()
-        self.model.to(self.device).float()
-        
-        self.opt = torch.optim.Adam([
-            {'params': self.model.parameters()},
-            {'params': self.likelihood.parameters()},
-        ], lr=float(self.lr))
+        self.init_opt()
 
         # Convergence criterion
         self.criterion = ExpMAStoppingCriterion(rel_tol=float(self.rtol), 
@@ -180,15 +174,10 @@ class SVGP_map():
         self.ready_for_LC = False # Set to true when ELBO converges
         enable_lc_top = rospy.get_param("~particle_enable_lc", '/enable_lc')
         self.enable_lc_pub = rospy.Publisher(enable_lc_top, Int32, queue_size=10)
-        
-        # Toggle training mode
-        self.model.train()
-        self.likelihood.train()
+        self.listener = tf.TransformListener()
+    
         self.loss = list()
         self.iterations = 0
-
-        self.listener = tf.TransformListener()
-
         print("Map ", self.agent_id, " set up")
 
         # Remove Qt out of main thread warning (use with caution)
@@ -197,6 +186,22 @@ class SVGP_map():
         self.n_plot = 0
         self.n_plot_loss = 0
         self.mission_finished = False  
+
+    def init_opt(self):
+
+        self.likelihood.to(self.device).float()
+        self.model.to(self.device).float()
+        
+        self.mll = gpytorch.mlls.VariationalELBO(self.likelihood, self.model.model, self.mb_size, combine_terms=True)
+        self.opt = torch.optim.Adam([
+            {'params': self.model.parameters()},
+            {'params': self.likelihood.parameters()},
+        ], lr=float(self.lr))
+
+        # Toggle training mode
+        self.model.train()
+        self.likelihood.train()
+
  
     def train_iteration(self):
 
@@ -263,10 +268,10 @@ class SVGP_map():
                         # Store loss for postprocessing
                         self.loss.append(loss_np)
 
-                        if self.agent_id == 0:
-                            if self.verbose == False:
-                                print("Agent ", self.agent_id,
-                                    "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
+                        # if self.agent_id == 0:
+                        if self.verbose == True:
+                            print("Agent ", self.agent_id,
+                                "with iterations: ", self.iterations) #, "Training time ", time.time() - time_start)
                         # print("Training time ", time.time() - time_start)
 
                 else:
@@ -339,13 +344,13 @@ class SVGP_map():
                                 field_names = ("x", "y", "z"), skip_nans=True)))
         beams = np.reshape(beams, (-1,3)) 
 
-        self.sampling = True
         while not rospy.is_shutdown() and self.training:
             rospy.sleep(0.01)
             rospy.logdebug(
                 "GP %s waiting for training before sampling/saving", self.agent_id)
 
         if goal.sample:
+            self.sampling = True
             mu, sigma = self.sample(np.asarray(beams)[:, 0:2])
             self.sampling = False
 
@@ -369,17 +374,24 @@ class SVGP_map():
             # Plot posterior and save it to image
             if goal.plot:
 
-                # Plot the loss
-                self.plot_loss(self.storage_path + '/agent_' + str(self.agent_id) 
-                        + '_training_loss_' + str(self.n_plot_loss) + '.png' )
-                self.n_plot_loss += 1
+                # If beams in request plot the current GP
+                if beams.shape[0] > 100:
+                    # Plot the loss
+                    self.plot_loss(self.storage_path + '/agent_' + str(self.agent_id) 
+                            + '_training_loss_' + str(self.n_plot_loss) + '.png' )
+                    self.n_plot_loss += 1
 
-                # Plot the GP posterior
-                self.plot(beams[:,0:2], beams[:,2], 
-                            self.storage_path + '/agent_' + str(self.agent_id) 
-                            + '_training_' + str(self.n_plot) + '.png',
-                            n=50, n_contours=100 )
-                self.n_plot += 1
+                    # Plot the GP posterior
+                    self.plot(beams[:,0:2], beams[:,2], 
+                                self.storage_path + '/agent_' + str(self.agent_id) 
+                                + '_training_' + str(self.n_plot) + '.png',
+                                n=50, n_contours=100 )
+                    self.n_plot += 1
+
+                # Save GP
+                self.save(self.storage_path + "/agent_" + str(self.agent_id) + "_svgp.pth")
+                self.plotting = False
+                # rospy.loginfo("GP map saved to disk %s", str(self.agent_id))
 
             # Save to disk 
             else:
@@ -392,11 +404,10 @@ class SVGP_map():
                 track_orientation = np.reshape(track_orientation, (-1,3)) 
 
                 # Save GP hyperparams
-                self.save(self.storage_path + "/svgp_final_" +
-                        str(self.agent_id) + ".pth")
+                self.save(self.storage_path + "/agent_" + str(self.agent_id) + "_svgp.pth")
                 # Save agent's MBES map, trajectory and loss
-                np.savez(self.storage_path + "/data_agent_" +
-                        str(self.agent_id) + ".npz", beams=beams, loss=self.loss, 
+                np.savez(self.storage_path + "/agent_" +
+                        str(self.agent_id) + "_data.npz", beams=beams, loss=self.loss, 
                         track_position=track_position, track_orientation=track_orientation)
                 self.plotting = False
                 self.mission_finished = True
@@ -617,12 +628,31 @@ class SVGP_map():
         mbes_pcloud = point_cloud2.create_cloud(header, fields, mbes)
         return mbes_pcloud 
 
+    def get_params(self, dic):
+        # model_params = [val.cpu().numpy() for _, val in model.state_dict().items()]
+        model_params = [val.cpu().numpy() for _, val in dic.items()]
+        return np.concatenate(model_params, axis=None).ravel()
+
+    def set_params(self, updated_model):
+        parameters = []
+        init = 0
+        for _, tensor_parameter in self.model.state_dict().items():
+            end = init + tensor_parameter.numel()  # number of elements in tensor
+            recovered_tensor = torch.tensor(updated_model[init:end], dtype=tensor_parameter.dtype)
+            recovered_tensor = recovered_tensor.view(tensor_parameter.shape)
+            parameters.append(recovered_tensor)
+            init = end
+
+        params_dict = zip(self.model.state_dict().keys(), parameters)
+        state_dict = OrderedDict({k: torch.Tensor(v) for k, v in params_dict})
+        self.model.load_state_dict(state_dict, strict=True)
 
 
 if __name__ == '__main__':
 
     rospy.init_node('svgp_map_node' , disable_signals=False)
     namespace = rospy.get_param("~namespace")
+    train_rate = rospy.get_param("~train_rate")
     agent_number = int(namespace.split('_')[1])
     # particles_per_hdl = rospy.get_param("~num_particles_per_handler")
 
@@ -636,7 +666,7 @@ if __name__ == '__main__':
         svgp_map_node = SVGP_map(int(agent_number))
 
         # In each round, call one minibatch training iteration per SVGP
-        r = rospy.Rate(10)
+        r = rospy.Rate(train_rate)
         while not rospy.is_shutdown():
             # for i in range(0, int(particles_per_hdl)):
             svgp_map_node.train_iteration()  

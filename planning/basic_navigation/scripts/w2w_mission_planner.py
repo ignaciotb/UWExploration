@@ -57,11 +57,15 @@ class W2WMissionPlanner(object):
         # Ask IPP for initial path
         rate = rospy.Rate(1)
         rospy.loginfo("Calling IPP planner for initial path")
-        result = self.request_ipp_path(0)
+        self.request_ipp_path(0)
+        self.ac_plan.wait_for_result()
+        result = self.ac_plan.get_result()
         while len(result.path.poses) <= 0 and not rospy.is_shutdown():
-            result = self.request_ipp_path(0)
+            self.request_ipp_path(0)
+            self.ac_plan.wait_for_result()
+            result = self.ac_plan.get_result()
             rate.sleep() 
-        
+
         self.latest_path.poses += result.path.poses
         rospy.loginfo("Path received with number of wp: %d",
                                 len(result.path.poses))
@@ -71,24 +75,29 @@ class W2WMissionPlanner(object):
                 # Get next waypoint in path
                 wp = self.latest_path.poses[0]
                 del self.latest_path.poses[0]
-                rospy.loginfo("WPs left: %d",
-                                len(self.latest_path.poses))
 
                 # TODO: normalize quaternions here according to rviz warning?
                 goal = MoveBaseGoal(wp)
                 goal.target_pose.header.frame_id = self.map_frame
                 self.ac.send_goal(goal)
                 self.ac.wait_for_result()
-                rospy.loginfo("WP reached, moving on to next one")
+                rospy.loginfo("WP reached, moving on to next one %d",
+                                len(self.latest_path.poses))
 
                 # Request new IPP path when only 3 wp left. 
                 # TODO: this needs to be done based on time to last wp
-                if len(self.latest_path.poses) < 3:
+                if len(self.latest_path.poses) < 3 and not self.replanning:
                     rospy.loginfo("Reaching final WP. Calling IPP planner")
-                    result = self.request_ipp_path(2)
-                    self.latest_path.poses += result.path.poses
-                    rospy.loginfo("Path received with number of wp: %d",
-                                len(result.path.poses))
+                    self.request_ipp_path(2)
+                    self.replanning = True
+                    
+                if self.replanning:
+                    if self.ac_plan.wait_for_result(rospy.Duration(0.01)):
+                        result = self.ac_plan.get_result()
+                        self.latest_path.poses += result.path.poses
+                        rospy.loginfo("Path received with number of wp: %d",
+                                    len(result.path.poses))
+                        self.replanning = False                    
                                     
             elif not self.latest_path.poses:
                 rospy.loginfo_once("Mission finished")
@@ -99,12 +108,9 @@ class W2WMissionPlanner(object):
     def request_ipp_path(self, type):
         goal = PathPlanGoal()
         goal.request = type
-        # self.replanning = True
         self.ac_plan.send_goal(goal)
-        self.ac_plan.wait_for_result()
-        result = self.ac_plan.get_result()
 
-        return result
+        # return result
 
     def path_cb(self, path_msg):
         self.latest_path = path_msg

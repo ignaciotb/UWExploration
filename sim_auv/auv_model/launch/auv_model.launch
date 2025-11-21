@@ -88,7 +88,7 @@
         <param name="mesh_resources" value="$(arg path)" />       
     </node> -->
 
-    <group if="$(eval app == 'basic')">
+    <group if="$(eval app == 'ipp')">
         <node pkg="auv_model" type="auv_multi.py" name="fake_synch_srv" output="screen">
             <param name="synch_topic" value="/$(arg app)/synch" />
         </node>

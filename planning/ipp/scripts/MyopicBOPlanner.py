@@ -45,6 +45,8 @@ import tf.transformations
 from sensor_msgs.msg import PointCloud2
 import actionlib
 from ipp.msg import PathPlanAction, PathPlanActionGoal, PathPlanResult
+from slam_msgs.msg import ManipulatePosteriorAction, ManipulatePosteriorGoal
+
 
 # Path to catch scipy - botorch incompatibility when reaching iter max in optimize_acqf
 from botorch.generation.gen import _process_scipy_result as _orig
@@ -127,17 +129,35 @@ class MyopicBOPlanner():
 
         # Setup timers for callbacks
         self.finish_imminent = False
-        self.bo_planning = False
         # rospy.Timer(rospy.Duration(2), self.periodic_call)
         # self.execute_planner_pub    = rospy.Publisher("execute_planning_topic_handle", std_msgs.msg.Bool, queue_size=1)
 
         # bo_replan_topic = rospy.get_param("~bo_replan_topic")
         # self.execute_planner_sub    = rospy.Subscriber(bo_replan_topic, std_msgs.msg.Bool, self.execute_planning)
         
+        # Client for the FL sharing of GP maps between agents
+        self.fl = True
+        self.storage_path = rospy.get_param("~results_path")
+        manipulate_gp_name = rospy.get_param("~manipulate_gp_server")
+        self.num_followers = rospy.get_param("~num_followers")
+        lead = manipulate_gp_name[:len(manipulate_gp_name) - len(manipulate_gp_name.lstrip('/'))]
+        core = manipulate_gp_name[len(lead):]
+        _, sep, rest = core.partition('/')
+        self.gp_servers = []
+        for i in range(0,self.num_followers+1):
+            follower_i = "hugin_" + str(i)
+            manipulate_gp_name_i = f"{lead}{follower_i}{sep}{rest}"
+            ac_manipulate = actionlib.SimpleActionClient(manipulate_gp_name_i, ManipulatePosteriorAction)
+            while not ac_manipulate.wait_for_server(timeout=rospy.Duration(5)) and not rospy.is_shutdown():
+                print("Waiting for Manipulate AS ")
+            self.gp_servers.append(ac_manipulate)
+        
+        # Server to provide IPP paths
         bo_replan_as = rospy.get_param("~bo_replan_as")
         self._as_plan = actionlib.SimpleActionServer(bo_replan_as, PathPlanAction,
                                                         execute_cb=self.execute_planning, auto_start=False)
         self._as_plan.start()
+
         
         # Initiate training of GP
         r = rospy.Rate(training_rate)
@@ -170,12 +190,7 @@ class MyopicBOPlanner():
             
             self.odom_init = True
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            print("Couldn't get transform")
-
-
-
-        # self.state_history.append(self.state)
-        #print(self.state_history)
+            rospy.logdebug("Couldn't get transform")
 
 
     def initial_deterministic_path(self):
@@ -278,23 +293,7 @@ class MyopicBOPlanner():
             current = pose
         return distance/speed
     
-    # def periodic_call(self, msg):
-    #     """ Timer based callback which initiates planner actions.
 
-    #     Args:
-    #         msg (bool): not used.
-    #     """
-    #     #time2target = self.calculate_time2target()
-    #     if self.nbr_wp < 2 and self.currently_planning == False:
-    #         self.currently_planning = True
-    #         self.execute_planner_pub.publish(True)
-    #         print("Beginning planning...")
-        
-    #     if self.nbr_wp < 1 and self.finish_imminent == False:
-    #         self.finish_imminent = True
-    #         print("Stopping planning... No more tree nodes will be expanded.")
-    
-             
     def execute_planning(self, goal):
         """ 
             This callback essentially runs the entire BO planning loop. To begin with,
@@ -317,6 +316,7 @@ class MyopicBOPlanner():
     
         if self.odom_init:
 
+            # 3 possible planning approaches:
             if goal.request == 0:
                 rospy.loginfo("Initial deterministic path requested")
                 sampling_path = self.initial_deterministic_path()
@@ -327,10 +327,42 @@ class MyopicBOPlanner():
 
             else:
                 rospy.loginfo("IPP path requested")
-                # if not self.gp.training:
                 with self.gp_mutex:
 
-                    self.bo_planning = True
+                    # FL?
+                    if self.fl:
+
+                        # For every follower, read GP from disk
+                        models = []
+                        rospy.loginfo("Path planning with FL")
+                        for i in range(1, self.num_followers+1):
+
+                            goal = ManipulatePosteriorGoal()
+                            goal.sample = False
+                            goal.plot = True
+                            self.gp_servers[i].send_goal(goal)
+                            self.gp_servers[i].wait_for_result()
+
+                            gp_map_i_dic = torch.load(self.storage_path + "/agent_" + str(i) + "_svgp.pth")
+                            models.append(self.gp.get_params(gp_map_i_dic['model']))
+
+                        # Avg FL
+                        avg_model = np.mean(models, axis=0)
+                        # Set IPP GP with new params
+                        self.gp.set_params(avg_model)
+
+                        ## TODO: save likelihood as well?
+
+                        # Reset mll, likelihood and optimizer 
+                        self.gp.init_opt()
+
+                        # Save the BO GP as well, for comparison purposes
+                        goal = ManipulatePosteriorGoal()
+                        goal.sample = False
+                        goal.plot = True
+                        self.gp_servers[0].send_goal(goal)
+                        self.gp_servers[0].wait_for_result()
+
                     # Myopic quick candidate with angle optimization 
 
                     # rush_order_activated  = True
@@ -395,8 +427,6 @@ class MyopicBOPlanner():
                     self.currently_planning = False
                     self.finish_imminent = False
 
-                    self.bo_planning = False
-                    
                     #torch.save({"model": angle_gp.state_dict()}, self.store_path  + "_GP_" + str(round(self.distance_travelled)) + "_angle.pickle")
                     #torch.save({"model": self.gp.model.state_dict()}, self.store_path + "_GP_" + str(round(self.distance_travelled)) + "_env.pickle")
                     #print("Decision models saved.")

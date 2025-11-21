@@ -282,10 +282,6 @@ class auv_ui_online(object):
         np.savez(self.survey_name+"_svgp_input"+".npz", points=self.means_all,
                 covs=self.covs_all)
         # np.save(self.survey_name+ "_svgp_input_dr.npy", self.means_all)
-
-        # duration = 2  # seconds
-        # freq = 340  # Hz
-        # os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
         
         print("Final AUV sigma")
         print(self.sigma_t)

@@ -38,7 +38,6 @@
 	<arg name="pitch" default="0.0"/>
 	<arg name="yaw" default="0.0"/>
 
-
 	<group ns="$(arg namespace)">
 
 		<!-- Reproduce real Hugin survey -->
@@ -83,7 +82,7 @@
 		<!-- Simulate Hugin AUV -->
 		<group if="$(eval mode == 'sim')" ns="$(eval mode)">
 			<node pkg="tf" type="static_transform_publisher" name="tf_world_map_pub" 
-					args="0 0 0 0 0 0 world map 50" />
+					args="0 0 0 0 0 0 world map 1" />
 				
 			<include file="$(find auv_model)/launch/auv_model.launch" >
 				<arg name="mode" value="$(arg mode)"/>

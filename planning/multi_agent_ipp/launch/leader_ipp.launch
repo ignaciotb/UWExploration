@@ -39,7 +39,7 @@
     <arg name="results_path"                    default="/home/torroba/catkin_workspaces/auv_ws/src/UWExploration/planning/ipp/data/"/>   
     <arg name="num_particles_per_handler"       default="1"/>      
     <arg name="svgp_minibatch_size"             default="1024" />
-    <arg name="prior_mean"                      default="0" />
+    <arg name="prior_mean"                      default="-20" />
     <arg name="prior_vari"                      default="4.0" />
 
     <!-- Planner parameters -->
@@ -87,12 +87,13 @@
             <param name="svgp_rtol" value="1e-3"/>     
             <param name="svgp_n_window" type="int" value="400"/>     
             <param name="svgp_auto_stop" value="False"/>     
-            <param name="svgp_verbose" value="True"/>     
+            <param name="svgp_verbose" value="False"/>     
             <param name="num_particles_per_handler" value="$(arg num_particles_per_handler)"/>     
             <param name="results_path" value="$(arg results_path)"/> 
             <param name="particle_enable_lc" value="/$(arg namespace)/enable_lc"/> 
             <param name="n_beams_mbes"   type= "int"  value="$(arg n_beams_mbes)" />  
             <param name="bo_replan_as"   value="$(arg bo_replan_as)" />  
+            <param name="num_followers"   value="2" />  
 
             <param name="turning_radius"            value="$(arg turning_radius)" />
             <param name="path_topic_vis"                value="/$(arg namespace)/path/visualization" />
@@ -139,6 +140,7 @@
 
     <!-- Run waypoint handler / navigation control -->
     <include file="$(find basic_navigation)/launch/basic_mission.launch" >
+        <arg name="app"                         default="$(arg app)"/>
         <arg name="manual_control"              default="False"/>
         <arg name="namespace"                   default="$(arg namespace)"/>
         <arg name="path_topic"                  default="/$(arg namespace)/waypoints"/>
@@ -152,6 +154,7 @@
         <arg name="namespace"                   default="$(arg namespace)"/>
         <arg name="leader"                      default="$(arg leader)"/>
         <arg name="dataset"                     default="$(arg dataset)"/>
+        <arg name="app"                         default="$(arg app)"/>
         <arg name="x"                           default="$(arg x)"/>
         <arg name="y"                           default="$(arg y)"/>
         <arg name="z"                           default="$(arg z)"/>
